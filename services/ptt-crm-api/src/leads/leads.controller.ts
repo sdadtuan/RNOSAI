@@ -1,0 +1,1122 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpException,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  ServiceUnavailableException,
+  ForbiddenException,
+  NotFoundException,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
+import { Request } from 'express';
+import { memoryStorage } from 'multer';
+import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
+import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
+import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.service';
+import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
+import { AppConfigService } from '../config/app-config.service';
+import {
+  isAccountManagerPosition,
+  isB2bDirectorPosition,
+  isMarketingLeaderPosition,
+} from '../b2b-projects/b2b-director.util';
+import { leadIsFromSolutionOnward } from '../leads-funnel/solution-onward.util';
+import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
+import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
+import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls.types';
+import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
+import { B2bIntelligenceService } from '../b2b-projects/b2b-intelligence.service';
+import { B2bConversationsService } from '../b2b-projects/b2b-conversations.service';
+import { B2bProjectsService } from '../b2b-projects/b2b-projects.service';
+import {
+  assertLeadPatchFieldsAllowed,
+  maskLeadPhoneAndEmail,
+  serializeLeadForCaps,
+  serializeLeadsForCaps,
+} from '../staff-permissions/field-level.serializer';
+import { StaffSectionCap } from '../staff-auth/staff-auth.types';
+import { WriteEnabledGuard } from './guards/write-enabled.guard';
+import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
+import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
+import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-review-queue.guard';
+import { LeadExportQuery, LeadsIoService } from './leads-io.service';
+import { LeadsService } from './leads.service';
+import { LeadsWriteService } from './leads-write.service';
+import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
+import { LeadSlaCareService } from './lead-sla-care.service';
+import { ChotClosedLoopService } from './chot-closed-loop.service';
+import { CopilotContextService } from './copilot-context.service';
+import { SlaAutoTaskService } from './sla-auto-task.service';
+import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
+import { LeadPatchFinalizeService } from './lead-patch-finalize.service';
+import {
+  AssignLeadBody,
+  CreateLeadActivityBody,
+} from '../crm-leads-legacy/crm-leads-legacy.types';
+import { LeadAttributionService } from './lead-attribution.service';
+import { LeadAttributionResponse } from './lead-attribution.types';
+import { CrmConfigService } from '../crm-config/crm-config.service';
+import {
+  CreateLeadV1Body,
+  LeadV1,
+  LeadsListResponseV1,
+  ListLeadsQuery,
+  PatchLeadV1Body,
+  BulkAssignLeadsBody,
+  BulkAssignLeadsResult,
+} from './leads.types';
+import { kanbanCallMayRevealPhone, kanbanCallOutcome, kanbanHoldPatch } from './kanban-card.util';
+import { isStatusTransitionAllowed } from './lead-status-gate.util';
+
+@Controller('api/v1/leads')
+export class LeadsController {
+  constructor(
+    private readonly leadsService: LeadsService,
+    private readonly leadsWriteService: LeadsWriteService,
+    private readonly leadsIo: LeadsIoService,
+    private readonly crmConfig: CrmConfigService,
+    private readonly staffAuth: StaffAuthService,
+    private readonly statusGate: LeadStatusGateService,
+    private readonly slaCare: LeadSlaCareService,
+    private readonly closedLoop: ChotClosedLoopService,
+    private readonly copilotContext: CopilotContextService,
+    private readonly slaAutoTask: SlaAutoTaskService,
+    private readonly rbacAudit: StaffRbacAuditRepository,
+    private readonly clientScope: StaffClientScopeService,
+    private readonly piiAudit: PiiAccessAuditService,
+    private readonly appConfig: AppConfigService,
+    private readonly b2bLeadScope: B2bLeadScopeService,
+    private readonly b2bProjects: B2bProjectsService,
+    private readonly b2bCalls: B2bCallsService,
+    private readonly b2bStringeeToken: B2bStringeeTokenService,
+    private readonly b2bIntelligence: B2bIntelligenceService,
+    private readonly b2bConversations: B2bConversationsService,
+    private readonly crmLegacy: CrmLeadsLegacyService,
+    private readonly leadAttribution: LeadAttributionService,
+    private readonly leadPatchFinalize: LeadPatchFinalizeService,
+  ) {}
+
+  private mayFilterLeadsByOwner(me: {
+    caps: StaffSectionCap[];
+    position_code?: string | null;
+    job_functions?: string[] | null;
+  }): boolean {
+    const position = String(me.position_code ?? '').trim().toLowerCase();
+    return (
+      position === 'super-admin' ||
+      hasGdkdViewAllLeads(me.caps) ||
+      isB2bDirectorPosition(me.position_code) ||
+      isAccountManagerPosition(me.position_code) ||
+      (me.job_functions ?? []).includes('leader')
+    );
+  }
+
+  private leadActor(
+    req: Request & { staffUser?: StaffJwtPayload },
+    actorHeader?: string,
+  ): string {
+    return String(actorHeader ?? req.staffUser?.email ?? 'staff');
+  }
+
+  @Get('owner-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listOwnerOptions(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      if (!this.mayFilterLeadsByOwner(me)) return { owners: [] as Array<{ id: number; name: string }> };
+    }
+    return { owners: await this.leadsService.listOwnerOptions() };
+  }
+
+  @Get('lookup-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  listLookupOptions(@Query('kind') kind?: string) {
+    const normalizedKind = kind === 'source' || kind === 'channel' ? kind : undefined;
+    return this.crmConfig.listLeadLookups(normalizedKind, true);
+  }
+
+  /** Active PTT projects for B2B lead create — same rows as menu Dự án PTT
+   * (crm_delivery_projects, capability lead_ingest). crm_leads.view.
+   * Non–view-all staff only see projects they belong to on crm_b2b_project_staff. */
+  @Get('b2b-project-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listB2bProjectOptions(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('status') status?: string,
+  ) {
+    const statusFilter = status?.trim() || 'active';
+    let staffId: number | undefined;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const seeAll =
+        this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
+      if (!seeAll) {
+        const resolved = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (resolved == null || resolved <= 0) {
+          return { projects: [] as Array<{ id: string; code: string; name: string; status: string }> };
+        }
+        staffId = resolved;
+      }
+    }
+    return { projects: await this.b2bProjects.listLeadIngestOptions(statusFilter, staffId) };
+  }
+
+  @Get('import/template.xlsx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async downloadImportTemplate(@Res({ passthrough: false }) res: Response) {
+    const { buffer, filename } = await this.leadsIo.buildTemplate();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Get('export.xlsx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async exportLeads(
+    @Res({ passthrough: false }) res: Response,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('client_id') clientId?: string,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+    @Query('channel') channel?: string,
+    @Query('q') q?: string,
+    @Query('ids') ids?: string,
+    @Query('hide_review_queue') hideReviewQueue?: string,
+  ) {
+    const truthy = (v?: string) => v === '1' || v === 'true';
+    const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
+    const parsedIds = ids
+      ? ids
+          .split(',')
+          .map((part) => Number(part.trim()))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      : undefined;
+
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertListClientFilter(scope, clientId);
+
+    let b2bListScope: ListLeadsQuery['b2b_list_scope'];
+    let b2bExportActor: LeadExportQuery['b2b_export_actor'];
+    let fromSolutionOnward = false;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
+      if (this.appConfig.b2bProjectOs && !fromSolutionOnward) {
+        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (staffId != null) {
+          b2bListScope = this.b2bLeadScope.buildListScope({
+            staffId,
+            caps: me.caps,
+            positionCode: me.position_code,
+          });
+          b2bExportActor = {
+            staffId,
+            caps: me.caps,
+            positionCode: me.position_code,
+          };
+        }
+      }
+    }
+
+    const caps = await this.resolveCaps(req);
+    const { buffer, filename } = await this.leadsIo.exportXlsx(
+      {
+        client_id: clientId,
+        status,
+        source,
+        channel,
+        q,
+        hide_review_queue: hideExplicitFalse ? false : undefined,
+        ids: parsedIds?.length ? parsedIds : undefined,
+        allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+        b2b_list_scope: b2bListScope,
+        b2b_export_actor: b2bExportActor,
+        from_solution_onward: fromSolutionOnward || undefined,
+      },
+      caps,
+      (c, s, a) => this.staffAuth.hasCap(c, s, a),
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  importLeads(@UploadedFile() file: Express.Multer.File) {
+    return this.leadsIo.importXlsx(file);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async createLead(
+    @Body() body: CreateLeadV1Body,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<LeadV1> {
+    const next: CreateLeadV1Body = { ...body };
+    // Manual create by staff: always own the lead (AE tạo tay → gán AE đó).
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const actorStaffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (actorStaffId != null && actorStaffId > 0) {
+        const explicit = next.owner_id != null && Number(next.owner_id) > 0;
+        const isManualB2b = next.lead_flow_kind === 'b2b_prospect';
+        const isManualSpa = next.lead_flow_kind === 'spa_operational';
+        const source = String(next.source ?? '').trim().toLowerCase();
+        const looksManual = !source || source === 'manual' || source === 'nhập tay';
+        if (!explicit && (isManualB2b || isManualSpa || looksManual)) {
+          next.owner_id = actorStaffId;
+        }
+        // B2B hand-create: force creator as owner even if client sent another id without assign-all.
+        if (isManualB2b) {
+          const me = await this.staffAuth.me(req.staffUser);
+          const canReassign =
+            this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
+          if (!canReassign) {
+            next.owner_id = actorStaffId;
+          }
+        }
+      }
+    }
+    return this.leadsWriteService.createLead(next);
+  }
+
+  @Post('bulk-assign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async bulkAssignLeads(
+    @Body() body: BulkAssignLeadsBody,
+    @Headers('x-ptt-actor') actor?: string,
+  ): Promise<BulkAssignLeadsResult> {
+    return this.leadsWriteService.bulkAssignLeads(body, actor);
+  }
+
+  @Post(':id/party-logo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  async uploadPartyLogo(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<LeadV1> {
+    return this.leadsWriteService.uploadPartyLogo(id, file);
+  }
+
+  @Delete(':id/party-logo')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async deletePartyLogo(@Param('id', ParseIntPipe) id: number): Promise<LeadV1> {
+    return this.leadsWriteService.deletePartyLogo(id);
+  }
+
+  @Get(':id/party-logo')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getPartyLogo(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const logo = await this.leadsWriteService.readPartyLogo(id);
+    res.setHeader('Content-Type', logo.mime);
+    res.setHeader('ETag', logo.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(logo.buffer);
+  }
+
+  @Patch(':id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async patchLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchLeadV1Body,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-ptt-actor') actor?: string,
+  ): Promise<LeadV1> {
+    const prev = await this.leadsService.getLead(id);
+    if (!prev) {
+      throw new NotFoundException({ error: 'Not found' });
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const caps = await this.resolveCaps(req);
+      assertLeadPatchFieldsAllowed(body as Record<string, unknown>, caps, (c, s, a) =>
+        this.staffAuth.hasCap(c, s, a),
+      );
+    }
+    const gateOpts = await this.statusGateOpts(req, body);
+    const actorId = this.leadActor(req, actor);
+    const lead = await this.leadsWriteService.patchLead(id, body, actorId, gateOpts);
+    await this.leadPatchFinalize.finalize({
+      leadId: id,
+      prev,
+      next: lead,
+      actor: actorId,
+      auditNote: body.audit_note ?? '',
+    });
+    if (body.allow_status_override && req.staffUser) {
+      void this.rbacAudit.log({
+        event_type: 'gdkd_status_override',
+        actor_email: req.staffUser.email,
+        section_id: 'crm_gdkd',
+        action: 'override',
+        metadata: {
+          lead_id: id,
+          reason: String(body.status_override_reason ?? body.audit_note ?? '').trim(),
+          new_status: body.status ?? lead.status,
+        },
+      });
+    }
+    return lead;
+  }
+
+  private async statusGateOpts(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    body: PatchLeadV1Body,
+  ): Promise<LeadStatusGatePatchOptions> {
+    if (!body.allow_status_override) return {};
+    if (req.staffAuthVia === 'internal') {
+      return { allowStatusOverride: true };
+    }
+    if (!req.staffUser) return {};
+    const me = await this.staffAuth.me(req.staffUser);
+    const canAssign = hasGdkdAssign(me.caps);
+    return { allowStatusOverride: canAssign };
+  }
+
+  @Get()
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listLeads(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('client_id') clientId?: string,
+    @Query('status') status?: string,
+    @Query('status_any') statusAny?: string,
+    @Query('call_result_any') callResultAny?: string,
+    @Query('handoff_any') handoffAny?: string,
+    @Query('source') source?: string,
+    @Query('channel') channel?: string,
+    @Query('q') q?: string,
+    @Query('received_from') receivedFrom?: string,
+    @Query('received_to') receivedTo?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('review_queue_only') reviewQueueOnly?: string,
+    @Query('hide_review_queue') hideReviewQueue?: string,
+    @Query('owner_id') ownerId?: string,
+    @Query('unassigned_only') unassignedOnly?: string,
+    @Query('assigned_only') assignedOnly?: string,
+    @Query('lead_flow_kind') leadFlowKind?: string,
+  ): Promise<LeadsListResponseV1> {
+    const truthy = (v?: string) => v === '1' || v === 'true';
+    const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
+    const flowKind =
+      leadFlowKind === 'spa_operational' || leadFlowKind === 'b2b_prospect'
+        ? leadFlowKind
+        : undefined;
+
+    let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
+    let b2bListScope: ListLeadsQuery['b2b_list_scope'];
+    let fromSolutionOnward = false;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (this.appConfig.b2bProjectOs && flowKind === 'b2b_prospect' && staffId != null) {
+        b2bListScope = this.b2bLeadScope.buildListScope({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        });
+        if (!this.mayFilterLeadsByOwner(me)) {
+          resolvedOwnerId = undefined;
+        }
+      } else if (!hasGdkdViewAllLeads(me.caps) && !fromSolutionOnward) {
+        if (staffId != null && resolvedOwnerId == null && !truthy(unassignedOnly)) {
+          resolvedOwnerId = staffId;
+        }
+      }
+      if (fromSolutionOnward) {
+        resolvedOwnerId = undefined;
+        b2bListScope = undefined;
+      }
+    }
+
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertListClientFilter(scope, clientId);
+
+    const splitQuery = (raw?: string) =>
+      String(raw ?? '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+    const statuses = splitQuery(statusAny);
+    const callResults = splitQuery(callResultAny);
+    const handoffs = splitQuery(handoffAny);
+    return this.leadsService.listLeads({
+      client_id: clientId,
+      status: statuses.length ? undefined : status,
+      statuses: statuses.length ? statuses : undefined,
+      call_results: callResults.length ? callResults : undefined,
+      handoffs: handoffs.length ? handoffs : undefined,
+      source,
+      channel,
+      q,
+      received_from: receivedFrom,
+      received_to: receivedTo,
+      limit: limit !== undefined ? Number(limit) : undefined,
+      offset: offset !== undefined ? Number(offset) : undefined,
+      review_queue_only: truthy(reviewQueueOnly),
+      hide_review_queue: hideExplicitFalse ? false : undefined,
+      owner_id: resolvedOwnerId,
+      unassigned_only: truthy(unassignedOnly),
+      assigned_only: truthy(assignedOnly) && !truthy(unassignedOnly),
+      lead_flow_kind: flowKind,
+      allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+      b2b_list_scope: b2bListScope,
+      from_solution_onward: fromSolutionOnward || undefined,
+    }).then(async (result) => {
+      if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
+      const caps = (await this.staffAuth.isSuperAdminUser(req.staffUser))
+        ? this.staffAuth.superAdminCaps()
+        : await this.resolveCaps(req);
+      const leads = serializeLeadsForCaps(result.leads, caps, (c, s, a) =>
+        this.staffAuth.hasCap(c, s, a),
+      ).map((lead) => this.maskForeignAmContact(lead, b2bListScope));
+      return {
+        ...result,
+        leads,
+      };
+    });
+  }
+
+  @Get(':id/status-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadStatusOptions(@Param('id', ParseIntPipe) id: number) {
+    return this.statusGate.getStatusOptions(id);
+  }
+
+  @Get(':id/attribution')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getLeadAttribution(@Param('id', ParseIntPipe) id: number): Promise<LeadAttributionResponse> {
+    const data = await this.leadAttribution.getLeadAttribution(id);
+    return {
+      data,
+      meta: { request_id: this.leadAttribution.newRequestId() },
+      errors: [],
+    };
+  }
+
+  @Get(':id/activities')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listLeadActivities(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? Number(limit) : 100;
+    const activities = await this.crmLegacy.listActivities(id, Number.isFinite(lim) ? lim : 100);
+    return { activities };
+  }
+
+  @Post(':id/activities')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async createLeadActivity(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateLeadActivityBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.crmLegacy.createActivity(id, body, this.leadActor(req), userId);
+  }
+
+  @Get(':id/audit')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadAudit(@Param('id', ParseIntPipe) id: number) {
+    return this.crmLegacy.auditLogs(id);
+  }
+
+  @Post(':id/assign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async assignLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AssignLeadBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ): Promise<LeadV1> {
+    const out = await this.crmLegacy.assignLead(id, body, this.leadActor(req));
+    return out.lead;
+  }
+
+  /** Phase 1 — SLA-aware care context (Spa Meta 24h): banner, NBA, drafts. */
+  @Get(':id/sla-care-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadSlaCareContext(@Param('id', ParseIntPipe) id: number) {
+    return this.slaCare.getCareContext(id);
+  }
+
+  /** Phase 3 — Chốt closed-loop context (VND, QA flags, hub link). */
+  @Get(':id/closed-loop-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadClosedLoopContext(@Param('id', ParseIntPipe) id: number) {
+    return this.closedLoop.getLeadContext(id);
+  }
+
+  /** Unified copilot context — flow_kind, SLA, funnel, activities, catalog, drafts. */
+  @Get(':id/copilot-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadCopilotContext(@Param('id', ParseIntPipe) id: number) {
+    return this.copilotContext.getContext(id);
+  }
+
+  /** W4 — explainable score + B2B next-best-action for lead detail. */
+  @Get(':id/b2b-intelligence')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getB2bIntelligence(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bIntelligence.getLeadIntelligence(id);
+  }
+
+  /** W5 — Zalo OA conversation thread on lead. */
+  @Get(':id/b2b-conversation')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getB2bConversation(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bConversations.getLeadThread(id);
+  }
+
+  @Post(':id/b2b-conversation/messages')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async postB2bConversationMessage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { body?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const text = String(body?.body ?? '').trim();
+    if (!text) {
+      throw new HttpException({ error: 'body_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bConversations.appendOutboundMessage({ leadId: id, body: text });
+  }
+
+  /** Phase 3 — Track SCI/talk-track copy for playbook A/B. */
+  @Post(':id/closed-loop/script-copy')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  trackCallScriptCopy(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { source?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+    const raw = String(body?.source ?? 'sci').trim().toLowerCase();
+    const source =
+      raw === 'sop' || raw === 'manual' ? 'sop' : raw === 'ai_v1' || raw === 'ai' ? 'ai_v1' : 'sci';
+    return this.closedLoop.trackCallScriptCopy(id, actor, source).then(() => ({ ok: true }));
+  }
+
+  /** E2 — safe SLA reminder activity (BR-AI-01: internal note only). */
+  @Post(':id/sla-auto-task')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async createSlaAutoTask(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+      suggested_action: 'log_call' | 'complete_b2' | 'set_chot_audit' | 'set_lost_reason' | 'reassign';
+      message?: string;
+    },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.slaAutoTask.createReminder(id, body, actor, userId);
+  }
+
+  /** Kanban Gọi ngay: log the full-number view, then store the required result. */
+  @Post(':id/kanban-call')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async kanbanCall(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      phase?: 'start' | 'result';
+      result?: 'answered' | 'no_answer' | 'unreachable' | 'wrong_number' | 'callback';
+      note?: string;
+      next_call_at?: string;
+    },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    const actor = this.leadActor(req);
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const viewerId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (viewerId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId: viewerId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (
+        !kanbanCallMayRevealPhone({
+          memberProjectPool: Boolean(scope.memberProjectPool),
+          ownerId: lead.owner_id,
+          staffId,
+        })
+      ) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    const phase = body.phase === 'result' ? 'result' : 'start';
+    if (phase === 'start') {
+      await this.leadsWriteService.logKanbanCall(id, {
+        phase: 'start',
+        note: 'Bắt đầu gọi',
+        actor,
+      });
+      const email = String(req.staffUser?.email ?? actor);
+      await this.piiAudit
+        .logLeadPiiView({
+          actor_email: email,
+          actor_user_id: req.staffUser?.sub,
+          lead_id: id,
+          request_path: `/api/v1/leads/${id}/kanban-call`,
+        })
+        .catch(() => undefined);
+      return { phone, suggest_lost: false };
+    }
+    const result = String(body.result ?? '');
+    if (!['answered', 'no_answer', 'wrong_number', 'callback', 'unreachable'].includes(result)) {
+      throw new HttpException({ error: 'call_result_required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (result === 'callback' && !String(body.next_call_at ?? '').trim()) {
+      throw new HttpException({ error: 'callback_time_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const labels: Record<string, string> = {
+      answered: 'Nghe máy',
+      no_answer: 'Không nghe máy',
+      wrong_number: 'Sai số',
+      callback: 'Hẹn gọi lại',
+      unreachable: 'Máy bận',
+    };
+    const note = String(body.note ?? '').trim();
+    const holdContext = await this.leadsWriteService.loadKanbanHoldContext(id);
+    const now = new Date();
+    const callbackAt = result === 'callback' ? new Date(String(body.next_call_at)) : null;
+    const hold = kanbanHoldPatch({
+      result,
+      assignedAt: holdContext?.assignedAt ?? now,
+      callbackAt: callbackAt && !Number.isNaN(callbackAt.getTime()) ? callbackAt : null,
+      lastCallAt: holdContext?.lastCallAt ?? null,
+      attemptsSinceAssign: holdContext?.attemptsSinceAssign ?? 0,
+      reassignCount: holdContext?.reassignCount ?? 0,
+      isHot: holdContext?.isHot ?? false,
+      now,
+    });
+    await this.leadsWriteService.logKanbanCall(id, {
+      phase: 'result',
+      result,
+      note: [labels[result], note].filter(Boolean).join(' — '),
+      actor,
+    });
+    const tracksHold = ['answered', 'no_answer', 'unreachable', 'callback'].includes(result);
+    if (tracksHold) {
+      await this.leadsWriteService.saveKanbanHold(id, {
+        holdUntil: hold.hold_until,
+        holdReason: hold.hold_reason,
+        callbackAt: hold.callback_at,
+        incrementAttempts: result !== 'answered',
+      });
+    }
+    const outcome = kanbanCallOutcome(result);
+    const status = String(lead.status ?? '').trim().toLowerCase();
+    const flow = lead.lead_flow_kind === 'b2b_prospect' ? 'b2b_prospect' : 'spa_operational';
+    const auditNote = (note || labels[result] || 'Đã gọi').trim();
+    const safeNote = auditNote.length >= 3 ? auditNote : 'Đã gọi khách';
+    if (result === 'callback' && body.next_call_at) {
+      if (isStatusTransitionAllowed(status, 'nurture', flow)) {
+        await this.leadsWriteService.patchLead(
+          id,
+          { status: 'nurture', audit_note: safeNote, next_call_at: body.next_call_at },
+          actor,
+        );
+      } else {
+        await this.leadsWriteService.patchLead(id, { next_call_at: body.next_call_at }, actor);
+      }
+    } else if (outcome.nextStatus && (status === 'moi' || status === 'new' || status === 'first_contact')) {
+      await this.leadsWriteService.patchLead(
+        id,
+        {
+          status: outcome.nextStatus,
+          audit_note: safeNote,
+        },
+        actor,
+      );
+    }
+    return { phone, suggest_lost: outcome.suggestLost, warn: hold.warn };
+  }
+
+  /** B2B softphone — mock CPaaS with tel: fallback when down. */
+  @Post(':id/calls')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async startLeadCall(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) {
+      throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (
+        !kanbanCallMayRevealPhone({
+          memberProjectPool: Boolean(scope.memberProjectPool),
+          ownerId: lead.owner_id,
+          staffId,
+        })
+      ) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
+    }
+    try {
+      const out = await this.b2bCalls.startHumanCall({ leadId: id, staffId, phone });
+      return { ok: true, ...out };
+    } catch (err) {
+      if (err instanceof B2bDncBlockedError) {
+        throw new ForbiddenException({ error: 'dnc_blocked' });
+      }
+      if (err instanceof B2bCpaasDownError) {
+        throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+      }
+      throw err;
+    }
+  }
+
+  /** Stringee WebRTC access token for in-browser softphone. */
+  @Post(':id/calls/token')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async leadCallToken(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (scope.memberProjectPool && Number(lead.owner_id) !== Number(staffId)) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) {
+      throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!this.b2bStringeeToken.isConfigured()) {
+      throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+    }
+    const token = this.b2bStringeeToken.createStaffUserToken(staffId);
+    if (!token) {
+      throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+    }
+    return {
+      ...token,
+      from_number: this.appConfig.stringeeFromNumber,
+      to_number: phone,
+      lead_id: id,
+    };
+  }
+
+  /** Digits only so static paths such as /review-queue are not parsed as a lead id. */
+  @Get(':id(\\d+)')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async getLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<LeadV1> {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertLeadAccessible(scope, lead.client_id);
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const viewer = await this.staffAuth.me(req.staffUser);
+      if (isMarketingLeaderPosition(viewer.position_code) && !leadIsFromSolutionOnward(lead)) {
+        throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+      }
+    }
+    let listScope: ListLeadsQuery['b2b_list_scope'];
+    if (this.appConfig.b2bProjectOs && req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        listScope = this.b2bLeadScope.buildListScope({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        });
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return lead;
+    const caps = await this.resolveCaps(req);
+    const serialized = this.maskForeignAmContact(
+      serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a)),
+      listScope,
+    );
+    if (this.staffAuth.hasCap(caps, 'crm_leads', 'view_pii') && req.staffUser.email) {
+      void this.piiAudit.logLeadPiiView({
+        actor_email: req.staffUser.email,
+        lead_id: id,
+        request_path: req.originalUrl ?? `/api/v1/leads/${id}`,
+      });
+    }
+    return serialized;
+  }
+
+  private maskForeignAmContact<T extends { owner_id?: number | null; phone?: string | null; email?: string | null }>(
+    lead: T,
+    scope: { memberProjectPool?: boolean; staffId: number } | undefined,
+  ): T {
+    if (!scope?.memberProjectPool) return lead;
+    if (lead.owner_id != null && Number(lead.owner_id) === Number(scope.staffId)) return lead;
+    return maskLeadPhoneAndEmail(lead);
+  }
+
+  private async resolveCaps(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<StaffSectionCap[]> {
+    if (!req.staffUser) return [];
+    const me = await this.staffAuth.me(req.staffUser);
+    return me.caps;
+  }
+}

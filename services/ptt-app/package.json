@@ -1,0 +1,21 @@
+{
+  "name": "ptt-app",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "cap:sync": "cap sync",
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "6.2.0",
+    "@capacitor/push-notifications": "^6.0.4",
+    "@capawesome/capacitor-badge": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.0",
+    "typescript": "5.6.3"
+  }
+}

@@ -1,0 +1,14 @@
+# RNOSAI AM renewal window job (oneshot).
+# Identity and env must match deploy/ptt-crm-api.service (User=deploy, repo-root .env).
+# Do not add @nestjs/schedule. Do not set AM_AI_ENABLED.
+
+[Unit]
+Description=RNOSAI AM renewal window job
+After=ptt-crm-api.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/rnosai/services/ptt-crm-api
+EnvironmentFile=-/var/www/rnosai/.env
+ExecStart=/usr/bin/node dist/scripts/run_am_job.js renewal
+User=deploy

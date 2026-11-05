@@ -1,0 +1,209 @@
+import {
+  accountManagerMayOpenSolutionLead,
+  canSeeB2bLead,
+  marketingLeaderMayOpenSolutionLead,
+  redactLeadIfDenied,
+} from './b2b-visibility.util';
+
+const project = 'proj-a';
+const memberOn: {
+  staffId: number;
+  isDirector: boolean;
+  hasViewAllLeads: boolean;
+  isActivePttStaff: boolean;
+} = {
+  staffId: 10,
+  isDirector: false,
+  hasViewAllLeads: false,
+  isActivePttStaff: true,
+};
+
+describe('canSeeB2bLead', () => {
+  it('B2B-02 outsider 404', () => {
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 99, projectId: project }, []),
+    ).toBe(false);
+  });
+
+  it('B2B-03 view_all sees all', () => {
+    expect(
+      canSeeB2bLead(
+        { ...memberOn, hasViewAllLeads: true },
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: project },
+        [],
+      ),
+    ).toBe(true);
+  });
+
+  it('B2B-03 director sees all', () => {
+    expect(
+      canSeeB2bLead(
+        { ...memberOn, isDirector: true },
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: project },
+        [],
+      ),
+    ).toBe(true);
+  });
+
+  it('B2B-04 owner sees own when assign disabled', () => {
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 10, projectId: project },
+        [{ projectId: project, assignEnabled: false }],
+      ),
+    ).toBe(true);
+  });
+
+  it('B2B-05 left project keeps own lead only', () => {
+    const own = canSeeB2bLead(
+      memberOn,
+      { flowKind: 'b2b_prospect', ownerId: 10, projectId: project },
+      [],
+    );
+    const teammate = canSeeB2bLead(
+      memberOn,
+      { flowKind: 'b2b_prospect', ownerId: 11, projectId: project },
+      [],
+    );
+    const unassigned = canSeeB2bLead(
+      memberOn,
+      { flowKind: 'b2b_prospect', ownerId: null, projectId: project },
+      [],
+    );
+    expect(own).toBe(true);
+    expect(teammate).toBe(false);
+    expect(unassigned).toBe(false);
+  });
+
+  it('account manager may open a solution-desk lead they do not own', () => {
+    const am = { ...memberOn, seesMemberProjectPool: true };
+    expect(accountManagerMayOpenSolutionLead(am, true)).toBe(true);
+    expect(accountManagerMayOpenSolutionLead(am, false)).toBe(false);
+    expect(accountManagerMayOpenSolutionLead(memberOn, true)).toBe(false);
+    expect(
+      accountManagerMayOpenSolutionLead({ ...am, isActivePttStaff: false }, true),
+    ).toBe(false);
+  });
+
+  it('marketing leader may open a handed-off solution and not a normal lead', () => {
+    const leader = { ...memberOn, seesHandedOffSolutions: true };
+    expect(marketingLeaderMayOpenSolutionLead(leader, true)).toBe(true);
+    expect(marketingLeaderMayOpenSolutionLead(leader, false)).toBe(false);
+    expect(marketingLeaderMayOpenSolutionLead(memberOn, true)).toBe(false);
+    expect(
+      canSeeB2bLead(leader, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, []),
+    ).toBe(false);
+  });
+
+  it('account manager sees a b2b lead outside their projects', () => {
+    const am = { ...memberOn, seesAllB2bLeads: true };
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' }, []),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: null, projectId: null }, []),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(
+        { ...am, isActivePttStaff: false },
+        { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' },
+        [],
+      ),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, []),
+    ).toBe(false);
+  });
+
+  it('account manager sees every lead on a project they belong to', () => {
+    const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
+    const am = { ...memberOn, seesMemberProjectPool: true };
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' }, mem),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
+    ).toBe(false);
+  });
+
+  it('sales with assign_enabled still only sees own lead (not project pool)', () => {
+    const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 10, projectId: project }, mem),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: null, projectId: project }, mem),
+    ).toBe(false);
+  });
+
+  it('inactive staff cannot see except view_all', () => {
+    expect(
+      canSeeB2bLead(
+        { ...memberOn, isActivePttStaff: false },
+        { flowKind: 'b2b_prospect', ownerId: 10, projectId: project },
+        [{ projectId: project, assignEnabled: true }],
+      ),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(
+        { ...memberOn, isActivePttStaff: false, hasViewAllLeads: true },
+        { flowKind: 'b2b_prospect', ownerId: 10, projectId: project },
+        [],
+      ),
+    ).toBe(true);
+  });
+
+  it('project manager sees teammate on same project only', () => {
+    const pmMem = [{ projectId: 'p1', assignEnabled: true, role: 'project_manager' as const }];
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: 'p1' },
+        pmMem,
+      ),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: 'p2' },
+        pmMem,
+      ),
+    ).toBe(false);
+  });
+
+  it('sales does not see teammate when assign disabled', () => {
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: project },
+        [{ projectId: project, assignEnabled: false, role: 'sales' }],
+      ),
+    ).toBe(false);
+  });
+
+  it('spa leads are out of this rule (false)', () => {
+    expect(
+      canSeeB2bLead(
+        { ...memberOn, hasViewAllLeads: true },
+        { flowKind: 'spa_operational', ownerId: 10, projectId: null },
+        [],
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('redactLeadIfDenied', () => {
+  it('redacts name on deny', () => {
+    const out = redactLeadIfDenied(false, { full_name: 'Secret', phone: '090' });
+    expect(JSON.stringify(out)).not.toContain('Secret');
+    expect(JSON.stringify(out)).not.toContain('090');
+    expect(out).toEqual({ error: 'not_found' });
+  });
+});

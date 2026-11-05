@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PTT</string>
+    <string name="title_activity_main">PTT</string>
+    <string name="package_name">vn.pttads.ptt</string>
+    <string name="custom_url_scheme">vn.pttads.ptt</string>
+</resources>

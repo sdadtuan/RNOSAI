@@ -1,0 +1,49 @@
+import { Injectable } from '@nestjs/common';
+import { CrmConfigService } from '../crm-config/crm-config.service';
+import { AppConfigService } from '../config/app-config.service';
+import { LeadV1, ListLeadsQuery, ReviewQueueListFilter } from './leads.types';
+import { LeadsRepository } from './leads.repository';
+
+@Injectable()
+export class LeadsService {
+  constructor(
+    private readonly repo: LeadsRepository,
+    private readonly config: AppConfigService,
+    private readonly crmConfig: CrmConfigService,
+  ) {}
+
+  async listLeads(query: ListLeadsQuery): Promise<{
+    leads: LeadV1[];
+    total: number;
+    limit: number;
+    offset: number;
+    signals: { hot: number; consult: number; ai: number; won: number };
+  }> {
+    const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
+    const offset = Math.max(0, Number(query.offset ?? 0));
+    const reviewQueueFilter = this.resolveReviewQueueFilter(query);
+    const classification = await this.crmConfig.getLeadClassificationConfig();
+    const result = await this.repo.listLeads(
+      { ...query, limit, offset, review_queue_filter: reviewQueueFilter },
+      classification,
+    );
+    return { ...result, limit, offset };
+  }
+
+  listOwnerOptions(): Promise<Array<{ id: number; name: string }>> {
+    return this.repo.listOwnerOptions();
+  }
+
+  async getLead(id: number): Promise<LeadV1 | null> {
+    const classification = await this.crmConfig.getLeadClassificationConfig();
+    return this.repo.getLeadById(id, classification);
+  }
+
+  private resolveReviewQueueFilter(query: ListLeadsQuery): ReviewQueueListFilter | undefined {
+    if (!this.config.crmLeadsFunnelNest) return undefined;
+    if (query.review_queue_only) return 'only';
+    if (query.lead_flow_kind === 'b2b_prospect') return undefined;
+    if (query.hide_review_queue === false) return undefined;
+    return 'hide';
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "wave": "W3",
+  "component": "revops_enterprise_wave3",
+  "srs": "REVOPS-ENT-001 v2.0 §5 + plan Task B14–B18",
+  "branch": "main",
+  "head_commit": "bb6d7e21",
+  "environment": "production",
+  "evaluated_at": "2026-09-06T18:21:00+07:00",
+  "signed_at": null,
+  "ok": false,
+  "flags_required": {
+    "NEXT_PUBLIC_REVOPS_SHELL": "1",
+    "NEXT_PUBLIC_LEAD_PIPELINE_TAB": "1"
+  },
+  "gates": {
+    "ddl_revops_w3_static": true,
+    "ddl_am_g1_static": true,
+    "ptt_crm_api_test_revops": true,
+    "commission_util_smoke": true,
+    "ops_web_unit_revops": true,
+    "playwright_revops_w3_uat": false
+  },
+  "gate_notes": {
+    "playwright_revops_w3_uat": "VPS prod e2e 2026-09-06: W3 core 9/9 pass (5 API + 4 UI). Full revops-w3 suite 14/25 — W1/W2/lead-pipeline regressions flaky on prod data (strict-mode duplicates, SSL blip, lead tab labels). B21 revops-full 10/12 pass."
+  },
+  "w3_acceptance": {
+    "commission_plan_modal_creates_plan": false,
+    "command_center_commission_not_dash": true,
+    "payout_batch_modal": false,
+    "calc_commission_vnd_matches_util": true,
+    "sla_center_page_loads": true,
+    "sla_incident_queue_composed": true,
+    "sla_policy_modal": false,
+    "sla_worker_tick": false,
+    "territory_page_loads": true,
+    "territory_capacity_bar": true,
+    "territory_modal_hierarchy": false,
+    "routing_simulate_ranked_owners": true,
+    "routing_four_seed_rules": true,
+    "kpi_hub_commission_panel_revops_embed": true,
+    "kpi_hub_commission_full_page": false,
+    "assign_modal_uses_routing_simulate": false
+  },
+  "manual_staging": {
+    "apply_ddl_am_g1": true,
+    "apply_ddl_revops_w3": true,
+    "deploy_revops_w3_vps": true,
+    "create_commission_plan_v1": true,
+    "verify_command_center_commission_not_dash": true,
+    "verify_calc_commission_vnd_e2e": true,
+    "sla_breach_visible_in_queue": true,
+    "routing_simulate_returns_owner": true,
+    "kpi_hub_sales_revops_embed": true
+  },
+  "e2e_runs": {
+    "runner": "scripts/run_revops_e2e_vps.sh --full",
+    "target": "https://rs.pttads.vn",
+    "staff": "admin@pttads.vn",
+    "revops_w3_suite": { "passed": 14, "failed": 11, "skipped": 0, "total": 25 },
+    "w3_core_only": { "passed": 9, "failed": 0, "total": 9 },
+    "revops_full_b21": { "passed": 10, "failed": 2, "total": 12 },
+    "failures_summary": [
+      "lead-pipeline-tab ×3 — tab Pipeline bán hàng not found on prod lead detail",
+      "revops-shell-w1 — KPI embed sidebar SSL blip; handover alias redirect; P1 strict-mode",
+      "revops-w2-uat ×5 — kanban deal-room, approval comment, KPI approve login, handover validation/duplicate row"
+    ]
+  },
+  "commands": {
+    "gate": "./scripts/revops_w3_gate.sh",
+    "gate_no_e2e": "./scripts/revops_w3_gate.sh --skip-e2e",
+    "deploy": "APPLY=1 ./scripts/deploy_revops_w3_vps.sh --enable-flags",
+    "deploy_skip_e2e": "APPLY=1 ./scripts/deploy_revops_w3_vps.sh --enable-flags --skip-e2e",
+    "ddl_w3": "./scripts/apply_pg_ddl_revops_w3.sh",
+    "ddl_am_g1": "./scripts/apply_pg_ddl_am_g1.sh",
+    "api": "cd services/ptt-crm-api && npm run test:revops",
+    "e2e_vps": "cd /var/www/rnosai && bash scripts/run_revops_e2e_vps.sh --full",
+    "e2e": "cd services/ops-web && npm run test:e2e:revops-w3"
+  },
+  "artifacts": {
+    "plan": "docs/superpowers/plans/2026-09-06-revops-enterprise-and-lead-pipeline.md",
+    "ddl_w3": "docs/specs/2026-09-05-postgresql-ddl-revops-w3.sql",
+    "ddl_am_g1": "docs/specs/2026-09-05-postgresql-ddl-am-g1.sql",
+    "w2_signoff": "docs/evidence/revops-w2-signoff.template.json",
+    "this_file": "docs/evidence/revops-w3-signoff.json"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "playwright_revops_w3_uat full suite not green (14/25) — W2/lead-pipeline regressions on prod",
+    "PO/QA/engineering signoffs not filled",
+    "commission_plan_modal and payout_batch_modal not covered by automated e2e"
+  ],
+  "notes": "Automated W3 gate (DDL + API 50 tests + FE unit 44 + commission util) green on VPS @ bb6d7e21. W3 acceptance core (commission calc, command center, SLA/Territory pages, routing simulate, KPI embed) verified via prod e2e + manual UAT. ok=true requires green full e2e suite + PO signoffs. E2e runner fixed to use https://rs.pttads.vn (localhost blocked by PTT_OPS_CORS_ORIGINS)."
+}

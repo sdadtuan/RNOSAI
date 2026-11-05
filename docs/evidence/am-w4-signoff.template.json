@@ -1,0 +1,71 @@
+{
+  "wave": "W4",
+  "component": "account_management_os_wave4",
+  "srs": "2026-09-05-account-management-srs.md v2.0 §UI-AM-13/24–30 + plan Task 31–37",
+  "branch": "main",
+  "environment": "staging",
+  "signed_at": null,
+  "ok": false,
+  "entry_required": {
+    "am_wave3_uat_green": false,
+    "note": "Plan slice order: do not set ok=true until AM W3 UAT is signed."
+  },
+  "gates": {
+    "ddl_am_w4_static": false,
+    "ptt_crm_api_test_am_module": false,
+    "ptt_crm_api_am_w4_smoke": false,
+    "ops_web_unit_am_w4": false,
+    "playwright_am_w4_uat": false
+  },
+  "w4_acceptance": {
+    "opportunity_won_no_contract_insert": false,
+    "opportunity_rejects_non_client_id": false,
+    "reports_logo_grr_tooltips": false,
+    "reports_nrr_hidden_when_expansion_unclassified": false,
+    "finance_snapshot_no_paid_button": false,
+    "finance_stale_banner_when_unsynced": false,
+    "csat_tile_dash_or_real_average_never_mock": false,
+    "csat_lte_3_creates_24h_task": false,
+    "industry_fields_match_industry_slug": false,
+    "export_over_10k_async_or_disabled_tooltip": false
+  },
+  "manual_staging": {
+    "apply_ddl_am_w4": false,
+    "deploy_am_os_vps": false,
+    "growth_pipeline_create_opportunity": false,
+    "reports_retention_drill_to_accounts": false,
+    "finance_snapshot_read_only_on_360": false,
+    "feedback_csat_and_survey_followup": false,
+    "settings_custom_fields_and_sla_policy": false,
+    "create_menu_co_hoi_enabled": false
+  },
+  "commands": {
+    "gate": "./scripts/am_w4_gate.sh",
+    "gate_no_e2e": "./scripts/am_w4_gate.sh --skip-e2e",
+    "deploy": "APPLY=1 ./scripts/deploy_am_os_vps.sh",
+    "ddl_w4": "./scripts/apply_pg_ddl_am_w4.sh",
+    "api_am": "cd services/ptt-crm-api && npx jest src/am --forceExit --no-coverage",
+    "api_w4_smoke": "cd services/ptt-crm-api && npx jest src/am/am-opportunities.service.spec.ts src/am/am-reports.service.spec.ts src/am/am-finance.service.spec.ts src/am/am-feedback.service.spec.ts src/am/am-fields.service.spec.ts src/am/am-sla-policies.service.spec.ts --forceExit",
+    "unit_w4": "cd services/ops-web && npm run test:unit:am-w4",
+    "e2e": "cd services/ops-web && npm run test:e2e:am-w4"
+  },
+  "artifacts": {
+    "plan": "docs/superpowers/plans/2026-09-05-account-management-os.md",
+    "ddl_w4": "docs/specs/2026-09-05-postgresql-ddl-am-w4.sql",
+    "mockup": "docs/design/rnosai-am-os-srs-mockup.html",
+    "deploy_script": "scripts/deploy_am_os_vps.sh"
+  },
+  "routes": {
+    "growth": "/crm/account-management/opportunities",
+    "reports": "/crm/account-management/reports",
+    "feedback": "/crm/account-management/feedback",
+    "settings": "/crm/account-management/settings",
+    "api_prefix": "/api/crm/am"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "notes": "W4 gate per plan Task 37. Set ok=true only when gates + w4_acceptance + manual_staging are true, am_wave3_uat_green is true, and signoffs filled. Blocks Wave 5 (AI drawer, M01) per plan."
+}

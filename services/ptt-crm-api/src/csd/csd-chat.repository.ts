@@ -1,0 +1,1581 @@
+import { Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Pool } from 'pg';
+import { AppConfigService } from '../config/app-config.service';
+import {
+  CSD_TENANT_ID,
+  CsdAttachmentRow,
+  CsdConversationAttachmentItem,
+  CsdConversationKind,
+  CsdConversationListFilter,
+  CsdConversationListItem,
+  CsdConversationMemberRow,
+  CsdConversationRow,
+  CsdGroupAvatarMemberPreview,
+  CsdChatEmotionId,
+  CsdConversationStatus,
+  CsdGroupAdminListItem,
+  CsdGroupJoinRequestRow,
+  CsdMessageReactionSummary,
+  CsdMessageRow,
+  CsdPriority,
+  CsdTicketRow,
+  CsdTicketStatus,
+} from './csd.types';
+
+function text(value: unknown): string {
+  if (value == null) return '';
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+function num(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+const GROUP_AVATAR_PREVIEW_SQL = `
+(
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'member_staff_id', preview.member_staff_id,
+        'display_name_vi', preview.display_name_vi,
+        'has_avatar', preview.has_avatar,
+        'avatar_updated_at', preview.avatar_updated_at
+      ) ORDER BY preview.sort_ord, preview.created_at
+    ),
+    '[]'::json
+  )
+  FROM (
+    SELECT m.member_staff_id,
+           COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi,
+           (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+           su.avatar_updated_at AS avatar_updated_at,
+           m.created_at,
+           CASE m.role
+             WHEN 'owner' THEN 0
+             WHEN 'admin' THEN 1
+             ELSE 2
+           END AS sort_ord
+      FROM csd_conversation_members m
+      JOIN crm_staff s ON s.id = m.member_staff_id
+      LEFT JOIN csd_chat_accounts a ON a.staff_id = m.member_staff_id AND a.tenant_id = c.tenant_id
+      LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+     WHERE m.conversation_id = c.id
+       AND m.member_type = 'staff'
+       AND c.kind = 'group'
+       AND c.group_avatar_storage_key IS NULL
+     ORDER BY sort_ord, m.created_at ASC
+     LIMIT 3
+  ) preview
+) AS group_avatar_preview`;
+
+function mapGroupAvatarPreview(value: unknown): CsdGroupAvatarMemberPreview[] {
+  if (value == null) return [];
+  let parsed: unknown = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: CsdGroupAvatarMemberPreview[] = [];
+  for (const row of parsed) {
+    if (!row || typeof row !== 'object') continue;
+    const item = row as Record<string, unknown>;
+    const memberStaffId = num(item.member_staff_id);
+    if (memberStaffId == null || memberStaffId <= 0) continue;
+    out.push({
+      member_staff_id: memberStaffId,
+      display_name_vi:
+        item.display_name_vi != null && text(item.display_name_vi)
+          ? text(item.display_name_vi)
+          : null,
+      has_avatar: Boolean(item.has_avatar),
+      avatar_updated_at: item.avatar_updated_at != null ? text(item.avatar_updated_at) : null,
+    });
+  }
+  return out;
+}
+
+function mapConversationListItem(row: Record<string, unknown>): CsdConversationListItem {
+  return {
+    ...mapConversation(row),
+    preview: row.preview != null && text(row.preview) ? text(row.preview) : null,
+    unread_count: num(row.unread_count) ?? 0,
+    has_p1_or_complaint: Boolean(row.has_p1_or_complaint),
+  };
+}
+
+function mapConversation(row: Record<string, unknown>): CsdConversationRow {
+  const avatarStaffId = num(row.avatar_staff_id);
+  const groupHasAvatar =
+    Boolean(row.group_has_avatar) ||
+    (row.group_avatar_storage_key != null && text(row.group_avatar_storage_key).length > 0);
+  return {
+    id: text(row.id),
+    tenant_id: text(row.tenant_id),
+    kind: text(row.kind) as CsdConversationKind,
+    name_vi: text(row.display_name_vi) || text(row.name_vi),
+    alias_vi: row.alias_vi != null && text(row.alias_vi) ? text(row.alias_vi) : null,
+    description: text(row.description),
+    status: text(row.status),
+    client_account_id: row.client_account_id != null ? text(row.client_account_id) : null,
+    project_ref_kind: row.project_ref_kind != null ? text(row.project_ref_kind) : null,
+    project_ref_id: row.project_ref_id != null ? text(row.project_ref_id) : null,
+    ticket_id: row.ticket_id != null ? text(row.ticket_id) : null,
+    owner_staff_id: num(row.owner_staff_id),
+    last_message_at: row.last_message_at ? text(row.last_message_at) : null,
+    created_at: text(row.created_at),
+    created_by_staff_id: num(row.created_by_staff_id),
+    avatar_staff_id: avatarStaffId,
+    avatar_has_photo: avatarStaffId != null ? Boolean(row.avatar_has_photo) : false,
+    avatar_updated_at:
+      avatarStaffId != null && row.avatar_updated_at ? text(row.avatar_updated_at) : null,
+    group_has_avatar: groupHasAvatar,
+    group_avatar_updated_at: row.group_avatar_updated_at ? text(row.group_avatar_updated_at) : null,
+    group_avatar_preview: groupHasAvatar ? [] : mapGroupAvatarPreview(row.group_avatar_preview),
+    join_approval_required:
+      row.join_approval_required == null ? false : Boolean(row.join_approval_required),
+    members_can_send: row.members_can_send == null ? true : Boolean(row.members_can_send),
+    pinned_message_id: row.pinned_message_id != null ? text(row.pinned_message_id) : null,
+  };
+}
+
+function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
+  return {
+    conversation_id: text(row.conversation_id),
+    member_type: 'staff',
+    member_staff_id: num(row.member_staff_id) ?? 0,
+    role: text(row.role) as CsdConversationMemberRow['role'],
+    created_at: text(row.created_at),
+    display_name_vi: row.display_name_vi != null && text(row.display_name_vi) ? text(row.display_name_vi) : null,
+    has_avatar: Boolean(row.has_avatar),
+    avatar_updated_at: row.avatar_updated_at != null ? text(row.avatar_updated_at) : null,
+  };
+}
+
+function mapJoinRequest(row: Record<string, unknown>): CsdGroupJoinRequestRow {
+  return {
+    id: text(row.id),
+    conversation_id: text(row.conversation_id),
+    requester_staff_id: num(row.requester_staff_id) ?? 0,
+    invited_by_staff_id: num(row.invited_by_staff_id) ?? 0,
+    status: text(row.status) as CsdGroupJoinRequestRow['status'],
+    created_at: text(row.created_at),
+    resolved_at: row.resolved_at ? text(row.resolved_at) : null,
+    resolved_by_staff_id: num(row.resolved_by_staff_id),
+    requester_display_name_vi:
+      row.requester_display_name_vi != null && text(row.requester_display_name_vi)
+        ? text(row.requester_display_name_vi)
+        : null,
+  };
+}
+
+function mapAttachment(row: Record<string, unknown>): CsdAttachmentRow {
+  return {
+    id: text(row.id),
+    file_name: text(row.file_name),
+    mime_type: text(row.mime_type),
+    byte_size: num(row.byte_size) ?? 0,
+    visibility: text(row.visibility) as CsdAttachmentRow['visibility'],
+    entity_type: text(row.entity_type),
+    entity_id: text(row.entity_id),
+    storage_key: text(row.storage_key),
+    created_at: text(row.created_at),
+  };
+}
+
+function mapMessage(row: Record<string, unknown>): CsdMessageRow {
+  const deleted = Boolean(row.is_deleted);
+  const authorName = text(row.author_staff_name).trim();
+  return {
+    id: text(row.id),
+    tenant_id: text(row.tenant_id),
+    conversation_id: text(row.conversation_id),
+    author_type: text(row.author_type),
+    author_staff_id: num(row.author_staff_id),
+    author_staff_name: authorName || null,
+    author_has_avatar: Boolean(row.author_has_avatar),
+    author_avatar_updated_at: row.author_avatar_updated_at
+      ? text(row.author_avatar_updated_at)
+      : null,
+    body_text: deleted ? '' : text(row.body_text),
+    reply_to_id: row.reply_to_id != null ? text(row.reply_to_id) : null,
+    visibility: row.visibility as CsdMessageRow['visibility'],
+    ticket_id: row.ticket_id != null ? text(row.ticket_id) : null,
+    created_at: text(row.created_at),
+    edited_at: row.edited_at ? text(row.edited_at) : null,
+    is_deleted: deleted,
+    delivery_status: (text(row.delivery_status) || 'sent') as CsdMessageRow['delivery_status'],
+  };
+}
+
+@Injectable()
+export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
+  private pool: Pool | null = null;
+  private schemaReady: Promise<void> | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.ensureGroupAdminSchema();
+    } catch {
+      // Schema may be unavailable during unit tests without DB; writes re-try ensure.
+    }
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  private async ensureGroupAdminSchema(): Promise<void> {
+    if (!this.schemaReady) {
+      this.schemaReady = (async () => {
+        await this.db.query(`
+          ALTER TABLE csd_conversation_members DROP CONSTRAINT IF EXISTS csd_conv_member_role_chk;
+          ALTER TABLE csd_conversation_members
+            ADD CONSTRAINT csd_conv_member_role_chk
+            CHECK (role IN ('owner', 'admin', 'member', 'viewer'));
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_storage_key TEXT;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_updated_at TIMESTAMPTZ;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS join_approval_required BOOLEAN NOT NULL DEFAULT FALSE;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS members_can_send BOOLEAN NOT NULL DEFAULT TRUE;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS pinned_message_id UUID;
+          CREATE TABLE IF NOT EXISTS csd_group_join_requests (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id VARCHAR(32) NOT NULL REFERENCES csd_tenants (id),
+            conversation_id UUID NOT NULL REFERENCES csd_conversations (id) ON DELETE CASCADE,
+            requester_staff_id INTEGER NOT NULL,
+            invited_by_staff_id INTEGER NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            resolved_at TIMESTAMPTZ,
+            resolved_by_staff_id INTEGER,
+            CONSTRAINT csd_group_join_status_chk CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS csd_group_join_pending_uidx
+            ON csd_group_join_requests (conversation_id, requester_staff_id)
+            WHERE status = 'pending';
+          CREATE INDEX IF NOT EXISTS csd_group_join_conv_idx
+            ON csd_group_join_requests (conversation_id, status, created_at DESC);
+        `);
+        try {
+          await this.db.query(`
+            ALTER TABLE csd_conversations DROP CONSTRAINT IF EXISTS csd_conversations_pinned_message_fk;
+            ALTER TABLE csd_conversations
+              ADD CONSTRAINT csd_conversations_pinned_message_fk
+              FOREIGN KEY (pinned_message_id) REFERENCES csd_messages (id) ON DELETE SET NULL;
+          `);
+        } catch {
+          // FK may fail if messages table missing in exotic envs; column still usable.
+        }
+      })().catch((err) => {
+        this.schemaReady = null;
+        throw err;
+      });
+    }
+    await this.schemaReady;
+  }
+
+  async insertConversation(input: {
+    kind: CsdConversationKind;
+    name_vi: string;
+    client_account_id?: string | null;
+    project_ref_kind?: string | null;
+    project_ref_id?: string | null;
+    created_by_staff_id: number;
+    extra_members?: { staff_id: number; role: 'member' | 'viewer' }[];
+  }): Promise<CsdConversationRow> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `INSERT INTO csd_conversations (
+           tenant_id, kind, name_vi, client_account_id,
+           project_ref_kind, project_ref_id, owner_staff_id, created_by_staff_id, updated_by_staff_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)
+         RETURNING *`,
+        [
+          CSD_TENANT_ID,
+          input.kind,
+          input.name_vi,
+          input.client_account_id ?? null,
+          input.project_ref_kind ?? null,
+          input.project_ref_id ?? null,
+          input.created_by_staff_id,
+        ],
+      );
+      await client.query(
+        `INSERT INTO csd_conversation_members (
+           conversation_id, member_type, member_staff_id, role
+         ) VALUES ($1, 'staff', $2, 'owner')`,
+        [res.rows[0].id, input.created_by_staff_id],
+      );
+      for (const member of input.extra_members ?? []) {
+        if (member.staff_id === input.created_by_staff_id) continue;
+        await client.query(
+          `INSERT INTO csd_conversation_members (
+             conversation_id, member_type, member_staff_id, role
+           ) VALUES ($1, 'staff', $2, $3)`,
+          [res.rows[0].id, member.staff_id, member.role],
+        );
+      }
+      await client.query('COMMIT');
+      return mapConversation(res.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async findDirectPair(staffA: number, staffB: number): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `SELECT c.*
+         FROM csd_conversations c
+        WHERE c.tenant_id = $1
+          AND c.kind = 'direct'
+          AND c.is_deleted = FALSE
+          AND c.status <> 'closed'
+          AND EXISTS (
+            SELECT 1 FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_staff_id = $2
+          )
+          AND EXISTS (
+            SELECT 1 FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_staff_id = $3
+          )
+          AND (
+            SELECT COUNT(*) FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_type = 'staff'
+          ) = 2
+        ORDER BY c.created_at DESC
+        LIMIT 1`,
+      [CSD_TENANT_ID, staffA, staffB],
+    );
+    return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async markRead(conversationId: string, staffId: number): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET last_read_at = NOW()
+        WHERE conversation_id = $1
+          AND member_type = 'staff'
+          AND member_staff_id = $2`,
+      [conversationId, staffId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async listConversationsForMember(query: {
+    staffId: number;
+    filter?: CsdConversationListFilter;
+    kind?: CsdConversationKind;
+    client_account_id?: string;
+    q?: string;
+    limit?: number;
+  }): Promise<CsdConversationListItem[]> {
+    const params: unknown[] = [CSD_TENANT_ID, query.staffId];
+    const where = ['c.tenant_id = $1', 'c.is_deleted = FALSE'];
+
+    const filter = query.filter ?? 'all';
+    if (filter === 'internal') {
+      where.push(`c.kind IN ('direct', 'group')`);
+    } else if (filter === 'clients') {
+      where.push(`c.kind = 'client'`);
+    } else if (filter === 'projects') {
+      where.push(`c.kind = 'project'`);
+    } else if (filter === 'mentions') {
+      where.push(`EXISTS (
+        SELECT 1 FROM csd_messages m
+         WHERE m.conversation_id = c.id
+           AND m.is_deleted = FALSE
+           AND m.body_text ~ ('(^|[[:space:]])@' || $2::text || '([^0-9]|$)')
+      )`);
+    }
+
+    if (query.kind) {
+      params.push(query.kind);
+      where.push(`c.kind = $${params.length}`);
+    }
+    if (query.client_account_id) {
+      params.push(query.client_account_id);
+      where.push(`c.client_account_id = $${params.length}`);
+    }
+    const q = String(query.q ?? '').trim();
+    if (q.length >= 2) {
+      params.push(`%${q}%`);
+      const ph = `$${params.length}`;
+      where.push(`(
+        c.name_vi ILIKE ${ph}
+        OR me.alias_vi ILIKE ${ph}
+        OR EXISTS (
+          SELECT 1 FROM csd_conversation_members peer
+          JOIN crm_staff s ON s.id = peer.member_staff_id
+          LEFT JOIN csd_chat_accounts a
+            ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+           WHERE peer.conversation_id = c.id
+             AND peer.member_type = 'staff'
+             AND peer.member_staff_id IS DISTINCT FROM $2
+             AND COALESCE(NULLIF(a.display_name_vi, ''), s.name, '') ILIKE ${ph}
+        )
+        OR EXISTS (
+          SELECT 1 FROM csd_messages m
+           WHERE m.conversation_id = c.id
+             AND m.is_deleted = FALSE
+             AND m.body_text ILIKE ${ph}
+        )
+      )`);
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    params.push(limit);
+    const limitIdx = params.length;
+
+    const res = await this.db.query(
+      `SELECT c.*,
+              COALESCE(
+                NULLIF(me.alias_vi, ''),
+                CASE WHEN c.kind = 'direct' THEN (
+                  SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''))
+                    FROM csd_conversation_members peer
+                    JOIN crm_staff s ON s.id = peer.member_staff_id
+                    LEFT JOIN csd_chat_accounts a
+                      ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+                   WHERE peer.conversation_id = c.id
+                     AND peer.member_type = 'staff'
+                     AND peer.member_staff_id IS DISTINCT FROM $2
+                   LIMIT 1
+                ) END,
+                CASE WHEN c.name_vi ~ '^DM [·•] #' THEN NULL ELSE NULLIF(c.name_vi, '') END,
+                'Hội thoại'
+              ) AS display_name_vi,
+              me.alias_vi AS alias_vi,
+              (
+                SELECT LEFT(m.body_text, 160)
+                  FROM csd_messages m
+                 WHERE m.conversation_id = c.id AND m.is_deleted = FALSE
+                 ORDER BY m.created_at DESC
+                 LIMIT 1
+              ) AS preview,
+              (
+                SELECT COUNT(*)::int
+                  FROM csd_messages m
+                 WHERE m.conversation_id = c.id
+                   AND m.is_deleted = FALSE
+                   AND m.created_at > COALESCE(me.last_read_at, c.created_at)
+                   AND m.author_staff_id IS DISTINCT FROM $2
+              ) AS unread_count,
+              EXISTS (
+                SELECT 1 FROM csd_tickets t
+                 WHERE t.tenant_id = c.tenant_id
+                   AND t.is_deleted = FALSE
+                   AND (t.priority = 'P1' OR t.ticket_type = 'complaint')
+                   AND (
+                     t.id = c.ticket_id
+                     OR t.id IN (
+                       SELECT m.ticket_id FROM csd_messages m
+                        WHERE m.conversation_id = c.id AND m.ticket_id IS NOT NULL
+                     )
+                   )
+              ) AS has_p1_or_complaint,
+              (
+                SELECT peer.member_staff_id
+                  FROM csd_conversation_members peer
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_staff_id,
+              (
+                SELECT (su.avatar_storage_key IS NOT NULL)
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_has_photo,
+              (
+                SELECT su.avatar_updated_at
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_updated_at,
+              (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
+              c.group_avatar_updated_at AS group_avatar_updated_at,
+              ${GROUP_AVATAR_PREVIEW_SQL}
+         FROM csd_conversations c
+         JOIN csd_conversation_members me
+           ON me.conversation_id = c.id
+          AND me.member_type = 'staff'
+          AND me.member_staff_id = $2
+        WHERE ${where.join(' AND ')}
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC
+        LIMIT $${limitIdx}`,
+      params,
+    );
+
+    const items = res.rows.map(mapConversationListItem);
+    if (filter === 'unread') {
+      return items.filter((row) => row.unread_count > 0);
+    }
+    return items;
+  }
+
+  async listGroupsAdmin(query: { q?: string; limit?: number } = {}): Promise<CsdGroupAdminListItem[]> {
+    const params: unknown[] = [CSD_TENANT_ID];
+    const q = String(query.q ?? '').trim();
+    params.push(q ? `%${q}%` : null);
+    const limit = Math.min(Math.max(Number(query.limit ?? 100) || 100, 1), 200);
+    params.push(limit);
+
+    const res = await this.db.query(
+      `SELECT c.id,
+              c.name_vi,
+              c.status,
+              c.owner_staff_id,
+              c.join_approval_required,
+              c.members_can_send,
+              c.created_at,
+              c.last_message_at,
+              (
+                SELECT COUNT(*)::int
+                  FROM csd_conversation_members m
+                 WHERE m.conversation_id = c.id
+                   AND m.member_type = 'staff'
+              ) AS member_count,
+              (
+                SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '')
+                  FROM crm_staff s
+                  LEFT JOIN csd_chat_accounts a
+                    ON a.staff_id = s.id AND a.tenant_id = c.tenant_id
+                 WHERE s.id = c.owner_staff_id
+              ) AS owner_name
+         FROM csd_conversations c
+        WHERE c.tenant_id = $1
+          AND c.kind = 'group'
+          AND c.is_deleted = FALSE
+          AND (
+            $2::text IS NULL
+            OR c.name_vi ILIKE $2
+            OR c.id::text ILIKE $2
+            OR CAST(c.owner_staff_id AS text) ILIKE $2
+          )
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC
+        LIMIT $3`,
+      params,
+    );
+
+    return res.rows.map((row) => ({
+      id: text(row.id),
+      name_vi: text(row.name_vi),
+      status: text(row.status),
+      owner_staff_id: num(row.owner_staff_id),
+      owner_name: row.owner_name != null && text(row.owner_name) ? text(row.owner_name) : null,
+      member_count: num(row.member_count) ?? 0,
+      join_approval_required: Boolean(row.join_approval_required),
+      members_can_send: row.members_can_send == null ? true : Boolean(row.members_can_send),
+      created_at: text(row.created_at),
+      last_message_at: row.last_message_at ? text(row.last_message_at) : null,
+    }));
+  }
+
+  async listConversations(query: {
+    kind?: CsdConversationKind;
+    client_account_id?: string;
+    limit?: number;
+  } = {}): Promise<CsdConversationRow[]> {
+    const params: unknown[] = [CSD_TENANT_ID];
+    const where = ['tenant_id = $1', 'is_deleted = FALSE'];
+
+    if (query.kind) {
+      params.push(query.kind);
+      where.push(`kind = $${params.length}`);
+    }
+    if (query.client_account_id) {
+      params.push(query.client_account_id);
+      where.push(`client_account_id = $${params.length}`);
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    params.push(limit);
+
+    const res = await this.db.query(
+      `SELECT * FROM csd_conversations
+       WHERE ${where.join(' AND ')}
+       ORDER BY COALESCE(last_message_at, created_at) DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return res.rows.map(mapConversation);
+  }
+
+  async getConversation(id: string): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_conversations
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async findStaffDisplayName(staffId: number): Promise<string> {
+    const res = await this.db.query(
+      `SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS name
+         FROM crm_staff s
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = s.id AND a.tenant_id = $1
+        WHERE s.id = $2`,
+      [CSD_TENANT_ID, staffId],
+    );
+    return text(res.rows[0]?.name).trim();
+  }
+
+  async getConversationForMember(
+    conversationId: string,
+    staffId: number,
+  ): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `SELECT c.*,
+              COALESCE(
+                NULLIF(me.alias_vi, ''),
+                CASE WHEN c.kind = 'direct' THEN (
+                  SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''))
+                    FROM csd_conversation_members peer
+                    JOIN crm_staff s ON s.id = peer.member_staff_id
+                    LEFT JOIN csd_chat_accounts a
+                      ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+                   WHERE peer.conversation_id = c.id
+                     AND peer.member_type = 'staff'
+                     AND peer.member_staff_id IS DISTINCT FROM $2
+                   LIMIT 1
+                ) END,
+                CASE WHEN c.name_vi ~ '^DM [·•] #' THEN NULL ELSE NULLIF(c.name_vi, '') END,
+                'Hội thoại'
+              ) AS display_name_vi,
+              me.alias_vi AS alias_vi,
+              (
+                SELECT peer.member_staff_id
+                  FROM csd_conversation_members peer
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_staff_id,
+              (
+                SELECT (su.avatar_storage_key IS NOT NULL)
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_has_photo,
+              (
+                SELECT su.avatar_updated_at
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_updated_at,
+              (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
+              c.group_avatar_updated_at AS group_avatar_updated_at,
+              ${GROUP_AVATAR_PREVIEW_SQL}
+         FROM csd_conversations c
+         JOIN csd_conversation_members me
+           ON me.conversation_id = c.id
+          AND me.member_type = 'staff'
+          AND me.member_staff_id = $2
+        WHERE c.tenant_id = $1
+          AND c.id = $3
+          AND c.is_deleted = FALSE`,
+      [CSD_TENANT_ID, staffId, conversationId],
+    );
+    return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async setMemberAlias(
+    conversationId: string,
+    staffId: number,
+    aliasVi: string,
+  ): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET alias_vi = NULLIF(btrim($3), '')
+        WHERE conversation_id = $1
+          AND member_type = 'staff'
+          AND member_staff_id = $2`,
+      [conversationId, staffId, aliasVi],
+    );
+    if ((res.rowCount ?? 0) === 0) return null;
+    return this.getConversationForMember(conversationId, staffId);
+  }
+
+  async insertMessage(input: {
+    conversation_id: string;
+    author_staff_id: number;
+    body_text: string;
+    reply_to_id?: string | null;
+    visibility: 'internal' | 'client';
+  }): Promise<CsdMessageRow> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `INSERT INTO csd_messages (
+           tenant_id, conversation_id, author_type, author_staff_id,
+           body_text, reply_to_id, visibility, delivery_status
+         ) VALUES ($1, $2, 'staff', $3, $4, $5, $6, 'sent')
+         RETURNING *`,
+        [
+          CSD_TENANT_ID,
+          input.conversation_id,
+          input.author_staff_id,
+          input.body_text,
+          input.reply_to_id ?? null,
+          input.visibility,
+        ],
+      );
+      await client.query(
+        `UPDATE csd_conversations
+         SET last_message_at = NOW(), updated_at = NOW(), updated_by_staff_id = $3
+         WHERE tenant_id = $1 AND id = $2`,
+        [CSD_TENANT_ID, input.conversation_id, input.author_staff_id],
+      );
+      await client.query('COMMIT');
+      return mapMessage(res.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listMessages(
+    conversationId: string,
+    after?: string,
+    q?: string,
+  ): Promise<CsdMessageRow[]> {
+    const params: unknown[] = [CSD_TENANT_ID, conversationId];
+    let extra = '';
+    if (after) {
+      params.push(after);
+      extra += ` AND m.created_at > (SELECT created_at FROM csd_messages WHERE id = $${params.length})`;
+    }
+    const needle = String(q ?? '').trim();
+    if (needle.length >= 2) {
+      params.push(`%${needle}%`);
+      extra += ` AND m.body_text ILIKE $${params.length}`;
+    }
+
+    const res = await this.db.query(
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, '')) AS author_staff_name,
+              (su.avatar_storage_key IS NOT NULL) AS author_has_avatar,
+              su.avatar_updated_at AS author_avatar_updated_at
+         FROM csd_messages m
+         LEFT JOIN crm_staff s ON s.id = m.author_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.author_staff_id AND a.tenant_id = m.tenant_id
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+        WHERE m.tenant_id = $1 AND m.conversation_id = $2 ${extra}
+        ORDER BY m.created_at ASC`,
+      params,
+    );
+    return res.rows.map(mapMessage);
+  }
+
+  async listRelatedTickets(conversationId: string): Promise<CsdTicketRow[]> {
+    const res = await this.db.query(
+      `SELECT t.*
+         FROM csd_tickets t
+         JOIN csd_conversations c
+           ON c.tenant_id = t.tenant_id AND c.id = $2
+        WHERE t.tenant_id = $1
+          AND t.is_deleted = FALSE
+          AND (
+            t.id IN (
+              SELECT m.ticket_id FROM csd_messages m
+               WHERE m.conversation_id = $2 AND m.ticket_id IS NOT NULL
+            )
+            OR t.id = c.ticket_id
+            OR (
+              c.client_account_id IS NOT NULL
+              AND t.client_account_id = c.client_account_id
+            )
+          )
+        ORDER BY t.created_at DESC
+        LIMIT 20`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    return res.rows.map((row: Record<string, unknown>) => ({
+      id: text(row.id),
+      tenant_id: text(row.tenant_id),
+      code: text(row.code),
+      factory: text(row.factory),
+      title: text(row.title),
+      description: text(row.description),
+      ticket_type: text(row.ticket_type),
+      category: text(row.category),
+      sub_category: text(row.sub_category),
+      status: text(row.status) as CsdTicketStatus,
+      priority: text(row.priority) as CsdPriority,
+      severity: text(row.severity),
+      scope_status: row.scope_status as CsdTicketRow['scope_status'],
+      source_type: row.source_type as CsdTicketRow['source_type'],
+      source_id: row.source_id != null ? text(row.source_id) : null,
+      client_account_id: row.client_account_id != null ? text(row.client_account_id) : null,
+      customer_id: num(row.customer_id),
+      assignee_staff_id: num(row.assignee_staff_id),
+      owner_staff_id: num(row.owner_staff_id),
+      sla_policy_id: row.sla_policy_id != null ? text(row.sla_policy_id) : null,
+      sla_response_due_at: row.sla_response_due_at ? text(row.sla_response_due_at) : null,
+      sla_resolution_due_at: row.sla_resolution_due_at ? text(row.sla_resolution_due_at) : null,
+      sla_status: row.sla_status as CsdTicketRow['sla_status'],
+      sla_paused: Boolean(row.sla_paused),
+      sla_paused_seconds: Number(row.sla_paused_seconds ?? 0),
+      resolution_note: text(row.resolution_note),
+      created_at: text(row.created_at),
+      created_by_staff_id: num(row.created_by_staff_id),
+      updated_at: text(row.updated_at),
+      updated_by_staff_id: num(row.updated_by_staff_id),
+      assigned_at: row.assigned_at ? text(row.assigned_at) : null,
+      resolved_at: row.resolved_at ? text(row.resolved_at) : null,
+      closed_at: row.closed_at ? text(row.closed_at) : null,
+      first_response_at: row.first_response_at ? text(row.first_response_at) : null,
+    }));
+  }
+
+  async insertMentionNotifications(input: {
+    conversationId: string;
+    messageId: string;
+    staffIds: number[];
+    excludeStaffId: number;
+    preview: string;
+  }): Promise<void> {
+    const ids = [...new Set(input.staffIds)].filter((id) => id > 0 && id !== input.excludeStaffId);
+    for (const staffId of ids) {
+      await this.db.query(
+        `INSERT INTO csd_notifications (
+           tenant_id, staff_id, event_key, title_vi, body_vi, entity_type, entity_id, severity
+         ) VALUES ($1, $2, 'chat_mention', $3, $4, 'csd_message', $5, 'info')`,
+        [
+          CSD_TENANT_ID,
+          staffId,
+          'Được nhắc trong chat',
+          input.preview,
+          input.messageId,
+        ],
+      );
+    }
+  }
+
+  async insertClientChatNotifications(input: {
+    conversationId: string;
+    messageId: string;
+    staffIds: number[];
+    excludeStaffId: number;
+    preview: string;
+  }): Promise<void> {
+    const ids = [...new Set(input.staffIds)].filter((id) => id > 0 && id !== input.excludeStaffId);
+    for (const staffId of ids) {
+      await this.db.query(
+        `INSERT INTO csd_notifications (
+           tenant_id, staff_id, event_key, title_vi, body_vi, entity_type, entity_id, severity
+         ) VALUES ($1, $2, 'client_chat_message', $3, $4, 'csd_message', $5, 'info')`,
+        [
+          CSD_TENANT_ID,
+          staffId,
+          'Tin nhắn chat khách',
+          input.preview,
+          input.messageId,
+        ],
+      );
+    }
+  }
+
+  async countUnreadConversations(staffId: number): Promise<number> {
+    const items = await this.listConversationsForMember({ staffId, filter: 'unread' });
+    return items.length;
+  }
+
+  async getMessage(id: string): Promise<CsdMessageRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_messages
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapMessage(res.rows[0]) : null;
+  }
+
+  async getMessageAny(id: string): Promise<CsdMessageRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_messages
+       WHERE tenant_id = $1 AND id = $2`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapMessage(res.rows[0]) : null;
+  }
+
+  async updateMessageBody(id: string, bodyText: string): Promise<CsdMessageRow> {
+    const res = await this.db.query(
+      `UPDATE csd_messages
+          SET body_text = $3, edited_at = NOW()
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, id, bodyText],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_message_not_found' });
+    return mapMessage(res.rows[0]);
+  }
+
+  async softDeleteMessage(id: string): Promise<CsdMessageRow> {
+    const res = await this.db.query(
+      `UPDATE csd_messages
+          SET is_deleted = TRUE, deleted_at = NOW()
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, id],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_message_not_found' });
+    return mapMessage(res.rows[0]);
+  }
+
+  async insertAttachment(input: {
+    id?: string;
+    storage_key: string;
+    file_name: string;
+    mime_type: string;
+    byte_size: number;
+    visibility: CsdAttachmentRow['visibility'];
+    entity_type: string;
+    entity_id: string;
+    uploaded_by_staff_id: number | null;
+  }): Promise<CsdAttachmentRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_attachments (
+         id, tenant_id, storage_key, file_name, mime_type, byte_size,
+         visibility, entity_type, entity_id, uploaded_by_staff_id
+       ) VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        input.id ?? null,
+        CSD_TENANT_ID,
+        input.storage_key,
+        input.file_name,
+        input.mime_type,
+        input.byte_size,
+        input.visibility,
+        input.entity_type,
+        input.entity_id,
+        input.uploaded_by_staff_id,
+      ],
+    );
+    return mapAttachment(res.rows[0]);
+  }
+
+  async getAttachment(id: string): Promise<CsdAttachmentRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_attachments
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapAttachment(res.rows[0]) : null;
+  }
+
+  async attachConversationFilesToMessage(
+    conversationId: string,
+    messageId: string,
+    attachmentIds: string[],
+  ): Promise<void> {
+    if (attachmentIds.length === 0) return;
+    await this.db.query(
+      `UPDATE csd_attachments
+          SET entity_type = 'csd_message', entity_id = $3
+        WHERE tenant_id = $1
+          AND entity_type = 'csd_conversation'
+          AND entity_id = $2
+          AND is_deleted = FALSE
+          AND id = ANY($4::uuid[])`,
+      [CSD_TENANT_ID, conversationId, messageId, attachmentIds],
+    );
+  }
+
+  async listReactionsByMessages(
+    messageIds: string[],
+    viewerStaffId: number,
+  ): Promise<Record<string, CsdMessageReactionSummary[]>> {
+    const out: Record<string, CsdMessageReactionSummary[]> = {};
+    if (messageIds.length === 0) return out;
+    const res = await this.db.query(
+      `SELECT message_id::text AS message_id,
+              emotion,
+              COUNT(*)::int AS count,
+              BOOL_OR(staff_id = $2) AS mine
+         FROM csd_message_reactions
+        WHERE message_id = ANY($1::uuid[])
+        GROUP BY message_id, emotion
+        ORDER BY MIN(created_at) ASC`,
+      [messageIds, viewerStaffId],
+    );
+    for (const row of res.rows as Record<string, unknown>[]) {
+      const messageId = text(row.message_id);
+      if (!out[messageId]) out[messageId] = [];
+      out[messageId].push({
+        emotion: text(row.emotion) as CsdChatEmotionId,
+        count: num(row.count) ?? 0,
+        mine: Boolean(row.mine),
+      });
+    }
+    return out;
+  }
+
+  async setMessageReaction(
+    messageId: string,
+    staffId: number,
+    emotion: CsdChatEmotionId,
+  ): Promise<CsdMessageReactionSummary[]> {
+    const existing = await this.db.query(
+      `SELECT emotion FROM csd_message_reactions
+        WHERE message_id = $1 AND staff_id = $2`,
+      [messageId, staffId],
+    );
+    const current = existing.rows[0] ? text(existing.rows[0].emotion) : '';
+    if (current === emotion) {
+      await this.db.query(
+        `DELETE FROM csd_message_reactions
+          WHERE message_id = $1 AND staff_id = $2`,
+        [messageId, staffId],
+      );
+    } else {
+      await this.db.query(
+        `INSERT INTO csd_message_reactions (message_id, staff_id, emotion)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (message_id, staff_id)
+         DO UPDATE SET emotion = EXCLUDED.emotion, created_at = NOW()`,
+        [messageId, staffId, emotion],
+      );
+    }
+    const grouped = await this.listReactionsByMessages([messageId], staffId);
+    return grouped[messageId] ?? [];
+  }
+
+  async listMemberAttachments(
+    staffId: number,
+    opts: { conversationId?: string; peerStaffId?: number; limit?: number } = {},
+  ): Promise<CsdConversationAttachmentItem[]> {
+    const limit = Math.min(Math.max(Number(opts.limit ?? 500) || 500, 1), 2000);
+    const params: unknown[] = [CSD_TENANT_ID, staffId];
+    let conversationFilterMsg = '';
+    let conversationFilterPending = '';
+    let peerFilter = '';
+    let pendingPeerFilter = '';
+    let peerParamIdx = 0;
+
+    if (opts.conversationId) {
+      params.push(opts.conversationId);
+      const idx = params.length;
+      conversationFilterMsg = ` AND m.conversation_id = $${idx}::uuid`;
+      conversationFilterPending = ` AND a.entity_id = $${idx}::text`;
+    }
+    if (opts.peerStaffId != null && opts.peerStaffId > 0) {
+      params.push(opts.peerStaffId);
+      peerParamIdx = params.length;
+      peerFilter = ` AND EXISTS (
+        SELECT 1 FROM csd_conversation_members peer
+         WHERE peer.conversation_id = m.conversation_id
+           AND peer.member_staff_id = $${peerParamIdx}
+           AND peer.member_type = 'staff'
+      )`;
+      pendingPeerFilter = ` AND EXISTS (
+        SELECT 1 FROM csd_conversation_members peer
+         WHERE peer.conversation_id = a.entity_id::uuid
+           AND peer.member_staff_id = $${peerParamIdx}
+           AND peer.member_type = 'staff'
+      )`;
+    }
+
+    params.push(limit);
+    const limitIdx = params.length;
+
+    const res = await this.db.query(
+      `SELECT * FROM (
+         SELECT a.id,
+                a.file_name,
+                a.mime_type,
+                a.byte_size,
+                a.visibility,
+                m.id::text AS message_id,
+                m.conversation_id::text AS conversation_id,
+                COALESCE(m.created_at, a.created_at) AS created_at
+           FROM csd_attachments a
+           INNER JOIN csd_messages m
+             ON a.entity_type = 'csd_message'
+            AND a.entity_id = m.id::text
+            AND m.tenant_id = $1
+            AND m.is_deleted = FALSE
+           INNER JOIN csd_conversation_members me
+             ON me.conversation_id = m.conversation_id
+            AND me.member_staff_id = $2
+            AND me.member_type = 'staff'
+          WHERE a.tenant_id = $1
+            AND a.is_deleted = FALSE
+            ${conversationFilterMsg}
+            ${peerFilter}
+         UNION ALL
+         SELECT a.id,
+                a.file_name,
+                a.mime_type,
+                a.byte_size,
+                a.visibility,
+                NULL::text AS message_id,
+                a.entity_id AS conversation_id,
+                a.created_at
+           FROM csd_attachments a
+           INNER JOIN csd_conversation_members me
+             ON me.conversation_id = a.entity_id::uuid
+            AND me.member_staff_id = $2
+            AND me.member_type = 'staff'
+          WHERE a.tenant_id = $1
+            AND a.is_deleted = FALSE
+            AND a.entity_type = 'csd_conversation'
+            ${conversationFilterPending}
+            ${pendingPeerFilter}
+       ) items
+       ORDER BY created_at DESC
+       LIMIT $${limitIdx}`,
+      params,
+    );
+
+    return res.rows.map((row: Record<string, unknown>) => ({
+      id: text(row.id),
+      file_name: text(row.file_name),
+      mime_type: text(row.mime_type),
+      byte_size: num(row.byte_size) ?? 0,
+      visibility: text(row.visibility) as CsdConversationAttachmentItem['visibility'],
+      message_id: row.message_id != null ? text(row.message_id) : null,
+      conversation_id: row.conversation_id != null ? text(row.conversation_id) : null,
+      created_at: text(row.created_at),
+    }));
+  }
+
+  async listConversationAttachments(conversationId: string, staffId: number): Promise<CsdConversationAttachmentItem[]> {
+    return this.listMemberAttachments(staffId, { conversationId, limit: 2000 });
+  }
+
+  async listAttachmentsByMessages(messageIds: string[]): Promise<Record<string, CsdAttachmentRow[]>> {
+    const out: Record<string, CsdAttachmentRow[]> = {};
+    if (messageIds.length === 0) return out;
+    const res = await this.db.query(
+      `SELECT * FROM csd_attachments
+        WHERE tenant_id = $1
+          AND is_deleted = FALSE
+          AND entity_type = 'csd_message'
+          AND entity_id = ANY($2::text[])
+        ORDER BY created_at ASC`,
+      [CSD_TENANT_ID, messageIds],
+    );
+    for (const row of res.rows as Record<string, unknown>[]) {
+      const mapped = mapAttachment(row);
+      if (!out[mapped.entity_id]) out[mapped.entity_id] = [];
+      out[mapped.entity_id].push(mapped);
+    }
+    return out;
+  }
+
+  async copyAttachmentsToEntity(
+    files: CsdAttachmentRow[],
+    entityType: string,
+    entityId: string,
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    for (const file of files) {
+      const copied = await this.insertAttachment({
+        storage_key: file.storage_key,
+        file_name: file.file_name,
+        mime_type: file.mime_type,
+        byte_size: file.byte_size,
+        visibility: file.visibility,
+        entity_type: entityType,
+        entity_id: entityId,
+        uploaded_by_staff_id: null,
+      });
+      ids.push(copied.id);
+    }
+    return ids;
+  }
+
+  async listMembers(conversationId: string): Promise<CsdConversationMemberRow[]> {
+    const res = await this.db.query(
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi,
+              (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+              su.avatar_updated_at AS avatar_updated_at
+         FROM csd_conversation_members m
+         LEFT JOIN crm_staff s ON s.id = m.member_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.member_staff_id AND a.tenant_id = $2
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+        WHERE m.conversation_id = $1
+          AND m.member_type = 'staff'
+          AND m.member_staff_id IS NOT NULL
+        ORDER BY m.created_at ASC`,
+      [conversationId, CSD_TENANT_ID],
+    );
+    return res.rows.map(mapMember);
+  }
+
+  async insertMember(input: {
+    conversation_id: string;
+    member_staff_id: number;
+    role: CsdConversationMemberRow['role'];
+  }): Promise<CsdConversationMemberRow> {
+    const existing = await this.db.query(
+      `SELECT * FROM csd_conversation_members
+       WHERE conversation_id = $1 AND member_staff_id = $2`,
+      [input.conversation_id, input.member_staff_id],
+    );
+    if (existing.rows[0]) return mapMember(existing.rows[0]);
+    const res = await this.db.query(
+      `INSERT INTO csd_conversation_members (
+         conversation_id, member_type, member_staff_id, role
+       ) VALUES ($1, 'staff', $2, $3)
+       RETURNING *`,
+      [input.conversation_id, input.member_staff_id, input.role],
+    );
+    return mapMember(res.rows[0]);
+  }
+
+  async deleteMember(conversationId: string, memberStaffId: number): Promise<boolean> {
+    const res = await this.db.query(
+      `DELETE FROM csd_conversation_members
+       WHERE conversation_id = $1 AND member_staff_id = $2 AND role <> 'owner'`,
+      [conversationId, memberStaffId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async getMember(
+    conversationId: string,
+    memberStaffId: number,
+  ): Promise<CsdConversationMemberRow | null> {
+    const res = await this.db.query(
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi
+         FROM csd_conversation_members m
+         LEFT JOIN crm_staff s ON s.id = m.member_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.member_staff_id AND a.tenant_id = $3
+        WHERE m.conversation_id = $1
+          AND m.member_staff_id = $2
+          AND m.member_type = 'staff'
+        LIMIT 1`,
+      [conversationId, memberStaffId, CSD_TENANT_ID],
+    );
+    return res.rows[0] ? mapMember(res.rows[0]) : null;
+  }
+
+  async updateMemberRole(
+    conversationId: string,
+    memberStaffId: number,
+    role: 'admin' | 'member',
+  ): Promise<CsdConversationMemberRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET role = $3
+        WHERE conversation_id = $1
+          AND member_staff_id = $2
+          AND member_type = 'staff'
+          AND role <> 'owner'
+        RETURNING *`,
+      [conversationId, memberStaffId, role],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_member_not_found' });
+    return mapMember(res.rows[0]);
+  }
+
+  async updateConversationInfo(
+    conversationId: string,
+    patch: {
+      name_vi?: string;
+      description?: string;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    },
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const sets: string[] = ['updated_at = NOW()', 'updated_by_staff_id = $3'];
+    const params: unknown[] = [CSD_TENANT_ID, conversationId, actorStaffId];
+    if (patch.name_vi != null) {
+      params.push(patch.name_vi);
+      sets.push(`name_vi = $${params.length}`);
+    }
+    if (patch.description != null) {
+      params.push(patch.description);
+      sets.push(`description = $${params.length}`);
+    }
+    if (patch.join_approval_required != null) {
+      params.push(Boolean(patch.join_approval_required));
+      sets.push(`join_approval_required = $${params.length}`);
+    }
+    if (patch.members_can_send != null) {
+      params.push(Boolean(patch.members_can_send));
+      sets.push(`members_can_send = $${params.length}`);
+    }
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET ${sets.join(', ')}
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      params,
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async getGroupAvatarStorageKey(conversationId: string): Promise<string | null> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query<{ group_avatar_storage_key: string | null }>(
+      `SELECT group_avatar_storage_key
+         FROM csd_conversations
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    const key = res.rows[0]?.group_avatar_storage_key;
+    return key ? String(key) : null;
+  }
+
+  async setGroupAvatarStorageKey(
+    conversationId: string,
+    storageKey: string | null,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET group_avatar_storage_key = $3,
+              group_avatar_updated_at = CASE WHEN $3::text IS NULL THEN NULL ELSE NOW() END,
+              updated_at = NOW(),
+              updated_by_staff_id = $4
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, storageKey, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async listPendingJoinRequests(conversationId: string): Promise<CsdGroupJoinRequestRow[]> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `SELECT r.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS requester_display_name_vi
+         FROM csd_group_join_requests r
+         LEFT JOIN crm_staff s ON s.id = r.requester_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = r.requester_staff_id AND a.tenant_id = r.tenant_id
+        WHERE r.tenant_id = $1
+          AND r.conversation_id = $2
+          AND r.status = 'pending'
+        ORDER BY r.created_at ASC`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    return res.rows.map(mapJoinRequest);
+  }
+
+  async getJoinRequest(
+    conversationId: string,
+    requestId: string,
+  ): Promise<CsdGroupJoinRequestRow | null> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `SELECT r.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS requester_display_name_vi
+         FROM csd_group_join_requests r
+         LEFT JOIN crm_staff s ON s.id = r.requester_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = r.requester_staff_id AND a.tenant_id = r.tenant_id
+        WHERE r.tenant_id = $1
+          AND r.conversation_id = $2
+          AND r.id = $3
+        LIMIT 1`,
+      [CSD_TENANT_ID, conversationId, requestId],
+    );
+    return res.rows[0] ? mapJoinRequest(res.rows[0]) : null;
+  }
+
+  async insertJoinRequest(input: {
+    conversation_id: string;
+    requester_staff_id: number;
+    invited_by_staff_id: number;
+  }): Promise<CsdGroupJoinRequestRow> {
+    await this.ensureGroupAdminSchema();
+    const existing = await this.db.query(
+      `SELECT * FROM csd_group_join_requests
+        WHERE conversation_id = $1 AND requester_staff_id = $2 AND status = 'pending'
+        LIMIT 1`,
+      [input.conversation_id, input.requester_staff_id],
+    );
+    if (existing.rows[0]) return mapJoinRequest(existing.rows[0]);
+    const res = await this.db.query(
+      `INSERT INTO csd_group_join_requests (
+         tenant_id, conversation_id, requester_staff_id, invited_by_staff_id, status
+       ) VALUES ($1, $2, $3, $4, 'pending')
+       RETURNING *`,
+      [CSD_TENANT_ID, input.conversation_id, input.requester_staff_id, input.invited_by_staff_id],
+    );
+    return mapJoinRequest(res.rows[0]);
+  }
+
+  async resolveJoinRequest(
+    conversationId: string,
+    requestId: string,
+    status: 'approved' | 'rejected' | 'cancelled',
+    resolvedByStaffId: number,
+  ): Promise<CsdGroupJoinRequestRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_group_join_requests
+          SET status = $4,
+              resolved_at = NOW(),
+              resolved_by_staff_id = $5
+        WHERE tenant_id = $1
+          AND conversation_id = $2
+          AND id = $3
+          AND status = 'pending'
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, requestId, status, resolvedByStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_join_request_not_found' });
+    return mapJoinRequest(res.rows[0]);
+  }
+
+  async setPinnedMessage(
+    conversationId: string,
+    messageId: string | null,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET pinned_message_id = $3,
+              updated_at = NOW(),
+              updated_by_staff_id = $4
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, messageId, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async transferOwner(
+    conversationId: string,
+    fromStaffId: number,
+    toStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const conv = await client.query(
+        `SELECT * FROM csd_conversations
+          WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+          FOR UPDATE`,
+        [CSD_TENANT_ID, conversationId],
+      );
+      if (!conv.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+      const target = await client.query(
+        `SELECT * FROM csd_conversation_members
+          WHERE conversation_id = $1 AND member_staff_id = $2 AND member_type = 'staff'`,
+        [conversationId, toStaffId],
+      );
+      if (!target.rows[0]) throw new NotFoundException({ error: 'csd_member_not_found' });
+      await client.query(
+        `UPDATE csd_conversation_members SET role = 'member'
+          WHERE conversation_id = $1 AND member_staff_id = $2 AND role = 'owner'`,
+        [conversationId, fromStaffId],
+      );
+      await client.query(
+        `UPDATE csd_conversation_members SET role = 'owner'
+          WHERE conversation_id = $1 AND member_staff_id = $2`,
+        [conversationId, toStaffId],
+      );
+      const updated = await client.query(
+        `UPDATE csd_conversations
+            SET owner_staff_id = $3, updated_at = NOW(), updated_by_staff_id = $4
+          WHERE tenant_id = $1 AND id = $2
+          RETURNING *`,
+        [CSD_TENANT_ID, conversationId, toStaffId, fromStaffId],
+      );
+      await client.query('COMMIT');
+      return mapConversation(updated.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateStatus(
+    conversationId: string,
+    status: CsdConversationStatus,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+       SET status = $3, updated_at = NOW(), updated_by_staff_id = $4
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+       RETURNING *`,
+      [CSD_TENANT_ID, conversationId, status, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async linkMessageToTicket(messageId: string, ticketId: string): Promise<CsdMessageRow> {
+    const res = await this.db.query(
+      `UPDATE csd_messages SET ticket_id = $3
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+       RETURNING *`,
+      [CSD_TENANT_ID, messageId, ticketId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_message_not_found' });
+    return mapMessage(res.rows[0]);
+  }
+}

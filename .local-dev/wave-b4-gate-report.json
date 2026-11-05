@@ -1,0 +1,55 @@
+{
+  "wave": "B4",
+  "component": "crm_lead_funnel",
+  "ok": false,
+  "generated_at": "2026-08-31T15:29:46+00:00",
+  "checks": [
+    {
+      "id": "B4-G01",
+      "ok": false,
+      "label": "PTT_CRM_LEADS_FUNNEL_NEST enabled",
+      "actual": false,
+      "expected": true
+    },
+    {
+      "id": "B4-G02",
+      "ok": true,
+      "label": "PTT_PRESALES_ON_LEAD enabled",
+      "actual": true,
+      "expected": true
+    },
+    {
+      "id": "B4-G03",
+      "ok": true,
+      "label": "Presales workflow steps JSON (12 services)",
+      "services": 13
+    },
+    {
+      "id": "B4-G04",
+      "ok": true,
+      "label": "Wave B4 PG DDL spec present"
+    },
+    {
+      "id": "B4-G05",
+      "ok": true,
+      "label": "Review queue sync systemd units + cron script"
+    },
+    {
+      "id": "B4-G06",
+      "ok": true,
+      "label": "Python funnel pytest parity",
+      "exit_code": 0,
+      "tail": "................................                                         [100%]\n32 passed in 1.12s\n"
+    },
+    {
+      "id": "B4-G07",
+      "ok": true,
+      "label": "Nest leads-funnel unit tests",
+      "exit_code": 0
+    }
+  ],
+  "failed_ids": [
+    "B4-G01"
+  ],
+  "runbook": "docs/runbooks/wave-b4-crm-lead-funnel-dev-plan.md"
+}

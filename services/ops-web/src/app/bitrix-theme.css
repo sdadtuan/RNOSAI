@@ -1,0 +1,2139 @@
+/**
+ * RNOSAI Canopy P1 — tokens + controls (button / field / table)
+ * Overlay only. Selector stays html.ops-shell-bitrix (no TSX change).
+ * Brand: PTT #17692f · Forest #0d3a22 · Cream #f3efe6 · Paper #fffdf8
+ */
+
+html.ops-shell-bitrix,
+html.ops-shell-bitrix body {
+  background: #f3efe6;
+  color: #1c221d;
+}
+
+html.ops-shell-bitrix {
+  --forest: #0d3a22;
+  --ptt: #17692f;
+  --ptt-deep: #114d24;
+  --ptt-soft: #4a7c5c;
+  --leaf: #2a7a3d;
+  --cream: #f3efe6;
+  --paper: #fffdf8;
+  --mist: #e7f0e8;
+  --gold: #ca8a04;
+  --hot: #e11d48;
+  --warm: #ea580c;
+  --sky: #0284c7;
+  --iris: #7c3aed;
+  --won: #059669;
+  --cold: #94a3b8;
+  --page-bg: #f3efe6;
+  --bg: #f3efe6;
+  --surface: #fffdf8;
+  --surface-soft: #efeae0;
+  --surface-column: #ebe6dc;
+  --card: #fffdf8;
+  --border: #d8d2c6;
+  --surface-border: #d8d2c6;
+  --text: #1c221d;
+  --text-strong: #1c221d;
+  --muted: #4a544c;
+  --primary: #17692f;
+  --primary-700: #125a28;
+  --primary-800: #0d3a22;
+  --accent: #17692f;
+  --accent-hover: #e7f0e8;
+  --link: #17692f;
+  --color-primary: #17692f;
+  --shadow-green-sm: 0 1px 2px rgba(13, 58, 34, 0.06);
+  --shadow-green-md: 0 8px 24px rgba(13, 58, 34, 0.08);
+  --topbar-height: 56px;
+  --ops-chrome-h: var(--topbar-height);
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-expanded: 240px;
+  --lead-page-gutter: 3.5rem;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --bitrix-stage-new: #17692f;
+  --bitrix-stage-active: #2a7a3d;
+  --bitrix-stage-quote: #a67c1a;
+  --bitrix-stage-won: #17692f;
+  --bitrix-stage-lost: #8a918c;
+}
+
+/* —— Sidebar (Bitrix sage, flat) —— */
+html.ops-shell-bitrix .ops-sidebar {
+  color: #f6f3ec;
+  border-right: 0;
+  box-shadow: none;
+  background: #4a7c5c;
+}
+
+html.ops-shell-bitrix .ops-sidebar svg {
+  stroke-width: 1.65;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  min-height: var(--topbar-height);
+  gap: 0.65rem;
+}
+
+html.ops-shell-bitrix .ops-sidebar-burger {
+  display: grid;
+  gap: 3.5px;
+  width: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+html.ops-shell-bitrix .ops-sidebar-burger i {
+  display: block;
+  height: 1.5px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand-mark {
+  display: none;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f6f3ec;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand span {
+  font-size: 0.68rem;
+  color: rgba(246, 243, 236, 0.7);
+}
+
+html.ops-shell-bitrix .ops-sidebar-nav {
+  padding: 0.55rem 0.5rem 1rem;
+}
+
+html.ops-shell-bitrix .ops-nav-group + .ops-nav-group {
+  margin-top: 0.2rem;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Khối cha + con khi mở / đang làm việc */
+html.ops-shell-bitrix .ops-nav-group {
+  border-radius: 14px;
+  padding: 0.15rem;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open,
+html.ops-shell-bitrix .ops-nav-group.has-active {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+html.ops-shell-bitrix .ops-nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(246, 243, 236, 0.92);
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  cursor: pointer;
+}
+
+html.ops-shell-bitrix .ops-nav-group-header:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-header,
+html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header {
+  color: #fff;
+  background: transparent;
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-header:hover,
+html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.ops-shell-bitrix .ops-nav-group-toggle {
+  margin-left: auto;
+  font-size: 0.62rem;
+  line-height: 1;
+  opacity: 0.85;
+  transform: none;
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-toggle {
+  transform: rotate(180deg);
+}
+
+html.ops-shell-bitrix .ops-nav-group-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.05rem 0.15rem 0.3rem;
+}
+
+html.ops-shell-bitrix .ops-nav-group-links.is-collapsed {
+  /* accordion dùng grid panel — không ẩn bằng display:none */
+  display: flex;
+}
+
+html.ops-shell-bitrix .ops-nav-group-icon,
+html.ops-shell-bitrix .ops-nav-link-icon,
+html.ops-shell-bitrix .ops-nav-link-icon-wrap,
+html.ops-shell-bitrix .ops-nav-rail-btn,
+html.ops-shell-bitrix .ops-sidebar-toggle {
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-group-label {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  flex: 1;
+  text-align: left;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand-text span {
+  display: none;
+}
+
+html.ops-shell-bitrix .ops-nav-link--text {
+  padding-left: 0.7rem;
+}
+
+/* Leaf (không cha) + child: cùng font / màu / icon trắng */
+html.ops-shell-bitrix .ops-nav-link,
+html.ops-shell-bitrix .ops-nav-link--text,
+html.ops-shell-bitrix .ops-nav-link--child,
+html.ops-shell-bitrix .ops-nav-item--leaf {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  border-radius: 12px;
+  border: 0;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #f6f3ec;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+html.ops-shell-bitrix .ops-nav-item--leaf {
+  margin-bottom: 0.15rem;
+}
+
+html.ops-shell-bitrix .ops-nav-link--child {
+  padding-left: 1.85rem;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+html.ops-shell-bitrix .ops-nav-link:hover,
+html.ops-shell-bitrix .ops-nav-link--child:hover,
+html.ops-shell-bitrix .ops-nav-item--leaf:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: transparent;
+  color: #fff;
+  transform: none;
+}
+
+html.ops-shell-bitrix .ops-nav-link.is-active,
+html.ops-shell-bitrix .ops-nav-link--child.is-active,
+html.ops-shell-bitrix .ops-nav-item--leaf.is-active {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon,
+html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon-wrap,
+html.ops-shell-bitrix .ops-nav-item--leaf.is-active .ops-nav-link-icon-wrap {
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-item--leaf svg {
+  color: #fff;
+  stroke: currentColor;
+}
+
+html.ops-shell-bitrix .ops-sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+html.ops-shell-bitrix .ops-sidebar-toggle {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-rail-btn {
+  border-radius: 10px;
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-rail-item.is-active .ops-nav-rail-btn {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-drawer {
+  background: var(--paper);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 24px rgba(13, 58, 34, 0.08);
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-burger {
+  display: none;
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-brand-mark {
+  display: grid;
+  place-items: center;
+  background: #fff;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* —— Topbar —— */
+html.ops-shell-bitrix .ops-topbar {
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+
+html.ops-shell-bitrix .ops-topbar-strip {
+  height: 2px;
+  background: var(--primary);
+}
+
+html.ops-shell-bitrix .ops-topbar-inner {
+  min-height: var(--topbar-height);
+  padding: 0 1.25rem;
+}
+
+html.ops-shell-bitrix .ops-topbar-app-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--primary-800);
+}
+
+html.ops-shell-bitrix .ops-topbar-avatar {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+html.ops-shell-bitrix .ops-chrome-head {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  z-index: 30;
+}
+
+html.ops-shell-bitrix .ops-chrome-head .ops-topbar {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
+html.ops-shell-bitrix body:has(.ops-sidebar) main {
+  background: var(--page-bg);
+  padding: calc(var(--ops-chrome-h) + 0.4rem) 1rem 1.5rem !important;
+}
+
+/* —— Page shell (Bitrix CRM section) —— */
+html.ops-shell-bitrix .bitrix-crm-page {
+  background: var(--page-bg);
+  min-height: calc(100vh - var(--topbar-height));
+}
+
+html.ops-shell-bitrix .bitrix-crm-page__inner {
+  max-width: none;
+  margin: 0;
+  padding: 0 0 1rem;
+}
+
+html.ops-shell-bitrix .ops-breadcrumb {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.15rem;
+  gap: 0.15rem;
+}
+
+html.ops-shell-bitrix .ops-breadcrumb__current {
+  font-weight: 500;
+}
+
+html.ops-shell-bitrix .page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0 0 0.35rem;
+  margin-bottom: 0.1rem;
+  border-bottom: none;
+  background: transparent;
+}
+
+html.ops-shell-bitrix .page-toolbar__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.65rem;
+  min-width: 0;
+}
+
+html.ops-shell-bitrix .page-toolbar__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+}
+
+html.ops-shell-bitrix .page-toolbar__subtitle {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+html.ops-shell-bitrix .page-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+html.ops-shell-bitrix .page-toolbar__actions .btn {
+  min-height: 28px;
+  padding: 0 0.55rem;
+  font-size: 0.72rem;
+}
+
+html.ops-shell-bitrix .lead-signal-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+html.ops-shell-bitrix .lead-signal-kpi {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 4.25rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  border-top: 3px solid var(--ptt);
+}
+html.ops-shell-bitrix .lead-signal-kpi b {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-strong);
+}
+html.ops-shell-bitrix .lead-signal-kpi span {
+  display: block;
+  min-height: 2.2em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--muted);
+}
+html.ops-shell-bitrix .lead-signal-kpi--hot { border-top-color: var(--hot); }
+html.ops-shell-bitrix .lead-signal-kpi--consult { border-top-color: var(--sky); }
+html.ops-shell-bitrix .lead-signal-kpi--ai { border-top-color: var(--iris); }
+html.ops-shell-bitrix .lead-signal-kpi--won { border-top-color: var(--won); }
+html.ops-shell-bitrix .lead-signal-kpis__caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  html.ops-shell-bitrix .lead-signal-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* View switcher — Kanban | Danh sách */
+html.ops-shell-bitrix .bitrix-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 0 0.35rem;
+}
+
+html.ops-shell-bitrix .bitrix-view-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+html.ops-shell-bitrix .bitrix-view-tab:hover {
+  color: var(--primary);
+}
+
+html.ops-shell-bitrix .bitrix-view-tab.is-active {
+  color: var(--primary-800);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+html.ops-shell-bitrix .page-card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  box-shadow: none;
+  padding: 0.75rem 1rem 1rem;
+}
+
+html.ops-shell-bitrix .page-card--flat-top {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border-top: none;
+}
+
+html.ops-shell-bitrix .stack-gap {
+  gap: 0.55rem;
+}
+
+html.ops-shell-bitrix .card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  background: var(--paper);
+}
+
+/* —— P1 Controls: button · field · table —— */
+html.ops-shell-bitrix .btn,
+html.ops-shell-bitrix .btn-primary,
+html.ops-shell-bitrix button.btn {
+  border-radius: var(--radius-sm);
+  min-height: 40px;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+  background: var(--ptt);
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+html.ops-shell-bitrix .btn:hover,
+html.ops-shell-bitrix .btn-primary:hover {
+  background: var(--ptt-deep);
+  color: #fff;
+}
+
+html.ops-shell-bitrix .btn:focus-visible,
+html.ops-shell-bitrix .btn-primary:focus-visible,
+html.ops-shell-bitrix .btn-secondary:focus-visible,
+html.ops-shell-bitrix .btn-ghost:focus-visible {
+  outline: 2px solid var(--ptt);
+  outline-offset: 2px;
+}
+
+html.ops-shell-bitrix .btn:disabled,
+html.ops-shell-bitrix .btn-primary:disabled,
+html.ops-shell-bitrix .btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+html.ops-shell-bitrix .btn-sm {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+}
+
+html.ops-shell-bitrix .btn-secondary {
+  background: var(--paper);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+html.ops-shell-bitrix .btn-secondary:hover {
+  background: var(--mist);
+  border-color: var(--ptt);
+  color: var(--forest);
+}
+
+html.ops-shell-bitrix .btn-ghost {
+  background: transparent;
+  color: var(--ptt);
+  border: 1px solid transparent;
+}
+
+html.ops-shell-bitrix .btn-ghost:hover {
+  background: var(--mist);
+  border-color: transparent;
+}
+
+html.ops-shell-bitrix .btn-danger {
+  background: var(--paper);
+  color: #b42318;
+  border: 1px solid #f0c4c0;
+}
+
+html.ops-shell-bitrix .btn-danger:hover {
+  background: #fdf2f1;
+  border-color: #e8a8a2;
+  color: #b42318;
+}
+
+html.ops-shell-bitrix .btn-topbar-logout {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+  background: var(--paper);
+  color: var(--text);
+}
+
+html.ops-shell-bitrix .btn-topbar-logout:hover {
+  background: var(--mist);
+  border-color: var(--ptt);
+}
+
+/* Fields */
+html.ops-shell-bitrix .field {
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+
+html.ops-shell-bitrix .field label,
+html.ops-shell-bitrix label.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .field input,
+html.ops-shell-bitrix .field select,
+html.ops-shell-bitrix .field textarea,
+html.ops-shell-bitrix .field-textarea,
+html.ops-shell-bitrix .kpi-input,
+html.ops-shell-bitrix .kpi-select,
+html.ops-shell-bitrix .lead-select,
+html.ops-shell-bitrix .search-input,
+html.ops-shell-bitrix input[type='text'],
+html.ops-shell-bitrix input[type='email'],
+html.ops-shell-bitrix input[type='password'],
+html.ops-shell-bitrix input[type='number'],
+html.ops-shell-bitrix input[type='search'],
+html.ops-shell-bitrix input[type='tel'],
+html.ops-shell-bitrix input[type='url'],
+html.ops-shell-bitrix input[type='date'],
+html.ops-shell-bitrix select,
+html.ops-shell-bitrix textarea {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--text);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+}
+
+html.ops-shell-bitrix .field textarea,
+html.ops-shell-bitrix .field-textarea,
+html.ops-shell-bitrix textarea {
+  min-height: 88px;
+}
+
+html.ops-shell-bitrix .field input:focus,
+html.ops-shell-bitrix .field select:focus,
+html.ops-shell-bitrix .field textarea:focus,
+html.ops-shell-bitrix .field-textarea:focus,
+html.ops-shell-bitrix .kpi-input:focus,
+html.ops-shell-bitrix .kpi-select:focus,
+html.ops-shell-bitrix input:focus,
+html.ops-shell-bitrix select:focus,
+html.ops-shell-bitrix textarea:focus {
+  outline: 2px solid var(--ptt);
+  outline-offset: 1px;
+  border-color: var(--ptt);
+}
+
+html.ops-shell-bitrix input[type='checkbox'],
+html.ops-shell-bitrix input[type='radio'] {
+  accent-color: var(--ptt);
+  width: 1rem;
+  height: 1rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+html.ops-shell-bitrix input[type='hidden'],
+html.ops-shell-bitrix input[type='file'],
+html.ops-shell-bitrix input[type='range'] {
+  min-height: unset;
+  padding: initial;
+  border: initial;
+  background: initial;
+}
+
+html.ops-shell-bitrix .field .hint,
+html.ops-shell-bitrix .field-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .error {
+  color: #b42318;
+}
+
+/* Filter bar + segmented */
+html.ops-shell-bitrix .filter-bar {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+}
+
+html.ops-shell-bitrix .segmented-control {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+html.ops-shell-bitrix .segmented-control button[aria-pressed='true'],
+html.ops-shell-bitrix .segmented-control .is-selected {
+  background: var(--paper);
+  color: var(--forest);
+  box-shadow: none;
+}
+
+/* Tables — every common list surface */
+html.ops-shell-bitrix table,
+html.ops-shell-bitrix table.data-table,
+html.ops-shell-bitrix table.table,
+html.ops-shell-bitrix .crm-leads-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.8125rem;
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix table thead th,
+html.ops-shell-bitrix table.data-table thead th,
+html.ops-shell-bitrix table.table thead th,
+html.ops-shell-bitrix .crm-leads-table thead th {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.75rem;
+}
+
+html.ops-shell-bitrix table tbody td,
+html.ops-shell-bitrix table.data-table tbody td,
+html.ops-shell-bitrix table.table tbody td,
+html.ops-shell-bitrix .crm-leads-table tbody td {
+  border-bottom: 1px solid #efeae0;
+  padding: 0.6rem 0.75rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+html.ops-shell-bitrix table tbody tr:hover,
+html.ops-shell-bitrix table.data-table tbody tr:hover,
+html.ops-shell-bitrix .crm-leads-table tbody tr:hover {
+  background: var(--mist);
+}
+
+html.ops-shell-bitrix .data-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .badge {
+  background: var(--mist);
+  color: var(--forest);
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* —— CRM Kanban (Bitrix deal kanban) —— */
+.crm-kanban {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  min-height: 420px;
+  align-items: flex-start;
+}
+
+.crm-kanban-column {
+  flex: 0 0 280px;
+  max-width: 280px;
+  background: var(--surface-column, #eef1f0);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 220px);
+}
+
+.crm-kanban-column.is-collapsed {
+  flex: 0 0 188px;
+  max-width: 188px;
+  min-width: 188px;
+  align-self: flex-start;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__body,
+.crm-kanban-column.is-collapsed .crm-kanban-column__sum {
+  display: none;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0.55rem 0.65rem;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__title {
+  display: block;
+  writing-mode: horizontal-tb;
+  transform: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__toggle {
+  border: 1px solid var(--border, #d7e0da);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.crm-kanban-column.is-drop {
+  outline: 2px solid var(--primary, #17692f);
+}
+
+.crm-kanban-column__sum {
+  display: block;
+  padding: 0 0.75rem 0.35rem;
+  color: var(--ink-soft, #4d5c55);
+  font-size: 0.75rem;
+}
+
+.crm-kanban-column__toggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.crm-kanban-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 24, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 1rem;
+}
+
+.crm-kanban-modal__card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.crm-kanban-modal__card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+
+.crm-kanban-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-top: 3px solid var(--kanban-accent, var(--primary));
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.crm-kanban-column__title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.crm-kanban-column__count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.crm-kanban-column__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.crm-kanban-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-decoration: none;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  background: var(--paper, #fffdf8);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ptt, #17692f);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.7rem;
+  box-shadow: none;
+  transition: border-color 0.12s ease;
+}
+
+html.ops-shell-bitrix .crm-kanban-card {
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+html.ops-shell-bitrix .crm-kanban-card--hot { border-left-color: var(--hot); }
+html.ops-shell-bitrix .crm-kanban-card--warm { border-left-color: var(--warm); }
+html.ops-shell-bitrix .crm-kanban-card--cold { border-left-color: var(--cold); }
+html.ops-shell-bitrix .crm-kanban-card--late { border-left-color: #b42318; }
+html.ops-shell-bitrix .crm-kanban-card--plain { border-left-color: #9aa39b; }
+
+.crm-kanban-card__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: #17692f;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.crm-kanban-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.crm-kanban-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(28, 34, 29, 0.35);
+}
+
+.crm-kanban-drawer__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  overflow: auto;
+  background: #fffdf8;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.crm-kanban-drawer__head,
+.crm-kanban-drawer__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.crm-kanban-drawer__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.crm-kanban-drawer__log li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.crm-kanban-card:hover {
+  border-color: rgba(23, 105, 47, 0.35);
+}
+
+html.ops-shell-bitrix .crm-kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(28, 34, 29, 0.08);
+}
+
+button.crm-kanban-card {
+  cursor: pointer;
+  font: inherit;
+}
+
+.crm-kanban-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.crm-kanban-card__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.crm-kanban-card__title:hover {
+  color: var(--ptt, #17692f);
+}
+
+.crm-kanban-card__cta {
+  margin-top: 0.15rem;
+  min-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
+}
+
+.crm-kanban-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.crm-kanban-card__actions .crm-kanban-card__cta {
+  margin-top: 0;
+}
+
+.crm-kanban-card__cta.is-primary {
+  font-weight: 700;
+}
+
+.crm-kanban-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.crm-kanban-card__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+html.ops-shell-bitrix .crm-kanban-card__chip--hot {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--warm {
+  background: #ffedd5;
+  color: #9a3412;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--cold {
+  background: #f1f5f9;
+  color: #475569;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--ai {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--sla {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--followup {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.crm-kanban-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.crm-kanban-followup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.crm-kanban-followup__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+.crm-kanban-followup__btn span {
+  font-weight: 700;
+}
+.crm-kanban-followup__btn.is-on {
+  background: #17692f;
+  border-color: #17692f;
+  color: #fff;
+}
+.crm-kanban-drawer__followup {
+  margin: 0;
+  font-weight: 600;
+}
+
+html.ops-shell-bitrix .crm-kanban-card__cta--call {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--intake {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--quote {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--view_quote,
+html.ops-shell-bitrix .crm-kanban-card__cta--view_proposal {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--care {
+  background: var(--ptt);
+  border-color: var(--ptt);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--return_am {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--advance_proposal,
+html.ops-shell-bitrix .crm-kanban-card__cta--advance_contract,
+html.ops-shell-bitrix .crm-kanban-card__cta--mark_signed {
+  background: var(--won);
+  border-color: var(--won);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--view_contract {
+  background: var(--won);
+  border-color: var(--won);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--hub {
+  background: var(--won);
+  border-color: var(--won);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--lead {
+  background: var(--ptt);
+  border-color: var(--ptt);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--lead:hover {
+  background: var(--ptt-deep);
+  border-color: var(--ptt-deep);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--call:hover {
+  background: #be123c;
+  border-color: #be123c;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--intake:hover {
+  background: #0369a1;
+  border-color: #0369a1;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--quote:hover {
+  background: #a16207;
+  border-color: #a16207;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--hub:hover {
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+}
+
+html.ops-shell-bitrix .crm-kanban-column__head {
+  background: color-mix(in srgb, var(--kanban-accent, var(--ptt)) 12%, #fffdf8);
+}
+
+.crm-kanban-card__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  width: 100%;
+  margin-top: 0.15rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid #f0f2f1;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.crm-kanban-card__footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-kanban-card__footer-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-kanban-card__footer-row > span:last-child {
+  flex-shrink: 0;
+}
+
+.crm-kanban-empty {
+  padding: 1rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Sales pipeline — align with CRM kanban */
+html.ops-shell-bitrix .sales-pipeline-kanban {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+}
+
+html.ops-shell-bitrix .sales-pipeline-column {
+  flex: 0 0 260px;
+  background: var(--surface-column);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+}
+
+html.ops-shell-bitrix .sales-pipeline-card {
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .sales-pipeline-card.is-selected {
+  box-shadow: 0 0 0 2px rgba(23, 105, 47, 0.15);
+}
+
+/* Login — P2 split */
+html.ops-shell-bitrix .login-page {
+  display: grid;
+  grid-template-columns: minmax(260px, 42%) 1fr;
+  place-items: stretch;
+  min-height: 100vh;
+  padding: 0;
+  background: var(--cream);
+}
+
+html.ops-shell-bitrix .login-brand {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 0;
+}
+
+html.ops-shell-bitrix .login-brand__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+html.ops-shell-bitrix .login-brand__logo {
+  position: relative;
+  z-index: 1;
+  width: min(160px, 46%);
+  height: auto;
+}
+
+html.ops-shell-bitrix .login-page > .login-card,
+html.ops-shell-bitrix .login-page > .muted {
+  align-self: center;
+  justify-self: center;
+  margin: 2rem 1.5rem;
+}
+
+html.ops-shell-bitrix .login-card {
+  width: min(400px, 100%);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-green-md);
+}
+
+html.ops-shell-bitrix .canopy-next-action {
+  margin: 0;
+  padding: 0.4rem 1.25rem;
+  background: #eef2ea;
+  color: var(--ptt);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  border-bottom: 1px solid #d8e0d4;
+}
+
+html.ops-shell-bitrix body:has(.canopy-next-action) .lead-detail-tabs {
+  top: var(--ops-chrome-h);
+}
+
+/* Lead detail — Bitrix entity card */
+html.ops-shell-bitrix .lead-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .lead-detail-hero {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .lead-detail-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+html.ops-shell-bitrix .lead-detail-top > .lead-detail-identity,
+html.ops-shell-bitrix .lead-detail-top > .lead-party-card {
+  height: 100%;
+  margin: 0;
+  width: auto;
+  max-width: none;
+}
+
+html.ops-shell-bitrix .lead-detail-identity .lead-detail-hero,
+html.ops-shell-bitrix .lead-property-rail--identity {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  max-height: none;
+  position: static;
+  overflow: visible;
+}
+
+@media (max-width: 720px) {
+  html.ops-shell-bitrix .lead-detail-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* P4 — lead record: main column + property rail */
+html.ops-shell-bitrix .lead-detail-grid--record,
+html.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html.ops-shell-bitrix .lead-property-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  position: static;
+  top: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+html.ops-shell-bitrix .lead-property-rail__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .lead-property-rail__list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+html.ops-shell-bitrix .lead-property-rail__row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+html.ops-shell-bitrix .lead-property-rail__row dt {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .lead-property-rail__row dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  word-break: break-word;
+}
+
+html.ops-shell-bitrix .lead-workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.15rem;
+}
+
+html.ops-shell-bitrix .lead-workspace-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 1023px) {
+  html.ops-shell-bitrix .lead-detail-grid--record,
+  html.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
+    grid-template-columns: 1fr;
+  }
+
+  html.ops-shell-bitrix .lead-property-rail {
+    position: static;
+    max-height: none;
+  }
+}
+
+html.ops-shell-bitrix .b2b-inbox-item {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .b2b-inbox-list {
+  gap: 0.5rem;
+}
+
+html.ops-shell-bitrix .breadcrumb {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.15rem;
+}
+
+@media (max-width: 960px) {
+  html.ops-shell-bitrix {
+    --lead-page-gutter: 1.3rem;
+  }
+
+  html.ops-shell-bitrix .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  html.ops-shell-bitrix .login-brand {
+    min-height: 36vh;
+  }
+
+  html.ops-shell-bitrix body:has(.ops-sidebar) main {
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+    padding-top: calc(var(--ops-chrome-h) + 0.4rem) !important;
+  }
+
+  html.ops-shell-bitrix .page-toolbar {
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  html.ops-shell-bitrix .page-toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .crm-kanban-column {
+    flex: 0 0 260px;
+    max-width: 260px;
+  }
+}
+
+html.ops-shell-bitrix .lead-workspace-stage {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.ops-shell-bitrix .lead-detail-page,
+html.ops-shell-bitrix .lead-detail-layout,
+html.ops-shell-bitrix .lead-detail-grid--record,
+html.ops-shell-bitrix .lead-detail-hero,
+html.ops-shell-bitrix .lead-nba,
+html.ops-shell-bitrix .lead-funnel-panel,
+html.ops-shell-bitrix .lead-funnel-panel .card-inner,
+html.ops-shell-bitrix .lead-b2-workflow {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.ops-shell-bitrix:has(.lead-detail-page) {
+  overflow-x: clip;
+}
+
+/* Leftover viewport after the fixed sidebar — not 100% of a growing parent. */
+html.ops-shell-bitrix .lead-detail-page {
+  width: calc(100vw - var(--sidebar-width) - var(--lead-page-gutter));
+  max-width: calc(100vw - var(--sidebar-width) - var(--lead-page-gutter));
+  box-sizing: border-box;
+}
+
+html.rs-mobile-chrome.ops-shell-bitrix .lead-detail-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+html.ops-shell-bitrix .lead-detail-layout {
+  overflow-x: clip;
+}
+
+html.ops-shell-bitrix .lead-detail-hero__name,
+html.ops-shell-bitrix .lead-detail-hero__nba,
+html.ops-shell-bitrix .lead-nba__title,
+html.ops-shell-bitrix .lead-detail-hero__meta-item {
+  overflow-wrap: anywhere;
+}
+
+html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper,
+html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper__track {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper__track {
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel {
+  overflow: visible;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel textarea,
+html.ops-shell-bitrix .lead-funnel-panel input,
+html.ops-shell-bitrix .lead-funnel-panel .btn {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel .btn {
+  white-space: normal;
+  height: auto;
+  text-align: center;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+  min-width: 0;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chip {
+  border: 1px solid #d7ddd8;
+  background: #fff;
+  color: #3f4a42;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chip.is-active {
+  border-color: #17692f;
+  background: #e8f5ec;
+  color: #12361c;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__note {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6b6b6b;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__note input {
+  width: 100%;
+  font-weight: 500;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__hint {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__hint--warn {
+  color: #b45309;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__hint--after-call {
+  color: #17692f;
+  font-weight: 600;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__submit {
+  justify-self: start;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__done {
+  margin: 0.35rem 0 0;
+  color: #17692f;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record,
+html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-funnel-panel {
+  padding: 0.9rem 1rem;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-journey__label {
+  display: none;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-journey__label-short {
+  display: inline;
+}
+
+html.ops-shell-bitrix .lead-nba {
+  background: linear-gradient(180deg, #f3faf5 0%, #fff 42%);
+  border: 1px solid #c8e0cf;
+  border-left: 5px solid #17692f;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem 1.2rem;
+  box-shadow: 0 8px 24px rgba(17, 77, 36, 0.07);
+}
+html.ops-shell-bitrix .lead-nba__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+html.ops-shell-bitrix .lead-nba__kicker {
+  margin: 0;
+  width: fit-content;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #17692f;
+  background: #dff3e5;
+}
+html.ops-shell-bitrix .lead-nba__title {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.25;
+  color: #12361c;
+}
+html.ops-shell-bitrix .lead-nba__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+}
+html.ops-shell-bitrix .lead-nba__actions .btn-primary {
+  background: #17692f;
+  border-color: #17692f;
+  min-height: 2.15rem;
+  padding: 0.4rem 1rem;
+  font-weight: 700;
+}
+html.ops-shell-bitrix .lead-nba__actions .btn-primary:hover {
+  background: #114d24;
+  border-color: #114d24;
+}
+html.ops-shell-bitrix .lead-nba__body {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+html.ops-shell-bitrix .lead-nba__form {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+html.ops-shell-bitrix .lead-nba__form input {
+  width: 100%;
+}
+html.ops-shell-bitrix .lead-nba__script {
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.95rem;
+  border-left: 3px solid #17692f;
+  background: #f6faf7;
+  font-size: 0.9rem;
+}
+
+html.ops-shell-bitrix .lead-journey {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border, #e5e2da);
+  border-radius: 12px;
+  background: var(--paper, #fff);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+html.ops-shell-bitrix .lead-journey__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.7rem;
+}
+html.ops-shell-bitrix .lead-journey__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+html.ops-shell-bitrix .lead-journey__desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted, #6b6b6b);
+}
+html.ops-shell-bitrix .lead-journey__track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+html.ops-shell-bitrix .lead-journey__step {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+html.ops-shell-bitrix .lead-journey__line {
+  flex: 1 1 0.4rem;
+  height: 2px;
+  min-width: 0;
+  margin: 0 0.15rem;
+  background: #d7ddd8;
+}
+html.ops-shell-bitrix .lead-journey__step--done .lead-journey__line,
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__line {
+  background: #17692f;
+}
+html.ops-shell-bitrix .lead-journey__dot {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #e8ebe9;
+  color: #6b7280;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__dot {
+  background: #17692f;
+  color: #fff;
+  box-shadow: 0 0 0 4px #dff3e5;
+}
+html.ops-shell-bitrix .lead-journey__step--done .lead-journey__dot {
+  background: #17692f;
+  color: #fff;
+}
+html.ops-shell-bitrix .lead-journey__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.35rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+}
+html.ops-shell-bitrix .lead-journey__label,
+html.ops-shell-bitrix .lead-journey__label-short {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.ops-shell-bitrix .lead-journey__label-short {
+  display: none;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__link {
+  border-color: #c8e0cf;
+  background: #e8f5ec;
+  font-weight: 700;
+  color: #12361c;
+}
+html.ops-shell-bitrix .lead-journey__alert {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1280px) {
+  html.ops-shell-bitrix .lead-journey__label {
+    display: none;
+  }
+  html.ops-shell-bitrix .lead-journey__label-short {
+    display: inline;
+  }
+}
+
+@media (max-width: 720px) {
+  html.ops-shell-bitrix .lead-journey__track {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 0.45rem;
+  }
+  html.ops-shell-bitrix .lead-journey__step {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  html.ops-shell-bitrix .lead-journey__line {
+    display: none;
+  }
+  html.ops-shell-bitrix .lead-journey__link {
+    justify-content: center;
+  }
+}
+
+html.ops-shell-bitrix .lead-journey__track--extended {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+html.ops-shell-bitrix .lead-journey__track--extended .lead-journey__step {
+  flex: 0 0 auto;
+  min-width: 3.4rem;
+}
+html.ops-shell-bitrix .lead-journey__link--muted {
+  opacity: 0.55;
+  cursor: default;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border, #d7ddd8);
+  border-radius: 10px;
+  background: rgba(23, 105, 47, 0.04);
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #6b6b6b);
+  line-height: 1.35;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__primary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  html.ops-shell-bitrix .lead-journey__track--extended {
+    display: flex;
+    grid-template-columns: unset;
+  }
+  html.ops-shell-bitrix .lifecycle-delivery-nba {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+html.ops-shell-bitrix .lead-detail-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.65rem;
+}
+html.ops-shell-bitrix .lead-detail-hero__trailing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+}
+html.ops-shell-bitrix .lead-detail-hero__nba {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #17692f;
+  background: #dff3e5;
+  font-weight: 700;
+}
+
+html.ops-shell-bitrix .lead-cockpit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  background: rgba(18, 24, 20, 0.38);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 49;
+  width: min(48vw, 560px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #d7ddd8;
+  box-shadow: -16px 0 40px rgba(18, 54, 28, 0.14);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1.1rem 0.8rem;
+  border-bottom: 1px solid #e8ebe9;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #17692f;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #12361c;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.85rem 1.1rem 1.4rem;
+}
+
+@media (max-width: 1023px) {
+  html.ops-shell-bitrix .lead-cockpit-drawer {
+    width: min(100vw, 100%);
+  }
+}
+
+/* Intake Sales Kit — align with Sales Cockpit drawer */
+html.ops-shell-bitrix .intake-kit.lmp-panel {
+  border-color: #e8ebe9;
+  box-shadow: 0 1px 2px rgba(18, 54, 28, 0.06);
+}
+
+html.ops-shell-bitrix .intake-kit__chip {
+  background: #17692f;
+}
+
+html.ops-shell-bitrix .intake-kit__chip:hover:not(:disabled),
+html.ops-shell-bitrix .intake-kit__chip.is-active {
+  background: #114d24;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__body .intake-kit--embedded {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 5.5rem);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__body #intake-sales-kit {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+html.ops-shell-bitrix .intake-kit__bubble--assistant {
+  background: #f6f8f7;
+  border-color: #e8ebe9;
+}
+
+html.ops-shell-bitrix .intake-kit__chat-input {
+  border-color: #d7ddd8;
+}
+
+html.ops-shell-bitrix .intake-kit__chat-input:focus {
+  outline: 2px solid rgba(23, 105, 47, 0.25);
+  border-color: #17692f;
+}

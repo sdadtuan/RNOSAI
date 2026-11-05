@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pttads.vn/schemas/lmp-discover-v1-output.json",
+  "title": "DiscoverResult",
+  "description": "LMP Discover v1 — LLM parse output from Tavily snippets (identity discovery)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "discover_status",
+    "discover_message_vi",
+    "query_context",
+    "candidates",
+    "recommended_candidate_id",
+    "am_action",
+    "meta"
+  ],
+  "properties": {
+    "discover_status": {
+      "type": "string",
+      "enum": ["found_single", "found_multiple", "not_found", "tier1_only"]
+    },
+    "discover_message_vi": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 500
+    },
+    "query_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lead_phone_normalized",
+        "lead_email_normalized",
+        "tavily_queries",
+        "tier1_hints_used"
+      ],
+      "properties": {
+        "lead_phone_normalized": {
+          "type": ["string", "null"],
+          "maxLength": 20
+        },
+        "lead_email_normalized": {
+          "type": ["string", "null"],
+          "format": "email"
+        },
+        "tavily_queries": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 },
+          "maxItems": 10
+        },
+        "tier1_hints_used": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "email_domain",
+              "meta_page",
+              "meta_company_field",
+              "provided_website"
+            ]
+          },
+          "maxItems": 8
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/BusinessIdentityCandidate" }
+    },
+    "recommended_candidate_id": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9_-]{8,32}$"
+    },
+    "am_action": {
+      "type": "string",
+      "enum": ["none", "select_candidate", "enter_company_manual"]
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discovered_at", "sources_parsed", "model", "prompt_version"],
+      "properties": {
+        "discovered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sources_parsed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "prompt_version": {
+          "type": "string",
+          "const": "lmp-discover-v1"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "BusinessIdentityCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "company_name",
+        "website_url",
+        "social_urls",
+        "tax_id",
+        "address_vi",
+        "industry_hint",
+        "phones_on_record",
+        "emails_on_record",
+        "source_url",
+        "source_type",
+        "confidence",
+        "match_signals",
+        "note_vi"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{8,32}$"
+        },
+        "company_name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200
+        },
+        "website_url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "social_urls": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "maxItems": 3
+        },
+        "tax_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{10,14}$"
+        },
+        "address_vi": {
+          "type": ["string", "null"],
+          "maxLength": 300
+        },
+        "industry_hint": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "phones_on_record": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 20 },
+          "maxItems": 5
+        },
+        "emails_on_record": {
+          "type": "array",
+          "items": { "type": "string", "format": "email" },
+          "maxItems": 5
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "masothue",
+            "business_directory",
+            "company_website",
+            "google_business",
+            "meta_page",
+            "email_domain",
+            "other"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["verified", "likely", "weak"]
+        },
+        "match_signals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["phone_match", "email_match", "domain_match", "name_only"]
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "note_vi": {
+          "type": ["string", "null"],
+          "maxLength": 240
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "discover_status": { "const": "not_found" } },
+        "required": ["discover_status"]
+      },
+      "then": {
+        "properties": {
+          "candidates": { "maxItems": 0 },
+          "recommended_candidate_id": { "const": null },
+          "am_action": { "const": "enter_company_manual" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "discover_status": { "const": "found_multiple" } },
+        "required": ["discover_status"]
+      },
+      "then": {
+        "properties": {
+          "candidates": { "minItems": 2 },
+          "am_action": { "const": "select_candidate" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "discover_status": { "const": "found_single" } },
+        "required": ["discover_status"]
+      },
+      "then": {
+        "properties": {
+          "candidates": { "minItems": 1, "maxItems": 1 }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,270 @@
+'use client';
+
+import Link from 'next/link';
+import React, { useState } from 'react';
+import type {
+  PortfolioCommandCenter,
+  PortfolioRiskQueueItem,
+  PortfolioSlaEvent,
+  TodayPublishRow,
+} from '@/lib/crm/cmkte-api';
+import { capacityBandLabel, pctLabel } from '@/lib/crm/cmkte-workspace';
+import { cmktePath, withLifecycleQuery } from '@/lib/crm/cmkte-routes';
+import { CmktERequestModal } from './CmktERequestModal';
+
+const EMPTY_COPY = 'Chưa có throughput tuần này và hàng đợi rủi ro trống.';
+
+function dash(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function slaLabel(hours: number | null): string {
+  return hours == null ? '—' : `${hours}h`;
+}
+
+function riskTitle(row: PortfolioRiskQueueItem): string {
+  return `${dash(row.content_code)} · ${dash(row.title)}`;
+}
+
+export function CmktECommandCenter({
+  data,
+  lifecycleId,
+  slaEvents = [],
+}: {
+  data: PortfolioCommandCenter;
+  lifecycleId?: number;
+  slaEvents?: PortfolioSlaEvent[];
+}) {
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [toast, setToast] = useState('');
+  const empty = data.throughput_week === 0 && data.risk_queue.length === 0;
+  const approvedInsight = data.insight?.status === 'Approved' ? data.insight : null;
+  const capacityBand = capacityBandLabel(data.capacity_pct, data.capacity_band);
+  const todayPublish: TodayPublishRow[] = data.today_publish ?? [];
+
+  return (
+    <div className="cmkte-cmd">
+      <div className="cmkte-head">
+        <div>
+          <h1>Content Operations Command Center</h1>
+          <p>Kiểm soát throughput, SLA, rủi ro và năng lực sản xuất trên toàn bộ client portfolio.</p>
+        </div>
+        <div className="cmkte-actions">
+          <Link href={cmktePath('calendar', { lifecycleId })} className="cmkte-btn">
+            Mở Publication Control
+          </Link>
+          <button type="button" className="cmkte-btn cmkte-btn--blue" onClick={() => setRequestOpen(true)}>
+            ＋ Tạo Content Item
+          </button>
+        </div>
+      </div>
+
+      {empty ? <p className="cmkte-empty">{EMPTY_COPY}</p> : null}
+
+      <div className="cmkte-card">
+        <div className="cmkte-queuehead">
+          <div>
+            <h3>Cần đăng hôm nay</h3>
+            <p className="cmkte-desc">
+              Hàng đợi thắng đối thủ: gate PASS + Page Connected → người bấm xác nhận. Không phải lịch N kênh.
+            </p>
+          </div>
+          <Link href={cmktePath('calendar', { lifecycleId })} className="cmkte-btn cmkte-btn--small">
+            Mở Publication Control
+          </Link>
+        </div>
+        <div className="cmkte-table-scroll">
+          <table className="cmkte-table">
+            <thead>
+              <tr>
+                <th>Item / Page</th>
+                <th>Gate</th>
+                <th>Health</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {todayPublish.map((row) => (
+                <tr key={row.item_id}>
+                  <td>
+                    <span className="cmkte-taskname">{row.display_code}</span>
+                    <span className="cmkte-dep">{row.page_name}</span>
+                  </td>
+                  <td>
+                    {row.gate}
+                    {row.gate === 'Blocked' && row.blockers > 0 ? ` · ${row.blockers} blocker` : ''}
+                  </td>
+                  <td>{row.health}</td>
+                  <td>
+                    <Link
+                      href={withLifecycleQuery(
+                        `/crm/content-os/w/${row.item_id}?tab=publish`,
+                        lifecycleId,
+                      )}
+                      className="cmkte-btn cmkte-btn--small"
+                    >
+                      Mở Publish Control
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="cmkte-grid3">
+        <div className="cmkte-card">
+          <div className="cmkte-metricrow">
+            <span>Content throughput · Tuần này</span>
+          </div>
+          <b className="cmkte-metric">{data.throughput_week}</b>
+          <p className="cmkte-desc">
+            {data.completed_week} hoàn tất · {data.wip} đang trong production.
+          </p>
+        </div>
+        <div className="cmkte-card">
+          <div className="cmkte-metricrow">
+            <span>Approval SLA at risk</span>
+            {data.sla_at_risk > 0 || data.sla_breached > 0 ? (
+              <b className="cmkte-metricrow__warn">Cần xử lý</b>
+            ) : null}
+          </div>
+          <b className="cmkte-metric">{data.sla_at_risk}</b>
+          <p className="cmkte-desc">
+            {data.sla_breached} đã vượt SLA · {data.blocked} bị chặn.
+          </p>
+        </div>
+        <div className="cmkte-card">
+          <div className="cmkte-metricrow">
+            <span>Team capacity</span>
+            <b>{pctLabel(data.capacity_pct)}</b>
+          </div>
+          {data.capacity_pct == null ? (
+            <p className="cmkte-desc">Chưa có time tracking</p>
+          ) : (
+            <>
+              {capacityBand ? <p className="cmkte-desc">{capacityBand}</p> : null}
+              <div className="cmkte-bar" aria-hidden>
+                <i style={{ width: `${Math.max(0, Math.min(100, data.capacity_pct))}%` }} />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="cmkte-layout">
+        <div className="cmkte-card">
+          <div className="cmkte-queuehead">
+            <div>
+              <h3>Operational risk queue</h3>
+              <p className="cmkte-desc">Ưu tiên theo SLA, risk level và critical path dependency.</p>
+            </div>
+            <Link href={cmktePath('approvals', { lifecycleId })} className="cmkte-btn cmkte-btn--small">
+              Mở Approval Center
+            </Link>
+          </div>
+          <div className="cmkte-table-scroll">
+            <table className="cmkte-table">
+              <thead>
+                <tr>
+                  <th>Content / Client</th>
+                  <th>Risk signal</th>
+                  <th>Current owner</th>
+                  <th>SLA</th>
+                  <th>Recommended action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.risk_queue.map((row) => {
+                  const href = cmktePath('workspace', {
+                    itemId: row.item_id,
+                    lifecycleId: lifecycleId ?? row.lifecycle_id,
+                  });
+                  return (
+                    <tr key={row.item_id}>
+                      <td>
+                        <Link href={href} className="cmkte-taskname">
+                          {riskTitle(row)}
+                        </Link>
+                        <span className="cmkte-dep">{dash(row.client_label)}</span>
+                      </td>
+                      <td>{dash(row.risk_signal)}</td>
+                      <td>{dash(row.owner_label)}</td>
+                      <td>{slaLabel(row.sla_remaining_h)}</td>
+                      <td>
+                        <Link href={href} className="cmkte-btn cmkte-btn--small">
+                          {dash(row.recommended_action)}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <aside className="cmkte-right">
+          <div className="cmkte-card">
+            <h3>Approval health</h3>
+            <div className="cmkte-metricrow">
+              <span>First-pass approval rate</span>
+              <b>{pctLabel(data.first_pass_pct)}</b>
+            </div>
+            {data.first_pass_pct == null ? (
+              <p className="cmkte-desc">Chưa có time tracking</p>
+            ) : (
+              <div className="cmkte-bar" aria-hidden>
+                <i
+                  style={{
+                    width: `${Math.max(0, Math.min(100, data.first_pass_pct))}%`,
+                    background: 'var(--green)',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="cmkte-card">
+            <h3>SLA inbox</h3>
+            {slaEvents.length ? (
+              <ul className="cmkte-list">
+                {slaEvents.slice(0, 8).map((row) => (
+                  <li key={row.id}>
+                    #{row.item_id} · {row.task_id} · {row.action} · {row.threshold}%
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="cmkte-desc">Chưa có SLA event trong phạm vi board.</p>
+            )}
+          </div>
+          {approvedInsight ? (
+            <div className="cmkte-card">
+              <h3>AI insight of the week</h3>
+              <div className="cmkte-notice">
+                {approvedInsight.title ? <b>{approvedInsight.title}</b> : null}
+                {approvedInsight.body ? <span>{approvedInsight.body}</span> : null}
+              </div>
+            </div>
+          ) : null}
+        </aside>
+      </div>
+
+      {toast ? (
+        <div className="cmkte-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
+
+      <CmktERequestModal
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        lifecycleId={lifecycleId}
+        onCreated={(request) => {
+          setToast(`${request.display_code || 'Request'} đã tạo · ở lại Intake.`);
+        }}
+      />
+    </div>
+  );
+}

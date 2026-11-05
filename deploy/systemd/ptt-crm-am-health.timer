@@ -1,0 +1,14 @@
+# AM health at 02:00 ICT.
+# Timezone is encoded in OnCalendar so the host TZ does not matter.
+# Do not also enable a UTC 19:00 timer.
+
+[Unit]
+Description=AM health at 02:00 ICT
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Asia/Ho_Chi_Minh
+Persistent=true
+Unit=ptt-crm-am-health.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,169 @@
+name: "RNOS Deliverable"
+description: Backlog triển khai — map RNOS ↔ UC ↔ UI ↔ UAT trước khi code
+title: "[RNOS-XX] "
+labels:
+  - deliverable
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tạo issue **trước PR**. Repo: https://github.com/sdadtuan/RNOSAI
+
+        Khi code xong, mở PR (`Closes #N`) và tick [PR checklist](https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/pr-checklist-rnos-uc-ui-uat.md).
+
+        **Ma trận R1:** [implementation plan §10](https://github.com/sdadtuan/RNOSAI/blob/main/docs/specs/2026-07-26-rnosai-system-implementation-plan.md#10-ma-trận-deliverable-rnos)
+
+  - type: checkboxes
+    attributes:
+      label: Trước khi tạo
+      options:
+        - label: Đã tra RNOS trong master spec §18.3 / implementation plan
+          required: true
+        - label: Không trùng issue/PR đang mở cho cùng RNOS
+          required: true
+
+  - type: dropdown
+    id: rnos
+    attributes:
+      label: RNOS ID (chính)
+      description: Deliverable chính của issue
+      options:
+        - RNOS-01 — DDL AI + behavior tables
+        - RNOS-02 — AiIntelligenceModule skeleton
+        - RNOS-03 — POST /ai/summarize
+        - RNOS-04 — POST /ai/score/lead
+        - RNOS-05 — AI audit (ai_agent_runs)
+        - RNOS-06 — Copilot panel UI
+        - RNOS-07 — Follow-up draft + approve
+        - RNOS-08 — Event tenant.lead.scored + consumer
+        - RNOS-16 — Timeline enrichment
+        - RNOS-39 — E2E Playwright
+        - RNOS-40 — Runbook + env + pilot flag
+        - RNOS-09+ — R2+ (ghi rõ trong mô tả)
+        - Khác — không thuộc RNOS AI
+    validations:
+      required: true
+
+  - type: dropdown
+    id: wave
+    attributes:
+      label: Wave
+      options:
+        - Phase 0
+        - R1 — AI Assist
+        - R2 — Workflow + NBA
+        - R3 — Revenue OS
+        - R4 — Channel AI
+        - Production / hotfix
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workstream
+    attributes:
+      label: Workstream
+      options:
+        - DATA
+        - BE — Backend / AI service
+        - FE — ops-web / portal-web
+        - PLATFORM — DevOps / env / runbook
+        - QA — E2E / UAT
+        - PRODUCT — pilot / training
+    validations:
+      required: true
+
+  - type: input
+    id: uc
+    attributes:
+      label: Use case
+      description: "VD: AI-UC-001, AI-UC-002"
+      placeholder: AI-UC-___
+    validations:
+      required: true
+
+  - type: input
+    id: actions
+    attributes:
+      label: Actions § (UAT)
+      description: Section trong 09-AI-ACTIONS.md hoặc pilot bước
+      placeholder: "§003 · Pilot §4"
+    validations:
+      required: false
+
+  - type: input
+    id: ui
+    attributes:
+      label: UI spec
+      description: Section hoặc UI-R1-xx trong SPEC_UI_UX_AI_REVENUE_OS.md
+      placeholder: "§6.2 · UI-R1-04"
+    validations:
+      required: false
+
+  - type: input
+    id: week
+    attributes:
+      label: Tuần target (90-day plan)
+      placeholder: "Tuần 5–6"
+    validations:
+      required: false
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Mô tả / outcome
+      description: 1–3 câu — khách hàng/CSKH nhận được gì khi done?
+      placeholder: |
+        CSKH mở lead thấy score + explain chips trong ≤30s sau ingest.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Tiêu chí Done (copy từ UC / Gate)
+      description: Checkbox trong issue body — tick khi UAT pass
+      value: |
+        - [ ] Code path theo 90-day plan
+        - [ ] PR merged với checklist RNOS ticked
+        - [ ] Staging verified
+        - [ ] UAT actions § pass (nếu applicable)
+        - [ ] BR-AI-01…05 không vi phạm
+    validations:
+      required: true
+
+  - type: textarea
+    id: code_paths
+    attributes:
+      label: Code paths dự kiến
+      placeholder: |
+        services/ptt-crm-api/src/ai-intelligence/...
+        services/ops-web/src/components/LeadCopilotPanel.tsx
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Phụ thuộc / blocker
+      placeholder: "Blocked by RNOS-01 DDL staging"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 — Gate R1 / Phase 0
+        - P1 — R1 stretch hoặc R2
+        - P2 — defer
+    validations:
+      required: true
+
+  - type: input
+    id: owner
+    attributes:
+      label: Assignee / owner
+      placeholder: "@github-username"
+    validations:
+      required: false

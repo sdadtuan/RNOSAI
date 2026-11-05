@@ -1,0 +1,407 @@
+import { BadRequestException, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Pool, PoolClient } from 'pg';
+import { AppConfigService } from '../config/app-config.service';
+import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
+import { pgRowToV1 } from './lead-v1.mapper';
+import {
+  CreateLeadV1Body,
+  LeadV1,
+  PatchLeadResult,
+  PatchLeadV1Body,
+  PgLeadRow,
+} from './leads.types';
+
+const STAGING_ID_MIN = 900_000_000;
+
+@Injectable()
+export class PgLeadsWriteRepository implements OnModuleDestroy {
+  private pool: Pool | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  query(sql: string, params: unknown[] = []) {
+    return this.db.query(sql, params);
+  }
+
+  async createLead(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
+    if (this.config.leadsCreateIdMode === 'prod') {
+      return this.createLeadProd(body);
+    }
+    return this.createLeadStaging(body);
+  }
+
+  async createLeadStaging(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
+    return this.insertLead(body, {
+      leadId: (client) => this.nextStagingLeadId(client),
+      writeSource: 'staging',
+      meta: this.mergeCreateMeta(body, {
+        staging_only: true,
+        nest_write: true,
+        created_via: 'POST /api/v1/leads',
+      }),
+      defaultSource: 'staging',
+      isDuplicate: Boolean(body.is_duplicate),
+    });
+  }
+
+  async createLeadProd(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
+    const flowKind = body.lead_flow_kind ?? body.meta?.lead_flow_kind;
+    const isB2bProspect = flowKind === 'b2b_prospect' || flowKind === 'b2b';
+    if (!body.client_id?.trim() && !isB2bProspect) {
+      throw new BadRequestException({ error: 'client_id is required for prod create' });
+    }
+    return this.insertLead(body, {
+      leadId: async (client) => this.nextProdLeadId(client),
+      writeSource: 'nest',
+      meta: this.mergeCreateMeta(body, {
+        nest_write: true,
+        prod_create: true,
+        created_via: 'POST /api/v1/leads',
+      }),
+      defaultSource: body.source?.trim() || 'api',
+      isDuplicate: Boolean(body.is_duplicate),
+    });
+  }
+
+  private mergeCreateMeta(
+    body: CreateLeadV1Body & { meta?: Record<string, unknown> },
+    base: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const meta = { ...(body.meta ?? {}), ...base };
+    if (body.lead_flow_kind === 'spa_operational' || body.lead_flow_kind === 'b2b_prospect') {
+      meta.lead_flow_kind = body.lead_flow_kind;
+    }
+    return meta;
+  }
+
+  private async insertLead(
+    body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> },
+    opts: {
+      leadId: (client: PoolClient) => Promise<number>;
+      writeSource: string;
+      meta: Record<string, unknown>;
+      defaultSource: string;
+      isDuplicate?: boolean;
+    },
+  ): Promise<LeadV1> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const leadId = await opts.leadId(client);
+      const now = new Date();
+      await client.query(
+        `INSERT INTO crm_leads (
+           sqlite_lead_id, full_name, phone, email, status, source, owner_id,
+           is_duplicate, meta_json, agency_client_id, channel, external_lead_id,
+           campaign_id, received_at, created_at, updated_at, write_source, sync_version,
+           owner_company_id, b2b_project_id
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6, $7,
+           $8, $9::jsonb, $10::uuid, $11, $12,
+           $13, $14::timestamptz, $14::timestamptz, $14::timestamptz, $15, 1,
+           $16::uuid, $17::uuid
+         )`,
+        [
+          leadId,
+          body.full_name.trim(),
+          body.phone ?? '',
+          body.email ?? '',
+          body.status?.trim() || 'new',
+          body.source?.trim() || opts.defaultSource,
+          body.owner_id ?? null,
+          Boolean(opts.isDuplicate),
+          JSON.stringify(opts.meta),
+          body.client_id ?? null,
+          body.channel?.trim() || '',
+          body.external_lead_id ?? null,
+          body.campaign_id ?? null,
+          now,
+          opts.writeSource,
+          body.owner_company_id ?? null,
+          body.b2b_project_id ?? null,
+        ],
+      );
+      await client.query('COMMIT');
+      const lead = await this.getLeadById(leadId);
+      if (!lead) {
+        throw new BadRequestException({ error: 'Create failed' });
+      }
+      return lead;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markKanbanCall(
+    leadId: number,
+    input: { phase: 'start' | 'result'; result?: string; note: string; actor: string },
+  ): Promise<void> {
+    if (input.phase === 'start') {
+      await this.db.query(
+        `UPDATE crm_leads
+         SET last_call_at = NOW(),
+             call_attempt_count = COALESCE(call_attempt_count, 0) + 1,
+             updated_at = NOW()
+         WHERE sqlite_lead_id = $1`,
+        [leadId],
+      );
+    } else {
+      await this.db.query(
+        `UPDATE crm_leads
+         SET last_call_at = COALESCE(last_call_at, NOW()),
+             last_call_result = $2,
+             updated_at = NOW()
+         WHERE sqlite_lead_id = $1`,
+        [leadId, String(input.result ?? '').slice(0, 80)],
+      );
+    }
+    await this.insertContactActivity(leadId, input.note, input.actor);
+  }
+
+  async loadKanbanHoldContext(leadId: number): Promise<{
+    assignedAt: Date;
+    lastCallAt: Date | null;
+    attemptsSinceAssign: number;
+    reassignCount: number;
+    isHot: boolean;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT COALESCE(NULLIF((${reviewQueueAssignmentClockSql('l')}), ''), l.created_at::text) AS assigned_at,
+              l.last_call_at,
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign,
+              COALESCE(l.reassign_count, 0) AS reassign_count,
+              COALESCE(l.is_hot, FALSE) AS is_hot
+         FROM crm_leads l
+        WHERE l.sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] as
+      | {
+          assigned_at?: string | null;
+          last_call_at?: Date | string | null;
+          attempts_since_assign?: number;
+          reassign_count?: number;
+          is_hot?: boolean;
+        }
+      | undefined;
+    if (!row) return null;
+    const assigned = new Date(String(row.assigned_at ?? ''));
+    const lastRaw = row.last_call_at;
+    const last = lastRaw ? new Date(lastRaw) : null;
+    return {
+      assignedAt: Number.isNaN(assigned.getTime()) ? new Date() : assigned,
+      lastCallAt: last && !Number.isNaN(last.getTime()) ? last : null,
+      attemptsSinceAssign: Number(row.attempts_since_assign) || 0,
+      reassignCount: Number(row.reassign_count) || 0,
+      isHot: Boolean(row.is_hot),
+    };
+  }
+
+  async saveKanbanHold(
+    leadId: number,
+    input: {
+      holdUntil: string | null;
+      holdReason: string;
+      callbackAt: string | null;
+      incrementAttempts: boolean;
+    },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+          SET hold_until = $2::timestamptz,
+              hold_reason = $3,
+              callback_at = CASE WHEN $4::text IS NULL THEN callback_at ELSE $4::timestamptz END,
+              attempts_since_assign = COALESCE(attempts_since_assign, 0) + $5,
+              updated_at = NOW()
+        WHERE sqlite_lead_id = $1`,
+      [
+        leadId,
+        input.holdUntil,
+        input.holdReason,
+        input.callbackAt,
+        input.incrementAttempts ? 1 : 0,
+      ],
+    );
+  }
+
+  async insertSystemNote(leadId: number, content: string, nextAction: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'note', $2, '', $3, NOW(), 'system', COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000), nextAction.slice(0, 80)],
+    );
+  }
+
+  async insertContactActivity(leadId: number, content: string, actor: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'call', $2, '', '', NOW(), $3, COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000), actor.slice(0, 120)],
+    );
+  }
+
+  async patchLead(leadId: number, body: PatchLeadV1Body): Promise<PatchLeadResult | null> {
+    const existing = await this.getLeadById(leadId);
+    if (!existing) {
+      return null;
+    }
+
+    const sets: string[] = [
+      'synced_at = NOW()',
+      'updated_at = NOW()',
+      'write_source = \'nest\'',
+      'sync_version = sync_version + 1',
+    ];
+    const params: unknown[] = [];
+    let assigned = false;
+    let scored = false;
+    let statusChanged = false;
+    const previousStatus = existing.status?.trim() || null;
+
+    const push = (clause: string, value: unknown) => {
+      params.push(value);
+      sets.push(clause.replace('?', `$${params.length}`));
+    };
+
+    if (body.status !== undefined) {
+      const nextStatus = body.status.trim();
+      statusChanged = previousStatus !== nextStatus;
+      push('status = ?', nextStatus);
+    }
+    if (body.owner_id !== undefined) {
+      const prev = existing.owner_id;
+      const next = body.owner_id;
+      push('owner_id = ?', next);
+      assigned = prev !== next && next != null;
+    }
+    if (body.score !== undefined) {
+      scored = true;
+      push(
+        `meta_json = meta_json || ?::jsonb`,
+        JSON.stringify({ score: body.score, score_stub: true, scored_at: new Date().toISOString() }),
+      );
+    }
+    if (body.expected_value !== undefined || body.margin_pct !== undefined || body.lost_reason !== undefined || body.lost_reason_note !== undefined || body.quote_url !== undefined) {
+      const meta: Record<string, unknown> = {};
+      if (body.expected_value !== undefined || body.margin_pct !== undefined) {
+        const financial: Record<string, unknown> = {};
+        if (body.expected_value !== undefined) financial.expected_value = body.expected_value;
+        if (body.margin_pct !== undefined) financial.margin_pct = body.margin_pct;
+        meta.financial = financial;
+      }
+      if (body.lost_reason !== undefined) meta.lost_reason = String(body.lost_reason ?? '').trim();
+      if (body.lost_reason_note !== undefined) meta.lost_reason_note = String(body.lost_reason_note ?? '').trim();
+      if (body.quote_url !== undefined) meta.quote_url = String(body.quote_url ?? '').trim();
+      push(`meta_json = COALESCE(meta_json, '{}'::jsonb) || ?::jsonb`, JSON.stringify(meta));
+    }
+    if (body.next_call_at !== undefined) {
+      const raw = String(body.next_call_at ?? '').trim();
+      push('next_call_at = ?::timestamptz', raw || null);
+    }
+    if (body.company_name !== undefined) push('company_name = ?', String(body.company_name ?? '').trim());
+    if (body.industry_slug !== undefined || body.industry !== undefined) {
+      const meta: Record<string, string> = {};
+      if (body.industry_slug !== undefined) meta.industry_slug = String(body.industry_slug ?? '').trim();
+      if (body.industry !== undefined) meta.industry = String(body.industry ?? '').trim();
+      push(`meta_json = COALESCE(meta_json, '{}'::jsonb) || ?::jsonb`, JSON.stringify(meta));
+    }
+    if (body.company_address !== undefined) {
+      push('company_address = ?', String(body.company_address ?? '').trim());
+    }
+    if (body.phone !== undefined) push('phone = ?', String(body.phone ?? '').trim());
+    if (body.email !== undefined) push('email = ?', String(body.email ?? '').trim());
+    if (body.logo_asset_id !== undefined) {
+      push('logo_asset_id = ?', body.logo_asset_id ? String(body.logo_asset_id).trim() : null);
+    }
+
+    if (sets.length <= 2) {
+      throw new BadRequestException({ error: 'No supported patch fields' });
+    }
+
+    params.push(leadId);
+    await this.db.query(
+      `UPDATE crm_leads SET ${sets.join(', ')} WHERE sqlite_lead_id = $${params.length}`,
+      params,
+    );
+
+    const lead = await this.getLeadById(leadId);
+    if (!lead) {
+      throw new BadRequestException({ error: 'Patch failed' });
+    }
+    return { lead, assigned, scored, status_changed: statusChanged, previous_status: previousStatus };
+  }
+
+  async mergeLeadMeta(leadId: number, patch: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+       SET meta_json = meta_json || $1::jsonb,
+           updated_at = NOW(),
+           synced_at = NOW(),
+           write_source = 'nest',
+           sync_version = sync_version + 1
+       WHERE sqlite_lead_id = $2`,
+      [JSON.stringify(patch), leadId],
+    );
+  }
+
+  private async nextStagingLeadId(client: PoolClient): Promise<number> {
+    const result = await client.query(
+      `SELECT COALESCE(MAX(sqlite_lead_id), $1 - 1) + 1 AS next_id
+       FROM crm_leads WHERE sqlite_lead_id >= $1`,
+      [STAGING_ID_MIN],
+    );
+    return Number(result.rows[0]?.next_id ?? STAGING_ID_MIN);
+  }
+
+  private async nextProdLeadId(client: PoolClient): Promise<number> {
+    const result = await client.query(`SELECT nextval('crm_leads_prod_id_seq') AS next_id`);
+    const id = Number(result.rows[0]?.next_id ?? 0);
+    if (!Number.isFinite(id) || id <= 0 || id >= STAGING_ID_MIN) {
+      throw new BadRequestException({
+        error: 'prod_id_allocator_unavailable',
+        hint: 'Apply ./scripts/apply_pg_ddl_v3_sprint0.sh',
+      });
+    }
+    return id;
+  }
+
+  private async getLeadById(leadId: number): Promise<LeadV1 | null> {
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
+              l.owner_id, s.name AS owner_name, l.is_duplicate, l.agency_client_id, l.channel,
+              l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
+              l.company_name, l.company_address, l.logo_asset_id,
+              l.meta_json::text AS meta_json
+       FROM crm_leads l
+       LEFT JOIN crm_staff s ON s.id = l.owner_id
+       WHERE l.sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] as PgLeadRow | undefined;
+    return row ? pgRowToV1(row) : null;
+  }
+}

@@ -1,0 +1,659 @@
+import { BadRequestException } from '@nestjs/common';
+import { CsdChatService } from './csd-chat.service';
+import type { CsdActor } from './csd.types';
+
+describe('CsdChatService', () => {
+  const actor: CsdActor = { staffId: 3, staffLabel: 'am@test.vn', caps: [{ section: 'csd', action: 'write' }] };
+
+  const repo = {
+    insertConversation: jest.fn(),
+    listConversations: jest.fn(),
+    listConversationsForMember: jest.fn(),
+    findDirectPair: jest.fn(),
+    markRead: jest.fn(),
+    getConversation: jest.fn(),
+    insertMessage: jest.fn(),
+    listMessages: jest.fn(),
+    getMessage: jest.fn(),
+    linkMessageToTicket: jest.fn(),
+    listMembers: jest.fn(),
+    insertMember: jest.fn(),
+    deleteMember: jest.fn(),
+    getMember: jest.fn(),
+    updateMemberRole: jest.fn(),
+    updateConversationInfo: jest.fn(),
+    getGroupAvatarStorageKey: jest.fn(),
+    setGroupAvatarStorageKey: jest.fn(),
+    listPendingJoinRequests: jest.fn(),
+    getJoinRequest: jest.fn(),
+    insertJoinRequest: jest.fn(),
+    resolveJoinRequest: jest.fn(),
+    setPinnedMessage: jest.fn(),
+    transferOwner: jest.fn(),
+    updateStatus: jest.fn(),
+    insertMentionNotifications: jest.fn(),
+    insertClientChatNotifications: jest.fn(),
+    countUnreadConversations: jest.fn(),
+    listRelatedTickets: jest.fn(),
+    updateMessageBody: jest.fn(),
+    softDeleteMessage: jest.fn(),
+    listAttachmentsByMessages: jest.fn(),
+    listConversationAttachments: jest.fn(),
+    listMemberAttachments: jest.fn(),
+    findStaffDisplayName: jest.fn(),
+    getConversationForMember: jest.fn(),
+    setMemberAlias: jest.fn(),
+    listReactionsByMessages: jest.fn(),
+    setMessageReaction: jest.fn(),
+  };
+
+  const tickets = {
+    create: jest.fn(),
+    findBySource: jest.fn(),
+  };
+
+  const files = {
+    listForMessage: jest.fn(),
+    attachToMessage: jest.fn(),
+    copyClientFilesToTicket: jest.fn(),
+  };
+
+  const audit = {
+    insert: jest.fn(),
+  };
+
+  const accounts = {
+    assertEnabled: jest.fn(),
+  };
+
+  const friends = {
+    isAccepted: jest.fn(),
+  };
+
+  const avatarStorage = {
+    save: jest.fn(),
+    read: jest.fn(),
+    remove: jest.fn(),
+  };
+
+  function svc() {
+    return new CsdChatService(
+      repo as never,
+      tickets as never,
+      files as never,
+      audit as never,
+      accounts as never,
+      friends as never,
+      avatarStorage as never,
+    );
+  }
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    files.listForMessage.mockResolvedValue([]);
+    files.attachToMessage.mockResolvedValue(undefined);
+    files.copyClientFilesToTicket.mockResolvedValue([]);
+    audit.insert.mockResolvedValue(undefined);
+    tickets.findBySource.mockResolvedValue(null);
+    repo.insertClientChatNotifications.mockResolvedValue(undefined);
+    repo.listMembers.mockResolvedValue([]);
+    accounts.assertEnabled.mockResolvedValue(undefined);
+    friends.isAccepted.mockResolvedValue(true);
+    repo.findStaffDisplayName.mockResolvedValue('Nguyễn Văn B');
+    repo.getConversationForMember.mockResolvedValue(null);
+    repo.listReactionsByMessages.mockResolvedValue({});
+  });
+
+  it('createConversation direct without friend is 409', async () => {
+    accounts.assertEnabled.mockResolvedValue(undefined);
+    friends.isAccepted.mockResolvedValue(false);
+    repo.findDirectPair.mockResolvedValue(null);
+    await expect(
+      svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] }),
+    ).rejects.toMatchObject({ status: 409, response: { error: 'not_friends' } });
+  });
+
+  it('existing direct pair skips friend check', async () => {
+    repo.findDirectPair.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    const row = await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(row.id).toBe('d1');
+    expect(friends.isAccepted).not.toHaveBeenCalled();
+  });
+
+  it('does not send when chat account is disabled', async () => {
+    accounts.assertEnabled.mockRejectedValue({ status: 403, response: { error: 'chat_disabled' } });
+    await expect(svc().sendMessage(actor, 'c1', { body_text: 'ping' })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+    expect(repo.getConversation).not.toHaveBeenCalled();
+  });
+
+  it('requires client_account_id when kind=client', async () => {
+    await expect(
+      svc().createConversation(actor, { kind: 'client', name_vi: 'Khách A' }),
+    ).rejects.toMatchObject({ status: 400, response: { error: 'client_account_id_required' } });
+    expect(repo.insertConversation).not.toHaveBeenCalled();
+  });
+
+  it('creates direct with exactly two staff and reuses pair', async () => {
+    repo.findDirectPair.mockResolvedValue(null);
+    repo.insertConversation.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(repo.insertConversation).toHaveBeenCalled();
+    repo.findDirectPair.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    const again = await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(again.id).toBe('d1');
+  });
+
+  it('creates direct using peer display name instead of staff id', async () => {
+    repo.findDirectPair.mockResolvedValue(null);
+    repo.findStaffDisplayName.mockResolvedValue('Nguyễn Văn B');
+    repo.insertConversation.mockResolvedValue({ id: 'd1', kind: 'direct', name_vi: 'Nguyễn Văn B' });
+    await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(repo.findStaffDisplayName).toHaveBeenCalledWith(8);
+    expect(repo.insertConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ name_vi: 'Nguyễn Văn B' }),
+    );
+  });
+
+  it('sets a personal conversation alias for the current member', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'direct', name_vi: 'DM · #6' });
+    repo.setMemberAlias.mockResolvedValue({
+      id: 'c1',
+      kind: 'direct',
+      name_vi: 'Anh Tuấn CS',
+      alias_vi: 'Anh Tuấn CS',
+    });
+    const row = await svc().setConversationAlias(actor, 'c1', 'Anh Tuấn CS');
+    expect(repo.setMemberAlias).toHaveBeenCalledWith('c1', 3, 'Anh Tuấn CS');
+    expect(row.name_vi).toBe('Anh Tuấn CS');
+  });
+
+  it('rejects conversation alias longer than 191 characters', async () => {
+    await expect(svc().setConversationAlias(actor, 'c1', 'x'.repeat(192))).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.setMemberAlias).not.toHaveBeenCalled();
+  });
+
+  it('sets a message reaction and returns summaries', async () => {
+    repo.getMessage.mockResolvedValue({ id: 'm1', conversation_id: 'c1', is_deleted: false });
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    repo.setMessageReaction.mockResolvedValue([{ emotion: 'love', count: 1, mine: true }]);
+    const out = await svc().reactToMessage(actor, 'm1', 'love');
+    expect(repo.setMessageReaction).toHaveBeenCalledWith('m1', 3, 'love');
+    expect(out.reactions[0]).toEqual({ emotion: 'love', count: 1, mine: true });
+  });
+
+  it('rejects unknown message reaction emotion', async () => {
+    await expect(svc().reactToMessage(actor, 'm1', 'fire')).rejects.toMatchObject({ status: 400 });
+    expect(repo.setMessageReaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects direct without peer', async () => {
+    await expect(svc().createConversation(actor, { kind: 'direct', name_vi: 'x' })).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it('lists only memberships and applies internal filter', async () => {
+    repo.listConversationsForMember.mockResolvedValue([{ id: 'g1', kind: 'group', unread_count: 0 }]);
+    const out = await svc().listConversations(actor, { filter: 'internal' });
+    expect(repo.listConversationsForMember).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: 3, filter: 'internal' }),
+    );
+    expect(out.items[0].kind).toBe('group');
+  });
+
+  it('rejects ticket campaign and ai_assist kinds in MVP', async () => {
+    await expect(
+      svc().createConversation(actor, { kind: 'ticket', name_vi: 'Từ ticket' }),
+    ).rejects.toMatchObject({ status: 400, response: { error: 'kind_not_mvp' } });
+    expect(repo.insertConversation).not.toHaveBeenCalled();
+  });
+
+  it('requires group name and extra members', async () => {
+    await expect(
+      svc().createConversation(actor, { kind: 'group', name_vi: '', member_staff_ids: [8] }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc().createConversation(actor, { kind: 'group', name_vi: 'Nhóm AM' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.insertConversation).not.toHaveBeenCalled();
+  });
+
+  it('creates client conversation with client_account_id', async () => {
+    repo.insertConversation.mockResolvedValue({
+      id: 'c1',
+      kind: 'client',
+      client_account_id: 'CLI-1',
+    });
+    const out = await svc().createConversation(actor, {
+      kind: 'client',
+      name_vi: 'Khách A',
+      client_account_id: 'CLI-1',
+    });
+    expect(out.id).toBe('c1');
+    expect(repo.insertConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'client', client_account_id: 'CLI-1' }),
+    );
+  });
+
+  it('forces visibility=client for client conversations', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active' });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', visibility: 'client' });
+
+    await svc().sendMessage(actor, 'c1', { body_text: 'Xin chào', visibility: 'internal' });
+
+    expect(repo.insertMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'client', body_text: 'Xin chào' }),
+    );
+  });
+
+  it('returns existing ticket when createTicketFromMessage source repeats', async () => {
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'c1',
+      body_text: 'Lỗi website',
+    });
+    repo.getConversation.mockResolvedValue({
+      id: 'c1',
+      kind: 'client',
+      client_account_id: 'CLI-1',
+    });
+    tickets.findBySource
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 't1', code: 'PTT-2026-000001' });
+    tickets.create.mockResolvedValue({ id: 't1', code: 'PTT-2026-000001' });
+    repo.linkMessageToTicket.mockResolvedValue({ id: 'm1', ticket_id: 't1' });
+
+    const first = await svc().createTicketFromMessage(actor, 'm1', { ticket_type: 'incident', priority: 'P2' });
+    const second = await svc().createTicketFromMessage(actor, 'm1', { ticket_type: 'incident', priority: 'P2' });
+
+    expect(first.code).toBe('PTT-2026-000001');
+    expect(second.code).toBe('PTT-2026-000001');
+    expect(second.already_exists).toBe(true);
+    expect(tickets.create).toHaveBeenCalledTimes(1);
+    expect(tickets.create).toHaveBeenCalledWith(
+      3,
+      expect.objectContaining({ source_type: 'chat_message', source_id: 'm1' }),
+    );
+    expect(repo.linkMessageToTicket).toHaveBeenCalledWith('m1', 't1');
+  });
+
+  it('suggests P1 priority on urgent client message', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active', owner_staff_id: 9 });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'Ads ngưng chạy' });
+    repo.listMembers.mockResolvedValue([{ member_staff_id: 9, role: 'owner' }]);
+    const out = await svc().sendMessage(actor, 'c1', { body_text: 'Ads ngưng chạy' });
+    expect(out.priority_suggestion).toBe('P1');
+    expect(repo.insertClientChatNotifications).toHaveBeenCalled();
+  });
+
+  it('asks push to alert the other members after the message is stored', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'direct', status: 'active' });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'hello' });
+    repo.listMembers.mockResolvedValue([{ member_staff_id: 3 }, { member_staff_id: 9 }]);
+    const push = { notifyMessage: jest.fn().mockResolvedValue(undefined) };
+    const service = new CsdChatService(
+      repo as never,
+      tickets as never,
+      files as never,
+      audit as never,
+      accounts as never,
+      friends as never,
+      avatarStorage as never,
+      push as never,
+    );
+    await service.sendMessage(actor, 'c1', { body_text: 'hello' });
+    expect(push.notifyMessage).toHaveBeenCalledWith({
+      staffIds: [9],
+      title: 'am@test.vn',
+      preview: 'hello',
+      conversationId: 'c1',
+    });
+  });
+
+  it('notifies mentioned staff except the sender', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', status: 'active' });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'cc @8 và @12' });
+    repo.insertMentionNotifications.mockResolvedValue(undefined);
+    await svc().sendMessage(actor, 'c1', { body_text: 'cc @8 và @12' });
+    expect(repo.insertMentionNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'c1',
+        messageId: 'm1',
+        staffIds: [8, 12],
+        excludeStaffId: 3,
+      }),
+    );
+  });
+
+  it('lists related tickets for a conversation', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', client_account_id: 'CLI-1' });
+    repo.listRelatedTickets.mockResolvedValue([{ id: 't1', code: 'PTT-2026-000099' }]);
+    const out = await svc().listRelatedTickets(actor, 'c1');
+    expect(repo.listRelatedTickets).toHaveBeenCalledWith('c1');
+    expect(out.items[0].code).toBe('PTT-2026-000099');
+  });
+
+  it('rejects empty message body', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', status: 'active' });
+    await expect(svc().sendMessage(actor, 'c1', { body_text: '  ' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects announcement send and ticket from non-owner', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'a1',
+      kind: 'announcement',
+      status: 'active',
+      owner_staff_id: 9,
+    });
+    await expect(svc().sendMessage(actor, 'a1', { body_text: 'ping' })).rejects.toMatchObject({
+      status: 403,
+    });
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'a1',
+      body_text: 'ping',
+    });
+    await expect(svc().createTicketFromMessage(actor, 'm1', {})).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+    expect(tickets.create).not.toHaveBeenCalled();
+  });
+
+  it('marks conversation read for actor', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group' });
+    repo.markRead.mockResolvedValue(true);
+    await svc().markRead(actor, 'c1');
+    expect(repo.markRead).toHaveBeenCalledWith('c1', 3);
+  });
+
+  it('rejects sendMessage when conversation is closed', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'closed' });
+    await expect(svc().sendMessage(actor, 'c1', { body_text: 'hi' })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+  });
+
+  it('closes when actor is owner', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 3 });
+    repo.updateStatus.mockResolvedValue({ id: 'c1', status: 'closed' });
+    const out = await svc().closeConversation(actor, 'c1');
+    expect(out.status).toBe('closed');
+    expect(repo.updateStatus).toHaveBeenCalledWith('c1', 'closed', 3);
+  });
+
+  it('denies close when not owner and no manage cap', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 9 });
+    await expect(svc().closeConversation(actor, 'c1')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('adds staff member and rejects owner remove', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active', owner_staff_id: 3 });
+    repo.insertMember.mockResolvedValue({
+      conversation_id: 'c1',
+      member_staff_id: 8,
+      role: 'member',
+    });
+    await svc().addMember(actor, 'c1', { member_staff_id: 8 });
+    expect(repo.insertMember).toHaveBeenCalledWith(
+      expect.objectContaining({ conversation_id: 'c1', member_staff_id: 8, role: 'member' }),
+    );
+    await expect(svc().removeMember(actor, 'c1', 3)).rejects.toMatchObject({ status: 400 });
+    expect(repo.deleteMember).not.toHaveBeenCalled();
+  });
+
+  it('owner promotes member to admin; admin cannot set admin role', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      return null;
+    });
+    repo.updateMemberRole.mockResolvedValue({ member_staff_id: 8, role: 'admin' });
+
+    // First call: owner promoting 8 — treat 8 as member for the target lookup
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 8) return { member_staff_id: 8, role: 'member' };
+      return null;
+    });
+    await svc().setMemberRole(actor, 'g1', 8, 'admin');
+    expect(repo.updateMemberRole).toHaveBeenCalledWith('g1', 8, 'admin');
+
+    const adminActor: CsdActor = {
+      staffId: 8,
+      staffLabel: 'admin@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      return null;
+    });
+    await expect(svc().setMemberRole(adminActor, 'g1', 9, 'admin')).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('admin can remove member but not owner or other admin', async () => {
+    const adminActor: CsdActor = {
+      staffId: 8,
+      staffLabel: 'admin@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 10) return { member_staff_id: 10, role: 'admin' };
+      return null;
+    });
+    repo.deleteMember.mockResolvedValue(true);
+
+    await svc().removeMember(adminActor, 'g1', 9);
+    expect(repo.deleteMember).toHaveBeenCalledWith('g1', 9);
+
+    await expect(svc().removeMember(adminActor, 'g1', 3)).rejects.toMatchObject({ status: 403 });
+    await expect(svc().removeMember(adminActor, 'g1', 10)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('member can leave group by removing self; owner cannot leave', async () => {
+    const memberActor: CsdActor = {
+      staffId: 9,
+      staffLabel: 'member@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      return null;
+    });
+    repo.deleteMember.mockResolvedValue(true);
+
+    await svc().removeMember(memberActor, 'g1', 9);
+    expect(repo.deleteMember).toHaveBeenCalledWith('g1', 9);
+
+    await expect(svc().removeMember(actor, 'g1', 3)).rejects.toMatchObject({
+      response: { error: 'csd_leave_forbidden' },
+    });
+  });
+
+  it('owner/admin can patch group name and description', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+      name_vi: 'Old',
+      description: '',
+    });
+    repo.getMember.mockImplementation(async () => ({ member_staff_id: 3, role: 'owner' }));
+    repo.updateConversationInfo.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+    repo.getConversationForMember.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+
+    const out = await svc().patchConversation(actor, 'g1', {
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+    expect(repo.updateConversationInfo).toHaveBeenCalledWith(
+      'g1',
+      { name_vi: 'Nhóm A', description: 'mô tả' },
+      3,
+    );
+    expect(out.name_vi).toBe('Nhóm A');
+  });
+
+  it('Wave B: invite creates pending when join_approval_required', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+      join_approval_required: true,
+    });
+    repo.getMember
+      .mockResolvedValueOnce({ member_staff_id: 3, role: 'owner' })
+      .mockResolvedValueOnce(null);
+    friends.isAccepted.mockResolvedValue(true);
+    repo.insertJoinRequest.mockResolvedValue({
+      id: 'jr1',
+      requester_staff_id: 8,
+      status: 'pending',
+    });
+    const out = await svc().addMember(actor, 'g1', { member_staff_id: 8 });
+    expect(out).toMatchObject({ pending: true, request: { id: 'jr1' } });
+    expect(repo.insertMember).not.toHaveBeenCalled();
+  });
+
+  it('Wave B: send lock blocks members', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      members_can_send: false,
+    });
+    repo.getMember.mockResolvedValue({ member_staff_id: 3, role: 'member' });
+    await expect(svc().sendMessage(actor, 'g1', { body_text: 'hi' })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+  });
+
+  it('Wave B: transfer owner updates roles', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockResolvedValue({ member_staff_id: 3, role: 'owner' });
+    repo.transferOwner.mockResolvedValue({ id: 'g1', owner_staff_id: 8 });
+    repo.getConversationForMember.mockResolvedValue({ id: 'g1', owner_staff_id: 8 });
+    const out = await svc().transferOwner(actor, 'g1', 8);
+    expect(repo.transferOwner).toHaveBeenCalledWith('g1', 3, 8);
+    expect(out.owner_staff_id).toBe(8);
+  });
+
+  it('rejects edit after 15 minutes', async () => {
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'c1',
+      author_staff_id: 3,
+      created_at: new Date(Date.now() - 16 * 60_000).toISOString(),
+    });
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    await expect(svc().editMessage(actor, 'm1', { body_text: 'x' })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('lists all conversation attachments from repository', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    repo.listConversationAttachments.mockResolvedValue([
+      {
+        id: 'a1',
+        file_name: 'shot.png',
+        mime_type: 'image/png',
+        byte_size: 12,
+        visibility: 'internal',
+        message_id: 'm1',
+        created_at: '2026-09-01T10:00:00.000Z',
+      },
+    ]);
+    const out = await svc().listConversationAttachments(actor, 'c1');
+    expect(out.items).toHaveLength(1);
+    expect(repo.listConversationAttachments).toHaveBeenCalledWith('c1', 3);
+  });
+
+  it('lists member attachments across conversations', async () => {
+    repo.listMemberAttachments.mockResolvedValue([
+      {
+        id: 'a2',
+        file_name: 'doc.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 100,
+        visibility: 'internal',
+        message_id: 'm2',
+        conversation_id: 'c2',
+        created_at: '2026-09-02T10:00:00.000Z',
+      },
+    ]);
+    const out = await svc().listMemberAttachments(actor, { limit: 100 });
+    expect(out.items).toHaveLength(1);
+    expect(repo.listMemberAttachments).toHaveBeenCalledWith(3, {
+      conversationId: undefined,
+      peerStaffId: undefined,
+      limit: 100,
+    });
+  });
+
+  it('skips internal files when creating ticket from message', async () => {
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'c1',
+      body_text: 'Ads lỗi',
+    });
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', client_account_id: null });
+    tickets.create.mockResolvedValue({ id: 't1', code: 'PTT-2026-000010' });
+    repo.linkMessageToTicket.mockResolvedValue({ id: 'm1', ticket_id: 't1' });
+    files.listForMessage.mockResolvedValue([{ id: 'a1', visibility: 'internal' }]);
+    files.copyClientFilesToTicket.mockResolvedValue([]);
+    const out = await svc().createTicketFromMessage(actor, 'm1', {});
+    expect(out.skipped_internal_files).toEqual(['a1']);
+    expect(files.copyClientFilesToTicket).toHaveBeenCalledWith([], 't1');
+  });
+});

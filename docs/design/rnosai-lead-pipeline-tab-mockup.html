@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RNOSAI · Lead Pipeline Tab — mockup vận hành (Mức 1)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --green:#17692f; --green2:#ecfdf5; --navy:#0F2747; --accent:#2563EB; --accent2:#dbeafe;
+      --ok:#16A34A; --warn:#D97706; --hot:#DC2626; --hot2:#fee2e2; --warn2:#fef3c7;
+      --info:#0891B2; --bg:#F4F6F8; --surface:#FFFFFF; --border:#E5E7EB; --ink:#111827; --mute:#6B7280;
+      --ops-h:56px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%}
+    body{font-family:"Be Vietnam Pro",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+    button,input,select,textarea{font:inherit} button{cursor:pointer;border:0;background:none;color:inherit}
+    a{color:var(--accent);text-decoration:none}
+    .app{min-height:100vh;display:flex;flex-direction:column}
+    .ops-top{height:var(--ops-h);display:flex;align-items:center;gap:10px;padding:0 16px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+    .ops-logo{font-weight:800;color:var(--navy);font-size:14px}
+    .crumb{color:var(--mute);font-size:12px;flex:1}
+    .crumb b{color:var(--ink)}
+    .icon-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:#fff;display:grid;place-items:center}
+    .ava{width:32px;height:32px;border-radius:99px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+    .catalog{background:#fff;border-bottom:1px solid var(--border);padding:8px 14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .scope-bar{background:#ecfdf5;border-bottom:1px solid #bbf7d0;padding:8px 14px;font-size:11px;color:#166534;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .scope-bar a{color:#17692f;font-weight:700;text-decoration:none;border-bottom:1px dashed #86efac}
+    .catalog b{font-size:11px;color:var(--mute);margin-right:4px}
+    .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--mute)}
+    .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+    .chip.warn-on{background:var(--warn);color:#fff;border-color:var(--warn)}
+    .page-wrap{max-width:1440px;margin:0 auto;padding:16px 20px 48px;width:100%}
+    .hero{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+    .hero h1{margin:0;font-size:22px;letter-spacing:-.03em}
+    .hero-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:999px;padding:4px 9px}
+    .pill.hot{background:var(--hot2);color:#b91c1c}
+    .pill.flow{background:var(--accent2);color:#1d4ed8}
+    .pill.owner{background:#f3f4f6;color:#374151}
+    .hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{padding:9px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;color:#334155;font-weight:650;font-size:12px}
+    .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+    .btn.ghost{background:transparent}
+    .btn.sm{padding:6px 10px;font-size:11px}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+    .main-col{min-width:0}
+    .side-col{position:sticky;top:calc(var(--ops-h) + 12px)}
+    .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:0;background:#fff;border:1px solid var(--border);border-bottom:none;border-radius:12px 12px 0 0;padding:8px 10px 0}
+    .tab{padding:10px 14px;font-weight:650;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:8px 8px 0 0;font-size:12px}
+    .tab.on{color:var(--green);border-bottom-color:var(--green);background:#fff}
+    .tab-panel{display:none;background:#fff;border:1px solid var(--border);border-radius:0 0 12px 12px;padding:0}
+    .tab-panel.on{display:block}
+    .sla-strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:12px}
+    .sla-pill{padding:3px 8px;border-radius:999px;font-weight:700;font-size:11px}
+    .sla-pill.ok{background:var(--green2);color:#15803d}
+    .sla-pill.warn{background:var(--warn2);color:#b45309}
+    .sla-pill.hot{background:var(--hot2);color:#b91c1c}
+    .sla-clock{font-variant-numeric:tabular-nums;font-weight:800;color:var(--hot)}
+    .pipe-head{position:sticky;top:var(--ops-h);z-index:20;background:#fff;border-bottom:1px solid var(--border);padding:12px 14px 10px}
+    .pipe-title{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--navy)}
+    .stepper{display:flex;gap:0;overflow:auto;padding-bottom:2px}
+    .step{flex:1;min-width:88px;text-align:center;position:relative;padding:8px 4px 10px}
+    .step::after{content:"";position:absolute;top:16px;left:50%;width:100%;height:2px;background:#e5e7eb;z-index:0}
+    .step:last-child::after{display:none}
+    .dot{width:28px;height:28px;border-radius:99px;border:2px solid #d1d5db;background:#fff;display:grid;place-items:center;margin:0 auto 6px;font-size:11px;font-weight:800;position:relative;z-index:1}
+    .step.done .dot{background:var(--green2);border-color:var(--ok);color:#15803d}
+    .step.done .dot::before{content:"✓";font-size:12px}
+    .step.done .dot span{display:none}
+    .step.current .dot{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 0 3px rgba(23,105,47,.2)}
+    .step.blocked .dot{background:var(--hot2);border-color:var(--hot);color:#b91c1c}
+    .step.warn .dot{background:var(--warn2);border-color:var(--warn);color:#b45309}
+    .step.pending .dot{color:#9ca3af}
+    .step-label{font-size:10px;font-weight:700;color:var(--mute);line-height:1.2}
+    .step.current .step-label{color:var(--green)}
+    .step.clickable{cursor:pointer}
+    .gate{margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border-left:3px solid var(--warn);font-size:12px;color:#92400e}
+    .gate.ok{background:var(--green2);border-left-color:var(--ok);color:#166534}
+    .gate.block{background:var(--hot2);border-left-color:var(--hot);color:#991b1b}
+    .primary-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .panel{padding:14px}
+    .panel h3{margin:0 0 10px;font-size:15px}
+    .card{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+    .field{display:grid;gap:5px;margin-bottom:10px}
+    .field label{font-size:11px;font-weight:700;color:#374151}
+    .field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff}
+    .field textarea{min-height:72px;resize:vertical}
+    .task{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f1f5f9}
+    .task:last-child{border-bottom:0}
+    .task input{margin-top:3px}
+    .task b{font-size:13px}
+    .task p{margin:3px 0 0;font-size:12px;color:var(--mute)}
+    .done-acc{border-top:1px solid var(--border);padding:10px 14px;background:#fafafa;border-radius:0 0 12px 12px}
+    .done-acc summary{cursor:pointer;font-weight:650;color:var(--mute);font-size:12px}
+    .done-line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-size:12px;border-bottom:1px dashed #e5e7eb}
+    .side-panel{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px}
+    .side-panel h4{margin:0 0 10px;font-size:13px}
+    .timeline{position:relative;padding-left:16px}
+    .timeline::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:2px;background:#dbeafe}
+    .ev{position:relative;padding:0 0 12px 10px;font-size:12px}
+    .ev::before{content:"";position:absolute;left:-16px;top:4px;width:8px;height:8px;border-radius:99px;background:var(--accent);border:2px solid #fff}
+    .ev p{margin:3px 0 0;color:var(--mute)}
+    .contract-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;background:linear-gradient(90deg,#eff6ff,#fff);border-bottom:1px solid var(--border)}
+    .checklist{display:grid;gap:8px}
+    .check-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px}
+    .tag{font-size:10px;font-weight:750;border-radius:999px;padding:3px 7px}
+    .tag.ok{background:var(--green2);color:#15803d}
+    .tag.no{background:var(--hot2);color:#b91c1c}
+    .tag.wait{background:var(--warn2);color:#b45309}
+    .banner-spa{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px}
+    .hidden{display:none!important}
+    .muted{color:var(--mute)}
+    .toast{position:fixed;right:18px;bottom:18px;background:var(--navy);color:#fff;padding:12px 16px;border-radius:10px;z-index:100;display:none;max-width:360px;box-shadow:0 10px 30px rgba(15,23,42,.25)}
+    @media(max-width:1024px){.layout{grid-template-columns:1fr}.side-col{position:static}}
+    @media(max-width:760px){
+      .page-wrap{padding:10px 10px 70px}
+      .hero-actions{width:100%}
+      .tabs{overflow:auto;flex-wrap:nowrap}
+      .tab{white-space:nowrap}
+      .step{min-width:72px}
+      .primary-row .btn{flex:1;text-align:center}
+    }
+    .mobile-nav{display:none}
+    @media(max-width:760px){
+      .mobile-nav{display:flex;position:fixed;bottom:0;inset:auto 0 0;background:#fff;border-top:1px solid var(--border);z-index:60;justify-content:space-around;padding:6px 4px}
+      .mobile-nav button{font-size:10px;padding:6px;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px}
+      .mobile-nav button.on{color:var(--green);font-weight:700}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="ops-top">
+    <div class="ops-logo">RNOSAI</div>
+    <div class="crumb">CRM / Leads / <b id="crumbName">Nguyễn Văn Minh</b></div>
+    <button class="icon-btn" title="Thông báo">🔔</button>
+    <div class="ava">MA</div>
+  </header>
+
+  <div class="scope-bar"><b>Sub-mockup L3:</b> Chỉ màn hình chăm Lead — tab Pipeline bán hàng trên <code>/crm/leads/[id]</code>. Suite đầy đủ 12 module → <a href="rnosai-revops-enterprise-mockup.html">RevOps Enterprise mockup</a> · SRS <code>LEAD-PIPELINE-UI-001</code></div>
+
+  <div class="catalog" role="toolbar" aria-label="Demo states">
+    <b>Trạng thái demo:</b>
+    <button class="chip on" data-state="b2">① B2 — Liên hệ</button>
+    <button class="chip" data-state="lead_ps">② Lead PS</button>
+    <button class="chip" data-state="bant">③ BANT</button>
+    <button class="chip" data-state="consult">④ Tư vấn</button>
+    <button class="chip" data-state="proposal">⑤ Báo giá</button>
+    <button class="chip warn-on" data-state="blocked">⛔ Review queue</button>
+    <button class="chip" data-state="contract">Tab Hợp đồng</button>
+    <button class="chip" data-state="spa">Spa (ẩn Pipeline)</button>
+  </div>
+
+  <div class="page-wrap">
+    <div class="banner-spa hidden" id="spaBanner">
+      <strong>Luồng CSKH vận hành 24h</strong> — Không dùng tab Pipeline / Pre-sales agency. Liên hệ SLA → hẹn gặp → chốt dịch vụ client.
+    </div>
+
+    <section class="hero">
+      <div>
+        <h1 id="heroName">Nguyễn Văn Minh</h1>
+        <div class="hero-meta">
+          <span class="pill hot">Hot · P1</span>
+          <span class="pill flow" id="flowPill">B2B Prospect</span>
+          <span class="pill owner">Owner: Nguyễn Minh Anh</span>
+          <span class="muted">0909 123 456 · minh@abccorp.vn</span>
+        </div>
+        <p class="muted" style="margin:8px 0 0">Dự án PTT: CRM Growth Q3 · Nguồn: Facebook Lead Ads</p>
+      </div>
+      <div class="hero-actions">
+        <button class="btn sm">📞 Gọi</button>
+        <button class="btn sm primary">Sales Cockpit</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <div class="main-col">
+        <div class="tabs" role="tablist" id="mainTabs">
+          <button class="tab on" role="tab" data-tab="pipeline">Pipeline bán hàng</button>
+          <button class="tab" role="tab" data-tab="contract">Hợp đồng & Chốt</button>
+          <button class="tab" role="tab" data-tab="consult">Tư vấn</button>
+          <button class="tab" role="tab" data-tab="cockpit">Sales Cockpit</button>
+        </div>
+
+        <!-- TAB PIPELINE -->
+        <div class="tab-panel on" id="panel-pipeline" role="tabpanel">
+          <div class="sla-strip" id="slaStrip">
+            <span class="sla-pill warn">P1 First touch</span>
+            <span>Còn <span class="sla-clock">04:12</span></span>
+            <span class="muted">· SCI enabled</span>
+            <button class="btn sm ghost" style="margin-left:auto" onclick="toast('Mở chi tiết SLA / SCI drafts')">Chi tiết SLA ▾</button>
+          </div>
+
+          <div class="pipe-head">
+            <p class="pipe-title">Pipeline bán hàng — một luồng từ liên hệ đến báo giá</p>
+            <div class="stepper" id="stepper">
+              <div class="step clickable current" data-step="b2"><div class="dot"><span>1</span></div><div class="step-label">Liên hệ</div></div>
+              <div class="step clickable pending" data-step="lead_ps"><div class="dot"><span>2</span></div><div class="step-label">Lead PS</div></div>
+              <div class="step clickable pending" data-step="bant"><div class="dot"><span>3</span></div><div class="step-label">Khảo sát BANT</div></div>
+              <div class="step clickable pending" data-step="consult"><div class="dot"><span>4</span></div><div class="step-label">Tư vấn</div></div>
+              <div class="step clickable pending" data-step="proposal"><div class="dot"><span>5</span></div><div class="step-label">Báo giá</div></div>
+            </div>
+            <div class="gate" id="gateBox">Hoàn thành liên hệ OK (B2) để mở Pre-sales Lead.</div>
+            <div class="primary-row">
+              <button class="btn primary" id="primaryBtn">Báo cáo liên hệ OK →</button>
+              <button class="btn" id="secondaryBtn" style="display:none">Mở tab Tư vấn đầy đủ</button>
+            </div>
+          </div>
+
+          <!-- PANELS -->
+          <div class="panel" id="stepPanel">
+            <!-- filled by JS -->
+          </div>
+
+          <div class="done-acc" id="doneAcc">
+            <details>
+              <summary>Các bước đã xong (0)</summary>
+              <div id="doneList"></div>
+            </details>
+          </div>
+        </div>
+
+        <!-- TAB CONTRACT -->
+        <div class="tab-panel" id="panel-contract" role="tabpanel">
+          <div class="contract-banner">
+            <div>
+              <strong>Deal Room</strong>
+              <p class="muted" style="margin:4px 0 0;font-size:12px">Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.</p>
+            </div>
+            <button class="btn primary sm">Mở Deal Room →</button>
+          </div>
+          <div class="panel">
+            <h3>Hợp đồng & readiness</h3>
+            <div class="checklist">
+              <div class="check-row"><span>B2 — Liên hệ OK</span><span class="tag wait" id="chkB2">Chưa</span></div>
+              <div class="check-row"><span>Pre-sales Consult hoàn tất</span><span class="tag no">Chưa</span></div>
+              <div class="check-row"><span>Proposal gate passed</span><span class="tag no">Chưa</span></div>
+              <div class="check-row"><span>Hợp đồng draft linked</span><span class="tag no">Chưa</span></div>
+            </div>
+            <p class="muted" style="margin-top:12px;font-size:12px">Click tag đỏ → quay tab Pipeline bước tương ứng (FR-LINK readiness).</p>
+            <div style="margin-top:14px" class="card">
+              <b>LeadContractPanel</b>
+              <p class="muted" style="margin:6px 0 0">Tạo HĐ từ lead · lifecycle promote sau active · reuse component hiện tại.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONSULT placeholder -->
+        <div class="tab-panel" id="panel-consult" role="tabpanel">
+          <div class="panel">
+            <h3>Tab Tư vấn — workspace đầy đủ</h3>
+            <p class="muted">Giữ <code>LeadConsultWorkspace</code> hiện tại. Pipeline bước Tư vấn chỉ summary + CTA mở tab này.</p>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="panel-cockpit" role="tabpanel">
+          <div class="panel">
+            <h3>Sales Cockpit (LMP)</h3>
+            <p class="muted">Drawer / tab riêng — không embed full vào Pipeline.</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="side-col">
+        <div class="side-panel">
+          <h4>Thêm hoạt động</h4>
+          <div class="field"><label>Loại</label><select><option>Ghi chú</option><option>Gọi điện</option><option>Email</option></select></div>
+          <div class="field"><label>Nội dung</label><textarea placeholder="Nội dung activity…"></textarea></div>
+          <button class="btn primary sm" style="width:100%">Lưu activity</button>
+        </div>
+        <div class="side-panel">
+          <h4>Timeline</h4>
+          <div class="timeline" id="timeline">
+            <div class="ev"><b>Lead được assign</b><p>05/09 08:12 · Routing rule v3.2</p></div>
+            <div class="ev"><b>Lead tạo từ Facebook</b><p>05/09 08:10 · Campaign CRM Growth Q3</p></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="mobile-nav">
+  <button class="on" data-mtab="pipeline">▥<br>Pipeline</button>
+  <button data-mtab="activity">☰<br>Nhật ký</button>
+  <button data-mtab="ai">✦<br>AI</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PANELS = {
+  b2: `
+    <h3>Bước 1 — Liên hệ lần đầu (B2)</h3>
+    <div class="card">
+      <p class="muted" style="margin:0 0 10px">Liên hệ trong 48h — xác nhận nhu cầu dịch vụ marketing. Báo cáo 「Liên hệ OK」 rồi hoàn thành B2 để mở Pre-sales.</p>
+      <div class="field"><label>Trạng thái chăm sóc</label>
+        <select><option>Chưa liên hệ</option><option selected>Liên hệ OK — da_lien_he_thanh_cong</option><option>Không liên hệ được</option></select>
+      </div>
+      <div class="field"><label>Ghi chú báo cáo B2 *</label>
+        <textarea>Khách quan tâm CRM Enterprise cho 3 chi nhánh. Hẹn demo tuần sau.</textarea>
+      </div>
+      <div class="field"><label>Kế hoạch tiếp theo</label>
+        <select><option>Tư vấn thêm</option><option selected>Bắt đầu Pre-sales</option><option>Nurturing</option></select>
+      </div>
+    </div>
+    <div class="card">
+      <b>M1 First Call</b> <span class="tag wait">Optional — ẩn nếu SLA strip đã gộp</span>
+      <p class="muted" style="margin:6px 0 0">Sales Cockpit prep card — reuse khi chưa hideM1Card.</p>
+    </div>
+  `,
+  lead_ps: `
+    <h3>Bước 2 — Pre-sales Lead</h3>
+    <div class="card">
+      <div class="field"><label>Dịch vụ marketing (HĐ)</label>
+        <select><option selected>CRM Enterprise (crm-enterprise)</option><option>SEO tổng thể</option><option>AI Agent</option></select>
+      </div>
+      <button class="btn primary sm">Bắt đầu Pre-sales</button>
+    </div>
+    <div class="card">
+      <b>Task stage Lead</b>
+      <div class="task"><input type="checkbox" checked><div><b>Xác nhận ICP / quy mô</b><p>Done 05/09 11:20</p></div></div>
+      <div class="task"><input type="checkbox"><div><b>Thu thập budget sơ bộ</b><p>Form field · AI assist available</p></div></div>
+      <div class="task"><input type="checkbox"><div><b>Xác nhận timeline dự kiến</b></div></div>
+    </div>
+  `,
+  bant: `
+    <h3>Bước 3 — Khảo sát BANT</h3>
+    <div class="card">
+      <p style="margin:0"><b>Intake session #1284</b> · Draft · BANT tạm: 72 · Decision: Go</p>
+      <p class="muted" style="margin:8px 0 0">Cập nhật lần cuối: 05/09 14:05</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary sm">Tiếp tục Intake →</button>
+        <button class="btn sm">Tạo phiên mới</button>
+      </div>
+    </div>
+    <div class="card">
+      <b>Checklist BANT (read-only summary)</b>
+      <div class="check-row"><span>Budget</span><span class="tag ok">OK</span></div>
+      <div class="check-row"><span>Authority</span><span class="tag ok">COO identified</span></div>
+      <div class="check-row"><span>Need</span><span class="tag ok">CRM 3 branches</span></div>
+      <div class="check-row"><span>Timeline</span><span class="tag wait">Q4 2026</span></div>
+    </div>
+  `,
+  consult: `
+    <h3>Bước 4 — Tư vấn</h3>
+    <div class="card" style="border-color:#bfdbfe;background:#eff6ff">
+      <b>Solution handoff</b> · Chưa giao · Consult gate: OK
+      <p class="muted" style="margin:6px 0 0">SLA Consult+Proposal 48h: <span class="sla-clock" style="color:#b45309">Còn 18h</span> · Warning</p>
+    </div>
+    <div class="card">
+      <b>Consult tasks</b>
+      <div class="task"><input type="checkbox" checked><div><b>Consult brief hoàn tất</b></div></div>
+      <div class="task"><input type="checkbox"><div><b>R5 Marketing plan</b><p>Thiếu north star metric</p></div></div>
+      <div class="task"><input type="checkbox"><div><b>L2 documents checklist</b><p>2/5 files</p></div></div>
+    </div>
+    <button class="btn sm">Giao Solution/MKT →</button>
+  `,
+  proposal: `
+    <h3>Bước 5 — Báo giá</h3>
+    <div class="card">
+      <b>Proposal tasks</b>
+      <div class="task"><input type="checkbox" checked><div><b>Proposal document uploaded</b></div></div>
+      <div class="task"><input type="checkbox"><div><b>Commercial terms confirmed</b></div></div>
+      <div class="task"><input type="checkbox"><div><b>Discount approval</b><p>18% — chờ Sales Director</p></div></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn primary sm">Mở Deal Room →</button>
+      <button class="btn sm">Tạo báo giá /crm/proposals</button>
+    </div>
+  `,
+  blocked: `
+    <h3>⛔ Review queue đang chặn pipeline</h3>
+    <div class="card" style="border-color:#fecaca;background:#fef2f2">
+      <b>Lead đang trong hàng GDKD review</b>
+      <p class="muted" style="margin:6px 0 0">Lý do: Duplicate candidate 87% · Minh An Education JSC</p>
+      <p style="margin:10px 0 0">Chờ: <span class="sla-clock">02:14</span> · Deadline 4h</p>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn primary sm" onclick="toast('Release review queue')">Release (auto gán lại)</button>
+        <button class="btn sm">So sánh trùng</button>
+      </div>
+    </div>
+  `
+};
+
+const STATE_META = {
+  b2: {
+    steps: ['current','pending','pending','pending','pending'],
+    gate: { cls:'', text:'Hoàn thành liên hệ OK (B2) để mở Pre-sales Lead.' },
+    primary: 'Báo cáo liên hệ OK →',
+    secondary: false,
+    done: [],
+    timelineExtra: null,
+    chkB2: 'Chưa'
+  },
+  lead_ps: {
+    steps: ['done','current','pending','pending','pending'],
+    gate: { cls:'ok', text:'B2 đã xong · Hoàn thành task Lead PS để mở Khảo sát BANT.' },
+    primary: 'Tiếp tục → Khảo sát BANT',
+    secondary: false,
+    done: [{ label:'Liên hệ lần đầu', at:'05/09 10:15' }],
+    timelineExtra: '<div class="ev"><b>B2 hoàn thành</b><p>05/09 10:15 · Liên hệ OK</p></div>',
+    chkB2: 'OK'
+  },
+  bant: {
+    steps: ['done','done','current','pending','pending'],
+    gate: { cls:'ok', text:'Intake draft đang mở — hoàn thành BANT để sang Tư vấn.' },
+    primary: 'Tiếp tục Intake →',
+    secondary: false,
+    done: [
+      { label:'Liên hệ lần đầu', at:'05/09 10:15' },
+      { label:'Pre-sales Lead', at:'05/09 11:40' }
+    ],
+    timelineExtra: null,
+    chkB2: 'OK'
+  },
+  consult: {
+    steps: ['done','done','done','current','pending'],
+    gate: { cls:'', text:'Hoàn thành consult gate + L2 docs trước khi advance Proposal.' },
+    primary: 'Giao Solution/MKT →',
+    secondary: true,
+    done: [
+      { label:'Liên hệ', at:'05/09 10:15' },
+      { label:'Lead PS', at:'05/09 11:40' },
+      { label:'Khảo sát BANT', at:'05/09 14:30' }
+    ],
+    timelineExtra: null,
+    chkB2: 'OK'
+  },
+  proposal: {
+    steps: ['done','done','done','done','current'],
+    gate: { cls:'ok', text:'Proposal gate: thiếu discount approval 18%.' },
+    primary: 'Mở Deal Room →',
+    secondary: false,
+    done: [
+      { label:'Liên hệ', at:'05/09 10:15' },
+      { label:'Lead PS', at:'05/09 11:40' },
+      { label:'BANT', at:'05/09 14:30' },
+      { label:'Tư vấn', at:'05/09 16:00' }
+    ],
+    timelineExtra: null,
+    chkB2: 'OK'
+  },
+  blocked: {
+    steps: ['blocked','blocked','blocked','blocked','blocked'],
+    gate: { cls:'block', text:'Pipeline bị chặn bởi Review queue — release hoặc resolve duplicate trước.' },
+    primary: 'Release review queue',
+    secondary: false,
+    done: [],
+    panelKey: 'blocked',
+    timelineExtra: null,
+    chkB2: 'Chưa'
+  }
+};
+
+let currentState = 'b2';
+let activeStep = 'b2';
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.display='block';
+  clearTimeout(window._toast); window._toast=setTimeout(()=>t.style.display='none',3200);
+}
+
+function renderStepper(meta, clickStep){
+  const steps = document.querySelectorAll('#stepper .step');
+  const order = ['b2','lead_ps','bant','consult','proposal'];
+  steps.forEach((el,i)=>{
+    el.className = 'step clickable ' + (meta.steps[i]||'pending');
+    if(clickStep && el.dataset.step===clickStep) el.classList.add('current');
+  });
+}
+
+function renderDone(list){
+  const det = document.querySelector('#doneAcc details');
+  const sum = det.querySelector('summary');
+  sum.textContent = 'Các bước đã xong (' + list.length + ')';
+  const box = document.getElementById('doneList');
+  box.innerHTML = list.map(d=>'<div class="done-line"><span>'+d.label+'</span><span><span class="muted">'+d.at+'</span> <button class="btn sm" onclick="goStepFromDone(\''+d.label+'\')">Xem lại</button></span></div>').join('');
+  det.open = list.length > 0;
+}
+
+function applyState(state){
+  currentState = state;
+  if(state==='spa'){
+    document.getElementById('spaBanner').classList.remove('hidden');
+    document.getElementById('mainTabs').classList.add('hidden');
+    document.getElementById('panel-pipeline').classList.remove('on');
+    document.getElementById('flowPill').textContent='CSKH Spa';
+    return;
+  }
+  document.getElementById('spaBanner').classList.add('hidden');
+  document.getElementById('mainTabs').classList.remove('hidden');
+  document.getElementById('flowPill').textContent='B2B Prospect';
+
+  if(state==='contract'){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab==='contract'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
+    document.getElementById('panel-contract').classList.add('on');
+    return;
+  }
+
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab==='pipeline'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById('panel-pipeline').classList.add('on');
+
+  const meta = STATE_META[state] || STATE_META.b2;
+  activeStep = meta.panelKey || state;
+  if(state==='blocked') activeStep='blocked';
+
+  const gate = document.getElementById('gateBox');
+  gate.className = 'gate' + (meta.gate.cls ? ' '+meta.gate.cls : '');
+  gate.textContent = meta.gate.text;
+
+  document.getElementById('primaryBtn').textContent = meta.primary;
+  document.getElementById('secondaryBtn').style.display = meta.secondary ? 'inline-flex' : 'none';
+
+  renderStepper(meta, activeStep);
+  document.getElementById('stepPanel').innerHTML = PANELS[activeStep] || PANELS.b2;
+  renderDone(meta.done);
+
+  const chk = document.getElementById('chkB2');
+  if(chk){ chk.textContent=meta.chkB2; chk.className='tag '+(meta.chkB2==='OK'?'ok':'no'); }
+
+  document.querySelectorAll('.catalog .chip').forEach(c=>{
+    c.classList.toggle('on', c.dataset.state===state && !c.classList.contains('warn-on'));
+  });
+}
+
+function goStep(step){
+  activeStep = step;
+  const meta = STATE_META[currentState] || STATE_META.b2;
+  renderStepper(meta, step);
+  document.getElementById('stepPanel').innerHTML = PANELS[step] || '';
+  toast('Panel: '+step+' (click stepper — FR-PIPE-002)');
+}
+
+function goStepFromDone(){ toast('Xem lại bước đã done — read-only mode'); }
+
+document.querySelectorAll('#stepper .step').forEach(s=>{
+  s.addEventListener('click', ()=> goStep(s.dataset.step));
+});
+
+document.querySelectorAll('.catalog .chip').forEach(c=>{
+  c.addEventListener('click', ()=> applyState(c.dataset.state));
+});
+
+document.querySelectorAll('#mainTabs .tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    if(t.dataset.tab==='pipeline') applyState(currentState==='contract'||currentState==='spa'? 'b2': currentState);
+    else if(t.dataset.tab==='contract') applyState('contract');
+    else {
+      document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x===t));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
+      document.getElementById('panel-'+t.dataset.tab).classList.add('on');
+    }
+  });
+});
+
+document.getElementById('primaryBtn').addEventListener('click', ()=> toast('Primary action: '+document.getElementById('primaryBtn').textContent));
+
+applyState('b2');
+</script>
+</body>
+</html>

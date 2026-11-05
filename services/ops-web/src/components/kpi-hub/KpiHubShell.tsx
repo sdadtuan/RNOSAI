@@ -1,0 +1,307 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { getAccessToken, getStoredUser, type StoredStaffUser } from '@/lib/auth';
+import { activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsForUser } from '@/lib/kpi-hub-nav';
+import { usePerformanceNavBadges } from '@/hooks/usePerformanceNavBadges';
+import { useServiceKpiNavBadges } from '@/hooks/useServiceKpiNavBadges';
+import { PM_SEARCH_PLACEHOLDER, SIDE_NOTE_PERFORMANCE_OS } from '@/lib/performance-copy';
+import { SIDE_NOTE_KPI_CONTRACT } from '@/lib/service-kpi-copy';
+import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
+
+export type KpiHubBreadcrumb = { label: string; href?: string };
+
+type KpiHubShellProps = {
+  title: string;
+  subtitle?: string;
+  breadcrumb?: KpiHubBreadcrumb[];
+  actions?: ReactNode;
+  showFreshness?: boolean;
+  searchPlaceholder?: string;
+  children: ReactNode;
+};
+
+function NavIcon({ icon }: { icon: string }) {
+  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 };
+  switch (icon) {
+    case 'dashboard':
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="7" height="9" rx="1" />
+          <rect x="14" y="3" width="7" height="5" rx="1" />
+          <rect x="14" y="12" width="7" height="9" rx="1" />
+          <rect x="3" y="16" width="7" height="5" rx="1" />
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg {...common}>
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+      );
+    case 'target':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      );
+    case 'database':
+      return (
+        <svg {...common}>
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
+        </svg>
+      );
+    case 'shield':
+      return (
+        <svg {...common}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      );
+    case 'chart':
+      return (
+        <svg {...common}>
+          <path d="M3 3v18h18" />
+          <path d="M18 17V9" />
+          <path d="M13 17V5" />
+          <path d="M8 17v-3" />
+        </svg>
+      );
+    case 'gear':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+        </svg>
+      );
+    case 'inbox':
+      return (
+        <svg {...common}>
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        </svg>
+      );
+    case 'list':
+      return (
+        <svg {...common}>
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      );
+    case 'template':
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18" />
+          <path d="M9 21V9" />
+        </svg>
+      );
+    case 'layers':
+      return (
+        <svg {...common}>
+          <polygon points="12 2 2 7 12 12 22 7 12 2" />
+          <polyline points="2 17 12 22 22 17" />
+          <polyline points="2 12 12 17 22 12" />
+        </svg>
+      );
+    case 'plan':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      );
+    case 'track':
+      return (
+        <svg {...common}>
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      );
+    case 'check':
+      return (
+        <svg {...common}>
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      );
+    case 'users':
+      return (
+        <svg {...common}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+export function KpiHubShell({
+  title,
+  subtitle,
+  breadcrumb = [],
+  actions,
+  showFreshness = false,
+  searchPlaceholder = 'Tìm trong Hub…',
+  children,
+}: KpiHubShellProps) {
+  const pathname = usePathname() ?? '';
+  const activeHref = useMemo(() => activeKpiHubHref(pathname), [pathname]);
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
+  const navGroups = useMemo(() => kpiHubNavGroupsForUser(user, pathname), [user, pathname]);
+  const token = getAccessToken() ?? '';
+  const skpiBadges = useServiceKpiNavBadges(token);
+  const pmBadges = usePerformanceNavBadges(token);
+  const showSkpiSideNote = navGroups.some((g) => g.id === 'service-kpi');
+  const showPmSideNote = navGroups.some((g) => g.id === 'performance');
+  const resolvedSearchPlaceholder =
+    pathname.startsWith('/crm/kpi-hub/performance') ? PM_SEARCH_PLACEHOLDER : searchPlaceholder;
+  const [collapsed, setCollapsed] = useState(false);
+
+  function navBadgeCount(badgeKey?: 'warRoom' | 'contract' | 'registry' | 'checkIn'): number | undefined {
+    if (!badgeKey) return undefined;
+    let n = 0;
+    if (badgeKey === 'warRoom') n = skpiBadges.warRoom;
+    else if (badgeKey === 'contract') n = skpiBadges.contract;
+    else if (badgeKey === 'registry') n = pmBadges.registry;
+    else if (badgeKey === 'checkIn') n = pmBadges.checkIn;
+    return n > 0 ? n : undefined;
+  }
+
+  return (
+    <div className={`kpi-hub-shell${collapsed ? ' kpi-hub-shell--collapsed' : ''}`}>
+      <aside className="kpi-hub-sidebar">
+        <div className="kpi-hub-sidebar__brand">
+          <span className="kpi-hub-sidebar__logo" aria-hidden>
+            <NavIcon icon="chart" />
+          </span>
+          {!collapsed ? <strong>KPI Hub</strong> : null}
+        </div>
+        <nav className="kpi-hub-sidebar__nav" aria-label="KPI Hub">
+          {navGroups.map((group) => (
+            <div
+              key={group.id}
+              className={`kpi-hub-sidebar__group-block${
+                group.id === 'service-kpi'
+                  ? ' kpi-hub-sidebar__group-block--service-kpi'
+                  : group.id === 'performance'
+                    ? ' kpi-hub-sidebar__group-block--performance'
+                    : ''
+              }`}
+            >
+              {!collapsed ? (
+                <p className="kpi-hub-sidebar__group" aria-hidden>
+                  {group.label}
+                </p>
+              ) : null}
+              {group.items.map((item) => {
+                const active = activeHref === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`kpi-hub-sidebar__link${active ? ' is-active' : ''}`}
+                  >
+                    <span className="kpi-hub-sidebar__icon" aria-hidden>
+                      <NavIcon icon={item.icon} />
+                    </span>
+                    {!collapsed ? <span>{item.label}</span> : null}
+                    {!collapsed && navBadgeCount(item.badgeKey) ? (
+                      <span className="kpi-hub-sidebar__count">{navBadgeCount(item.badgeKey)}</span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        {!collapsed && showSkpiSideNote ? (
+          <div className="kpi-hub-sidebar__side-note">
+            <strong>KPI Contract OS</strong>
+            {skpiBadges.sideNoteBody || SIDE_NOTE_KPI_CONTRACT}
+          </div>
+        ) : null}
+        {!collapsed && showPmSideNote ? (
+          <div className="kpi-hub-sidebar__side-note">
+            <strong>Performance OS · moat</strong>
+            {SIDE_NOTE_PERFORMANCE_OS}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="kpi-hub-sidebar__collapse"
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          {collapsed ? '»' : 'Thu gọn'}
+        </button>
+      </aside>
+
+      <div className="kpi-hub-main">
+        <header className="kpi-hub-header">
+          <div className="kpi-hub-header__left">
+            {breadcrumb.length ? (
+              <nav className="kpi-hub-breadcrumb" aria-label="Breadcrumb">
+                {breadcrumb.map((crumb, i) => (
+                  <span key={`${crumb.label}-${i}`} className="kpi-hub-breadcrumb__item">
+                    {i > 0 ? <span className="kpi-hub-breadcrumb__sep">/</span> : null}
+                    {crumb.href ? (
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    ) : (
+                      <span>{crumb.label}</span>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            ) : null}
+            <div className="kpi-hub-page-head">
+              <div>
+                <h1 className="kpi-hub-page-head__title">{title}</h1>
+                {subtitle ? <p className="kpi-hub-page-head__subtitle">{subtitle}</p> : null}
+              </div>
+              {actions ? <div className="kpi-hub-page-head__actions">{actions}</div> : null}
+            </div>
+          </div>
+          <div className="kpi-hub-header__right">
+            {isKpiHubPath(pathname) ? (
+              <input
+                type="search"
+                className="kpi-hub-header__search"
+                placeholder={resolvedSearchPlaceholder}
+                aria-label="Tìm kiếm"
+              />
+            ) : null}
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" aria-label="Trợ giúp">
+              ?
+            </button>
+            <button type="button" className="kpi-hub-header__bell" aria-label="Thông báo">
+              <span className="kpi-hub-header__bell-badge" aria-hidden>
+                0
+              </span>
+            </button>
+            <span className="kpi-hub-header__avatar" aria-hidden>
+              P
+            </span>
+            <span className="kpi-hub-header__tenant">PTT</span>
+          </div>
+        </header>
+
+        <div className="kpi-hub-content">{children}</div>
+        {showFreshness ? <KpiHubFreshnessFooter /> : null}
+      </div>
+    </div>
+  );
+}

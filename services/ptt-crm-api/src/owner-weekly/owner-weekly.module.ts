@@ -1,0 +1,24 @@
+import { Module } from '@nestjs/common';
+import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import {
+  StaffOwnerWeeklyConfigureGuard,
+  StaffOwnerWeeklyExportGuard,
+  StaffOwnerWeeklyViewGuard,
+} from './guards/staff-owner-weekly.guard';
+import { OwnerWeeklyController } from './owner-weekly.controller';
+import { OwnerWeeklyPgRepository } from './owner-weekly-pg.repository';
+import { OwnerWeeklyService } from './owner-weekly.service';
+
+@Module({
+  imports: [StaffAuthModule],
+  controllers: [OwnerWeeklyController],
+  providers: [
+    OwnerWeeklyService,
+    OwnerWeeklyPgRepository,
+    StaffOwnerWeeklyViewGuard,
+    StaffOwnerWeeklyExportGuard,
+    StaffOwnerWeeklyConfigureGuard,
+  ],
+  exports: [OwnerWeeklyPgRepository],
+})
+export class OwnerWeeklyModule {}

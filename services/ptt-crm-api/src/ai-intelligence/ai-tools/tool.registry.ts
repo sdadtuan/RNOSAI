@@ -1,0 +1,182 @@
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { LeadsRepository } from '../../leads/leads.repository';
+import { B2bLeadAiFilterService } from '../../b2b-projects/b2b-lead-ai-filter.service';
+import { AI_USE_CASE } from '../ai-audit.constants';
+import { AiAuditService } from '../ai-audit.service';
+import { AiForecastService } from '../ai-forecast.service';
+import { AgentRegistry } from '../orchestrator/agent.registry';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
+import {
+  AiToolCallContext,
+  AiToolDefinition,
+  AiToolDescriptor,
+  AiToolExecutionContext,
+} from './ai-tools.types';
+import { OPS_AI_TOOL_DENYLIST } from './ai-tools.types';
+import { createAgentInsightTools } from './tools/agent-tools.tool';
+import { createForecastTools } from './tools/get-forecast.tool';
+import { createLeadQueryTools } from './tools/list-leads.tool';
+import { createOpsContextTools } from './tools/ops-context.tools';
+import { createStrategyPackTools } from './tools/strategy-packs.tools';
+import { StrategyPacksService } from '../../strategy-packs/strategy-packs.service';
+import { createLeadAgentTools } from './tools/score-lead.tool';
+import { createOrchestrationTools } from './tools/trigger-orchestration.tool';
+import { OpsCrmContextService } from './ops-crm-context.service';
+import { OpsDraftWriteService } from './ops-draft-write.service';
+import { OpsKpiTargetWriteService } from './ops-kpi-target-write.service';
+import { OpsPlanBreakdownService } from './ops-plan-breakdown.service';
+import { OpsPresalesContextService } from './ops-presales-context.service';
+import { OpsPresalesAutofillService } from './ops-presales-autofill.service';
+import { OpsInsightDraftService } from './ops-insight-draft.service';
+import { OpsInsightApproveService } from './ops-insight-approve.service';
+import { OpsFieldConfirmService } from './ops-field-confirm.service';
+import { OpsPlanGenerateReviewService } from './ops-plan-generate-review.service';
+import { OpsServiceRecommendService } from './ops-service-recommend.service';
+import { OpsConsultDraftService } from './ops-consult-draft.service';
+import { OpsReturnToAmService } from './ops-return-to-am.service';
+import { OpsProposalDraftService } from './ops-proposal-draft.service';
+import { OpsRoleKpiRepository } from './ops-role-kpi.repository';
+import { OpsStageTransitionService } from './ops-stage-transition.service';
+
+const DENIED = new Set<string>(OPS_AI_TOOL_DENYLIST);
+
+@Injectable()
+export class ToolRegistry {
+  private readonly definitions: readonly AiToolDefinition[];
+  private readonly toolsByName: ReadonlyMap<string, AiToolDefinition>;
+
+  constructor(
+    private readonly audit: AiAuditService,
+    agents: AgentRegistry,
+    leads: LeadsRepository,
+    b2bAi: B2bLeadAiFilterService,
+    forecast: AiForecastService,
+    orchestrator: OrchestratorService,
+    opsContext: OpsCrmContextService,
+    draftWrite: OpsDraftWriteService,
+    stageTransition: OpsStageTransitionService,
+    planBreakdown: OpsPlanBreakdownService,
+    kpiTargetWrite: OpsKpiTargetWriteService,
+    presalesContext: OpsPresalesContextService,
+    autofill: OpsPresalesAutofillService,
+    insightDraft: OpsInsightDraftService,
+    planReview: OpsPlanGenerateReviewService,
+    serviceRecommend: OpsServiceRecommendService,
+    consultDraft: OpsConsultDraftService,
+    returnToAm: OpsReturnToAmService,
+    proposalDraft: OpsProposalDraftService,
+    insightApprove: OpsInsightApproveService,
+    fieldConfirm: OpsFieldConfirmService,
+    strategyPacks: StrategyPacksService,
+  ) {
+    this.definitions = [
+      ...createLeadAgentTools(agents),
+      ...createLeadQueryTools(leads, b2bAi),
+      ...createForecastTools(forecast),
+      ...createAgentInsightTools(agents),
+      ...createOrchestrationTools(orchestrator),
+      ...createOpsContextTools(
+        opsContext,
+        draftWrite,
+        stageTransition,
+        planBreakdown,
+        kpiTargetWrite,
+        presalesContext,
+        autofill,
+        insightDraft,
+        planReview,
+        serviceRecommend,
+        consultDraft,
+        returnToAm,
+        proposalDraft,
+        insightApprove,
+        fieldConfirm,
+      ),
+      ...createStrategyPackTools(strategyPacks),
+    ];
+    this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));
+  }
+
+  list(): AiToolDescriptor[] {
+    return this.definitions.map(({ handler: _handler, ...descriptor }) => descriptor);
+  }
+
+  async call(
+    name: string,
+    input: Record<string, unknown>,
+    context: AiToolCallContext,
+  ): Promise<unknown> {
+    const result = await this.callWithMetadata(name, input, context);
+    return result.data;
+  }
+
+  async callWithMetadata(
+    name: string,
+    input: Record<string, unknown>,
+    context: AiToolCallContext,
+  ): Promise<{ data: unknown; runId: string }> {
+    const toolName = String(name ?? '').trim();
+    if (DENIED.has(toolName)) {
+      throw new ForbiddenException({
+        error: 'tool_denied_by_policy',
+        tool_name: toolName,
+        message: 'SRS PO-53: email.send / proposal.send / stage.transition are banned.',
+      });
+    }
+    const tool = this.toolsByName.get(toolName);
+    if (!tool) {
+      throw new NotFoundException({
+        error: 'tool_not_found',
+        tool_name: toolName,
+      });
+    }
+
+    const actorId = context.actorId ?? `ai-tool-key:${context.apiKey.id}`;
+    const wrapped = await this.audit.wrap(
+      {
+        agentName: 'ai-tool-proxy',
+        useCase: AI_USE_CASE.TOOL_CALL,
+        entityType: 'ai_tool',
+        entityId: toolName,
+        clientId: context.apiKey.client_id,
+        actorId,
+        correlationId: context.correlationId,
+        modelName: 'ai-tool-proxy-v1',
+        input: { tool_name: toolName },
+      },
+      async ({ requestId }) => {
+        this.assertAllowed(toolName, context);
+        const executionContext: AiToolExecutionContext = {
+          apiKeyId: context.apiKey.id,
+          clientId: context.apiKey.client_id,
+          actorId,
+          correlationId: requestId,
+          humanApproved: Boolean(context.humanApproved),
+        };
+        const data = await tool.handler(input ?? {}, executionContext);
+        return {
+          data,
+          output: { tool_name: toolName, status: 'succeeded' },
+          modelName: 'ai-tool-proxy-v1',
+          tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        };
+      },
+    );
+
+    return { data: wrapped.data, runId: wrapped.runId };
+  }
+
+  private assertAllowed(name: string, context: AiToolCallContext): void {
+    if (!context.apiKey.allowed_tools.includes(name)) {
+      throw new ForbiddenException({
+        error: 'tool_not_allowed',
+        tool_name: name,
+        api_key_id: context.apiKey.id,
+      });
+    }
+  }
+}

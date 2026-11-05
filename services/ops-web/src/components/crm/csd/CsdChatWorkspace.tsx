@@ -1,0 +1,506 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { CsdChatContacts, type CsdChatContactsView } from '@/components/crm/csd/CsdChatContacts';
+import { CsdChatContext } from '@/components/crm/csd/CsdChatContext';
+import { CsdChatList } from '@/components/crm/csd/CsdChatList';
+import { CsdChatCreateGroupModal } from '@/components/crm/csd/CsdChatCreateGroupModal';
+import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
+import { CsdChatTabs } from '@/components/crm/csd/CsdChatTabs';
+import { CsdChatCallBar } from '@/components/crm/csd/CsdChatCallBar';
+import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
+import { useCsdChatCall } from '@/components/crm/csd/useCsdChatCall';
+import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
+import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
+import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
+import { readCsdDockPersist, writeCsdDockPersist, type CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
+import { collectCsdConversationLinks } from '@/lib/crm/csd-chat-display';
+import { readCsdChatShell } from '@/lib/crm/csd-chat-shell';
+
+type CsdChatWorkspaceProps = {
+  token: string;
+  canWrite: boolean;
+  canPlatformManage?: boolean;
+  initialConversationId?: string | null;
+  dockPersist?: boolean;
+  onConversationChange?: (conversationId: string | null) => void;
+};
+
+export function CsdChatWorkspace({
+  token,
+  canWrite,
+  canPlatformManage = false,
+  initialConversationId,
+  dockPersist = false,
+  onConversationChange,
+}: CsdChatWorkspaceProps) {
+  const dockInitial = dockPersist ? readCsdDockPersist() : null;
+  const s = useCsdChatSession({
+    token,
+    canWrite,
+    initialConversationId: initialConversationId ?? dockInitial?.conversationId ?? null,
+  });
+  const [tab, setTab] = useState<CsdDockTab>(dockInitial?.tab ?? 'messages');
+  const [contactsView, setContactsView] = useState<CsdChatContactsView>(
+    dockInitial?.tab === 'requests' ? 'requests' : 'friends',
+  );
+  const [incomingCount, setIncomingCount] = useState(0);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [openTicketsInNewTab, setOpenTicketsInNewTab] = useState(false);
+
+  useEffect(() => {
+    setOpenTicketsInNewTab(readCsdChatShell() !== 'crm');
+  }, []);
+
+  useEffect(() => {
+    if (s.isMobile) return;
+    if (s.active?.kind === 'group') setContextOpen(true);
+  }, [s.active?.id, s.active?.kind, s.isMobile]);
+
+  const allAttachments = useCsdChatAttachments(token, {
+    enabled: Boolean(s.activeId),
+    refreshKey: `${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`,
+    limit: 500,
+  });
+  const conversationLinks = useMemo(() => collectCsdConversationLinks(s.messages), [s.messages]);
+  const chatCall = useCsdChatCall(token);
+
+  useEffect(() => {
+    if (tab === 'requests') setContactsView('requests');
+    else if (tab === 'contacts') setContactsView('friends');
+  }, [tab]);
+
+  useEffect(() => {
+    if (s.activeId) onConversationChange?.(s.activeId);
+    if (!dockPersist) return;
+    const current = readCsdDockPersist();
+    writeCsdDockPersist({
+      ...current,
+      conversationId: s.activeId ?? current.conversationId,
+      tab,
+      pane: s.activeId ? 'thread' : current.pane,
+    });
+  }, [dockPersist, onConversationChange, s.activeId, tab]);
+  const archived = s.active?.status === 'archived';
+  const closed = s.active?.status === 'closed';
+  const myRole =
+    s.meStaffId == null
+      ? null
+      : s.members.find((m) => m.member_staff_id === s.meStaffId)?.role ?? null;
+  const sendLocked =
+    s.active?.kind === 'group' &&
+    s.active.members_can_send === false &&
+    !canPlatformManage &&
+    myRole !== 'owner' &&
+    myRole !== 'admin';
+  const composerLocked = Boolean(closed || archived || sendLocked);
+  const canPin =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    (canPlatformManage || myRole === 'owner' || myRole === 'admin') &&
+    !closed &&
+    !archived;
+  const canInviteMembers =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    (canPlatformManage || myRole === 'owner' || myRole === 'admin') &&
+    !closed &&
+    !archived;
+  const canLeaveGroup =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    myRole != null &&
+    myRole !== 'owner' &&
+    !closed &&
+    !archived;
+  const showChatPane = tab === 'messages';
+
+  function closeContextPanel() {
+    setContextOpen(false);
+    if (s.isMobile && s.mobilePane === 'context') {
+      s.setMobilePane('thread');
+    }
+  }
+
+  function handleChatOutsideContextClick() {
+    if (!contextOpen && s.mobilePane !== 'context') return;
+    closeContextPanel();
+  }
+
+  function handleTabChange(next: CsdDockTab) {
+    setTab(next);
+    if (next !== 'messages') {
+      closeContextPanel();
+      s.setMobilePane('list');
+      return;
+    }
+    if (s.isMobile && s.activeId) {
+      s.setMobilePane('thread');
+    }
+  }
+
+  const workspaceClass = [
+    'csd-chat-workspace',
+    tab !== 'messages' ? 'is-contacts-tab' : '',
+    !s.isMobile && !contextOpen ? 'is-context-hidden' : '',
+    s.isMobile && s.mobilePane === 'list' ? 'is-mobile-list' : '',
+    s.isMobile && s.mobilePane === 'thread' ? 'is-mobile-thread' : '',
+    s.isMobile && s.mobilePane === 'context' ? 'is-mobile-context' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div className={workspaceClass} data-testid="csd-chat-workspace">
+      {(!s.isMobile || s.mobilePane === 'list') && (
+        <>
+        <div className="csd-chat-workspace__rail-hit" onClick={handleChatOutsideContextClick}>
+          <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={handleTabChange} />
+        </div>
+        <div className="csd-chat-workspace__list-col" onClick={handleChatOutsideContextClick}>
+          {tab === 'messages' ? (
+            <CsdChatList
+              token={token}
+              conversations={s.conversations}
+              activeId={s.activeId}
+              filter={s.filter}
+              canWrite={canWrite}
+              busy={s.busy}
+              error={s.error}
+              search={s.search}
+              onSearch={s.setSearch}
+              onFilter={s.setFilter}
+              onSelect={(id) => {
+                const next = s.conversations.find((c) => c.id === id);
+                if (s.isMobile || next?.kind !== 'group') closeContextPanel();
+                else setContextOpen(true);
+                void s.handleSelectConversation(id);
+              }}
+              onNew={() => s.setShowNewModal(true)}
+              onCreateGroup={() => s.setShowCreateGroupModal(true)}
+            />
+          ) : (
+            <CsdChatContacts
+              token={token}
+              view={contactsView}
+              onViewChange={(next) => {
+                setContactsView(next);
+                if (next === 'requests') handleTabChange('requests');
+                else handleTabChange('contacts');
+              }}
+              canWrite={canWrite}
+              onIncomingChange={setIncomingCount}
+              onOpenDm={(staffId) => {
+                handleTabChange('messages');
+                void s.handleCreateConversation({ kind: 'direct', name_vi: '', member_staff_ids: [staffId] });
+              }}
+            />
+          )}
+        </div>
+        </>
+      )}
+
+      {showChatPane && (!s.isMobile || s.mobilePane === 'thread') && (
+        <div className="csd-chat-workspace__thread">
+        <CsdChatCallBar
+          state={chatCall.callState}
+          onHangup={chatCall.hangup}
+          onDismissError={chatCall.dismissError}
+          onAnswer={() => void chatCall.answerIncoming()}
+          onReject={chatCall.rejectIncoming}
+        />
+        <CsdChatThread
+          token={token}
+          active={s.active}
+          callBusy={chatCall.callBusy}
+          onStartVoiceCall={() => {
+            if (s.activeId) void chatCall.startCall(s.activeId, 'voice');
+          }}
+          onStartVideoCall={() => {
+            if (s.activeId) void chatCall.startCall(s.activeId, 'video');
+          }}
+          messages={s.messages}
+          members={s.members}
+          relatedTickets={s.relatedTickets}
+          draft={s.draft}
+          replyTo={s.replyTo}
+          pendingFiles={s.pendingFiles}
+          meStaffId={s.meStaffId}
+          canWrite={canWrite}
+          busy={s.busy}
+          closed={composerLocked}
+          sendLockHint={sendLocked ? 'Chỉ Chủ/Phó được gửi tin trong nhóm này' : undefined}
+          canPin={canPin}
+          canInviteMembers={canInviteMembers}
+          canLeaveGroup={canLeaveGroup}
+          onInviteMembers={(staffIds) => s.handleInviteMembers(staffIds)}
+          onLeaveGroup={() => void s.handleLeaveGroup()}
+          onPinMessage={(m) => void s.handlePinMessage(m.id)}
+          onUnpin={() => void s.handleUnpin()}
+          priorityHint={s.priorityHint}
+          density="page"
+          showMobileBack={s.isMobile}
+          onMobileBack={() => s.setMobilePane('list')}
+          onShowContext={s.isMobile ? () => s.setMobilePane('context') : undefined}
+          onToggleContextPanel={!s.isMobile ? () => setContextOpen((v) => !v) : undefined}
+          contextPanelOpen={contextOpen}
+          onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
+          onDismissPriorityHint={() => s.setPriorityHint(null)}
+          onApplyPriorityHint={() => {
+            if (!s.priorityHint) return;
+            const hint = s.priorityHint;
+            s.setPriorityHint(null);
+            const last = [...s.messages].reverse().find((m) => !m.is_deleted && m.body_text.trim());
+            if (last) {
+              s.setTicketModal(last);
+              s.setTicketForm((f) => ({
+                ...f,
+                title: last.body_text.slice(0, 80),
+                ticket_type: 'incident',
+                priority: hint,
+              }));
+            }
+          }}
+          onDraftChange={s.setDraft}
+          onSend={() => void s.handleSend()}
+          onSendEmotion={(emoji) => void s.handleSendEmotion(emoji)}
+          onReply={s.setReplyTo}
+          onCancelReply={() => s.setReplyTo(null)}
+          onCreateTicket={(m) => {
+            s.setTicketModal(m);
+            s.setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 80) }));
+          }}
+          onReopen={() => void s.handleReopen()}
+          onPickFile={(file) => void s.handlePickFile(file)}
+          onRemovePending={s.handleRemovePending}
+          onEditMessage={(m, body) => void s.handleEditMessage(m, body)}
+          onDeleteMessage={(m) => void s.handleDeleteMessage(m)}
+          onCopyLink={s.handleCopyLink}
+          onForward={(m) => s.setForwardMessage(m)}
+          onReact={(m, emotion) => void s.handleReactMessage(m, emotion)}
+        />
+        </div>
+      )}
+
+      {showChatPane && ((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
+        <CsdChatContext
+          token={token}
+          active={s.active}
+          attachmentImages={allAttachments.images}
+          attachmentFiles={allAttachments.files}
+          attachmentLinks={conversationLinks}
+          attachmentsLoading={allAttachments.loading}
+          attachmentsError={allAttachments.error}
+          members={s.members}
+          relatedTickets={s.relatedTickets}
+          memberStaffId={s.memberStaffId}
+          meStaffId={s.meStaffId}
+          friendInviteOptions={s.friendInviteOptions}
+          aiPeriod={s.aiPeriod}
+          aiSummary={s.aiSummary}
+          canWrite={canWrite}
+          canPlatformManage={canPlatformManage}
+          busy={s.busy}
+          closed={composerLocked}
+          archived={Boolean(archived)}
+          onMemberStaffId={s.setMemberStaffId}
+          onAddMember={() => void s.handleAddMember()}
+          onRemoveMember={(staffId) => void s.handleRemoveMember(staffId)}
+          onLeaveGroup={() => void s.handleLeaveGroup()}
+          onLoadFriendInvites={() => void s.loadFriendInviteOptions()}
+          onPatchGroupInfo={(patch) => s.handlePatchGroupInfo(patch)}
+          onSetMemberRole={(staffId, role) => void s.handleSetMemberRole(staffId, role)}
+          onUploadGroupAvatar={(file) => void s.handleUploadGroupAvatar(file)}
+          onClearGroupAvatar={() => void s.handleClearGroupAvatar()}
+          joinRequests={s.joinRequests}
+          onLoadJoinRequests={() => void s.loadJoinRequests()}
+          onApproveJoin={(id) => void s.handleApproveJoin(id)}
+          onRejectJoin={(id) => void s.handleRejectJoin(id)}
+          onTransferOwner={(staffId) => void s.handleTransferOwner(staffId)}
+          onClose={() => void s.handleClose()}
+          onArchive={() => void s.handleArchive()}
+          onCreateAiActionTicket={(index, title) => void s.handleCreateAiActionTicket(index, title)}
+          onAiPeriod={s.setAiPeriod}
+          onSummarize={() => void s.handleSummarize()}
+          showMobileBack={s.isMobile}
+          onMobileBack={() => s.setMobilePane('thread')}
+          onClosePanel={!s.isMobile ? closeContextPanel : undefined}
+          onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
+          openTicketsInNewTab={openTicketsInNewTab}
+        />
+      )}
+
+      {showChatPane && s.isMobile && s.mobilePane === 'thread' ? (
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary csd-chat-mobile-info"
+          data-testid="csd-chat-mobile-info"
+          onClick={() => s.setMobilePane('context')}
+        >
+          i
+        </button>
+      ) : null}
+
+      {s.showNewModal ? (
+        <CsdChatNewModal
+          token={token}
+          open
+          busy={s.busy}
+          onClose={() => s.setShowNewModal(false)}
+          onSubmit={async (payload) => {
+            await s.handleCreateConversation(payload);
+          }}
+        />
+      ) : null}
+
+      {s.showCreateGroupModal ? (
+        <CsdChatCreateGroupModal
+          token={token}
+          open
+          busy={s.busy}
+          onClose={() => s.setShowCreateGroupModal(false)}
+          onSubmit={(payload) => s.handleCreateConversation(payload)}
+        />
+      ) : null}
+
+      {s.friendRequired ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => s.setFriendRequired(false)}>
+          <div
+            className="csd-modal page-card stack-gap"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-chat-not-friends"
+          >
+            <h3 className="kpi-section-title">Hãy gửi kết bạn trước</h3>
+            <p>DM mới chỉ mở với người đã chấp nhận lời mời.</p>
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => s.setFriendRequired(false)}>
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  s.setFriendRequired(false);
+                  s.setShowNewModal(false);
+                  handleTabChange('contacts');
+                }}
+              >
+                Mở Danh bạ
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {s.duplicateTicket ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => s.setDuplicateTicket(null)}>
+          <div
+            className="csd-modal page-card stack-gap"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-duplicate-ticket-modal"
+          >
+            <h3 className="kpi-section-title">Đã có ticket từ nguồn này</h3>
+            <p>
+              Mã <strong>{s.duplicateTicket.code}</strong> — {s.duplicateTicket.title}
+            </p>
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => s.setDuplicateTicket(null)}>
+                Đóng
+              </button>
+              <Link href={`/crm/csd/tickets/${s.duplicateTicket.id}`} className="btn btn-sm">
+                Mở ticket
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {s.forwardMessage ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => s.setForwardMessage(null)}>
+          <form
+            className="csd-modal page-card stack-gap"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void s.handleForward();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-forward-modal"
+          >
+            <h3 className="kpi-section-title">Chuyển tiếp tin nhắn</h3>
+            <p className="muted">{s.forwardMessage.body_text.slice(0, 120)}</p>
+            <input
+              className="kpi-input"
+              required
+              placeholder="ID hội thoại đích"
+              value={s.forwardTargetId}
+              onChange={(e) => s.setForwardTargetId(e.target.value)}
+              data-testid="csd-forward-target"
+            />
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => s.setForwardMessage(null)}>
+                Huỷ
+              </button>
+              <button type="submit" className="btn btn-sm" disabled={s.busy}>
+                Chuyển tiếp
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {s.ticketModal ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => s.setTicketModal(null)}>
+          <form
+            className="csd-modal page-card stack-gap"
+            onSubmit={(e) => void s.handleCreateTicket(e)}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-create-ticket-modal"
+          >
+            <h3 className="kpi-section-title">Tạo ticket từ tin nhắn</h3>
+            <p className="muted">
+              {s.active?.name_vi ?? 'Hội thoại'} · {formatCsdWhen(s.ticketModal.created_at)}
+            </p>
+            <input
+              className="kpi-input"
+              required
+              value={s.ticketForm.title}
+              onChange={(e) => s.setTicketForm({ ...s.ticketForm, title: e.target.value })}
+              placeholder="Tiêu đề ticket"
+            />
+            <select
+              className="kpi-select"
+              value={s.ticketForm.ticket_type}
+              onChange={(e) => s.setTicketForm({ ...s.ticketForm, ticket_type: e.target.value })}
+            >
+              {CSD_TICKET_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="kpi-select"
+              value={s.ticketForm.priority}
+              onChange={(e) => s.setTicketForm({ ...s.ticketForm, priority: e.target.value as CsdPriority })}
+            >
+              {(Object.keys(CSD_PRIORITY_LABELS) as CsdPriority[]).map((p) => (
+                <option key={p} value={p}>
+                  {CSD_PRIORITY_LABELS[p]}
+                </option>
+              ))}
+            </select>
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => s.setTicketModal(null)}>
+                Huỷ
+              </button>
+              <button type="submit" className="btn btn-sm" disabled={s.busy}>
+                Tạo ticket
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}

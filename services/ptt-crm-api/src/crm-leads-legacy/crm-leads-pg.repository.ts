@@ -1,0 +1,413 @@
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Pool } from 'pg';
+import { catalogTs } from '../catalog/catalog-slug.util';
+import { AppConfigService } from '../config/app-config.service';
+import { LeadIngestRulesRepository } from '../leads/ingest/lead-ingest-rules.repository';
+import {
+  ACTIVITY_TYPE_LABELS,
+  ACTIVITY_TYPES,
+  CreateLeadActivityBody,
+  LeadActivityRow,
+  LeadAssignmentLogRow,
+  LeadStatusLogRow,
+} from './crm-leads-legacy.types';
+
+@Injectable()
+export class CrmLeadsPgRepository implements OnModuleDestroy {
+  private pool: Pool | null = null;
+
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly ingestRules: LeadIngestRulesRepository,
+  ) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  async staffExists(staffId: number): Promise<boolean> {
+    return this.ingestRules.staffExists(staffId);
+  }
+
+  async getLeadOwnerId(leadId: number): Promise<number | null> {
+    const result = await this.db.query(
+      `SELECT owner_id FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
+      [leadId],
+    );
+    const ownerId = result.rows[0]?.owner_id;
+    return ownerId != null ? Number(ownerId) : null;
+  }
+
+  async getLeadStatus(leadId: number): Promise<string> {
+    const result = await this.db.query(
+      `SELECT status FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
+      [leadId],
+    );
+    return String(result.rows[0]?.status ?? 'new');
+  }
+
+  async getLeadRoutingSnapshot(leadId: number): Promise<{
+    ownerId: number | null;
+    reProjectId: number | null;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT owner_id, re_project_id
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1
+       LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0] as
+      | { owner_id: string | number | null; re_project_id: string | number | null }
+      | undefined;
+    if (!row) return null;
+    return {
+      ownerId: row.owner_id != null ? Number(row.owner_id) : null,
+      reProjectId: row.re_project_id != null ? Number(row.re_project_id) : null,
+    };
+  }
+
+  async listAssignableStaff(limit = 40): Promise<Array<{
+    staff_id: number;
+    staff_name: string;
+    staff_code: string;
+    role: string;
+    sort_order: number;
+  }>> {
+    const lim = Math.max(1, Math.min(limit, 100));
+    const result = await this.db.query(
+      `SELECT id AS staff_id, name AS staff_name,
+              COALESCE(internal_code, '') AS staff_code,
+              'sales' AS role, id AS sort_order
+       FROM crm_staff
+       WHERE COALESCE(active, TRUE) = TRUE
+       ORDER BY id ASC
+       LIMIT $1`,
+      [lim],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      staff_id: Number(row.staff_id),
+      staff_name: String(row.staff_name ?? ''),
+      staff_code: String(row.staff_code ?? ''),
+      role: String(row.role ?? 'sales'),
+      sort_order: Number(row.sort_order ?? 0),
+    }));
+  }
+
+  async countOpenLeadsByOwners(
+    staffIds: number[],
+    reProjectId: number | null,
+  ): Promise<Map<number, number>> {
+    const out = new Map<number, number>();
+    const ids = [...new Set(staffIds.filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length) return out;
+    const result = await this.db.query(
+      `SELECT owner_id, COUNT(*)::int AS open_count
+       FROM crm_leads
+       WHERE owner_id = ANY($1::bigint[])
+         AND COALESCE(status, 'new') NOT IN ('won', 'lost', 'converted', 'closed')
+         AND ($2::bigint IS NULL OR re_project_id = $2)
+         AND is_duplicate IS NOT TRUE
+       GROUP BY owner_id`,
+      [ids, reProjectId],
+    );
+    for (const row of result.rows as Array<{ owner_id: string; open_count: number }>) {
+      out.set(Number(row.owner_id), Number(row.open_count));
+    }
+    return out;
+  }
+
+  async listActivities(leadId: number, limit = 100): Promise<LeadActivityRow[]> {
+    const lim = Math.max(1, Math.min(limit, 500));
+    const result = await this.db.query(
+      `SELECT a.* FROM crm_lead_activities a
+       WHERE a.lead_id = $1
+       ORDER BY a.created_at DESC
+       LIMIT $2`,
+      [leadId, lim],
+    );
+    const rows = result.rows as Array<Record<string, unknown>>;
+    const names = await this.activityStaffNames(rows);
+    return rows.map((row) => this.mapActivity(row, this.activityActorName(row, names)));
+  }
+
+  private async activityStaffNames(rows: Array<Record<string, unknown>>): Promise<{
+    byId: Map<number, string>;
+    byEmail: Map<string, string>;
+  }> {
+    const ids = new Set<number>();
+    const emails = new Set<string>();
+    for (const row of rows) {
+      const userId = Number(row.user_id);
+      if (Number.isFinite(userId) && userId > 0) ids.add(userId);
+      const actor = String(row.created_by ?? '').trim();
+      const staffRef = /^staff:(\d+)$/i.exec(actor);
+      if (staffRef) ids.add(Number(staffRef[1]));
+      else if (actor.includes('@')) emails.add(actor.toLowerCase());
+    }
+    const byId = new Map<number, string>();
+    const byEmail = new Map<string, string>();
+    if (!ids.size && !emails.size) return { byId, byEmail };
+    const found = await this.db.query(
+      `SELECT id, COALESCE(name, '') AS name, lower(trim(COALESCE(email, ''))) AS email
+       FROM crm_staff
+       WHERE id = ANY($1::bigint[])
+          OR lower(trim(COALESCE(email, ''))) = ANY($2::text[])`,
+      [[...ids].length ? [...ids] : [-1], [...emails].length ? [...emails] : ['__none__']],
+    );
+    for (const row of found.rows as Array<{ id: number; name: string; email: string }>) {
+      const name = String(row.name ?? '').trim();
+      if (!name) continue;
+      byId.set(Number(row.id), name);
+      if (row.email) byEmail.set(String(row.email), name);
+    }
+    return { byId, byEmail };
+  }
+
+  private activityActorName(
+    row: Record<string, unknown>,
+    names: { byId: Map<number, string>; byEmail: Map<string, string> },
+  ): string {
+    const userId = Number(row.user_id);
+    if (Number.isFinite(userId) && userId > 0 && names.byId.has(userId)) {
+      return names.byId.get(userId) ?? '';
+    }
+    const actor = String(row.created_by ?? '').trim();
+    const staffRef = /^staff:(\d+)$/i.exec(actor);
+    if (staffRef && names.byId.has(Number(staffRef[1]))) {
+      return names.byId.get(Number(staffRef[1])) ?? '';
+    }
+    if (actor.includes('@')) return names.byEmail.get(actor.toLowerCase()) ?? '';
+    return '';
+  }
+
+  async createActivity(
+    leadId: number,
+    body: CreateLeadActivityBody,
+    actor: string,
+    userId: number | null,
+  ): Promise<LeadActivityRow> {
+    let at = String(body.activity_type ?? 'note')
+      .trim()
+      .toLowerCase();
+    if (!ACTIVITY_TYPES.includes(at as (typeof ACTIVITY_TYPES)[number])) {
+      at = 'note';
+    }
+    const ts = catalogTs();
+    const statusSnap = await this.getLeadStatus(leadId);
+    const insert = await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, user_id, activity_type, content, result,
+         next_action, next_action_at, created_at, created_by, lead_status_at_log
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9, $10)
+       RETURNING *`,
+      [
+        leadId,
+        userId,
+        at,
+        String(body.content ?? '').slice(0, 8000),
+        String(body.result ?? '').slice(0, 2000),
+        String(body.next_action ?? '').slice(0, 500),
+        body.next_action_at ? String(body.next_action_at).slice(0, 40) : null,
+        ts,
+        actor.slice(0, 120),
+        statusSnap,
+      ],
+    );
+    await this.db.query(
+      `UPDATE crm_leads SET updated_at = NOW(), updated_by = $2 WHERE sqlite_lead_id = $1`,
+      [leadId, actor.slice(0, 120)],
+    );
+    const row = insert.rows[0] as Record<string, unknown>;
+    const userName = userId ? await this.ingestRules.staffName(userId) : '';
+    return this.mapActivity(row, userName);
+  }
+
+  async logAssignment(
+    leadId: number,
+    fromUserId: number | null,
+    toUserId: number | null,
+    reason: string,
+    actor: string,
+    ts: string,
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_assignment_log
+         (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6::timestamptz)`,
+      [
+        leadId,
+        fromUserId,
+        toUserId,
+        reason.slice(0, 500),
+        actor.slice(0, 120),
+        ts,
+      ],
+    );
+  }
+
+  async listStatusLogs(leadId: number, limit = 100): Promise<LeadStatusLogRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id,
+                COALESCE(payload->>'from_status', '') AS old_status,
+                COALESCE(payload->>'to_status', title) AS new_status,
+                COALESCE(actor_id, '') AS changed_by,
+                COALESCE(body, '') AS note,
+                COALESCE(occurred_at, created_at)::text AS created_at
+         FROM customer_timeline_events
+         WHERE entity_type = 'lead'
+           AND entity_id = $1
+           AND event_type = 'lead.status_changed'
+         ORDER BY occurred_at DESC NULLS LAST, created_at DESC
+         LIMIT $2`,
+        [String(leadId), lim],
+      );
+      return (result.rows as Array<Record<string, unknown>>).map((row) => {
+        const newStatus = String(row.new_status ?? '');
+        // title fallback shape: "Trạng thái: x → y"
+        let oldStatus = String(row.old_status ?? '');
+        let parsedNew = newStatus;
+        if (!oldStatus && newStatus.includes('→')) {
+          const parts = newStatus.split('→').map((s) => s.replace(/^Trạng thái:\s*/i, '').trim());
+          if (parts.length >= 2) {
+            oldStatus = parts[0] ?? '';
+            parsedNew = parts[1] ?? newStatus;
+          }
+        }
+        return {
+          id: String(row.id ?? ''),
+          lead_id: leadId,
+          old_status: oldStatus || '—',
+          new_status: parsedNew || '—',
+          changed_by: String(row.changed_by ?? ''),
+          note: String(row.note ?? ''),
+          created_at: String(row.created_at ?? ''),
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async firstCallAtByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    if (!leadIds.length) return out;
+    const result = await this.db.query(
+      `SELECT lead_id, MIN(created_at)::text AS first_call_at
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::bigint[]) AND activity_type = 'call'
+       GROUP BY lead_id`,
+      [leadIds],
+    );
+    for (const row of result.rows as Array<{ lead_id: string; first_call_at: string }>) {
+      if (row.first_call_at) out.set(Number(row.lead_id), String(row.first_call_at));
+    }
+    return out;
+  }
+
+  async nextFollowUpByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    if (!leadIds.length) return out;
+    const result = await this.db.query(
+      `SELECT DISTINCT ON (lead_id) lead_id, next_action_at::text AS next_action_at
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::bigint[])
+         AND next_action_at IS NOT NULL
+       ORDER BY lead_id, created_at DESC`,
+      [leadIds],
+    );
+    for (const row of result.rows as Array<{ lead_id: string; next_action_at: string }>) {
+      if (row.next_action_at) out.set(Number(row.lead_id), String(row.next_action_at));
+    }
+    return out;
+  }
+
+  async staffNamesByIds(staffIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    const uniq = [...new Set(staffIds.filter((id) => id > 0))];
+    for (const id of uniq) {
+      const name = await this.ingestRules.staffName(id);
+      if (name) out.set(id, name);
+    }
+    return out;
+  }
+
+  async getFirstStaffContactAt(leadId: number): Promise<Date | null> {
+    return this.getStaffActivityAt(leadId, 'MIN');
+  }
+
+  async getLastStaffActivityAt(leadId: number): Promise<Date | null> {
+    return this.getStaffActivityAt(leadId, 'MAX');
+  }
+
+  async listAssignmentLogs(leadId: number, limit = 100): Promise<LeadAssignmentLogRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    const result = await this.db.query(
+      `SELECT id, sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at
+       FROM crm_lead_assignment_log
+       WHERE sqlite_lead_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [leadId, lim],
+    );
+    const rows = result.rows as Array<Record<string, unknown>>;
+    const out: LeadAssignmentLogRow[] = [];
+    for (const row of rows) {
+      const fromId = row.from_owner_id != null ? Number(row.from_owner_id) : null;
+      const toId = row.to_owner_id != null ? Number(row.to_owner_id) : null;
+      out.push({
+        id: String(row.id ?? ''),
+        lead_id: Number(row.sqlite_lead_id),
+        from_user_id: fromId,
+        from_name: fromId ? await this.ingestRules.staffName(fromId) : '—',
+        to_user_id: toId,
+        to_name: toId ? await this.ingestRules.staffName(toId) : '—',
+        reason: String(row.reason ?? ''),
+        created_by: String(row.assigned_by ?? ''),
+        created_at: String(row.created_at ?? ''),
+      });
+    }
+    return out;
+  }
+
+  private async getStaffActivityAt(leadId: number, aggregate: 'MIN' | 'MAX'): Promise<Date | null> {
+    const result = await this.db.query(
+      `SELECT ${aggregate}(created_at) AS activity_at
+       FROM crm_lead_activities
+       WHERE lead_id = $1 AND activity_type != 'system'`,
+      [leadId],
+    );
+    const value = result.rows[0]?.activity_at;
+    if (!value) return null;
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private mapActivity(d: Record<string, unknown>, userName: string): LeadActivityRow {
+    const at = String(d.activity_type ?? 'note');
+    return {
+      id: Number(d.id),
+      lead_id: Number(d.lead_id),
+      user_id: d.user_id != null ? Number(d.user_id) : null,
+      user_name: userName,
+      activity_type: at,
+      activity_type_label: ACTIVITY_TYPE_LABELS[at] ?? at,
+      content: String(d.content ?? ''),
+      result: String(d.result ?? ''),
+      next_action: String(d.next_action ?? ''),
+      next_action_at: String(d.next_action_at ?? ''),
+      created_at: String(d.created_at ?? ''),
+      created_by: String(d.created_by ?? ''),
+    };
+  }
+}

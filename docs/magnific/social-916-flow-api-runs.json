@@ -1,0 +1,113 @@
+{
+  "$schema": "magnific-flow-api-runs/1.0",
+  "note": "Chạy SAU KHI publish Flow trong Spaces. Thay FLOW_ID và api_key theo GET /v1/ai/flows/{flow-id}. Docs: https://docs.magnific.com/api-reference/flows/overview",
+  "flow_id": "YOUR_FLOW_ID_HERE",
+  "endpoint": "POST https://api.magnific.com/v1/ai/flows/{flow_id}/run",
+  "headers": {
+    "X-Magnific-Api-Key": "YOUR_API_KEY",
+    "Content-Type": "application/json"
+  },
+  "runs": [
+    {
+      "industry": "beauty",
+      "label": "Serum skincare",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad frame, elegant Vietnamese woman mid-20s applying serum drop to cheek, soft golden hour window light, clean minimal bathroom with marble counter, single premium skincare bottle sharp in foreground, shallow depth of field, premium spa aesthetic, photorealistic, no text, no logo, face and product in upper two-thirds, 9:16 vertical, cinematic warm color grade",
+          "motion_prompt": "Very subtle slow push-in toward face and product, hand completes one gentle serum stroke, hair strands drift slightly, stable facial features, no morphing, premium calm mood, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "beauty",
+      "label": "Glowing skin macro",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, close-up glowing skin texture after facial treatment, dewy highlight on cheekbone, soft diffused ring light, neutral beige background, luxury wellness spa mood, photorealistic macro beauty, no text, no logo, 9:16 vertical",
+          "motion_prompt": "Slow cinematic push-in on cheek highlight, subtle skin micro-shimmer, soft light sweep, minimal movement, identity stable, serene spa atmosphere, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "beauty",
+      "label": "Makeup lip editorial",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, makeup artist applying lip color to model, studio softbox lighting, clean white backdrop, lipstick tube in lower third, fashion beauty editorial, photorealistic, no text, no logo, 9:16 vertical",
+          "motion_prompt": "Slow dolly in toward lips, brush completes one smooth stroke, model subtle blink, stable lip shape, no morphing, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "beauty",
+      "label": "Hair flip product",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, luxury hair care product with model flipping healthy shiny hair, warm sunset backlight rim light, rooftop terrace blurred background, photorealistic hair commercial, no text, no logo, 9:16 vertical",
+          "motion_prompt": "Slow motion hair flip arc, strands catch golden rim light, gentle wind continues, stable face and product bottle, cinematic slow motion, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fnb",
+      "label": "Ca phe sua da",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, iced Vietnamese coffee ca phe sua da in clear glass with condensation, warm morning sunlight, rustic wooden table, bokeh cafe background, appetizing food photography, photorealistic, no text, no logo, drink centered upper two-thirds, 9:16 vertical",
+          "motion_prompt": "Slow orbit 5 degrees around glass, condensation droplet slides down, ice cubes shift subtly, steam wisps rise, background static, no spill, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fnb",
+      "label": "Pho hero",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, steaming bowl of pho with fresh herbs lime and chili, overhead 45-degree hero angle, natural window light, ceramic bowl texture, Vietnamese street food aesthetic, photorealistic, no text, no logo, bowl upper center, 9:16 vertical",
+          "motion_prompt": "Slow push-in toward bowl, steam rises in soft curls, herb leaf trembles slightly, broth gentle ripple, food shape unchanged, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fnb",
+      "label": "Bubble tea",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, colorful bubble tea with tapioca pearls and wide straw, pastel pink background, hand holding cup, condensation on cup, playful beverage aesthetic, photorealistic, no text, no logo, cup centered upper frame, 9:16 vertical",
+          "motion_prompt": "Gentle hand tilt 5 degrees, pearls shift inside cup, condensation bead rolls down, straw stays fixed, fun smooth motion, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fnb",
+      "label": "Croissant bakery",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, artisan croissant on slate plate with scattered flour, flaky layers visible, morning cafe window light, coffee cup soft blur background, photorealistic food macro, no text, no logo, pastry upper two-thirds, 9:16 vertical",
+          "motion_prompt": "Slow dolly in on croissant layers, subtle steam from background coffee, light sweep across flaky texture, pastry shape stable, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fashion",
+      "label": "Streetwear full-body",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, full-body model in modern streetwear on urban sidewalk, golden hour backlight, wind in hair and jacket, sneakers sharp, soft city bokeh, editorial street style, photorealistic, no text, no logo, full body visible, 9:16 vertical",
+          "motion_prompt": "Slow cinematic dolly back revealing full outfit, fabric and hair move gently in wind, model subtle weight shift, stable body proportions, 5 seconds"
+        }
+      }
+    },
+    {
+      "industry": "fashion",
+      "label": "Midi dress luxury",
+      "body": {
+        "inputs": {
+          "image_prompt": "Vertical social ad, elegant woman in flowing midi dress on minimalist white staircase, soft side light, dress fabric texture detail, luxury fashion campaign, photorealistic, no text, no logo, model centered upper two-thirds, 9:16 vertical",
+          "motion_prompt": "Slow dolly up along dress silhouette, fabric hem sways gently, model subtle turn toward camera, stable face and dress pattern, graceful luxury motion, 5 seconds"
+        }
+      }
+    }
+  ],
+  "curl_example": "curl -X POST \"https://api.magnific.com/v1/ai/flows/YOUR_FLOW_ID/run\" -H \"X-Magnific-Api-Key: YOUR_API_KEY\" -H \"Content-Type: application/json\" -d @run-payload.json"
+}

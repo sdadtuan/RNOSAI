@@ -1,0 +1,84 @@
+{
+  "wave": "W1",
+  "component": "quotation_os_wave1",
+  "srs": "2026-09-08-quotation-os-srs.md + plan Task 19",
+  "branch": "feat/quotation-os",
+  "head_commit": "830662c4",
+  "environment": "local",
+  "evaluated_at": "2026-09-08T17:23:25+07:00",
+  "signed_at": null,
+  "status": "pending",
+  "ok": false,
+  "qt_ai_enabled": false,
+  "entry_required": {
+    "wave_1_implementation_present": true,
+    "api_reachable": false,
+    "note": "Expiry worker Jest is green. Playwright discovers 10 W1 UAT tests. Local API at 127.0.0.1:3000 and ops-web at 127.0.0.1:3200 were unreachable (curl exit 7). QT_AI_ENABLED was not set."
+  },
+  "gates": {
+    "jest_quote_expiry_worker": true,
+    "playwright_qt_w1_discovery": true,
+    "playwright_qt_w1_source_check": true,
+    "playwright_qt_w1_uat": false
+  },
+  "gate_notes": {
+    "jest_quote_expiry_worker": "cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-expiry.worker.spec.ts — 3 passed (overdue sent → expired; accepted unchanged; draft unchanged)",
+    "playwright_qt_w1_discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/qt-w1-uat.spec.ts --list — 10 tests discovered",
+    "playwright_qt_w1_source_check": "OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/qt-w1-uat.spec.ts -g 265647600 — 1 passed",
+    "playwright_qt_w1_uat": "API unreachable; 9 live cases were not executed. This is not a green signoff."
+  },
+  "w1_acceptance": {
+    "denies_staff_without_crm_quote": false,
+    "four_kpi_tiles_and_win_rate_formula": false,
+    "create_from_lead_quote_code_qt_ptt_20": false,
+    "no_uuid_text_field_on_new": false,
+    "draft_catalog_add_rejected": false,
+    "payment_pct_bps_sum_10000": false,
+    "convert_twice_same_lifecycle_ids": false,
+    "public_accept_wording": false,
+    "one_main_on_qt_page": false,
+    "no_265647600_in_qt_components": true
+  },
+  "unit_covered": [
+    "expiry worker: overdue sent → expired (ICT, not UTC)",
+    "expiry worker: accepted unchanged",
+    "expiry worker: draft unchanged",
+    "403 missing_cap without crm_quote (staff-proposals.guard / staff-quote.guard specs)",
+    "overview win_rate_formula accepted/(accepted+rejected) (quote-overview.service.spec)",
+    "quote_code QT-PTT-20xx (quote-code.util / quote-create.service specs)",
+    "no input[name=agency_client_id] (QtCreateForm.spec)",
+    "draft catalog add → catalog_not_active (quote-builder.service.spec + QtCatalog.spec)",
+    "payment pct_bps sum 10000 / allocatePayment remainder (quote-money.util.spec + quote-builder.service.spec)",
+    "convert twice same lifecycle ids (quote-convert.service.spec)",
+    "public CTA Xác nhận đề xuất (quote-public.service.spec + portal public-proposal.spec)",
+    "QtShell uses StaffPageShell / OpsPage single <main> (layout, no extra main in qt components)"
+  ],
+  "needs_live_run": [
+    "staff without crm_quote (+ crm_board compat) redirected from /crm/proposals",
+    "overview API + 4 .qt-tile and formula on /crm/proposals",
+    "POST /api/crm/proposals from lead → quote_code QT-PTT-20",
+    "GET /crm/proposals/new has no input[name=agency_client_id]",
+    "PUT lines with draft catalog → 400",
+    "PUT payments 9000 → 400; 10000 → 200",
+    "POST convert twice same conversion_id / lifecycles",
+    "mint share + GET /api/public/proposals/:token cta.accept",
+    "exactly one <main> on /crm/proposals"
+  ],
+  "commands": {
+    "uat": "cd services/ops-web && npx playwright test e2e/qt-w1-uat.spec.ts",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/qt-w1-uat.spec.ts --list",
+    "expiry": "cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-expiry.worker.spec.ts"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "Local Nest API at 127.0.0.1:3000 did not accept connections.",
+    "Local ops-web at 127.0.0.1:3200 did not accept connections.",
+    "Nine of ten Playwright cases require a live API and were not run.",
+    "Wave 2 was not started."
+  ],
+  "notes": "Intentionally not a green signoff. Expiry worker is registered in proposals.module.ts and skips when PTT_QT_EXPIRY_WORKER=0. QT_AI_ENABLED was not set."
+}

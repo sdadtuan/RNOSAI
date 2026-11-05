@@ -1,0 +1,110 @@
+name: Bug Report
+description: Lỗi production, staging hoặc regression CRM/AI
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mô tả lỗi có **bước tái hiện**. Nếu liên quan AI copilot, ghi RNOS/UC nếu biết.
+
+  - type: dropdown
+    id: env
+    attributes:
+      label: Môi trường
+      options:
+        - Production (ops.pttads.vn / portal.pttads.vn)
+        - Staging
+        - Local dev
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Khu vực
+      options:
+        - CRM Core
+        - AI Copilot / score
+        - Meta OS
+        - Zalo OS
+        - Email OS
+        - SEO OS
+        - Portal
+        - Platform / API / webhooks
+        - Deploy / infra
+        - Khác
+    validations:
+      required: true
+
+  - type: input
+    id: route
+    attributes:
+      label: URL / route
+      placeholder: /crm/leads/[id]
+    validations:
+      required: false
+
+  - type: input
+    id: uc
+    attributes:
+      label: UC liên quan (nếu có)
+      placeholder: AI-UC-001 · CRM-UC-008
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. Đăng nhập CSKH pilot
+        2. Mở lead ...
+        3. Bấm Tóm tắt nhanh
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kết quả mong đợi
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Kết quả thực tế
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / screenshot / request_id
+      description: Không dán PII, token, API key
+      placeholder: ai_agent_runs.request_id = ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Mức độ
+      options:
+        - P0 — Production down / data loss / security
+        - P1 — Luồng chính bị chặn
+        - P2 — Workaround có
+        - P3 — Cosmetic / doc
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: Regression
+      options:
+        - label: Xuất hiện sau deploy / PR gần đây (link PR nếu có)
+          required: false
+        - label: Feature flag AI OFF vẫn lỗi (CRM regression)
+          required: false

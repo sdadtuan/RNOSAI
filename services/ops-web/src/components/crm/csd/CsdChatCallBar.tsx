@@ -1,0 +1,81 @@
+'use client';
+
+import type { CsdChatCallState } from '@/lib/crm/csd-chat-call.util';
+
+type CsdChatCallBarProps = {
+  state: CsdChatCallState;
+  onHangup: () => void;
+  onDismissError: () => void;
+  onAnswer?: () => void;
+  onReject?: () => void;
+};
+
+function phaseLabel(state: CsdChatCallState): string {
+  if (state.phase === 'connecting') return 'Đang kết nối…';
+  if (state.phase === 'ringing') return 'Đang đổ chuông…';
+  if (state.phase === 'incoming') {
+    return state.mode === 'video' ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến';
+  }
+  if (state.phase === 'in_call') {
+    return state.mode === 'video' ? 'Đang gọi video' : 'Đang gọi thoại';
+  }
+  if (state.phase === 'ended') return 'Cuộc gọi đã kết thúc';
+  return '';
+}
+
+export function CsdChatCallBar({
+  state,
+  onHangup,
+  onDismissError,
+  onAnswer,
+  onReject,
+}: CsdChatCallBarProps) {
+  if (state.phase === 'idle') return null;
+
+  const peerLabel = state.peerName ? ` · ${state.peerName}` : '';
+
+  if (state.phase === 'error') {
+    return (
+      <div className="csd-chat-call-bar csd-chat-call-bar--error" role="alert" data-testid="csd-chat-call-error">
+        <span>{state.error}</span>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onDismissError}>
+          Đóng
+        </button>
+      </div>
+    );
+  }
+
+  if (state.phase === 'incoming') {
+    return (
+      <div className="csd-chat-call-bar csd-chat-call-bar--incoming" data-testid="csd-chat-call-incoming">
+        <span>
+          {phaseLabel(state)}
+          {peerLabel}
+        </span>
+        <div className="csd-chat-call-bar__actions">
+          <button type="button" className="btn btn-sm btn-primary" onClick={onAnswer} data-testid="csd-chat-call-answer">
+            Trả lời
+          </button>
+          <button type="button" className="btn btn-sm" onClick={onReject} data-testid="csd-chat-call-reject">
+            Từ chối
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`csd-chat-call-bar${state.phase === 'ringing' ? ' csd-chat-call-bar--ringing' : ''}`}
+      data-testid="csd-chat-call-bar"
+    >
+      <span>
+        {phaseLabel(state)}
+        {peerLabel}
+      </span>
+      <button type="button" className="btn btn-sm" onClick={onHangup} data-testid="csd-chat-call-hangup">
+        Kết thúc
+      </button>
+    </div>
+  );
+}

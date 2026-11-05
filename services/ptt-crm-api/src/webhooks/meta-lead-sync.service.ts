@@ -1,0 +1,262 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
+import { B2bProjectsService } from '../b2b-projects/b2b-projects.service';
+import {
+  fetchFacebookLeadFromGraph,
+  legacyRowToNormalizedLead,
+  metaConfigFromEnv,
+  type MetaWebhookConfig,
+} from './meta-webhook.parser';
+import { MetaWebhookRepository } from './meta-webhook.repository';
+import type { LegacyLeadRow } from './webhook-lead.types';
+import { exchangeForPageAccessToken } from './meta-page-token';
+import {
+  clampFacebookSyncLimit,
+  classifyFetchedLead,
+  facebookFormLeadsUrl,
+  fetchFacebookLeadgenForms,
+  isMissingFormPermissionError,
+  parseFacebookFormLeadsPage,
+  redactGraphToken,
+  selectActiveFormsToSync,
+  type FacebookLeadgenForm,
+} from './meta-lead-sync.util';
+import { WebhookNestIngestService } from './webhook-nest-ingest.service';
+
+export type MetaLeadSyncGraph = {
+  listFormLeadIds: (
+    formId: string,
+    token: string,
+    version: string,
+    limit: number,
+  ) => Promise<{ ids: string[]; errorMessage?: string }>;
+  fetchLead: (leadgenId: string, config: MetaWebhookConfig) => Promise<LegacyLeadRow>;
+};
+
+export type MetaLeadSyncResult = {
+  ok: true;
+  project_id: string;
+  scanned: number;
+  enqueued: number;
+  created: number;
+  already_queued: number;
+  skipped_empty: number;
+  graph_errors: number;
+  unmatched: number;
+  form_ids: string[];
+  message: string;
+};
+
+async function defaultListFormLeadIds(
+  formId: string,
+  token: string,
+  version: string,
+  limit: number,
+): Promise<{ ids: string[]; errorMessage?: string }> {
+  const ids: string[] = [];
+  let url: string | null = facebookFormLeadsUrl(formId, token, version, Math.min(limit, 50));
+  while (url && ids.length < limit) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const payload = (await res.json().catch(() => ({}))) as unknown;
+    const page = parseFacebookFormLeadsPage(payload);
+    if (page.errorMessage) {
+      return { ids, errorMessage: page.errorMessage };
+    }
+    for (const id of page.ids) {
+      if (ids.length >= limit) break;
+      ids.push(id);
+    }
+    url = page.nextUrl;
+  }
+  return { ids };
+}
+
+export const defaultMetaLeadSyncGraph: MetaLeadSyncGraph = {
+  listFormLeadIds: defaultListFormLeadIds,
+  fetchLead: fetchFacebookLeadFromGraph,
+};
+
+@Injectable()
+export class MetaLeadSyncService {
+  graph: MetaLeadSyncGraph = defaultMetaLeadSyncGraph;
+  listLeadgenFormsFromGraph = fetchFacebookLeadgenForms;
+  exchangePageToken = exchangeForPageAccessToken;
+
+  constructor(
+    private readonly projects: B2bProjectsService,
+    private readonly metaRepo: MetaWebhookRepository,
+    private readonly b2bIngest: B2bIngestService,
+    private readonly nestIngest: WebhookNestIngestService,
+  ) {}
+
+  async syncProject(
+    projectId: string,
+    opts: { form_id?: string; limit?: number } = {},
+  ): Promise<MetaLeadSyncResult> {
+    const project = await this.projects.get(projectId);
+    const pages = await this.projects.listPages(projectId);
+    const targets = selectActiveFormsToSync(pages, opts.form_id);
+    if (!targets.length) {
+      throw new BadRequestException({
+        error: 'no_active_forms',
+        message: 'Dự án chưa có Form Facebook active để đồng bộ.',
+      });
+    }
+
+    const token = await this.metaRepo.resolvePageAccessToken(
+      null,
+      targets.map((t) => t.pageId),
+    );
+    if (!token) {
+      throw new BadRequestException({
+        error: 'missing_page_token',
+        message: 'Thiếu Page Access Token (tab Kênh hoặc CRM_FACEBOOK_PAGE_ACCESS_TOKEN).',
+      });
+    }
+
+    const baseConfig = { ...metaConfigFromEnv(), pageAccessToken: token };
+    const tokenByPage = new Map<string, string>();
+    for (const pageId of new Set(targets.map((t) => t.pageId))) {
+      tokenByPage.set(
+        pageId,
+        await this.exchangePageToken(token, pageId, baseConfig.graphApiVersion),
+      );
+    }
+
+    const limit = clampFacebookSyncLimit(opts.limit);
+    const remainingPerForm = Math.max(1, Math.ceil(limit / targets.length));
+
+    let scanned = 0;
+    let skippedEmpty = 0;
+    let graphErrors = 0;
+    const readyRows: Array<{ row: LegacyLeadRow; formId: string; pageId: string }> = [];
+    const formErrors: string[] = [];
+
+    for (const target of targets) {
+      const pageToken = tokenByPage.get(target.pageId) || token;
+      const config = { ...baseConfig, pageAccessToken: pageToken };
+      const listed = await this.graph.listFormLeadIds(
+        target.formId,
+        pageToken,
+        config.graphApiVersion,
+        remainingPerForm,
+      );
+      if (listed.errorMessage) {
+        const hint = isMissingFormPermissionError(listed.errorMessage)
+          ? ' Token phải là Page Access Token của đúng Page này (Graph Explorer → chọn Page, quyền leads_retrieval) — không dùng User token.'
+          : '';
+        formErrors.push(`${target.formId}: ${listed.errorMessage}${hint}`);
+        graphErrors += 1;
+        continue;
+      }
+      for (const leadgenId of listed.ids) {
+        if (scanned >= limit) break;
+        scanned += 1;
+        const fetched = await this.graph.fetchLead(leadgenId, config);
+        const row: LegacyLeadRow = {
+          ...fetched,
+          source: 'facebook',
+          meta: {
+            ...(fetched.meta ?? {}),
+            facebook_leadgen_id: leadgenId,
+            facebook_form_id: target.formId,
+            facebook_page_id: target.pageId,
+            sync: 'manual',
+          },
+        };
+        const kind = classifyFetchedLead(row);
+        if (kind === 'graph_error') {
+          graphErrors += 1;
+          continue;
+        }
+        if (kind === 'empty_contact') {
+          skippedEmpty += 1;
+          continue;
+        }
+        readyRows.push({ row, formId: target.formId, pageId: target.pageId });
+      }
+    }
+
+    const leads = readyRows.map(({ row }) => legacyRowToNormalizedLead(row, 'unknown'));
+    const prepared = await this.b2bIngest.prepareWebhookLeads({
+      channel: 'meta',
+      projectSlug: project.code,
+      leads,
+    });
+    let ingest = {
+      mode: 'nest' as 'nest' | 'queue',
+      created: 0,
+      duplicates: 0,
+      failed: 0,
+      lead_ids: [] as number[],
+    };
+    if (prepared.toEnqueue.length) {
+      try {
+        ingest = await this.nestIngest.ingestPreparedLeads(prepared.toEnqueue, {
+          channel: 'meta',
+          correlationId: `fb-sync:${project.id}:${Date.now()}`,
+        });
+      } catch (err) {
+        throw new BadRequestException({
+          error: 'ingest_failed',
+          message: err instanceof Error ? err.message : 'Không tạo được lead qua Nest.',
+        });
+      }
+    }
+
+    const message = [
+      `Đã quét ${scanned} lead trên Meta.`,
+      `${ingest.created} mới`,
+      `${ingest.duplicates} đã có`,
+      `${skippedEmpty} thiếu SĐT/email`,
+      prepared.unmatchedCount ? `${prepared.unmatchedCount} chưa map` : '',
+      graphErrors ? `${graphErrors} lỗi Graph` : '',
+      ingest.failed ? `${ingest.failed} lỗi tạo lead` : '',
+      formErrors.length ? formErrors[0] : '',
+    ]
+      .filter(Boolean)
+      .join(' — ');
+
+    return {
+      ok: true,
+      project_id: project.id,
+      scanned,
+      enqueued: ingest.created + ingest.duplicates,
+      created: ingest.created,
+      already_queued: ingest.duplicates,
+      skipped_empty: skippedEmpty,
+      graph_errors: graphErrors,
+      unmatched: prepared.unmatchedCount,
+      form_ids: targets.map((t) => t.formId),
+      message,
+    };
+  }
+
+  async listLeadgenForms(
+    projectId: string,
+    body: { page_id?: string; access_token?: string } = {},
+  ): Promise<{ ok: true; page_id: string; forms: FacebookLeadgenForm[] }> {
+    await this.projects.get(projectId);
+    const pageId = String(body.page_id ?? '').trim();
+    if (!pageId) {
+      throw new BadRequestException({ error: 'Nhập Page ID trước khi lấy form.' });
+    }
+    const supplied = String(body.access_token ?? '').trim();
+    const token = supplied || (await this.metaRepo.resolvePageAccessToken(null, [pageId]));
+    if (!token) {
+      throw new BadRequestException({
+        error: 'missing_page_token',
+        message: 'Thiếu Page Access Token (tab Kênh hoặc CRM_FACEBOOK_PAGE_ACCESS_TOKEN).',
+      });
+    }
+    const version = metaConfigFromEnv().graphApiVersion;
+    const pageToken = await this.exchangePageToken(token, pageId, version);
+    const listed = await this.listLeadgenFormsFromGraph(pageId, pageToken, version);
+    if (listed.errorMessage) {
+      throw new BadRequestException({
+        error: `Không lấy được form từ Facebook: ${redactGraphToken(listed.errorMessage)}`,
+      });
+    }
+    return { ok: true, page_id: pageId, forms: listed.forms };
+  }
+}

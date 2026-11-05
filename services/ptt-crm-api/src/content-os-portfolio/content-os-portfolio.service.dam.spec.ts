@@ -1,0 +1,211 @@
+import { BadRequestException } from '@nestjs/common';
+import { ContentOsPortfolioService } from './content-os-portfolio.service';
+
+function makeSvc() {
+  return new ContentOsPortfolioService({} as never, {} as never, {} as never, {} as never);
+}
+
+describe('ContentOsPortfolioService listDamAssets', () => {
+  const prevDamBase = process.env.CMKT_DAM_BASE_URL;
+  const prevFixtures = process.env.CMKT_DAM_FIXTURES;
+
+  afterEach(() => {
+    if (prevDamBase === undefined) delete process.env.CMKT_DAM_BASE_URL;
+    else process.env.CMKT_DAM_BASE_URL = prevDamBase;
+    if (prevFixtures === undefined) delete process.env.CMKT_DAM_FIXTURES;
+    else process.env.CMKT_DAM_FIXTURES = prevFixtures;
+  });
+
+  it('returns empty list plus error from the stub adapter and does not invent DAM assets', async () => {
+    delete process.env.CMKT_DAM_BASE_URL;
+    delete process.env.CMKT_DAM_FIXTURES;
+    const svc = makeSvc();
+    const result = await svc.listDamAssets({ staffId: 7, collection: 'approved' });
+    expect(result).toEqual({ items: [], error: 'dam_not_configured' });
+    expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
+  });
+
+  it('serves in-process fixtures when CMKT_DAM_FIXTURES=1 and no base URL', async () => {
+    delete process.env.CMKT_DAM_BASE_URL;
+    process.env.CMKT_DAM_FIXTURES = '1';
+    const svc = makeSvc();
+    const result = await svc.listDamAssets({ staffId: 7, collection: 'approved' });
+    expect(result.error).toBeUndefined();
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.items[0]?.url).toMatch(/^https:\/\/dam\.uat\.internal\//);
+    expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
+  });
+
+  it('returns 400 collection_required when collection is missing', async () => {
+    const svc = makeSvc();
+    await expect(svc.listDamAssets({ staffId: 7 })).rejects.toBeInstanceOf(BadRequestException);
+    try {
+      await svc.listDamAssets({ staffId: 7, collection: '  ' });
+      throw new Error('expected');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'collection_required' });
+    }
+  });
+});
+
+describe('ContentOsPortfolioService bindDamAsset', () => {
+  const prevDamBase = process.env.CMKT_DAM_BASE_URL;
+  const prevFixtures = process.env.CMKT_DAM_FIXTURES;
+  const item = { id: 21, lifecycle_id: 4, media_json: {}, production_json: {}, body_json: {} };
+
+  afterEach(() => {
+    if (prevDamBase === undefined) delete process.env.CMKT_DAM_BASE_URL;
+    else process.env.CMKT_DAM_BASE_URL = prevDamBase;
+    if (prevFixtures === undefined) delete process.env.CMKT_DAM_FIXTURES;
+    else process.env.CMKT_DAM_FIXTURES = prevFixtures;
+  });
+
+  function makeBindSvc() {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      insertDamBinding: jest.fn().mockResolvedValue({
+        id: 1,
+        item_id: 21,
+        dam_id: 'a1',
+        url: 'https://dam.example.internal/a.jpg',
+      }),
+      mergeItemDamMediaRef: jest.fn().mockResolvedValue({
+        dam_refs: [{ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }],
+      }),
+      insertAuditExport: jest.fn(),
+    };
+    const marketingRepo = {
+      findItemById: jest.fn().mockResolvedValue(item),
+      listAssetRights: jest.fn().mockResolvedValue([]),
+      replaceAssetRights: jest.fn().mockResolvedValue([]),
+    };
+    const svc = new ContentOsPortfolioService(
+      repo as never,
+      {} as never,
+      marketingRepo as never,
+      { getItem: jest.fn().mockResolvedValue(item) } as never,
+    );
+    return { svc, repo, marketingRepo };
+  }
+
+  it('binds an allowlisted https ref and merges media_json without binary', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/files';
+    const { svc, repo, marketingRepo } = makeBindSvc();
+    const out = await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' },
+    });
+    expect(repo.insertDamBinding).toHaveBeenCalledWith({
+      itemId: 21,
+      damId: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+      rightsJson: null,
+    });
+    expect(repo.mergeItemDamMediaRef).toHaveBeenCalledWith({
+      itemId: 21,
+      dam_id: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+    });
+    expect(JSON.stringify(out)).not.toMatch(/binary|base64|storage_key/i);
+    expect(out.media_json.dam_refs).toEqual([{ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }]);
+    expect(marketingRepo.replaceAssetRights).toHaveBeenCalledWith(21, [
+      expect.objectContaining({ asset_ref: 'https://dam.example.internal/a.jpg', status: 'Unknown' }),
+    ]);
+    expect(repo.insertAuditExport).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'dam_bind', entity: 'dam:dam.example.internal/a.jpg' }),
+    );
+  });
+
+  it('binds fixture host when CMKT_DAM_FIXTURES=1 and no base URL', async () => {
+    delete process.env.CMKT_DAM_BASE_URL;
+    process.env.CMKT_DAM_FIXTURES = '1';
+    const { svc, repo } = makeBindSvc();
+    repo.insertDamBinding.mockResolvedValue({
+      id: 2,
+      item_id: 21,
+      dam_id: 'uat-approved-1',
+      url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+    });
+    repo.mergeItemDamMediaRef.mockResolvedValue({
+      dam_refs: [{ dam_id: 'uat-approved-1', url: 'https://dam.uat.internal/fixtures/approved/hero.jpg' }],
+    });
+    const out = await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: {
+        dam_id: 'uat-approved-1',
+        url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+        rights: { status: 'Valid' },
+      },
+    });
+    expect(repo.insertDamBinding).toHaveBeenCalledWith({
+      itemId: 21,
+      damId: 'uat-approved-1',
+      url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+      rightsJson: { status: 'Valid' },
+    });
+    expect(out.binding.dam_id).toBe('uat-approved-1');
+  });
+
+  it('rejects javascript and foreign hosts as dam_invalid_response', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/';
+    const { svc, repo } = makeBindSvc();
+    await expect(
+      svc.bindDamAsset({
+        staffId: 7,
+        itemId: 21,
+        actor: 'ops@ptt.vn',
+        body: { dam_id: 'x', url: 'javascript:alert(1)' },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'dam_invalid_response' } });
+    await expect(
+      svc.bindDamAsset({
+        staffId: 7,
+        itemId: 21,
+        actor: 'ops@ptt.vn',
+        body: { dam_id: 'x', url: 'https://evil.example/a.jpg' },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'dam_invalid_response' } });
+    expect(repo.insertDamBinding).not.toHaveBeenCalled();
+  });
+
+  it('persists DAM Valid rights when asset_rights hook exists', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/files';
+    const { svc, marketingRepo } = makeBindSvc();
+    await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg', rights: { status: 'Valid' } },
+    });
+    expect(marketingRepo.replaceAssetRights).toHaveBeenCalledWith(21, [
+      expect.objectContaining({ asset_ref: 'https://dam.example.internal/a.jpg', status: 'Valid' }),
+    ]);
+  });
+
+  it('does not store token from rights in the binding payload', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/files';
+    const { svc, repo } = makeBindSvc();
+    await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: {
+        dam_id: 'a1',
+        url: 'https://dam.example.internal/a.jpg',
+        rights: { status: 'Valid', token: 'x' },
+      },
+    });
+    expect(repo.insertDamBinding).toHaveBeenCalledWith({
+      itemId: 21,
+      damId: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+      rightsJson: { status: 'Valid' },
+    });
+    expect(JSON.stringify(repo.insertDamBinding.mock.calls[0][0])).not.toMatch(/token/);
+  });
+});

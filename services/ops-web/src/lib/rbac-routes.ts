@@ -1,0 +1,373 @@
+import type { StoredStaffUser } from '@/lib/auth';
+import { hasCap } from '@/lib/auth';
+
+export type StaffRouteZone = 'crm' | 'seo' | 'email';
+
+export interface CapRequirement {
+  section: string;
+  action: string;
+}
+
+/** Tower §9.1 / CEO-3 §15 — nav, route guard, hasCeoView parity. */
+export const CEO_COMMAND_VIEW_CAP_REQUIREMENTS: CapRequirement[] = [
+  { section: 'ceo_command', action: 'view' },
+  { section: 'ai_analytics', action: 'query' },
+  { section: 'crm_business_dashboard', action: 'view' },
+  { section: 'ai_admin', action: 'view' },
+  { section: 'crm_owner_weekly_dashboard', action: 'view' },
+];
+
+/** Shared /crm prefix caps — do not add crm_am.view here. */
+const CRM_PREFIX_CAPS: CapRequirement[] = [
+  { section: 'crm_leads', action: 'view' },
+  { section: 'crm_board', action: 'view' },
+  { section: 'crm_board_funnel', action: 'view' },
+  { section: 'crm_board_kanban', action: 'view' },
+  { section: 'crm_board_workspace', action: 'view' },
+  { section: 'crm_board_customers', action: 'view' },
+  { section: 'crm_agency', action: 'view' },
+  { section: 'crm_hub_campaigns', action: 'view' },
+  { section: 'crm_sales_overview', action: 'view' },
+  { section: 'crm_business_dashboard', action: 'view' },
+  { section: 'crm_kpi_records', action: 'view' },
+  { section: 'crm_staff_roster', action: 'view' },
+  { section: 'crm_sop_runs', action: 'view' },
+  { section: 'crm_re_projects', action: 'view' },
+  { section: 'crm_b2b_projects', action: 'view' },
+  { section: 'crm_mktplan', action: 'view' },
+  { section: 'crm_presales_solution', action: 'view' },
+  { section: 'ai_analytics', action: 'query' },
+  { section: 'ai_admin', action: 'view' },
+];
+
+/** Longest-prefix match wins (more specific rules first). */
+const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
+  {
+    prefix: '/crm/gdkd/lead-ops',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_gdkd', action: 'review_queue' },
+    ],
+  },
+  {
+    prefix: '/crm/sales/lead-sla',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_gdkd', action: 'review_queue' },
+    ],
+  },
+  {
+    prefix: '/crm/admin/lead-sla-settings',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_leads', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/admin/strategy-packs',
+    anyOf: [
+      { section: 'ai_admin', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'approve' },
+    ],
+  },
+  {
+    prefix: '/crm/admin/mkt-ai',
+    anyOf: [
+      { section: 'crm_mkt_ai', action: 'view' },
+      { section: 'ai_admin', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'approve' },
+    ],
+  },
+  {
+    prefix: '/crm/solution',
+    anyOf: [
+      { section: 'crm_presales_solution', action: 'view' },
+      { section: 'crm_leads', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/intake',
+    anyOf: [{ section: 'crm_leads', action: 'view' }],
+  },
+  {
+    prefix: '/crm/b2b-projects',
+    anyOf: [{ section: 'crm_b2b_projects', action: 'view' }],
+  },
+  {
+    prefix: '/crm/delivery-projects',
+    anyOf: [
+      { section: 'crm_delivery_projects', action: 'view' },
+      { section: 'crm_b2b_projects', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/kpi/groups',
+    anyOf: [{ section: 'crm_kpi_groups', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi/types',
+    anyOf: [{ section: 'crm_kpi_types', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/settings',
+    anyOf: [{ section: 'crm_kpi_hub_settings', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/reports',
+    anyOf: [{ section: 'crm_kpi_hub_reports', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/quality',
+    anyOf: [{ section: 'crm_kpi_quality', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/sources',
+    anyOf: [{ section: 'crm_kpi_hub_sources', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/targets',
+    anyOf: [{ section: 'crm_kpi_hub_targets', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/dictionary',
+    anyOf: [{ section: 'crm_kpi_dictionary', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/service-kpi',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/kpi-contracts',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/reconcile',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/policy-packs',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/service-templates',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/instances',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/measurement',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/tracking',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/performance',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/b2b',
+    anyOf: [{ section: 'crm_leads', action: 'view' }],
+  },
+  {
+    prefix: '/crm/revenue-ops',
+    anyOf: [
+      { section: 'crm_revops', action: 'view' },
+      { section: 'crm_revops', action: 'view_team' },
+      { section: 'crm_revops', action: 'view_all' },
+      { section: 'crm_revops', action: 'manage' },
+    ],
+  },
+  {
+    prefix: '/crm/leads',
+    anyOf: [{ section: 'crm_leads', action: 'view' }],
+  },
+  {
+    prefix: '/crm/cskh-board',
+    anyOf: [
+      { section: 'crm_board', action: 'view' },
+      { section: 'crm_board_kanban', action: 'view' },
+      { section: 'crm_board_funnel', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/spa',
+    anyOf: [
+      { section: 'crm_board', action: 'view' },
+      { section: 'crm_board_kanban', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/seo',
+    anyOf: [
+      { section: 'crm_seo_aeo', action: 'view' },
+      { section: 'crm_seo_aeo_write', action: 'view' },
+      { section: 'crm_seo_aeo_reports', action: 'view' },
+      { section: 'crm_agency', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/email',
+    anyOf: [
+      { section: 'crm_email_mkt', action: 'view' },
+      { section: 'crm_agency', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/video',
+    anyOf: [
+      { section: 'crm_vd.project', action: 'view' },
+      { section: 'crm_content', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/content-os',
+    anyOf: [
+      { section: 'crm_content', action: 'view' },
+      { section: 'crm_content', action: 'write' },
+      { section: 'crm_content', action: 'generate' },
+    ],
+  },
+  {
+    prefix: '/crm/media-os',
+    anyOf: [
+      { section: 'crm_media', action: 'view' },
+      { section: 'crm_media', action: 'write' },
+      { section: 'crm_media', action: 'publish' },
+      { section: 'crm_media', action: 'admin' },
+    ],
+  },
+  {
+    prefix: '/admin/crm/csd',
+    anyOf: [{ section: 'csd', action: 'admin' }],
+  },
+  {
+    prefix: '/crm/account-management',
+    anyOf: [
+      { section: 'crm_am', action: 'view' },
+      { section: 'crm_am', action: 'view_all' },
+    ],
+  },
+  {
+    prefix: '/crm/csd',
+    anyOf: [{ section: 'csd', action: 'view' }],
+  },
+  {
+    prefix: '/crm/ceo',
+    anyOf: CEO_COMMAND_VIEW_CAP_REQUIREMENTS,
+  },
+  {
+    prefix: '/crm/staff-kpi',
+    anyOf: [
+      { section: 'crm_staff_kpi_am_sp', action: 'view' },
+      { section: 'crm_kpi_records', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/health',
+    anyOf: [...CRM_PREFIX_CAPS, { section: 'crm_am', action: 'view' }],
+  },
+  {
+    prefix: '/crm/creative-os/image',
+    anyOf: [{ section: 'crm_img', action: 'view' }],
+  },
+  {
+    prefix: '/crm/creative-os',
+    anyOf: [
+      { section: 'crm_cp', action: 'view' },
+      { section: 'crm_cp', action: 'view_all' },
+    ],
+  },
+  {
+    prefix: '/crm/proposals',
+    anyOf: [
+      { section: 'crm_quote', action: 'view' },
+      { section: 'crm_quote', action: 'view_all' },
+      { section: 'crm_board', action: 'view' }, // compat until Admin grants crm_quote
+    ],
+  },
+  {
+    prefix: '/crm/pricing',
+    anyOf: [{ section: 'p13_pricing', action: 'view' }],
+  },
+  {
+    prefix: '/crm/service-catalog',
+    anyOf: [
+      { section: 'p13_catalog', action: 'view' },
+      { section: 'p13_catalog', action: 'manage' },
+    ],
+  },
+  {
+    prefix: '/admin/p13',
+    anyOf: [
+      { section: 'p13_holidays', action: 'manage' },
+      { section: 'p13_catalog', action: 'manage' },
+    ],
+  },
+  {
+    prefix: '/crm',
+    anyOf: CRM_PREFIX_CAPS,
+  },
+];
+
+const ZONE_DEFAULTS: Record<StaffRouteZone, CapRequirement[]> = {
+  crm: PATH_CAP_RULES.find((r) => r.prefix === '/crm')!.anyOf,
+  seo: PATH_CAP_RULES.find((r) => r.prefix === '/seo')!.anyOf,
+  email: PATH_CAP_RULES.find((r) => r.prefix === '/email')!.anyOf,
+};
+
+export function hasAnyCap(user: StoredStaffUser | null, requirements: CapRequirement[]): boolean {
+  return requirements.some((req) => hasCap(user, req.section, req.action));
+}
+
+export function resolvePathCapRequirements(pathname: string, zone?: StaffRouteZone): CapRequirement[] {
+  const path = pathname.split('?')[0] ?? pathname;
+  const sorted = [...PATH_CAP_RULES].sort((a, b) => b.prefix.length - a.prefix.length);
+  for (const rule of sorted) {
+    if (path === rule.prefix || path.startsWith(`${rule.prefix}/`)) {
+      return rule.anyOf;
+    }
+  }
+  if (zone) return ZONE_DEFAULTS[zone];
+  return [];
+}
+
+export function canAccessPath(
+  pathname: string,
+  user: StoredStaffUser | null,
+  zone?: StaffRouteZone,
+): boolean {
+  const requirements = resolvePathCapRequirements(pathname, zone);
+  if (!requirements.length) return true;
+  return hasAnyCap(user, requirements);
+}
+
+/** Path prefixes that require staff login (middleware). */
+export const STAFF_AUTH_PREFIXES = [
+  '/crm',
+  '/seo',
+  '/email',
+  '/agency',
+  '/meta',
+  '/google',
+  '/zalo',
+  '/admin',
+] as const;
+
+export function isStaffAuthPath(pathname: string): boolean {
+  if (pathname === '/') return true;
+  return STAFF_AUTH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}

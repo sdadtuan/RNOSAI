@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Phê duyệt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="apr-01">APR-01 Hộp thư phê duyệt</option><option value="apr-02">APR-02 Bước duyệt · policy · diff</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="apr-01" onclick="show('apr-01')">APR-01</button><button class="sc" type="button" data-page="apr-02" onclick="show('apr-02')">APR-02</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="apr-01" data-title="Hộp thư phê duyệt">
+<div class="crumb">Kinh doanh / Báo giá / Phê duyệt</div>
+<div class="head"><div><h1>Hộp thư phê duyệt</h1><p class="sub">APR-01 · queue theo bước user được route · scope Của tôi / Team</p></div><div class="actions"><button class="btn" type="button" onclick="show(&quot;set-05&quot;)">Policy</button></div></div>
+<div class="filters"><button class="chip is-on">Chờ tôi (2)</button><button class="chip">Đã xử lý</button><button class="chip">SLA vỡ</button></div>
+<div class="tbl-wrap"><table><thead><tr><th>Quote</th><th>Trigger</th><th>Bước</th><th>SLA</th><th>Owner</th><th></th></tr></thead><tbody>
+<tr><td><button class="linkish" type="button" onclick="show('apr-02')">QT-PTT-2026-000089 v2</button><br><span class="muted">An Phát · 265.647.600 ₫</span></td><td><span class="pill s-warn">MARGIN_FLOOR</span></td><td>Finance</td><td class="dn">+6h</td><td>Lan</td><td><button class="btn-primary btn" type="button" onclick="show('apr-02')">Mở</button></td></tr>
+<tr><td>QT-PTT-2026-000110 v1</td><td><span class="pill s-warn">DISCOUNT_12</span></td><td>AD + Finance</td><td>còn 8h</td><td>Kiều</td><td><button class="btn" type="button">Mở</button></td></tr>
+</tbody></table></div>
+</section><section class="page" id="apr-02" data-title="Bước duyệt · policy · diff">
+<div class="crumb">Kinh doanh / Báo giá / Phê duyệt / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Duyệt v2 · An Phát</h1><p class="sub">APR-02 · step · policy · diff · snapshot NSR · comment bắt buộc khi return</p></div><div class="actions"><button class="btn" type="button">Trả lại</button><button class="btn-primary btn" type="button">Phê duyệt</button></div></div>
+<div class="grid2">
+  <div>
+    <div class="card">
+      <div class="apr-item"><span class="apr-ico done">✓</span><div><h3>Sales Manager</h3><p class="muted">Auto — discount 5% · không vượt cap</p></div><span class="pill s-ok">xong</span></div>
+      <div class="apr-item"><span class="apr-ico wait">2</span><div><h3>Finance Controller</h3><p class="muted">GM &lt; 25% + thiếu cost DV12</p></div><span class="pill s-warn">chờ</span></div>
+      <div class="apr-item"><span class="apr-ico lock">3</span><div><h3>GDKD / Commercial</h3><p class="muted">Khóa đến khi Finance xong</p></div><span class="pill">khóa</span></div>
+    </div>
+    <div class="card"><b>Diff v1 → v2</b>
+      <div class="diff"><b>Meta fee</b> 42tr → 48tr</div>
+      <div class="diff"><b>Discount</b> 3% → 5%</div>
+      <div class="diff"><b>Payment</b> 60/40 → 50/30/20</div>
+    </div>
+    <div class="card form"><label>Comment (bắt buộc nếu trả/từ chối)<textarea class="inp" placeholder="Lý do"></textarea></label>
+      <label><input type="checkbox"/> Ủy quyền (delegate) — lưu actor gốc + hạn + lý do</label>
+    </div>
+  </div>
+  <div>
+    <div class="card"><b>Policy kích hoạt</b>
+      <p><span class="pill s-warn">MARGIN_FLOOR</span> 22,4% &lt; 25%</p>
+      <p><span class="pill s-warn">COST_MISSING</span> DV12</p>
+      <p><span class="pill s-ok">PAYMENT_OK</span> 50/30/20 = 100%</p>
+      <p><span class="pill s-ok">VALUE_OK</span> &lt; 200tr</p>
+    </div>
+    <div class="card"><b>Commercial snapshot</b>
+      <div class="side-row"><span>NSR</span><b>126.000.000</b></div>
+      <div class="side-row"><span>Direct cost</span><b>97.776.000</b></div>
+      <div class="side-row"><span>GP</span><b>28.224.000</b></div>
+      <div class="side-row"><span>GM</span><b class="dn">22,4%</b></div>
+    </div>
+  </div>
+</div>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

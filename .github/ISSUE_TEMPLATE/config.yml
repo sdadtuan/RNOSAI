@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Repository
+    url: https://github.com/sdadtuan/RNOSAI
+    about: Source code & docs RNOSAI
+  - name: New RNOS Deliverable issue
+    url: https://github.com/sdadtuan/RNOSAI/issues/new?template=rnos-deliverable.yml
+    about: Backlog RNOS ↔ UC ↔ UI ↔ UAT
+  - name: PR checklist
+    url: https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/pr-checklist-rnos-uc-ui-uat.md
+    about: Checklist dev tick khi mở PR
+  - name: Implementation plan
+    url: https://github.com/sdadtuan/RNOSAI/blob/main/docs/specs/2026-07-26-rnosai-system-implementation-plan.md
+    about: Kế hoạch 90 ngày + ma trận RNOS
+  - name: GitHub setup (labels)
+    url: https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/github-setup.md
+    about: Script labels + workflow issue → PR

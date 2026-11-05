@@ -1,0 +1,261 @@
+import { API_BASE, ApiError, parseJson } from './api';
+
+export interface B2bProjectListItem {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
+export interface B2bProjectDetail extends B2bProjectListItem {
+  owner_company_id: string;
+  business_hours_json?: Record<string, unknown>;
+  sla_json?: Record<string, unknown>;
+  commission_json?: { first_touch_pct: number; closer_pct: number };
+  ai_call_enabled?: boolean;
+  manual_ingest_enabled?: boolean;
+}
+
+export interface B2bProjectPageRow {
+  id: string;
+  page_id: string;
+  name?: string | null;
+  token_ref?: string | null;
+  active: boolean;
+  forms?: Array<{ form_id: string; name?: string | null; active: boolean }>;
+}
+
+export interface B2bProjectChannelRow {
+  id: string;
+  channel_type: string;
+  external_key: string;
+  label?: string | null;
+  config_json?: Record<string, unknown>;
+  active: boolean;
+}
+
+export interface B2bProjectStaffRow {
+  staff_id: number;
+  name?: string;
+  job_title?: string | null;
+  assign_enabled: boolean;
+  sales_level: string;
+  role?: string;
+  active?: boolean;
+  can_receive_leads?: boolean;
+}
+
+export interface B2bLeadEligibleStaffRow {
+  id: number;
+  name: string;
+  email?: string | null;
+  internal_code?: string | null;
+  job_title?: string | null;
+}
+
+export function parseB2bProjectList(body: unknown): B2bProjectListItem[] {
+  const items = Array.isArray(body) ? body : (body as { items?: unknown })?.items;
+  if (!Array.isArray(items)) return [];
+  return items.map((row) => {
+    const r = row as B2bProjectListItem;
+    return {
+      id: String(r.id),
+      code: String(r.code),
+      name: String(r.name),
+      status: String(r.status),
+    };
+  });
+}
+
+function authHeaders(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function b2bFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(authHeaders(token) as Record<string, string>),
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
+  const body = await parseJson<T & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'B2B projects request failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchB2bProjects(token: string, status?: string): Promise<B2bProjectListItem[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const body = await b2bFetch<unknown>(token, `/api/v1/b2b-projects${qs}`);
+  return parseB2bProjectList(body);
+}
+
+export async function fetchB2bProject(token: string, id: string): Promise<B2bProjectDetail> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}`);
+}
+
+export async function createB2bProject(
+  token: string,
+  body: {
+    code: string;
+    name: string;
+    status?: string;
+    ai_call_enabled?: boolean;
+    manual_ingest_enabled?: boolean;
+  },
+): Promise<B2bProjectDetail> {
+  return b2bFetch(token, '/api/v1/b2b-projects', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchB2bProject(
+  token: string,
+  id: string,
+  body: Partial<{
+    name: string;
+    status: string;
+    ai_call_enabled: boolean;
+    manual_ingest_enabled: boolean;
+    sla_json: Record<string, unknown>;
+    commission_json: { first_touch_pct: number; closer_pct: number };
+  }>,
+): Promise<B2bProjectDetail> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteB2bProject(
+  token: string,
+  id: string,
+): Promise<{ ok: true; detached_leads: number }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchB2bProjectPages(token: string, id: string): Promise<B2bProjectPageRow[]> {
+  const body = await b2bFetch<{ pages?: B2bProjectPageRow[] } | B2bProjectPageRow[]>(
+    token,
+    `/api/v1/b2b-projects/${encodeURIComponent(id)}/pages`,
+  );
+  if (Array.isArray(body)) return body;
+  return body.pages ?? [];
+}
+
+export async function fetchB2bProjectChannels(token: string, id: string): Promise<B2bProjectChannelRow[]> {
+  const body = await b2bFetch<{ channels?: B2bProjectChannelRow[] } | B2bProjectChannelRow[]>(
+    token,
+    `/api/v1/b2b-projects/${encodeURIComponent(id)}/channels`,
+  );
+  if (Array.isArray(body)) return body;
+  return body.channels ?? [];
+}
+
+export async function fetchB2bProjectStaff(token: string, id: string): Promise<B2bProjectStaffRow[]> {
+  const body = await b2bFetch<{ staff?: B2bProjectStaffRow[] } | B2bProjectStaffRow[]>(
+    token,
+    `/api/v1/b2b-projects/${encodeURIComponent(id)}/staff`,
+  );
+  if (Array.isArray(body)) return body;
+  return body.staff ?? [];
+}
+
+export async function replaceB2bProjectPages(
+  token: string,
+  id: string,
+  pages: Array<{
+    page_id: string;
+    name?: string;
+    token_ref?: string;
+    active?: boolean;
+    forms?: Array<{ form_id: string; name?: string; active?: boolean }>;
+  }>,
+): Promise<{ ok: true }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/pages`, {
+    method: 'PUT',
+    body: JSON.stringify({ pages }),
+  });
+}
+
+export async function replaceB2bProjectChannels(
+  token: string,
+  id: string,
+  channels: Array<{
+    channel_type: 'zalo' | 'tiktok' | 'webform' | 'api';
+    external_key: string;
+    label?: string;
+    active?: boolean;
+  }>,
+): Promise<{ ok: true }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/channels`, {
+    method: 'PUT',
+    body: JSON.stringify({ channels }),
+  });
+}
+
+export async function fetchB2bLeadEligibleStaff(token: string): Promise<B2bLeadEligibleStaffRow[]> {
+  const body = await b2bFetch<{ staff?: B2bLeadEligibleStaffRow[] }>(
+    token,
+    '/api/v1/b2b-projects/lead-eligible-staff',
+  );
+  return Array.isArray(body.staff) ? body.staff : [];
+}
+
+export type B2bFacebookSyncResult = {
+  ok: true;
+  scanned: number;
+  enqueued: number;
+  created: number;
+  already_queued: number;
+  skipped_empty: number;
+  graph_errors: number;
+  unmatched: number;
+  form_ids: string[];
+  message: string;
+};
+
+export type B2bFacebookLeadgenForm = {
+  form_id: string;
+  name: string;
+  active: boolean;
+};
+
+export async function fetchB2bFacebookLeadgenForms(
+  token: string,
+  id: string,
+  body: { page_id: string; access_token?: string },
+): Promise<{ ok: true; page_id: string; forms: B2bFacebookLeadgenForm[] }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/facebook-leadgen-forms`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function syncB2bProjectFacebookLeads(
+  token: string,
+  id: string,
+  body?: { form_id?: string; limit?: number },
+): Promise<B2bFacebookSyncResult> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/sync-facebook-leads`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function replaceB2bProjectStaff(
+  token: string,
+  id: string,
+  staff: Array<{ staff_id: number; assign_enabled?: boolean; sales_level?: string }>,
+): Promise<{ ok: true }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/staff`, {
+    method: 'PUT',
+    body: JSON.stringify({ staff }),
+  });
+}

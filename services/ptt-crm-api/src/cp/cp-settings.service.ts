@@ -1,0 +1,194 @@
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Pool } from 'pg';
+import { AppConfigService } from '../config/app-config.service';
+import { CP_TENANT_ID } from './cp-audit.repository';
+
+export const CP_SETTINGS_QUERY = 'CP_SETTINGS_QUERY';
+
+const MODEL_FIELDS = new Set([
+  'id',
+  'max_res',
+  'max_duration_sec',
+  'cap_per_job',
+  'region',
+  'fallback_id',
+]);
+const POLICY_SECRET_FIELD = /secret|token|password|credential|api_key/i;
+const ROUTING_FIELDS = new Set(['fallback_id', 'render_provider']);
+const PATCH_FIELDS = [
+  'locale',
+  'timezone',
+  'default_brand_kit_id',
+  'retention_days',
+  'signed_url_ttl_min',
+  'restore_days',
+  'legal_hold',
+  'soft_alert_pct',
+  'hard_cap_pct',
+  'high_cost_threshold',
+  'concurrent_slots',
+  'watermark_draft',
+  'ai_enabled',
+  'publish_native',
+  'models_json',
+  'policy_json',
+  'routing_json',
+] as const;
+const RESPONSE_FIELDS = [
+  ...PATCH_FIELDS,
+  'updated_at',
+  'updated_by_staff_id',
+] as const;
+
+export interface CpSettingsQueryPort {
+  query(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+}
+
+export type CpSettingsPatch = Partial<
+  Record<(typeof PATCH_FIELDS)[number], unknown>
+>;
+
+@Injectable()
+export class CpSettingsRepository
+  implements CpSettingsQueryPort, OnModuleDestroy
+{
+  private pool: Pool | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  query(sql: string, params?: unknown[]) {
+    return this.db.query(sql, params);
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+}
+
+@Injectable()
+export class CpSettingsService {
+  constructor(
+    @Inject(CP_SETTINGS_QUERY) private readonly db: CpSettingsQueryPort,
+  ) {}
+
+  async get(): Promise<Record<string, unknown> | null> {
+    const result = await this.db.query(
+      `SELECT locale, timezone, default_brand_kit_id, retention_days,
+              signed_url_ttl_min, restore_days, legal_hold, soft_alert_pct,
+              hard_cap_pct, high_cost_threshold, concurrent_slots,
+              watermark_draft, ai_enabled, publish_native, models_json,
+              policy_json, routing_json, updated_at, updated_by_staff_id
+         FROM crm_cp_settings
+        WHERE tenant_id = $1
+        LIMIT 1`,
+      [CP_TENANT_ID],
+    );
+    return sanitizeSettings(result.rows[0] ?? null);
+  }
+
+  async patch(
+    input: CpSettingsPatch,
+    updatedByStaffId: number | null = null,
+  ): Promise<Record<string, unknown> | null> {
+    const params: unknown[] = [];
+    const sets: string[] = [];
+
+    for (const field of PATCH_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+      let value = input[field];
+      if (field === 'models_json') value = sanitizeModels(value);
+      if (field === 'policy_json') value = sanitizePolicy(value);
+      if (field === 'routing_json') value = sanitizeRouting(value);
+      params.push(value);
+      const cast = field === 'default_brand_kit_id'
+        ? '::uuid'
+        : field === 'models_json' || field === 'policy_json' || field === 'routing_json'
+          ? '::jsonb'
+          : '';
+      sets.push(`${field} = $${params.length}${cast}`);
+    }
+
+    if (sets.length === 0) return this.get();
+
+    params.push(updatedByStaffId, CP_TENANT_ID);
+    const result = await this.db.query(
+      `UPDATE crm_cp_settings
+          SET ${sets.join(', ')},
+              updated_at = now(),
+              updated_by_staff_id = $${params.length - 1}
+        WHERE tenant_id = $${params.length}
+        RETURNING *`,
+      params,
+    );
+    return sanitizeSettings(result.rows[0] ?? null);
+  }
+}
+
+function sanitizeSettings(
+  row: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!row) return null;
+  const settings = Object.fromEntries(
+    RESPONSE_FIELDS
+      .filter((field) => Object.prototype.hasOwnProperty.call(row, field))
+      .map((field) => [field, row[field]]),
+  );
+  settings.models_json = sanitizeModels(row.models_json);
+  settings.policy_json = sanitizePolicy(row.policy_json);
+  if (Object.prototype.hasOwnProperty.call(row, 'routing_json')) {
+    settings.routing_json = sanitizeRouting(row.routing_json);
+  }
+  return settings;
+}
+
+function sanitizeRouting(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => ROUTING_FIELDS.has(key)),
+  );
+}
+
+function sanitizeModels(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRecord)
+    .map((model) => Object.fromEntries(
+      Object.entries(model).filter(([key]) => MODEL_FIELDS.has(key)),
+    ));
+}
+
+function sanitizePolicy(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  return sanitizePolicyObject(value);
+}
+
+function sanitizePolicyObject(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !POLICY_SECRET_FIELD.test(key))
+      .map(([key, item]) => [key, sanitizePolicyValue(item)]),
+  );
+}
+
+function sanitizePolicyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizePolicyValue);
+  if (isRecord(value)) return sanitizePolicyObject(value);
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}

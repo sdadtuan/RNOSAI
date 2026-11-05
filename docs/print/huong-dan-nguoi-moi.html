@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>RNOSAI — Hướng dẫn hệ thống cho người mới</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 15mm 16mm 15mm;
+    @top-left {
+      content: "RNOSAI  ·  Hướng dẫn cho người mới";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8.5pt;
+      color: #6b7c72;
+    }
+    @top-right {
+      content: "PTT Advertising";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8.5pt;
+      color: #6b7c72;
+    }
+    @bottom-left {
+      content: "Nội bộ  ·  Không gửi ra ngoài công ty";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8pt;
+      color: #8a978f;
+    }
+    @bottom-right {
+      content: counter(page);
+      font-family: "Segoe UI", sans-serif;
+      font-size: 9pt;
+      color: #17692f;
+    }
+  }
+  @page :first {
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", "Be Vietnam Pro", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: #1c2b24;
+  }
+  h1, h2, h3 { font-weight: 650; letter-spacing: -0.01em; color: #12341f; }
+  h2 {
+    font-size: 16pt;
+    margin: 0 0 8px;
+    padding-top: 2px;
+    break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    margin: 14px 0 6px;
+    break-after: avoid;
+  }
+  p { margin: 0 0 8px; }
+  a { color: #17692f; text-decoration: none; }
+  code, .path {
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 9pt;
+    background: #f3f6f4;
+    padding: 0 3px;
+    border-radius: 3px;
+  }
+
+  .cover {
+    height: 297mm;
+    background: #0f3d22;
+    color: #fff;
+    padding: 28mm 22mm 22mm;
+    display: flex;
+    flex-direction: column;
+    break-after: page;
+  }
+  .cover .eyebrow {
+    font-size: 10pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #b7e0c4;
+    margin-bottom: 18mm;
+  }
+  .cover h1 {
+    color: #fff;
+    font-size: 34pt;
+    line-height: 1.15;
+    margin: 0 0 8mm;
+    font-weight: 650;
+    max-width: 150mm;
+  }
+  .cover .lead {
+    font-size: 13pt;
+    line-height: 1.45;
+    color: #d7efe0;
+    max-width: 145mm;
+    margin: 0;
+  }
+  .cover .meta {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 18px;
+    border-top: 1px solid rgba(255,255,255,0.22);
+    padding-top: 8mm;
+    font-size: 10pt;
+  }
+  .cover .meta span { display: block; color: #9dccb0; font-size: 8pt; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 2px; }
+  .cover .meta strong { font-weight: 600; color: #fff; }
+
+  .kicker {
+    color: #17692f;
+    font-size: 8.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .section { break-inside: avoid; margin-bottom: 6mm; }
+  .chapter { break-before: page; }
+  .chapter.first { break-before: auto; }
+
+  .toc { margin: 0; padding: 0; list-style: none; }
+  .toc li {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e4ece7;
+    break-inside: avoid;
+  }
+  .toc .num {
+    color: #17692f;
+    font-weight: 700;
+    width: 18px;
+  }
+  .toc .who { margin-left: auto; color: #6b7c72; font-size: 9pt; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+  .card {
+    border: 1px solid #d7e3db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    break-inside: avoid;
+    background: #fff;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 11pt; }
+  .card p { margin: 0; color: #33443b; font-size: 10pt; }
+  .card.green { background: #f3faf5; border-color: #c5e2cf; }
+  .card.warn { background: #fff8f2; border-color: #f0d2b8; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6px 0 10px;
+    font-size: 9.5pt;
+    break-inside: avoid;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 6px 8px;
+    border-bottom: 1px solid #e3ebe6;
+  }
+  th {
+    background: #17692f;
+    color: #fff;
+    font-weight: 600;
+    border-bottom: none;
+  }
+  tr:nth-child(even) td { background: #f7faf8; }
+
+  ol.steps, ul.clean { margin: 6px 0 10px; padding-left: 18px; }
+  ol.steps li, ul.clean li { margin: 0 0 4px; }
+  ol.steps { list-style: none; padding-left: 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    padding: 7px 8px 7px 36px;
+    position: relative;
+    break-inside: avoid;
+    border-left: 2px solid #d5e6db;
+    margin: 0 0 0 8px;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -11px;
+    top: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #17692f;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+    line-height: 20px;
+  }
+
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin: 8px 0 12px;
+  }
+  .flow span {
+    background: #f3faf5;
+    border: 1px solid #c5e2cf;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 9.5pt;
+    break-inside: avoid;
+  }
+  .flow i { color: #17692f; font-style: normal; font-weight: 700; }
+
+  .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 10px; }
+  .clock {
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #f7faf8;
+    border: 1px solid #d7e3db;
+    break-inside: avoid;
+  }
+  .clock b { display: block; color: #17692f; font-size: 10.5pt; }
+  .clock em { font-style: normal; color: #5c6b63; font-size: 9pt; }
+
+  .note {
+    background: #f7faf8;
+    border-left: 3px solid #17692f;
+    padding: 8px 10px;
+    margin: 8px 0 10px;
+    break-inside: avoid;
+  }
+  .danger {
+    background: #fff6f4;
+    border-left: 3px solid #b42318;
+    padding: 8px 10px;
+    margin: 8px 0 10px;
+    break-inside: avoid;
+  }
+  .danger strong { color: #8a1c14; }
+
+  .tree { margin: 6px 0 10px; }
+  .tree div {
+    display: grid;
+    grid-template-columns: 58mm 1fr;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid #e7eee9;
+    break-inside: avoid;
+    font-size: 10pt;
+  }
+  .tree code { background: none; padding: 0; color: #17692f; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="eyebrow">PTT Advertising Solutions</div>
+  <h1>Hướng dẫn hệ thống RNOSAI cho người mới</h1>
+  <p class="lead">Phần mềm nội bộ để nhận khách tiềm năng, phân công người gọi, chốt hợp đồng, rồi chạy quảng cáo, SEO và chăm khách. Tài liệu này mô tả bản đang chạy, không phải bản Flask cũ.</p>
+  <div class="meta">
+    <div><span>Nhân viên</span><strong>rs.pttads.vn</strong></div>
+    <div><span>Khách hàng</span><strong>portal.pttads.vn</strong></div>
+    <div><span>Mã nguồn trên máy chủ</span><strong>/var/www/rnosai</strong></div>
+    <div><span>Kho code</span><strong>github.com/sdadtuan/RNOSAI</strong></div>
+  </div>
+</section>
+
+<section class="chapter first">
+  <p class="kicker">Cách dùng tài liệu</p>
+  <h2>Đọc phần nào trước</h2>
+  <p>Không cần đọc hết trong một lần. Chọn đúng vai, làm xong phần đó rồi mới sang phần kỹ thuật.</p>
+  <div class="cards">
+    <div class="card green">
+      <h3>Người dùng nghiệp vụ</h3>
+      <p>Đọc mục 1, 2, 4, 5, 6, 10 và 13. Đủ để đăng nhập, hiểu lead, và biết vì sao menu của mình khác người khác.</p>
+    </div>
+    <div class="card">
+      <h3>Người sửa code hoặc vận hành</h3>
+      <p>Đọc thêm mục 3, 7, 8, 9 và 11. Đó là bản đồ chương trình, thư mục, database và cách đưa một bản mới lên máy chủ.</p>
+    </div>
+  </div>
+
+  <h3>Mục lục</h3>
+  <ol class="toc">
+    <li><span class="num">1</span> Hệ thống này là gì <span class="who">Mọi người</span></li>
+    <li><span class="num">2</span> Ba cửa vào <span class="who">Mọi người</span></li>
+    <li><span class="num">3</span> Chương trình đang chạy <span class="who">Kỹ thuật</span></li>
+    <li><span class="num">4</span> Một lead đi như thế nào <span class="who">Mọi người</span></li>
+    <li><span class="num">5</span> Menu nhân viên <span class="who">Mọi người</span></li>
+    <li><span class="num">6</span> Quyền hạn <span class="who">Mọi người</span></li>
+    <li><span class="num">7</span> Thư mục code <span class="who">Kỹ thuật</span></li>
+    <li><span class="num">8</span> Dữ liệu nằm ở đâu <span class="who">Kỹ thuật</span></li>
+    <li><span class="num">9</span> Đưa bản mới lên máy chủ <span class="who">Kỹ thuật</span></li>
+    <li><span class="num">10</span> Tuần đầu của người mới <span class="who">Mọi người</span></li>
+    <li><span class="num">11</span> Việc không được làm <span class="who">Kỹ thuật</span></li>
+    <li><span class="num">12</span> Tài liệu đọc tiếp <span class="who">Khi cần đào sâu</span></li>
+    <li><span class="num">13</span> Thuật ngữ <span class="who">Tra cứu</span></li>
+  </ol>
+</section>
+
+<section class="chapter">
+  <p class="kicker">01</p>
+  <h2>Hệ thống này là gì</h2>
+  <p>PTT là agency quảng cáo. Việc hằng ngày là: có người để lại số, nhân viên gọi, tư vấn, báo giá, ký hợp đồng, rồi chạy quảng cáo, SEO, email và chăm khách.</p>
+  <p><strong>RNOSAI</strong> (Revenue Operating System + AI) là phần mềm làm chuỗi việc đó trên một chỗ. Nhân viên không cần nhớ tên thư mục. Nhân viên mở <strong>https://rs.pttads.vn</strong> và đăng nhập.</p>
+  <div class="cards">
+    <div class="card"><h3>1. Không bỏ sót lead</h3><p>Khách tiềm năng không được nằm im mà không có người gọi.</p></div>
+    <div class="card"><h3>2. Đúng người, đúng dữ liệu</h3><p>Mỗi tài khoản chỉ thấy phần việc và khách của mình.</p></div>
+    <div class="card"><h3>3. Sau khi chốt vẫn có chỗ làm</h3><p>Hợp đồng chuyển sang triển khai, quảng cáo, SEO, email, KPI và báo cáo.</p></div>
+    <div class="card green"><h3>Tên cần nhớ</h3><p>Code: <span class="path">RNOSAI</span>. Trên máy chủ: <span class="path">/var/www/rnosai</span>.</p></div>
+  </div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">02</p>
+  <h2>Ba cửa vào</h2>
+  <table>
+    <thead><tr><th>Cửa</th><th>Địa chỉ</th><th>Ai dùng</th><th>Phía sau</th></tr></thead>
+    <tbody>
+      <tr><td>Nhân viên</td><td>rs.pttads.vn</td><td>Sale, CSKH, marketing, kế toán, HR, admin</td><td>ops-web, cổng nội bộ 3200</td></tr>
+      <tr><td>Khách hàng</td><td>portal.pttads.vn</td><td>Khách xem số liệu, duyệt nội dung</td><td>portal-web, cổng nội bộ 3100</td></tr>
+      <tr><td>Địa chỉ cũ</td><td>ops.pttads.vn</td><td>Bookmark cũ của nhân viên</td><td>Tự chuyển sang rs.pttads.vn</td></tr>
+    </tbody>
+  </table>
+  <p>Người ngoài chỉ vào được cổng web 80 và 443. Cổng 3000, 3100, 3200 và 5433 không mở ra internet.</p>
+  <h3>Một lần bấm đi đường nào</h3>
+  <div class="flow">
+    <span>Trình duyệt</span><i>→</i>
+    <span>Nginx, HTTPS</span><i>→</i>
+    <span>Màn hình ops-web :3200</span><i>→</i>
+    <span>API :3000</span><i>→</i>
+    <span>PostgreSQL :5433 / rnosaidb</span>
+  </div>
+  <div class="note">
+    Quảng cáo Facebook, Zalo, Google và email đẩy dữ liệu vào cùng API:<br />
+    <span class="path">POST https://rs.pttads.vn/api/v1/webhooks/{meta|zalo|google|email}</span><br />
+    API còn sống khi <span class="path">https://rs.pttads.vn/health</span> trả về <span class="path">"ok": true</span>.
+  </div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">03</p>
+  <h2>Chương trình đang chạy</h2>
+  <p>Mọi thứ nằm trên một máy Ubuntu, thư mục <span class="path">/var/www/rnosai</span>. File thuộc user <span class="path">deploy</span>, nhóm <span class="path">www-data</span>.</p>
+  <h3>Luôn chạy</h3>
+  <table>
+    <thead><tr><th>Dịch vụ</th><th>Cổng</th><th>Việc nó làm</th></tr></thead>
+    <tbody>
+      <tr><td>ptt-crm-api</td><td>3000</td><td>Đăng nhập, lead, quyền, webhook, gần như mọi dữ liệu</td></tr>
+      <tr><td>ptt-ops-web</td><td>3200</td><td>Màn hình nhân viên. Chạy từ current/ops-web</td></tr>
+      <tr><td>ptt-portal-web</td><td>3100</td><td>Màn hình khách hàng</td></tr>
+      <tr><td>ptt-worker</td><td>—</td><td>Việc nền: nhận lead, job email</td></tr>
+      <tr><td>ptt-fb-autosync</td><td>—</td><td>Đồng bộ lead Facebook</td></tr>
+      <tr><td>ptt-temporal-worker</td><td>—</td><td>Quy trình dài nhiều bước</td></tr>
+    </tbody>
+  </table>
+  <div class="danger"><strong>Flask đã tắt.</strong> Dịch vụ ptt.service, cổng 8002, cổng 5050 và file SQLite không còn là hệ thống đang dùng. Tài liệu nào còn mô tả Flask thì bỏ qua khi hình dung máy chủ hiện tại.</div>
+  <h3>Trong Docker, chỉ máy chủ tự nói chuyện</h3>
+  <table>
+    <thead><tr><th>Thành phần</th><th>Cổng nội bộ</th><th>Vai trò</th></tr></thead>
+    <tbody>
+      <tr><td>PostgreSQL 15</td><td>127.0.0.1:5433</td><td>Database nghiệp vụ rnosaidb, user ptt</td></tr>
+      <tr><td>Redis 7</td><td>nội bộ</td><td>Bộ nhớ tạm, hàng đợi ngắn</td></tr>
+      <tr><td>RabbitMQ</td><td>nội bộ</td><td>Hàng đợi</td></tr>
+      <tr><td>Temporal</td><td>127.0.0.1:7233</td><td>Workflow. Màn hình admin không public</td></tr>
+      <tr><td>ClickHouse</td><td>127.0.0.1:8123</td><td>Kho số liệu báo cáo, không phải database nghiệp vụ</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter">
+  <p class="kicker">04  ·  Phần quan trọng nhất</p>
+  <h2>Một lead đi như thế nào</h2>
+  <p><strong>Lead</strong> là người hoặc công ty chưa ký hợp đồng. Bản ghi nằm ở bảng <span class="path">crm_leads</span>. Lead vào từ Facebook, Zalo, form web, API, hoặc nhân viên nhập tay.</p>
+
+  <h3>Ai được nhận</h3>
+  <ol class="steps">
+    <li>Ưu tiên người được chỉ định, nếu người đó đang làm việc, đang bật <strong>Nhận lead</strong>, và chưa bấm <strong>Tạm dừng</strong>.</li>
+    <li>Không có người chỉ định thì chia vòng: đúng ngành, đang nhận lead, chưa tạm dừng.</li>
+    <li>Hết người thì lead vào <strong>Phải tra soát</strong>, người phụ trách để trống.</li>
+  </ol>
+  <div class="note"><strong>Tạm dừng</strong> trên sổ đội chỉ chặn lead mới. Lead người đó đang cầm không tự rút đi. Sổ đội nằm ở <span class="path">/crm/b2b/team</span>.</div>
+
+  <h3>Hai bảng trạng thái</h3>
+  <table>
+    <thead><tr><th>Luồng</th><th>Khi nào</th><th>Các cột</th></tr></thead>
+    <tbody>
+      <tr><td>Bán hàng</td><td>Chưa gắn khách đang chạy dịch vụ</td><td>Mới → Đã liên hệ → Đang tư vấn → Báo giá → Đàm phán → Proposal → Chốt. Nhánh phụ: Thất bại, Chăm sóc lại</td></tr>
+      <tr><td>Chăm sóc vận hành</td><td>Đã gắn khách đang chạy dịch vụ</td><td>Mới → Đã liên hệ → Đang tư vấn → Hẹn gặp → Chốt. Nhánh phụ: Thất bại, Chờ dọn</td></tr>
+    </tbody>
+  </table>
+  <p>Kéo thẻ sang <strong>Chốt</strong> bị khóa cho đến khi xong B2 và đã có cuộc gọi, tin nhắn, thư hoặc họp.</p>
+
+  <h3>B2 — Liên hệ lần đầu</h3>
+  <p>B2 xong khi đủ cả ba điều kiện sau. Thiếu một điều là chưa xong.</p>
+  <ol class="steps">
+    <li>Có báo cáo chăm sóc với kết quả <strong>Liên hệ OK</strong>.</li>
+    <li>Có ghi chú hoàn thành, ít nhất 3 ký tự.</li>
+    <li>Lead không nằm trong hàng Phải tra soát.</li>
+  </ol>
+  <p>Gọi nhỡ, máy bận, hẹn gọi lại không phải Liên hệ OK. Xong B2 thì hệ thống mở tư vấn trước bán. Nếu không chọn dịch vụ, mặc định là SEO tổng thể. Sau đó mới tới báo giá, hợp đồng và bàn giao.</p>
+
+  <h3>Bốn đồng hồ cùng chạy</h3>
+  <p>Chúng không thay nhau. Một lead chưa xong B2 có thể bị cả bốn đồng hồ nhìn cùng lúc.</p>
+  <div class="clocks">
+    <div class="clock"><b>15 phút</b><em>Thẻ trên bảng, 08:00–21:00 cả tuần.</em> Quá hạn thì thẻ nổi trễ. Sổ đội đếm lead trễ.</div>
+    <div class="clock"><b>2 giờ</b><em>Cuộc gọi đầu, thứ Hai–thứ Sáu giờ hành chính.</em> Gọi không nghe máy vẫn tính là đã gọi.</div>
+    <div class="clock"><b>24 giờ</b><em>Phải có Liên hệ OK, tính từ lúc được gán.</em> Quá hạn thì gỡ người giữ, đưa vào Phải tra soát.</div>
+    <div class="clock"><b>+10 phút</b><em>Sau hạn phản hồi đầu, chưa nói chuyện được.</em> Hệ thống chuyển sang người khác đang nhận lead.</div>
+  </div>
+  <p>Giờ làm việc của chuỗi giữ lead: thứ Hai–thứ Sáu, 09:00–18:00. Hai lần gọi cách nhau ít nhất 2 giờ làm việc. Giám đốc kinh doanh gán lại lead trong <span class="path">/crm/leads/review-queue</span>.</p>
+
+  <h3>Sau khi đã nói chuyện được</h3>
+  <div class="flow">
+    <span>Lead</span><i>→</i>
+    <span>B2 xong</span><i>→</i>
+    <span>Tư vấn</span><i>→</i>
+    <span>Báo giá</span><i>→</i>
+    <span>Hợp đồng</span><i>→</i>
+    <span>Triển khai</span><i>→</i>
+    <span>Ads, SEO, email, KPI</span>
+  </div>
+  <p><strong>Solution</strong> (<span class="path">/crm/solution/queue</span>) là hàng đợi bàn giao từ sale sang đội làm giải pháp. Sale chỉ có quyền hẹp thì thấy mục Theo dõi Solution.</p>
+</section>
+
+<section class="chapter">
+  <p class="kicker">05</p>
+  <h2>Menu nhân viên</h2>
+  <p>Menu bên trái không cố định. Hai người đăng nhập cùng một địa chỉ có thể thấy hai menu khác nhau, vì mỗi mục chỉ hiện khi tài khoản có quyền.</p>
+  <table>
+    <thead><tr><th>Nhóm</th><th>Để làm gì</th><th>Màn nên mở trước</th></tr></thead>
+    <tbody>
+      <tr><td>Tổng quan</td><td>Trang đầu</td><td>/</td></tr>
+      <tr><td>Bán hàng</td><td>Lead mới, đội sale, báo giá, hợp đồng</td><td>/crm/b2b/leads · /crm/b2b/team · /crm/proposals</td></tr>
+      <tr><td>CRM</td><td>Toàn bộ lead, hàng tra soát, khách đã có</td><td>/crm/leads · /crm/leads/review-queue · /crm/customers</td></tr>
+      <tr><td>Service Desk</td><td>Ticket, chat nội bộ</td><td>/crm/csd</td></tr>
+      <tr><td>Account Management</td><td>Giữ khách sau khi ký</td><td>/crm/account-management</td></tr>
+      <tr><td>Agency</td><td>Vận hành agency</td><td>/agency</td></tr>
+      <tr><td>Quảng cáo</td><td>Meta, Google, Zalo</td><td>/meta/facebook-ads · /google/google-ads · /zalo/zalo-ads</td></tr>
+      <tr><td>SEO / AEO</td><td>Nghiên cứu, nội dung, báo cáo SEO</td><td>/seo/hub</td></tr>
+      <tr><td>Email Marketing</td><td>Chiến dịch và danh sách thư</td><td>/email/hub</td></tr>
+      <tr><td>Sản xuất</td><td>Nội dung, creative, SOP, bàn giao</td><td>/crm/service-delivery · /crm/sop</td></tr>
+      <tr><td>Kế hoạch</td><td>Nghiên cứu và kế hoạch marketing</td><td>/crm/research · /crm/marketing-plan</td></tr>
+      <tr><td>KPI Hub</td><td>Chỉ số điều hành</td><td>/crm/kpi-hub</td></tr>
+      <tr><td>Nhân sự</td><td>Nhân viên, chấm công, lương</td><td>/crm/staff · /crm/payroll</td></tr>
+      <tr><td>Tài chính</td><td>Dashboard, dự báo, hóa đơn</td><td>/crm/business-dashboard · /crm/invoices</td></tr>
+      <tr><td>CEO / Báo cáo / Tự động hóa / Admin</td><td>Chỉ huy, báo cáo nội bộ, workflow, cấu hình</td><td>Chỉ hiện với đúng quyền</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Cổng khách portal.pttads.vn là ứng dụng khác. Khách xem hiệu quả và duyệt nội dung. Khách không vào menu nhân viên.</div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">06</p>
+  <h2>Quyền hạn</h2>
+  <p>Có tài khoản chưa đủ để thấy mọi thứ. Mỗi tài khoản có các <strong>capability</strong>: tên module cộng với một hành động.</p>
+  <table>
+    <thead><tr><th>Quyền</th><th>Người đó làm được gì</th></tr></thead>
+    <tbody>
+      <tr><td>crm_leads + view</td><td>Xem danh sách lead</td></tr>
+      <tr><td>crm_leads + edit</td><td>Sửa lead, thấy nút tạo lead</td></tr>
+      <tr><td>crm_leads + assign</td><td>Gán người phụ trách, thấy hàng Phải tra soát</td></tr>
+      <tr><td>crm_gdkd + view_all_leads</td><td>Giám đốc kinh doanh xem lead ngoài phạm vi của mình</td></tr>
+    </tbody>
+  </table>
+  <p>Không có quyền thì mục menu biến mất. API vẫn kiểm tra lại. Giấu nút trên màn hình không đủ, vì người ta vẫn gọi được đường dẫn.</p>
+  <p>Đăng nhập trên máy chủ đang ở chế độ kép: tài khoản nội bộ và SSO khi đã cấu hình. Đổi quyền mà màn hình không đổi thì kiểm tra cả capability của user lẫn bộ policy.</p>
+</section>
+
+<section class="chapter">
+  <p class="kicker">07</p>
+  <h2>Thư mục code</h2>
+  <p>Chỉ cần thuộc các thư mục dưới đây. Phần còn lại là script theo từng đợt, tài liệu cũ, hoặc bản build.</p>
+  <div class="tree">
+    <div><code>services/ptt-crm-api</code><span>API. Não của hệ thống. Sửa file .ts mà chưa build thì máy vẫn chạy bản trong dist/.</span></div>
+    <div><code>services/ops-web</code><span>Màn hình nhân viên. Không chạy thẳng từ source.</span></div>
+    <div><code>services/portal-web</code><span>Màn hình khách.</span></div>
+    <div><code>current/ops-web</code><span>Bản giao diện đang được dịch vụ systemd chạy. Đây là lối tắt tới một thư mục trong releases/.</span></div>
+    <div><code>releases/ops-web-*</code><span>Các bản build đã phát hành. Giữ vài bản để lùi.</span></div>
+    <div><code>deploy/</code><span>Mẫu nginx, systemd, file cấu hình mẫu. Không chứa mật khẩu thật.</span></div>
+    <div><code>scripts/</code><span>Lệnh cài, migrate, phát hành.</span></div>
+    <div><code>.env</code><span>Mật khẩu và khóa thật. Không đưa lên git.</span></div>
+    <div><code>.venv</code><span>Python cho worker.</span></div>
+  </div>
+  <p>Quy trình giao diện nhân viên: build ra bản standalone, copy vào <span class="path">releases/</span>, trỏ <span class="path">current/ops-web</span> sang đó, rồi khởi động lại <span class="path">ptt-ops-web</span>.</p>
+  <p>Worker Python nằm ở <span class="path">ptt_worker</span>, <span class="path">ptt_jobs</span>, <span class="path">ptt_meta</span>, <span class="path">ptt_email</span>, <span class="path">ptt_seo</span>. Chúng đọc cùng database và không vẽ màn hình.</p>
+</section>
+
+<section class="chapter">
+  <p class="kicker">08</p>
+  <h2>Dữ liệu nằm ở đâu</h2>
+  <table>
+    <thead><tr><th>Thứ</th><th>Ở đâu</th><th>Ghi nhớ</th></tr></thead>
+    <tbody>
+      <tr><td>Lead, khách, nhân viên, quyền, hóa đơn</td><td>PostgreSQL rnosaidb, cổng 5433</td><td>Nguồn sự thật</td></tr>
+      <tr><td>File khách upload</td><td>services/ptt-crm-api/data/</td><td>Không nằm trong git. Không xóa khi phát hành</td></tr>
+      <tr><td>Mật khẩu, token, khóa</td><td>/var/www/rnosai/.env</td><td>Không commit</td></tr>
+      <tr><td>Giao diện đang chạy</td><td>current/ops-web</td><td>Lối tắt tới một release</td></tr>
+      <tr><td>Bản sao database</td><td>/var/backups/rnosai/</td><td>File rnosaidb-*.dump</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Đổi code không đụng .env, thư mục data, và database, trừ khi đợt phát hành có file SQL mới. Script cập nhật database chỉ chạy tới, không có nút hoàn tác. Muốn lùi dữ liệu thì phục hồi file dump.</div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">09</p>
+  <h2>Đưa một bản mới lên máy chủ</h2>
+  <p>Code production nằm sẵn tại <span class="path">/var/www/rnosai</span>, nhánh <span class="path">main</span>.</p>
+  <ol class="steps">
+    <li>Sao lưu database bằng scripts/backup_ptt_data.sh. Lệnh này cần DATABASE_URL trong .env.</li>
+    <li>Kéo code mới: git pull --ff-only origin main, bằng user deploy.</li>
+    <li>Trong services/ptt-crm-api: npm run build, rồi khởi động lại ptt-crm-api.</li>
+    <li>Trong services/ops-web: build với địa chỉ API https://rs.pttads.vn, phát hành vào releases/, trỏ current/ops-web, rồi khởi động lại ptt-ops-web.</li>
+    <li>Chỉ build portal-web khi đợt đó sửa cổng khách.</li>
+  </ol>
+  <div class="card warn">
+    <h3>Máy chủ đang có khoảng 3,3 GB RAM</h3>
+    <p>Build giao diện Next.js dễ bị hệ điều hành ngắt. Đã có thêm file swap /swapfile-build dung lượng 4 GB. Build xong rồi mới khởi động lại giao diện. API có thể khởi động lại trước, vì trang cũ vẫn gọi được API mới.</p>
+  </div>
+  <p>Sau khi phát hành, <span class="path">/login</span> phải trả mã 200. Trang chủ trả 307 là đúng: chưa đăng nhập thì bị chuyển sang trang đăng nhập.</p>
+</section>
+
+<section class="chapter">
+  <p class="kicker">10</p>
+  <h2>Tuần đầu của người mới</h2>
+  <p>Làm lần lượt. Chưa xong bước trước thì chưa mở SEO hay KPI.</p>
+  <ol class="steps">
+    <li>Đăng nhập rs.pttads.vn/login. Nhìn menu của chính mình. Menu thiếu mục là do quyền, không phải do hệ thống hỏng.</li>
+    <li>Mở Lead B2B (/crm/b2b/leads). Bấm một thẻ. Đọc trạng thái, người phụ trách, lịch sử cuộc gọi.</li>
+    <li>Lấy một lead thật, đối chiếu với bốn đồng hồ ở mục 4.</li>
+    <li>Trưởng nhóm mở Đội AE. Xem ai đang bật Nhận lead, ai đang Tạm dừng.</li>
+    <li>Giám đốc kinh doanh mở Phải tra soát. Đó là lead bị gỡ người giữ vì quá 24 giờ chưa Liên hệ OK.</li>
+    <li>Mở một khách đã chốt, rồi xem hợp đồng hoặc dự án nếu có quyền.</li>
+    <li>Người kỹ thuật: vào máy chủ, đứng ở /var/www/rnosai, xem commit hiện tại và hai dịch vụ ptt-crm-api, ptt-ops-web. Chưa sửa file .env.</li>
+  </ol>
+</section>
+
+<section class="chapter">
+  <p class="kicker">11</p>
+  <h2>Việc không được làm khi chưa hỏi</h2>
+  <div class="danger">
+    <ul class="clean">
+      <li>Bật lại ptt.service (Flask).</li>
+      <li>Xóa services/ptt-crm-api/data/ hoặc database.</li>
+      <li>Đưa file .env lên git.</li>
+      <li>Chạy git reset --hard trên máy chủ. Lệnh này xóa nhầm file build và file khách.</li>
+      <li>Mở cổng 3000, 3100, 3200, 5433 ra internet.</li>
+      <li>Sửa quyền trên tài khoản nhân viên thật để thử cho nhanh.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">12</p>
+  <h2>Đọc tiếp khi nào</h2>
+  <p>Đọc sau khi đã thuộc mục 1 đến 4. Nhiều file trong thư mục docs mô tả đợt làm việc cũ hoặc Flask.</p>
+  <table>
+    <thead><tr><th>Khi cần</th><th>File trong repo</th></tr></thead>
+    <tbody>
+      <tr><td>Từng kết quả cuộc gọi, đồng hồ, hàng tra soát</td><td>docs/crm/chu-trinh-quan-ly-lead.md</td></tr>
+      <tr><td>Danh sách màn hình và tình huống sử dụng</td><td>docs/specs/RNOSAI-BA-Master-Spec.md</td></tr>
+      <tr><td>Vận hành máy chủ, sao lưu, nginx</td><td>docs/runbooks/rnosai-vps-operations-guide.md</td></tr>
+      <tr><td>Cài một máy chủ trắng</td><td>docs/runbooks/vps-full-system-deploy.md</td></tr>
+      <tr><td>Gán quyền cho nhân viên</td><td>docs/PHAN_QUYEN_HUONG_DAN.md</td></tr>
+      <tr><td>Hướng dẫn bấm từng màn</td><td>docs/HUONG_DAN_SU_DUNG_PTT.md</td></tr>
+    </tbody>
+  </table>
+  <p>docs/HE_THONG_PTT.md và phần đầu README.md vẫn nói về Flask. Đừng dùng hai file đó để hình dung máy chủ hiện tại.</p>
+</section>
+
+<section class="chapter">
+  <p class="kicker">13</p>
+  <h2>Thuật ngữ</h2>
+  <table>
+    <thead><tr><th>Từ</th><th>Nghĩa trong hệ thống này</th></tr></thead>
+    <tbody>
+      <tr><td>Lead</td><td>Khách tiềm năng, chưa ký</td></tr>
+      <tr><td>AE</td><td>Nhân viên kinh doanh nhận lead</td></tr>
+      <tr><td>GDKD</td><td>Giám đốc kinh doanh</td></tr>
+      <tr><td>AM</td><td>Người giữ khách sau khi đã ký</td></tr>
+      <tr><td>B2</td><td>Liên hệ lần đầu. Xong khi có Liên hệ OK</td></tr>
+      <tr><td>Liên hệ OK</td><td>Đã nói chuyện được với khách, ghi trong báo cáo chăm sóc</td></tr>
+      <tr><td>Phải tra soát</td><td>Lead bị gỡ người phụ trách vì quá hạn hoặc không còn ai nhận</td></tr>
+      <tr><td>Solution</td><td>Hàng đợi bàn giao từ sale sang đội làm giải pháp</td></tr>
+      <tr><td>Capability</td><td>Một quyền cụ thể, ví dụ xem lead hoặc gán lead</td></tr>
+      <tr><td>ops-web</td><td>Ứng dụng màn hình nhân viên</td></tr>
+      <tr><td>portal-web</td><td>Ứng dụng màn hình khách</td></tr>
+      <tr><td>ptt-crm-api</td><td>API, cổng 3000</td></tr>
+      <tr><td>rnosaidb</td><td>Database chính</td></tr>
+      <tr><td>Release</td><td>Một bản build giao diện đã copy ra releases/ và đang được trỏ tới</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>

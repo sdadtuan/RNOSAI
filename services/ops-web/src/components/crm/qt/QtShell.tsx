@@ -1,0 +1,140 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { StaffPageShell } from '@/components/layout';
+import { staffMe, staffRefresh } from '@/lib/api';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  updateAccessToken,
+  updateStoredUser,
+  type StoredStaffUser,
+} from '@/lib/auth';
+import { dash } from '@/lib/crm/qt-format';
+import { canSeeQtNav, qtNavForUser, qtNavIsActive } from '@/lib/crm/qt-nav.util';
+
+function parseScope(raw: string | null): 'me' | 'team' | 'all' {
+  if (raw === 'team' || raw === 'all') return raw;
+  return 'me';
+}
+
+function QtShellInner({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const scope = parseScope(searchParams.get('scope'));
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const ensureAuth = useCallback(async () => {
+    let access = getAccessToken();
+    if (!access) {
+      router.replace('/login');
+      return;
+    }
+    const cached = getStoredUser();
+    if (cached) setUser(cached);
+
+    async function finish(me: StoredStaffUser) {
+      setUser(me);
+      updateStoredUser(me);
+      if (!canSeeQtNav(me)) {
+        router.replace(`/403?from=${encodeURIComponent(window.location.pathname)}`);
+      }
+    }
+
+    try {
+      await finish(await staffMe(access));
+    } catch {
+      const refresh = getRefreshToken();
+      if (!refresh) {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
+      const out = await staffRefresh(refresh);
+      updateAccessToken(out.access_token);
+      access = out.access_token;
+      await finish(await staffMe(access));
+    }
+  }, [router]);
+
+  useEffect(() => {
+    void ensureAuth().finally(() => setLoading(false));
+  }, [ensureAuth]);
+
+  function changeScope(next: 'me' | 'team' | 'all') {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'me') params.delete('scope');
+    else params.set('scope', next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }
+
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  return (
+    <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
+      {user && canSeeQtNav(user) ? (
+        <div className="qt-root">
+          <nav className="qt-sidebar" aria-label="Báo giá">
+            {qtNavForUser(user).map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`qt-sidebar__link${
+                  qtNavIsActive(pathname, item.href) ? ' qt-sidebar__link--active' : ''
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="qt-column">
+            <header className="qt-top">
+              <strong className="qt-product-name">Báo giá</strong>
+              <label className="qt-scope">
+                <span>Phạm vi</span>
+                <select
+                  value={scope}
+                  onChange={(event) => changeScope(parseScope(event.target.value))}
+                  aria-label="Phạm vi"
+                >
+                  <option value="me">Của tôi</option>
+                  <option value="team">Team</option>
+                  <option value="all">Toàn bộ</option>
+                </select>
+              </label>
+            </header>
+            <div className="qt-main">{children}</div>
+          </div>
+        </div>
+      ) : null}
+    </StaffPageShell>
+  );
+}
+
+export function QtPlaceholder({ title }: { title: string }) {
+  return (
+    <section className="qt-placeholder">
+      <h1>{title}</h1>
+      <p className="qt-muted">{dash(null)}</p>
+      <span className="qt-empty">{dash(null)}</span>
+    </section>
+  );
+}
+
+export function QtShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<p className="qt-muted">Đang tải…</p>}>
+      <QtShellInner>{children}</QtShellInner>
+    </Suspense>
+  );
+}

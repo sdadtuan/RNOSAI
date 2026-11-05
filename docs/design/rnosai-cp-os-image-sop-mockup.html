@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · CP OS · Ảnh SOP (ImageOS) — mockup v2.1 Winning Recipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--navy:#0f2747;--accent:#2563eb;--ok:#16a34a;--warn:#d97706;--hot:#dc2626;--info:#0891b2;--bg:#f4f6f8;--surface:#fff;--border:#e5e7eb;--ink:#111827;--mute:#6b7280;--sidebar:248px;--subnav:220px}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}
+body{font-family:"Be Vietnam Pro",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+.app{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+.logo{font-weight:800;color:var(--navy)}
+.search-btn{flex:1;max-width:480px;height:36px;margin:0 auto;border:1px solid var(--border);border-radius:10px;background:#f9fafb;color:var(--mute);display:flex;justify-content:space-between;align-items:center;padding:0 12px;font-size:12px}
+.kbd{border:1px solid var(--border);border-radius:5px;padding:1px 6px;background:#fff;font-size:11px}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.icon-btn{width:36px;height:36px;border:0;background:none;position:relative;font-size:16px}
+.dot{position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--hot);border-radius:99px}
+.ava{width:32px;height:32px;border-radius:99px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.catalog{background:#fff;border-bottom:1px solid var(--border);padding:7px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px}
+.catalog b{color:var(--mute);font-size:11px}
+.scope{height:30px;border:1px solid var(--border);border-radius:8px;padding:0 8px;background:#f9fafb;font-size:12px;font-weight:600}
+.shell{display:flex;flex:1;min-height:0}
+.sidebar{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column}
+.nav{padding:10px 8px;display:grid;gap:2px;flex:1}
+.grp{font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;padding:10px 10px 4px}
+.nav-btn{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:#e2e8f0;border-radius:10px;padding:8px 10px;text-align:left;font-size:13px}
+.nav-btn.is-on{background:var(--accent);color:#fff;font-weight:600}
+.nav-btn .badge{margin-left:auto;background:rgba(255,255,255,.15);border-radius:99px;padding:1px 6px;font-size:10px}
+.sb-foot{padding:10px;border-top:1px solid #16355c;font-size:11px;color:#94a3b8}.sb-foot b{color:#e2e8f0;display:block}
+.subsidebar{width:var(--subnav);flex:0 0 var(--subnav);background:#fff;border-right:1px solid var(--border);padding:12px 10px;overflow:auto}
+.subsidebar h2{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;padding:0 6px}
+.subnav{display:grid;gap:2px}
+.subnav button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;font-size:12px;color:var(--ink);display:flex;align-items:center;gap:8px;width:100%}
+.subnav button.is-on{background:#eff6ff;color:var(--accent);font-weight:600}
+.subnav .c{margin-left:auto;font-size:10px;color:var(--mute);background:#f3f4f6;border-radius:99px;padding:1px 6px}
+.subfoot{margin-top:16px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#f9fafb;font-size:10px;color:var(--mute)}
+.subfoot b{color:var(--ink);font-size:11px;display:block;margin-bottom:4px}
+.main{flex:1;min-width:0;padding:18px 22px 40px;overflow:auto}
+.page{display:none}.page.is-on{display:block}
+.crumb{font-size:12px;color:var(--mute);margin-bottom:6px}
+.head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px}
+h1{margin:0;font-size:22px;letter-spacing:-.03em}h3{margin:0 0 6px;font-size:14px}
+.sub{margin:4px 0 0;color:var(--mute);font-size:13px}
+.sot{font-size:11px;color:var(--info);margin-top:4px;font-family:ui-monospace,monospace}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--border);background:#fff;font-weight:600;font-size:12px}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-danger{color:var(--hot);border-color:#fecaca;background:#fef2f2}
+.btn-ok{color:var(--ok);border-color:#bbf7d0;background:#f0fdf4}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.tile{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left}
+.tile span{display:block;font-size:11px;color:var(--mute)}
+.tile strong{display:block;margin:6px 0 4px;font-size:24px;letter-spacing:-.5px}
+.tile em{font-style:normal;font-size:11px;color:var(--ok);font-weight:600}
+.tile em.warn{color:var(--warn)}.tile em.mute{color:var(--mute);font-weight:500}
+.grid2{display:grid;grid-template-columns:1.45fr .9fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0;margin-bottom:12px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.card-h p{margin:4px 0 0;font-size:11px;color:var(--mute)}
+.muted{color:var(--mute);font-size:12px}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;color:var(--mute);padding:8px 10px;border-bottom:1px solid var(--border);background:#f8fafc;text-transform:uppercase;letter-spacing:.06em}
+td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;font-size:12px}
+td .sub{display:block;color:var(--mute);font-size:10px;margin-top:2px}
+.pill{display:inline-flex;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700}
+.s-ok{background:#dcfce7;color:#166534}.s-warn{background:#fef3c7;color:#92400e}.s-bad{background:#fee2e2;color:#991b1b}.s-info{background:#e0f2fe;color:#075985}.s-purple{background:#ede9fe;color:#5b21b6}.s-orange{background:#ffedd5;color:#9a3412}
+.progress{height:6px;border-radius:99px;background:#e5e7eb;overflow:hidden;margin:4px 0}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--info));border-radius:inherit}
+.health{display:grid;gap:8px}
+.healthrow{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:10px;background:#f9fafb}
+.hicon{height:30px;width:30px;display:grid;place-items:center;border-radius:8px;background:#eff6ff;font-weight:800;color:var(--accent);font-size:12px}
+.healthrow b{font-size:12px}.healthrow p{margin:2px 0 0;font-size:10px;color:var(--mute)}
+.feed .feeditem{display:grid;grid-template-columns:28px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);align-items:start}
+.feed .feeditem:last-child{border:0}
+.ficon{height:26px;width:26px;display:grid;place-items:center;border-radius:7px;background:#eff6ff;color:var(--accent);font-size:11px;font-weight:700}
+.feeditem b{font-size:11px}.feeditem p{margin:3px 0 0;color:var(--mute);font-size:10px}
+.feeditem time{font-size:10px;color:var(--mute);white-space:nowrap}
+.bars{display:flex;align-items:end;gap:6px;height:90px;padding:4px 0}
+.bars i{flex:1;background:var(--accent);border-radius:4px 4px 0 0;display:block;opacity:.85}
+.kanban{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:10px;overflow:auto}
+.col{border:1px solid var(--border);border-radius:12px;padding:10px;background:#f9fafb;min-height:380px}
+.colhead{display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding:2px 2px 8px}
+.task{padding:10px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;background:#fff}
+.task h4{font-size:12px;margin:0;line-height:1.4}
+.task p{font-size:10px;color:var(--mute);margin:6px 0 8px;line-height:1.4}
+.taskfoot{display:flex;justify-content:space-between;align-items:center}
+.sopgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sop{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.thumb{aspect-ratio:16/8;background:linear-gradient(135deg,#dbeafe,#93c5fd 40%,#fde68a 70%,#64748b)}
+.thumb.two{background:linear-gradient(135deg,#1e3a5f,#3b82f6 43%,#fde047 68%,#6366f1)}
+.thumb.three{background:linear-gradient(135deg,#134e4a,#6ee7b7 40%,#fcd34d 66%,#be123c)}
+.sop .body{padding:12px}
+.sop h4{margin:0 0 4px;font-size:13px}
+.sop p{margin:0 0 10px;font-size:11px;color:var(--mute);line-height:1.45}
+.sopmeta{display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-top:6px}
+.stepper{display:flex;gap:6px;overflow:auto;margin-bottom:14px;flex-wrap:wrap}
+.step{display:flex;gap:6px;align-items:center;white-space:nowrap;color:var(--mute);font-size:11px;padding:4px 0}
+.step i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;font-style:normal;background:#f3f4f6;border:1px solid var(--border);font-size:10px;font-weight:700}
+.step.is-on{color:var(--navy);font-weight:600}.step.is-on i{background:var(--accent);color:#fff;border:0}
+.step.done{color:var(--ok)}.step.done i{background:#dcfce7;color:var(--ok);border-color:#bbf7d0}
+.fieldgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:4px}.field.full{grid-column:1/-1}
+.field label{font-size:11px;font-weight:600;color:var(--mute)}
+.inp{width:100%;height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:#fff}
+textarea.inp{height:auto;min-height:72px;padding:8px 10px}
+.policy{padding:10px 12px;border-radius:10px;border:1px solid #ddd6fe;background:#f5f3ff;color:#5b21b6;font-size:11px;line-height:1.5}
+.metric{display:grid;grid-template-columns:120px 1fr 40px;gap:8px;align-items:center;font-size:11px;margin:8px 0}
+.metric b{text-align:right;font-weight:700;color:var(--ink)}
+.assetgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.asset{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.assetpic{aspect-ratio:4/4.5;background:linear-gradient(145deg,#dbeafe,#f472b6 40%,#fcd34d 64%,#334155);position:relative}
+.assetpic.b{background:linear-gradient(145deg,#1e3a8a,#60a5fa 42%,#fde047 68%,#7c3aed)}
+.assetpic.c{background:linear-gradient(145deg,#7f1d1d,#fb923c 43%,#fef3c7 65%,#115e59)}
+.assetpic.d{background:linear-gradient(145deg,#14532d,#4ade80 43%,#fbbf24 64%,#9f1239)}
+.wm{position:absolute;bottom:8px;left:8px;background:rgba(15,39,71,.75);color:#fff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700}
+.ainfo{padding:10px}.ainfo b{font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ainfo p{font-size:10px;color:var(--mute);margin:4px 0 8px}
+.review{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
+.preview{position:relative;min-height:420px;display:grid;place-items:center;border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,#382b4e,#96536d 37%,#ebaa77 59%,#294a60);overflow:hidden}
+.bottle{height:55%;width:34%;border-radius:28px 28px 14px 14px;background:linear-gradient(160deg,#d8bd74,#75504a 43%,#211c23);box-shadow:0 20px 40px rgba(0,0,0,.3);position:relative}
+.bottle:before{content:"NOVA\A RESIDENCE";white-space:pre;text-align:center;position:absolute;left:10%;right:10%;top:32%;border-top:1px solid rgba(255,255,255,.35);border-bottom:1px solid rgba(255,255,255,.35);padding:8px 2px;color:#fff5dc;font-weight:800;letter-spacing:1px;font-size:11px}
+.ann{position:absolute;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#fbbf24;color:#78350f;border:2px solid #fff;font-weight:800;font-size:10px}
+.ann.one{right:28%;top:26%}.ann.two{left:24%;bottom:24%}
+.comment{padding:8px 0;border-bottom:1px solid var(--border);font-size:11px}
+.comment time{float:right;color:var(--mute);font-size:9px}
+.comment p{margin:4px 0 0;color:var(--mute);line-height:1.45}
+.tl{border-left:2px solid var(--border);margin-left:6px;padding-left:16px}
+.tl .ev{margin:0 0 12px;position:relative;font-size:11px}
+.tl .ev:before{content:"";position:absolute;width:8px;height:8px;border-radius:50%;left:-21px;top:3px;background:var(--accent);box-shadow:0 0 0 3px #dbeafe}
+.tl .ev b{display:block}.tl .ev p{margin:2px 0 0;color:var(--mute);font-size:10px}
+.recipe{min-height:320px;border:1px solid var(--border);border-radius:12px;position:relative;background:#f8fafc;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:16px 16px}
+.node{position:absolute;width:150px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.06);font-size:10px}
+.nh{display:flex;justify-content:space-between;padding:6px 8px;background:#eff6ff;border-bottom:1px solid var(--border);font-weight:600}
+.nb{padding:8px;color:var(--mute);line-height:1.5}
+.node.a{left:6%;top:40px}.node.b{left:36%;top:110px}.node.c{left:64%;top:44px}.node.d{left:63%;top:220px}
+.modalbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;place-items:center;padding:16px}
+.modalbg.show{display:grid}
+.modal{width:min(680px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,.2)}
+.modalhead{display:flex;justify-content:space-between;align-items:start;margin-bottom:14px}
+.modalhead h2{margin:0;font-size:18px}.modalhead p{margin:4px 0 0;font-size:11px;color:var(--mute)}
+.close{border:0;background:none;font-size:22px;color:var(--mute);line-height:1}
+.toast{position:fixed;bottom:20px;right:20px;z-index:60;padding:10px 14px;background:var(--navy);color:#fff;border-radius:10px;font-size:12px;opacity:0;transform:translateY(20px);transition:.25s;max-width:360px}
+.toast.show{opacity:1;transform:none}
+code{font-size:10px;background:#f3f4f6;padding:1px 5px;border-radius:4px}
+.note{font-size:10px;color:var(--mute);margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px}
+.win{background:linear-gradient(135deg,#0f2747,#1d4ed8);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:grid;grid-template-columns:1.4fr .8fr;gap:12px;align-items:center}
+.win h2{margin:0;font-size:15px;letter-spacing:-.02em}.win p{margin:6px 0 0;font-size:12px;color:#dbeafe;line-height:1.5}
+.win ol{margin:0;padding-left:18px;font-size:11px;color:#e0e7ff;line-height:1.55}
+.pipe{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:12px 0 14px}
+.pipe .st{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 9px;min-width:0}
+.pipe .st b{display:block;font-size:11px}.pipe .st span{display:block;font-size:10px;color:var(--mute);margin-top:3px;line-height:1.35}
+.pipe .st.is-on{border-color:var(--accent);box-shadow:0 0 0 2px #dbeafe}
+.pipe .st.done{border-color:#bbf7d0;background:#f0fdf4}
+.intents{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.intents button{border:1px solid var(--border);background:#fff;border-radius:99px;padding:5px 10px;font-size:11px;font-weight:600}
+.intents button.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.pack{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pack .ratio{border:1px dashed var(--border);border-radius:10px;background:#f8fafc;min-height:88px;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--mute);padding:8px}
+.pack .ratio b{display:block;color:var(--ink);font-size:13px;margin-bottom:4px}
+.genome{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.genome .g{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#f8fafc}
+.genome .g span{display:block;font-size:10px;color:var(--mute)}.genome .g b{font-size:12px}
+@media(max-width:1200px){.tiles{grid-template-columns:repeat(2,1fr)}.grid2,.grid3,.review,.sopgrid,.assetgrid,.win,.pipe,.genome,.pack{grid-template-columns:1fr}.subsidebar{display:none}}
+@media(max-width:850px){.sidebar{display:none}.tiles{grid-template-columns:1fr}.kanban{grid-template-columns:repeat(4,240px)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · CP OS · Ảnh SOP</span></span>
+    <div class="search-btn"><span>Tìm SOP, job, asset, brand… (⌘K)</span><span class="kbd">IMG</span></div>
+    <div class="top-right">
+      <span class="muted" style="font-size:11px">rs.pttads.vn · tenant PTT</span>
+      <button class="icon-btn" type="button" onclick="toast('Policy: CP_IMAGE_SOP_ENABLED=0 trên prod')">◈</button>
+      <button class="icon-btn" type="button">🔔<i class="dot"></i></button>
+      <span class="ava" title="Staff">TT</span>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Vận hành</b>
+    <select class="scope"><option>Phạm vi: Toàn PTT</option><option>Của tôi</option><option>Team</option></select>
+    <select class="scope"><option>Flag: CP_IMAGE_SOP_ENABLED</option><option>MAGNIFIC_REST=1</option></select>
+    <span class="muted" style="margin-left:auto">Mockup v2.1 · Intent→Recipe · dữ liệu runtime — chưa ship = <strong>—</strong></span>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+        <div class="grp">SẢN XUẤT SÁNG TẠO</div>
+        <button class="nav-btn" type="button">Tổng quan</button>
+        <button class="nav-btn" type="button">Dự án</button>
+        <button class="nav-btn" type="button">Video AI</button>
+        <button class="nav-btn is-on" type="button">Ảnh SOP</button>
+        <button class="nav-btn" type="button">Thư viện</button>
+        <button class="nav-btn" type="button">Brand Kit</button>
+        <button class="nav-btn" type="button">Lịch xuất bản</button>
+        <button class="nav-btn" type="button">Báo cáo</button>
+        <button class="nav-btn" type="button">Cấu hình</button>
+      </div>
+      <div class="sb-foot">Credit PTT<br/><b id="credit-display">—</b><span style="font-size:10px"> GET /api/crm/cp/credit</span></div>
+    </aside>
+    <aside class="subsidebar">
+      <h2>ImageOS · Command</h2>
+      <div class="subnav" id="subnav">
+        <button type="button" class="is-on" data-page="home"><span>◫</span> Tổng quan <span class="c">IMG-01</span></button>
+        <button type="button" data-page="tasks"><span>☷</span> Vận hành sáng tạo <span class="c">IMG-02</span></button>
+        <button type="button" data-page="jobs"><span>◌</span> Image Jobs <span class="c">IMG-03</span></button>
+        <button type="button" data-page="assets"><span>▧</span> Asset Intelligence <span class="c">IMG-04</span></button>
+        <button type="button" data-page="review"><span>◉</span> Review &amp; Approval <span class="c">IMG-05</span></button>
+        <button type="button" data-page="sops"><span>◇</span> SOP Registry <span class="c">IMG-06</span></button>
+        <button type="button" data-page="composer"><span>✦</span> SOP Composer <span class="c">IMG-07</span></button>
+        <button type="button" data-page="brand"><span>◎</span> Brand Graph <span class="c">IMG-08</span></button>
+        <button type="button" data-page="providers"><span>⌘</span> Provider Router <span class="c">IMG-09</span></button>
+        <button type="button" data-page="finops"><span>◔</span> AI FinOps <span class="c">IMG-10</span></button>
+        <button type="button" data-page="governance"><span>◈</span> Governance <span class="c">IMG-11</span></button>
+      </div>
+      <div class="subfoot"><b>Enterprise posture</b>Policy coverage · Provenance · WATCH alerts — từ <code>GET /image/governance/summary</code></div>
+    </aside>
+    <main class="main">
+
+<!-- IMG-01 HOME -->
+<section class="page is-on" id="home" data-title="Tổng quan ImageOS">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Ảnh SOP / <b>Tổng quan</b></div>
+<div class="head"><div><h1>Enterprise Image Intelligence</h1><p class="sub">Thắng đối thủ bằng recipe — không bằng một model.</p><p class="sot">GET /api/crm/cp/image/dashboard/kpis · GET /image/intents · img_job_stages</p></div>
+<div class="actions"><button class="btn" type="button" onclick="toast('Sync: GET /api/crm/cp/provider-health')">↻ Đồng bộ platform</button><button class="btn btn-primary" type="button" onclick="openModal()">＋ Tạo Image Job</button></div></div>
+<div class="win">
+  <div><h2>Winning Image Ops · v2.1</h2><p>Đối thủ dừng ở Midjourney + Drive. PTT bàn giao <b>ảnh duyệt được</b>: đúng intent → đúng capability thật → chọn winner → upscale → pack đủ tỉ lệ → overlay logo/CTA official → QC tiếng Việt.</p></div>
+  <ol>
+    <li>Intent trước, provider sau</li>
+    <li>6 stage bắt buộc (GT-I10 / I11)</li>
+    <li>Logo/CTA không tin model (GT-I09)</li>
+    <li>Đo First-Pass + Cost/Approved</li>
+  </ol>
+</div>
+<div class="pipe">
+  <div class="st done"><b>1. Explore</b><span>images_generate · 2–4 variants</span></div>
+  <div class="st is-on"><b>2. Select</b><span>Art Director · winner_asset_id</span></div>
+  <div class="st"><b>3. Refine</b><span>product lock · Weave · overlay</span></div>
+  <div class="st"><b>4. Upscale</b><span>Magnific images_upscale</span></div>
+  <div class="st"><b>5. Pack</b><span>crop/resize 1:1 · 4:5 · 9:16</span></div>
+  <div class="st"><b>6. QC</b><span>7 chiều · G2/G3 · Hub</span></div>
+</div>
+<p class="sot" style="margin:-6px 0 12px">GET /api/crm/cp/image/recipes/preview · capability allowlist Magnific đã ship</p>
+<div class="tiles">
+<div class="tile"><span>Asset đã duyệt (tháng)</span><strong>—</strong><em class="mute">COUNT crm_cp_assets WHERE provenance image_sop + approved</em></div>
+<div class="tile"><span>Brief → Approved</span><strong>—</strong><em class="mute">AVG(g3_at - created_at) img_projects</em></div>
+<div class="tile"><span>Cost / Approved Asset</span><strong>—</strong><em class="mute">ledger charge / approved count</em></div>
+<div class="tile"><span>First-Pass Approval</span><strong>—</strong><em class="mute">approved / explored · img_quality_results</em></div>
+</div>
+<div class="grid2">
+<div class="card"><div class="card-h"><div><h3>Content Supply Chain</h3><p>Pipeline theo campaign · provider · policy.</p></div><button class="btn" type="button" onclick="go('jobs')">Xem jobs</button></div>
+<div class="tbl-wrap"><table><thead><tr><th>Creative task</th><th>SOP / Provider</th><th>Tiến độ</th><th>Trạng thái</th><th>SLA</th></tr></thead><tbody>
+<tr><td><b>Nova Mid-autumn KV 4:5</b><span class="sub">intent hero_lifestyle · lifecycle mid-autumn-2026</span></td><td><span class="pill s-purple">Recipe 6 stage</span><span class="sub">PTT-IMG-KV-45 · generate→pack</span></td><td><div class="progress"><i style="width:0%"></i></div><span class="sub">Chưa có img_job_stages (module chưa ship)</span></td><td><span class="pill s-info">—</span></td><td>—</td></tr>
+<tr><td><b>Social 9:16 pilot</b><span class="sub">template social_916_i2v · Magnific Flow handoff</span></td><td><span class="pill s-purple">Magnific Flow</span><span class="sub">sqid từ seed staging</span></td><td><span class="sub">Wave B+ — tách khỏi ImageOS job</span></td><td><span class="pill s-warn">Chờ sqid</span></td><td>—</td></tr>
+<tr><td><b>Packshot Comfy (khi GPU)</b><span class="sub">COMFYUI_WORKER_ENABLED=0 hiện tại</span></td><td><span class="pill s-ok">ComfyUI</span><span class="sub">PTT-IMG-PACKSHOT-11</span></td><td>—</td><td><span class="pill s-warn">GPU chưa sẵn sàng</span></td><td>—</td></tr>
+</tbody></table></div></div>
+<div class="card"><div class="card-h"><div><h3>Provider &amp; worker health</h3><p>Trạng thái thật từ VPS staging 2026-09-13.</p></div><span class="pill s-warn">Partial</span></div>
+<div class="health">
+<div class="healthrow"><div class="hicon">W</div><div><b>Weavy · PTT_WEAVE</b><p>Flag env · Work Order pattern sẵn (Wave A)</p></div><span class="pill s-orange">Hybrid</span></div>
+<div class="healthrow"><div class="hicon">M</div><div><b>Magnific REST + MCP</b><p>MAGNIFIC_REST=1 · connections DB: <strong>0 rows</strong></p></div><span class="pill s-warn">No key</span></div>
+<div class="healthrow"><div class="hicon">C</div><div><b>ComfyUI</b><p>COMFYUI_WORKER_ENABLED=0 · GPU checklist chưa xong</p></div><span class="pill s-warn">Off</span></div>
+</div></div></div>
+<div class="grid2">
+<div class="card"><div class="card-h"><div><h3>Approved output</h3><p>Biểu đồ khi module ship — hiện placeholder.</p></div></div>
+<div class="bars"><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i></div>
+<p class="muted" style="font-size:10px;text-align:center">— · chưa có time-series · GROUP BY date_trunc('day', g3_at)</p></div>
+<div class="card"><div class="card-h"><div><h3>Decision &amp; audit feed</h3><p><code>crm_cp_audit</code> + <code>img_gate_logs</code></p></div></div>
+<div class="feed"><div class="feeditem"><div class="ficon">✓</div><div><b>Deploy Wave B+ Magnific Flows</b><p>commit f9d5ae4e · ptt-crm-api active</p></div><time>staging</time></div>
+<div class="feeditem"><div class="ficon">◇</div><div><b>MAGNIFIC_FLOWS_ENABLED=0</b><p>Chờ sqid + REST key + UAT §18</p></div><time>now</time></div>
+<div class="feeditem"><div class="ficon">$</div><div><b>PTT_SECRET_ENCRYPT_KEY added VPS</b><p>Cho phép lưu Magnific REST qua Integrations</p></div><time>ops</time></div></div></div></div>
+</section>
+
+<!-- IMG-02 TASKS -->
+<section class="page" id="tasks" data-title="Creative Operations">
+<div class="crumb">Ảnh SOP / <b>Vận hành sáng tạo</b></div>
+<div class="head"><div><h1>Creative Operations Board</h1><p class="sub">Kanban theo lifecycle + <b>stage recipe</b> đang chạy.</p><p class="sot">GET /api/crm/cp/image/operations/board · img_job_stages.stage</p></div>
+<div class="actions"><button class="btn btn-primary" type="button" onclick="toast('POST /api/crm/cp/image/projects')">＋ Creative task</button></div></div>
+<div class="kanban">
+<div class="col"><div class="colhead"><b>Brief ready</b><span>—</span></div>
+<div class="task"><h4>Nova Mid-autumn KV</h4><p>Intent <b>hero_lifestyle</b> · recipe Explore→Pack · 4:5+9:16</p><div class="taskfoot"><span class="pill s-purple">SELECT next</span><span class="muted">Pilot</span></div></div></div>
+<div class="col"><div class="colhead"><b>In production</b><span>—</span></div>
+<p class="muted" style="font-size:11px;padding:8px">Chưa có img_projects active.</p></div>
+<div class="col"><div class="colhead"><b>Internal review</b><span>—</span></div></div>
+<div class="col"><div class="colhead"><b>Client review</b><span>—</span></div>
+<p class="muted" style="font-size:11px;padding:8px">Hub: POST /creatives (PRJ-05 map)</p></div></div>
+</section>
+
+<!-- IMG-03 JOBS -->
+<section class="page" id="jobs" data-title="Image Job Orchestrator">
+<div class="crumb">Ảnh SOP / <b>Image Jobs</b></div>
+<div class="head"><div><h1>Image Job Orchestrator</h1><p class="sub">Policy → confirm → <b>Explore → Select → Refine → Upscale → Pack → QC</b>.</p><p class="sot">img_jobs · img_job_stages · crm_cp_render_jobs</p></div>
+<div class="actions"><button class="btn btn-primary" type="button" onclick="openModal()">＋ Tạo Image Job</button></div></div>
+<div class="card"><div class="card-h"><div><h3>Tất cả Image Jobs</h3><p>0 rows — module chưa apply DDL. Cột Stage = <code>img_job_stages</code>.</p></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Job / SOP</th><th>Intent</th><th>Stage</th><th>Capability thật</th><th>Credit</th><th>Trạng thái</th></tr></thead><tbody>
+<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">— · Empty state · <code>SELECT * FROM img_jobs</code></td></tr>
+</tbody></table></div>
+<div class="note">Draft <code>POST /image/jobs/draft</code> → GT-I04 → <code>explore</code> (<code>images_generate</code>) → <code>select</code> (GT-I11) → <code>refine</code> / overlay lockup (GT-I09) → <code>upscale</code> → <code>pack</code> (GT-I10) → QC.</div>
+</div></section>
+
+<!-- IMG-04 ASSETS -->
+<section class="page" id="assets" data-title="Asset Intelligence">
+<div class="crumb">Ảnh SOP / <b>Asset Intelligence</b></div>
+<div class="head"><div><h1>Asset Intelligence Library</h1><p class="sub">SoT: <code>crm_cp_assets</code> — provenance từ img_jobs / provider_runs.</p><p class="sot">GET /api/crm/cp/image/assets · reuse GET /api/crm/cp/assets</p></div></div>
+<div class="assetgrid">
+<div class="card asset"><div class="assetpic"><span class="wm">DRAFT</span></div><div class="ainfo"><b>—</b><p>Chưa có asset image_sop</p><span class="pill s-info">—</span></div></div>
+<div class="card asset"><div class="assetpic b"><span class="wm">—</span></div><div class="ainfo"><b>Thư viện CP hiện có</b><p><code>/crm/creative-os/media</code></p><span class="pill s-ok">DAM live</span></div></div>
+</div>
+<div class="grid2" style="margin-top:12px">
+<div class="card"><div class="card-h"><div><h3>Provenance Graph (mẫu schema)</h3><p>Khi job chạy — snapshot immutable.</p></div></div>
+<div class="tl"><div class="ev"><b>Input asset</b><p>crm_cp_assets.id · checksum SHA-256</p></div>
+<div class="ev"><b>img_sop_versions</b><p>PTT-IMG-KV-45 · prompt_package_id</p></div>
+<div class="ev"><b>crm_cp_provider_runs</b><p>tool_or_workflow = image_sop:{code}@v{n}</p></div>
+<div class="ev"><b>img_quality_results</b><p>scores_json · decision PASS/WARN/FAIL</p></div>
+<div class="ev"><b>Hub approval</b><p>crm_creatives submit — không lưu URL Magnific</p></div></div></div>
+<div class="card"><div class="card-h"><div><h3>Format pack (từ 1 winner)</h3><p>GT-I10 · images_crop / images_resize</p></div></div>
+<div class="pack">
+<div class="ratio"><b>1:1</b>Feed / catalog<br/>—</div>
+<div class="ratio"><b>4:5</b>KV / ads<br/>—</div>
+<div class="ratio"><b>9:16</b>Reels / I2V<br/>—</div>
+<div class="ratio"><b>16:9</b>Landing<br/>—</div>
+</div>
+<p class="sot">img_frames.format_pack_json → crm_cp_assets.id</p></div></div>
+<div class="grid2" style="margin-top:12px">
+<div class="card"><div class="card-h"><div><h3>Rights &amp; retention</h3></div></div>
+<div class="metric"><span>Data class</span><div><span class="pill s-info">INTERNAL</span></div><b>—</b></div>
+<div class="metric"><span>Rights</span><div><span class="pill s-ok">crm_cp_assets.rights</span></div><b>—</b></div>
+<div class="metric"><span>Reuse</span><div><span class="pill s-warn">Policy</span></div><b>—</b></div></div></div>
+</section>
+
+<!-- IMG-05 REVIEW -->
+<section class="page" id="review" data-title="Review & Approval">
+<div class="crumb">Ảnh SOP / <b>Review &amp; Approval</b></div>
+<div class="head"><div><h1>Review &amp; Approval Studio</h1><p class="sub">Human-in-the-loop · annotation · audit evidence.</p><p class="sot">GET/POST /api/crm/cp/image/review/:assetId</p></div>
+<div class="actions"><button class="btn btn-danger" type="button">Yêu cầu revision</button><button class="btn btn-ok" type="button">✓ Duyệt QC nội bộ</button></div></div>
+<div class="review">
+<div class="preview"><span class="pill s-orange" style="position:absolute;top:12px;left:12px">DRAFT · watermark</span><div class="bottle"></div><div class="ann one">1</div><div class="ann two">2</div></div>
+<div class="grid">
+<div class="card"><div class="card-h"><div><h3>Quality evidence · 7 chiều</h3><p>img_quality_results.scores_json · D-09</p></div></div>
+<div class="metric"><span>Technical</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Product fidelity</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Brand fit</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Creative fit</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Text / CTA VN</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Compliance</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Delivery / pack</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="policy" style="margin-top:8px">GT-I09: logo Nova + CTA <b>không</b> lấy từ model — overlay lockup <code>crm_cp_brand_kits</code>.</div></div>
+<div class="card"><div class="card-h"><div><h3>Review thread</h3></div></div>
+<p class="muted">Chưa có comment — tích hợp CP task comment hoặc img_review_threads.</p>
+<textarea class="inp" style="margin-top:8px" placeholder="Thêm comment…"></textarea></div></div></div>
+</section>
+
+<!-- IMG-06 SOPS -->
+<section class="page" id="sops" data-title="SOP Registry">
+<div class="crumb">Ảnh SOP / <b>SOP Registry</b></div>
+<div class="head"><div><h1>Enterprise SOP Registry</h1><p class="sub">SOP-as-Code · img_sop_registry · img_sop_versions.</p><p class="sot">GET /api/crm/cp/image/sops</p></div>
+<div class="actions"><button class="btn btn-primary" type="button" onclick="go('composer')">＋ Tạo SOP</button></div></div>
+<div class="sopgrid">
+<div class="sop"><div class="thumb"></div><div class="body"><h4>Social 9:16 Still</h4><p><code>PTT-IMG-SOCIAL-916</code> · generate → select → upscale → pack 4:5/1:1 · QC social_cta_vn_v1</p><div class="sopmeta"><span class="pill s-warn">STAGING</span><span>intent hero_lifestyle</span></div></div></div>
+<div class="sop"><div class="thumb two"></div><div class="body"><h4>Brand KV 4:5</h4><p><code>PTT-IMG-KV-45</code> · Nova · 6 stage + overlay lockup · QC brand_kv_v1</p><div class="sopmeta"><span class="pill s-info">DRAFT</span><span>v0.1 recipe</span></div></div></div>
+<div class="sop"><div class="thumb three"></div><div class="body"><h4>Packshot Comfy</h4><p><code>PTT-IMG-PACKSHOT-11</code> · product_lock · GPU off → Weave refine fallback</p><div class="sopmeta"><span class="pill s-warn">BLOCKED</span><span>COMFY off</span></div></div></div>
+</div>
+<div class="card" style="margin-top:12px"><div class="card-h"><div><h3>SOP portfolio health</h3></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>SOP</th><th>Lifecycle</th><th>Quality</th><th>Cost/Approved</th><th>Health</th></tr></thead><tbody>
+<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">— · metrics khi có production runs</td></tr>
+</tbody></table></div></div>
+</section>
+
+<!-- IMG-07 COMPOSER -->
+<section class="page" id="composer" data-title="SOP Composer">
+<div class="crumb">Ảnh SOP / <b>SOP Composer</b></div>
+<div class="head"><div><h1>Image SOP Composer</h1><p class="sub">Wizard 6 bước + Creative Genome + recipe 6 stage.</p><p class="sot">POST /api/crm/cp/image/sops · manifest_json.recipe_stages[]</p></div>
+<div class="actions"><button class="btn btn-primary" type="button">Gửi review</button></div></div>
+<div class="stepper"><div class="step done"><i>✓</i> Business</div><div class="step done"><i>✓</i> Input contract</div><div class="step is-on"><i>3</i> Prompt &amp; Brand</div><div class="step"><i>4</i> Provider recipe</div><div class="step"><i>5</i> Quality &amp; SLA</div><div class="step"><i>6</i> Test &amp; publish</div></div>
+<div class="grid2">
+<div class="card"><div class="card-h"><div><h3>Metadata SOP</h3></div></div>
+<div class="fieldgrid">
+<div class="field full"><label>Tên SOP</label><input class="inp" value="Nova Brand KV 4:5"/></div>
+<div class="field"><label>Mã</label><input class="inp" value="PTT-IMG-KV-45"/></div>
+<div class="field"><label>Data class</label><select class="inp"><option>INTERNAL</option><option>CONFIDENTIAL</option><option>RESTRICTED</option></select></div>
+<div class="field full"><label>Business outcome</label><textarea class="inp">KV campaign Mid-autumn · đúng brand Nova · ingest DAM · handoff Hub.</textarea></div>
+</div>
+<div class="policy" style="margin-top:12px">Policy preview: RESTRICTED → chỉ ComfyUI private. INTERNAL + Magnific REST khi <code>crm_cp_provider_connections.magnific_rest</code> on.</div></div>
+<div class="card"><div class="card-h"><div><h3>Prompt Package · 7 lớp</h3><p>crm_cp_prompt_packages · L7 provider-syntax không lộ client</p></div></div>
+<div class="fieldgrid">
+<div class="field full"><label>L3 Brand visual (locked)</label><textarea class="inp">Luxury warm gold · Nova Residence · no unapproved logo</textarea></div>
+<div class="field full"><label>L1+L5 Negative / SOP</label><textarea class="inp">distorted text, wrong logo, competitor colors, model-drawn CTA</textarea></div>
+<div class="field"><label>Output contract</label><select class="inp"><option>Pack 4:5 + 9:16 · PNG</option><option>Pack 1:1 + 4:5</option></select></div>
+<div class="field"><label>Quality profile</label><select class="inp"><option>brand_kv_v1</option><option>product_fidelity_v2</option><option>social_cta_vn_v1</option></select></div>
+</div>
+<h3 style="margin:14px 0 8px;font-size:13px">Creative Genome (khoá G1)</h3>
+<div class="genome">
+<div class="g"><span>composition</span><b>centered architecture · CTA lower-third</b></div>
+<div class="g"><span>light / color</span><b>warm gold · dusk · navy shadow</b></div>
+<div class="g"><span>subject / style</span><b>Nova facade · luxury still · no people</b></div>
+</div>
+<h3 style="margin:14px 0 8px;font-size:13px">Recipe graph</h3>
+<div class="recipe"><div class="node a"><div class="nh">EXPLORE <span>M</span></div><div class="nb">images_generate · 2–4</div></div>
+<div class="node b"><div class="nh">SELECT <span>AD</span></div><div class="nb">winner_asset_id · GT-I11</div></div>
+<div class="node c"><div class="nh">UPSCALE <span>M</span></div><div class="nb">images_upscale</div></div>
+<div class="node d"><div class="nh">PACK + OVERLAY <span>PTT</span></div><div class="nb">crop/resize + lockup GT-I09</div></div></div>
+<p class="sot">GET /api/crm/cp/image/recipes/preview</p></div></div>
+</section>
+
+<!-- IMG-08 BRAND -->
+<section class="page" id="brand" data-title="Brand Knowledge Graph">
+<div class="crumb">Ảnh SOP / <b>Brand Graph</b></div>
+<div class="head"><div><h1>Brand Knowledge Graph v1</h1><p class="sub">Mở rộng <code>crm_cp_brand_kits</code> + <code>img_brand_rules</code>.</p><p class="sot">GET /api/crm/cp/image/brand/:kitId/graph</p></div></div>
+<div class="grid2">
+<div class="card"><div class="card-h"><div><h3>Nova Residence (pilot)</h3><p>Brand Kit từ CP OS · snapshot tại G1</p></div><span class="pill s-ok">Kit CP</span></div>
+<div class="metric"><span>Visual rules</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Ref assets</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Forbidden</span><div><span class="pill s-bad">img_brand_rules</span></div><b>—</b></div></div>
+<div class="card"><div class="card-h"><div><h3>Policy rules</h3></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Rule</th><th>Mode</th><th>Effect</th></tr></thead><tbody>
+<tr><td>Confidential plan</td><td><span class="pill s-bad">BLOCK</span></td><td>ComfyUI only</td></tr>
+<tr><td>External Magnific</td><td><span class="pill s-warn">APPROVAL</span></td><td>Brand Admin</td></tr>
+<tr><td>Client delivery</td><td><span class="pill s-orange">APPROVAL</span></td><td>Hub + G3</td></tr>
+<tr><td>Official lockup / CTA</td><td><span class="pill s-bad">BLOCK</span></td><td>GT-I09 overlay — cấm model vẽ logo</td></tr>
+</tbody></table></div></div></div>
+</section>
+
+<!-- IMG-09 PROVIDERS -->
+<section class="page" id="providers" data-title="Provider Router">
+<div class="crumb">Ảnh SOP / <b>Provider Router</b></div>
+<div class="head"><div><h1>Multi-objective Provider Router</h1><p class="sub">Intent trước · hard policy · scoring sau · <b>không hiện provider chưa kết nối</b> (D-08).</p><p class="sot">GET /api/crm/cp/image/intents · /providers/router/preview</p></div></div>
+<div class="intents">
+<button type="button" class="is-on">hero_lifestyle</button>
+<button type="button">product_lock</button>
+<button type="button">text_cta</button>
+<button type="button">upscale_print</button>
+<button type="button">bg_cutout</button>
+<button type="button">format_pack</button>
+<button type="button">human_art</button>
+<button type="button">i2v_handoff</button>
+</div>
+<div class="grid3">
+<div class="card"><div class="card-h"><div><h3>Weavy Work Order</h3></div><span class="pill s-orange">PTT_WEAVE</span></div>
+<p class="muted">Deep-link · export convention · Sync → crm_cp_assets</p></div>
+<div class="card"><div class="card-h"><div><h3>Magnific REST/MCP</h3></div><span class="pill s-warn">No DB key</span></div>
+<p class="muted">images_generate · OAuth MCP · Flow B+ tách route</p></div>
+<div class="card"><div class="card-h"><div><h3>ComfyUI</h3></div><span class="pill s-warn">Flag 0</span></div>
+<p class="muted">Private GPU · workflow registry · không :8188 public</p></div></div>
+<div class="grid2" style="margin-top:12px">
+<div class="card"><div class="card-h"><div><h3>Intent → capability (staging 2026-09-13)</h3><p>Allowlist Magnific đã ship — không Flux/Ideogram ảo.</p></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Intent</th><th>Capability thật</th><th>Health</th><th>Decision</th></tr></thead><tbody>
+<tr><td>hero_lifestyle</td><td><code>images_generate</code></td><td><span class="pill s-warn">No REST key</span></td><td>Blocked GT-M01</td></tr>
+<tr><td>upscale_print</td><td><code>images_upscale</code></td><td><span class="pill s-warn">No REST key</span></td><td>Blocked</td></tr>
+<tr><td>bg_cutout</td><td><code>images_remove_background</code></td><td><span class="pill s-warn">No REST key</span></td><td>Blocked</td></tr>
+<tr><td>format_pack</td><td><code>images_crop</code> + <code>images_resize</code></td><td><span class="pill s-info">Sharp nội bộ OK</span></td><td>Local fallback</td></tr>
+<tr><td>text_cta</td><td>Overlay lockup Brand Kit</td><td><span class="pill s-ok">GT-I09</span></td><td>Không generate chữ</td></tr>
+<tr><td>product_lock</td><td>Comfy packshot</td><td><span class="pill s-warn">COMFY off</span></td><td>Weave refine</td></tr>
+<tr><td>human_art</td><td>Weave WO</td><td><span class="pill s-orange">PTT_WEAVE hybrid</span></td><td>Manual path</td></tr>
+<tr><td>Flux / Leonardo</td><td>Video SOP adapter slot</td><td><span class="pill s-info">—</span></td><td>Ẩn đến khi connection</td></tr>
+</tbody></table></div></div>
+<div class="card"><div class="policy"><b>Hard constraints:</b><br/>RESTRICTED → Comfy only · Intent text_cta → cấm model-drawn logo · Capability ngoài MAGNIFIC_PILOT → 409 · Flux/Leonardo chỉ hiện khi flag + connection.</div></div></div>
+</section>
+
+<!-- IMG-10 FINOPS -->
+<section class="page" id="finops" data-title="AI FinOps">
+<div class="crumb">Ảnh SOP / <b>AI FinOps</b></div>
+<div class="head"><div><h1>AI FinOps &amp; Margin</h1><p class="sub">crm_cp_credit_ledger · không USD giả — hiển thị credit VND nội bộ.</p><p class="sot">GET /api/crm/cp/image/finops/summary</p></div></div>
+<div class="tiles">
+<div class="tile"><span>Credit charged (image_sop)</span><strong>—</strong><em class="mute">SUM ledger WHERE source image_sop</em></div>
+<div class="tile"><span>Reserved</span><strong>—</strong></div>
+<div class="tile"><span>Cost / approved</span><strong>—</strong></div>
+<div class="tile"><span>Anomalies</span><strong>—</strong></div></div>
+<div class="card"><div class="card-h"><div><h3>Cost by provider</h3></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Provider</th><th>Generated</th><th>Approved</th><th>Credit</th></tr></thead><tbody>
+<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">— · join crm_cp_provider_runs + ledger</td></tr>
+</tbody></table></div>
+<div class="note">Budget guard: 50/80/100% · ledger theo <b>từng stage</b> (<code>source=image_sop:{stage}</code>) · cap <code>crm_img.finance</code>. Không USD giả.</div></div>
+</section>
+
+<!-- IMG-11 GOVERNANCE -->
+<section class="page" id="governance" data-title="Governance & Audit">
+<div class="crumb">Ảnh SOP / <b>Governance</b></div>
+<div class="head"><div><h1>Governance, Policy &amp; Audit</h1><p class="sub">RBAC crm_img.* · audit append-only · policy JSON versioned.</p><p class="sot">GET /api/crm/cp/image/governance/audit</p></div></div>
+<div class="grid2">
+<div class="card"><div class="card-h"><div><h3>Control coverage</h3></div><span class="pill s-ok">Target 100%</span></div>
+<div class="metric"><span>RBAC evaluated</span><div class="progress"><i style="width:100%"></i></div><b>100%</b></div>
+<div class="metric"><span>Cost estimate jobs</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div>
+<div class="metric"><span>Provenance complete</span><div class="progress"><i style="width:0%"></i></div><b>—</b></div></div>
+<div class="card"><div class="card-h"><div><h3>Recent audit</h3></div></div>
+<div class="feed"><div class="feeditem"><div class="ficon">◈</div><div><b>ImageOS spec v2.1 Winning Recipe</b><p>Intent→Recipe · GT-I09…I11 · SPEC-CP-IMAGE-SOP</p></div><time>today</time></div>
+<div class="feeditem"><div class="ficon">!</div><div><b>Magnific REST disconnected</b><p>crm_cp_provider_connections empty</p></div><time>VPS</time></div></div></div></div>
+<div class="card"><div class="card-h"><div><h3>Policy-as-Code (v2.8.1 target)</h3></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Policy</th><th>Condition</th><th>Enforcement</th></tr></thead><tbody>
+<tr><td>External Processing</td><td>data_class = RESTRICTED</td><td>BLOCK external · Comfy only</td></tr>
+<tr><td>Magnific Cost Guard</td><td>estimate &gt; threshold</td><td>Confirm + reserve (GT-I04)</td></tr>
+<tr><td>Hub delivery</td><td>before G3</td><td>BLOCK (GT-I06)</td></tr>
+<tr><td>Logo/CTA overlay</td><td>intent = text_cta hoặc lockup required</td><td>BLOCK model-drawn (GT-I09)</td></tr>
+<tr><td>Format pack</td><td>G3 / Hub</td><td>BLOCK nếu thiếu tỉ lệ (GT-I10)</td></tr>
+<tr><td>Winner select</td><td>trước refine/upscale</td><td>409 (GT-I11)</td></tr>
+</tbody></table></div></div>
+</section>
+
+    </main>
+  </div>
+</div>
+
+<div class="modalbg" id="jobModal"><div class="modal">
+<div class="modalhead"><div><h2>Tạo Image Job (governed)</h2><p>Draft → policy → confirm credit → submit.</p></div><button class="close" type="button" onclick="closeModal()">×</button></div>
+<div class="fieldgrid">
+<div class="field"><label>Khách / Brand</label><select class="inp"><option>Nova Residence (pilot)</option><option>— chọn agency_client —</option></select></div>
+<div class="field"><label>Lifecycle</label><select class="inp"><option>mid-autumn-2026</option></select></div>
+<div class="field"><label>Intent</label><select class="inp"><option>hero_lifestyle</option><option>product_lock</option><option>text_cta</option><option>upscale_print</option><option>human_art</option></select></div>
+<div class="field"><label>Image SOP</label><select class="inp"><option>PTT-IMG-KV-45 Brand KV (6 stage)</option><option>PTT-IMG-SOCIAL-916</option><option>PTT-IMG-MASTER-UPSCALE</option></select></div>
+<div class="field"><label>Provider mode</label><select class="inp"><option>Recommended (intent→recipe)</option><option>Manual</option><option>Weavy WO only</option></select></div>
+<div class="field"><label>Explore variants</label><input class="inp" type="number" value="2" min="1" max="4"/></div>
+<div class="field full"><label>Creative direction + Genome</label><textarea class="inp">Nova Mid-autumn KV · warm gold · architecture · CTA lower-third · no model-drawn logo — overlay lockup official.</textarea></div>
+</div>
+<div class="pipe" style="margin-top:12px">
+  <div class="st is-on"><b>Explore</b><span>images_generate · blocked no key</span></div>
+  <div class="st"><b>Select</b><span>GT-I11</span></div>
+  <div class="st"><b>Refine</b><span>Weave fallback</span></div>
+  <div class="st"><b>Upscale</b><span>images_upscale</span></div>
+  <div class="st"><b>Pack</b><span>4:5 + 9:16 · Sharp OK</span></div>
+  <div class="st"><b>QC</b><span>brand_kv_v1</span></div>
+</div>
+<div class="policy">GET /image/recipes/preview · Magnific REST blocked (0 connection). Pack local vẫn chạy. Overlay lockup bắt buộc (GT-I09).</div>
+<div class="actions" style="justify-content:flex-end;margin-top:14px"><button class="btn" type="button" onclick="closeModal()">Huỷ</button><button class="btn btn-primary" type="button" onclick="closeModal();toast('POST /api/crm/cp/image/jobs/draft + recipes/preview — chờ flag + REST key')">Tạo draft + recipe</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>
+const labels={home:'Tổng quan ImageOS',tasks:'Creative Operations',jobs:'Image Jobs',assets:'Asset Intelligence',review:'Review & Approval',sops:'SOP Registry',composer:'SOP Composer',brand:'Brand Knowledge Graph',providers:'Provider Router',finops:'AI FinOps',governance:'Governance & Audit'};
+function go(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));document.getElementById(id).classList.add('is-on');document.querySelectorAll('#subnav button').forEach(b=>b.classList.toggle('is-on',b.dataset.page===id));window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('#subnav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+function openModal(){document.getElementById('jobModal').classList.add('show')}
+function closeModal(){document.getElementById('jobModal').classList.remove('show')}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window._tmr);window._tmr=setTimeout(()=>t.classList.remove('show'),3200)}
+document.getElementById('jobModal').addEventListener('click',e=>{if(e.target.id==='jobModal')closeModal()});
+document.querySelectorAll('.intents button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.intents button').forEach(x=>x.classList.remove('is-on'));b.classList.add('is-on');toast('GET /image/intents?key='+b.textContent)}));
+</script>
+</body>
+</html>

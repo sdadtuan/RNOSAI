@@ -1,0 +1,135 @@
+'use client';
+
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { staffMe, staffRefresh } from '@/lib/api';
+import {
+  canViewContentOs,
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  updateAccessToken,
+  updateStoredUser,
+  type StoredStaffUser,
+} from '@/lib/auth';
+import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
+import { CmktECommandCenter } from '@/components/content-os/cmkte/CmktECommandCenter';
+import {
+  fetchCommandCenter,
+  fetchPortfolioSlaEvents,
+  type PortfolioCommandCenter,
+  type PortfolioSlaEvent,
+} from '@/lib/crm/cmkte-api';
+import { parseLifecycleQuery } from '@/lib/crm/use-cmkte-page';
+import { writeLastLifecycleId } from '@/lib/crm/cmkte-request-form';
+
+export default function CrmContentOsHubPage() {
+  return (
+    <Suspense fallback={<p className="cmkte-status">Đang tải…</p>}>
+      <CrmContentOsHubContent />
+    </Suspense>
+  );
+}
+
+function CrmContentOsHubContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [center, setCenter] = useState<PortfolioCommandCenter | null>(null);
+  const [slaEvents, setSlaEvents] = useState<PortfolioSlaEvent[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const ensureAuth = useCallback(async (): Promise<string | null> => {
+    let access = getAccessToken();
+    if (!access) {
+      router.replace('/login');
+      return null;
+    }
+    const cached = getStoredUser();
+    if (cached) setUser(cached);
+    try {
+      const me = await staffMe(access);
+      setUser(me);
+      updateStoredUser(me);
+      if (!canViewContentOs(me)) {
+        setError('Không có quyền Content Marketing OS');
+        return null;
+      }
+      return access;
+    } catch {
+      const refresh = getRefreshToken();
+      if (!refresh) {
+        clearSession();
+        router.replace('/login');
+        return null;
+      }
+      try {
+        const out = await staffRefresh(refresh);
+        updateAccessToken(out.access_token);
+        access = out.access_token;
+        const me = await staffMe(access);
+        setUser(me);
+        updateStoredUser(me);
+        if (!canViewContentOs(me)) {
+          setError('Không có quyền Content Marketing OS');
+          return null;
+        }
+        return access;
+      } catch {
+        clearSession();
+        router.replace('/login');
+        return null;
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    void (async () => {
+      let access: string | null = null;
+      try {
+        access = await ensureAuth();
+      } catch {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
+      if (!access || !isContentMarketingFeEnabled()) return;
+      setLoading(true);
+      setError('');
+      try {
+        const [command, sla] = await Promise.all([
+          fetchCommandCenter(access, lifecycleId),
+          fetchPortfolioSlaEvents(access),
+        ]);
+        setCenter(command);
+        setSlaEvents(sla.items);
+        if (lifecycleId) writeLastLifecycleId(lifecycleId);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Không tải được Command Center');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [ensureAuth, lifecycleId, router]);
+
+  if (!user) {
+    return null;
+  }
+
+  if (!isContentMarketingFeEnabled()) {
+    return <p className="cmkte-status">Module tắt</p>;
+  }
+
+  return (
+    <div>
+      {loading ? <p className="cmkte-status">Đang tải…</p> : null}
+      {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
+      {!loading && !error && center ? (
+        <CmktECommandCenter data={center} lifecycleId={lifecycleId} slaEvents={slaEvents} />
+      ) : null}
+    </div>
+  );
+}

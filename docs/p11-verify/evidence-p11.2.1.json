@@ -1,0 +1,133 @@
+{
+  "ticket": "PTT-AI-P11.2.1-EXPORT-DRY-RUN-001",
+  "fixture": {
+    "plan_id": 15,
+    "host": "https://rs.pttads.vn"
+  },
+  "verified_at": "2026-09-24T16:04:42.811Z",
+  "lead_sla_reassign_enabled_before": [
+    "false"
+  ],
+  "lead_sla_reassign_enabled_after": [
+    "false"
+  ],
+  "lead_sla_unchanged": true,
+  "V1": {
+    "http": 201,
+    "ok": true,
+    "dry_run": true,
+    "plan_id": 15,
+    "export_id": null,
+    "filename": null,
+    "download_url": null,
+    "template_key": "strategy_growth_template_v1",
+    "sha256": "3beef61fca7803eb25b1448b4b709ea5bb90bd2f5255de071abb0b3d17a4e434",
+    "structure_ok": true,
+    "table_count": 30,
+    "deploy_ready": false,
+    "missing_for_ops": [
+      "north_star.baseline",
+      "north_star.target",
+      "budget_90d.lines[*].m1",
+      "channel_mix[*].budget_pct",
+      "campaign_table",
+      "calendar_12w[*].focus",
+      "retain_journeys"
+    ],
+    "warnings": [
+      "hub_campaign_map_empty",
+      "north_star_target_missing",
+      "budget_90d_empty"
+    ],
+    "bare_internal": false
+  },
+  "V2": {
+    "before": [
+      {"id": 1, "version": 1, "filename": "Ke-hoach-tang-truong-plan-15-v1.docx"},
+      {"id": 2, "version": 2, "filename": "Ke-hoach-tang-truong-plan-15-v2.docx"},
+      {"id": 3, "version": 3, "filename": "Ke-hoach-tang-truong-plan-15-v3.docx"},
+      {"id": 4, "version": 4, "filename": "Ke-hoach-tang-truong-plan-15-v4.docx"},
+      {"id": 5, "version": 5, "filename": "Ke-hoach-tang-truong-plan-15-v5.docx"},
+      {"id": 7, "version": 7, "filename": "Ke-hoach-tang-truong-plan-15-v7.docx"},
+      {"id": 8, "version": 8, "filename": "Ke-hoach-tang-truong-plan-15-v8.docx"},
+      {"id": 9, "version": 9, "filename": "Ke-hoach-tang-truong-plan-15-v9.docx"}
+    ],
+    "after": [
+      {"id": 1, "version": 1, "filename": "Ke-hoach-tang-truong-plan-15-v1.docx"},
+      {"id": 2, "version": 2, "filename": "Ke-hoach-tang-truong-plan-15-v2.docx"},
+      {"id": 3, "version": 3, "filename": "Ke-hoach-tang-truong-plan-15-v3.docx"},
+      {"id": 4, "version": 4, "filename": "Ke-hoach-tang-truong-plan-15-v4.docx"},
+      {"id": 5, "version": 5, "filename": "Ke-hoach-tang-truong-plan-15-v5.docx"},
+      {"id": 7, "version": 7, "filename": "Ke-hoach-tang-truong-plan-15-v7.docx"},
+      {"id": 8, "version": 8, "filename": "Ke-hoach-tang-truong-plan-15-v8.docx"},
+      {"id": 9, "version": 9, "filename": "Ke-hoach-tang-truong-plan-15-v9.docx"}
+    ],
+    "unchanged": true
+  },
+  "V3": {
+    "http": 403,
+    "error": "human_approval_required",
+    "message": "marketing_plan.export_growth_docx persist cần X-AI-Human-Approved: 1",
+    "bare_internal": false
+  },
+  "V4": {
+    "http": 201,
+    "ok": true,
+    "dry_run": false,
+    "plan_id": 15,
+    "export_id": 10,
+    "filename": "Ke-hoach-tang-truong-plan-15-v10.docx",
+    "download_url": "/api/crm/marketing-plans/15/growth-exports/10/download",
+    "template_key": "strategy_growth_template_v1",
+    "sha256": "3beef61fca7803eb25b1448b4b709ea5bb90bd2f5255de071abb0b3d17a4e434",
+    "structure_ok": true,
+    "table_count": 30,
+    "deploy_ready": false,
+    "missing_for_ops": [
+      "north_star.baseline",
+      "north_star.target",
+      "budget_90d.lines[*].m1",
+      "channel_mix[*].budget_pct",
+      "campaign_table",
+      "calendar_12w[*].focus",
+      "retain_journeys"
+    ],
+    "warnings": [
+      "hub_campaign_map_empty",
+      "north_star_target_missing",
+      "budget_90d_empty"
+    ],
+    "bare_internal": false,
+    "download": {
+      "http": 200,
+      "pk": true,
+      "bytes": 40194,
+      "tables": 30
+    }
+  },
+  "V5": {
+    "dry_run_missing_north_budget": [
+      "north_star.baseline",
+      "north_star.target",
+      "budget_90d.lines[*].m1"
+    ],
+    "persist_missing_north_budget": [
+      "north_star.baseline",
+      "north_star.target",
+      "budget_90d.lines[*].m1"
+    ],
+    "persist_warnings_north_budget": [
+      "north_star_target_missing",
+      "budget_90d_empty"
+    ],
+    "same_missing": true
+  },
+  "pass": {
+    "V1": true,
+    "V2": true,
+    "V3": true,
+    "V4": true,
+    "V5": true
+  },
+  "screenshots": "not_captured: browser session is on https://rs.pttads.vn/login; Try tool and Growth download UI were not opened. Download proof is the same route the UI uses, GET /api/crm/marketing-plans/15/growth-exports/10/download, HTTP 200, PK zip, 30 tables, 40194 bytes."
+}

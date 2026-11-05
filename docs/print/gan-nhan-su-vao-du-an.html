@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Gắn nhân sự vào dự án PTT</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 15mm 16mm 15mm;
+    @top-left {
+      content: "RNOSAI  ·  Gắn nhân sự vào dự án";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8.5pt;
+      color: #6b7c72;
+    }
+    @top-right {
+      content: "PTT Advertising";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8.5pt;
+      color: #6b7c72;
+    }
+    @bottom-left {
+      content: "Nội bộ  ·  Dùng khi setup dự án";
+      font-family: "Segoe UI", sans-serif;
+      font-size: 8pt;
+      color: #8a978f;
+    }
+    @bottom-right {
+      content: counter(page);
+      font-family: "Segoe UI", sans-serif;
+      font-size: 9pt;
+      color: #17692f;
+    }
+  }
+  @page :first {
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: #1c2b24;
+  }
+  h2 { font-size: 16pt; margin: 0 0 8px; color: #12341f; break-after: avoid; }
+  h3 { font-size: 12pt; margin: 12px 0 6px; color: #12341f; break-after: avoid; }
+  p { margin: 0 0 8px; }
+  .kicker {
+    color: #17692f;
+    font-size: 8.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .cover {
+    height: 297mm;
+    background: #0f3d22;
+    color: #fff;
+    padding: 28mm 22mm 22mm;
+    display: flex;
+    flex-direction: column;
+    break-after: page;
+  }
+  .cover .eyebrow {
+    font-size: 10pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #b7e0c4;
+    margin-bottom: 18mm;
+  }
+  .cover h1 {
+    color: #fff;
+    font-size: 32pt;
+    line-height: 1.15;
+    margin: 0 0 8mm;
+    max-width: 150mm;
+  }
+  .cover .lead { font-size: 13pt; line-height: 1.45; color: #d7efe0; max-width: 145mm; margin: 0; }
+  .cover .meta {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 18px;
+    border-top: 1px solid rgba(255,255,255,0.22);
+    padding-top: 8mm;
+    font-size: 10pt;
+  }
+  .cover .meta span { display: block; color: #9dccb0; font-size: 8pt; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 2px; }
+  .chapter { break-before: page; }
+  .chapter.first { break-before: auto; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+  .card {
+    border: 1px solid #d7e3db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    break-inside: avoid;
+  }
+  .card.green { background: #f3faf5; border-color: #c5e2cf; }
+  .card h3 { margin: 0 0 4px; font-size: 11pt; }
+  .card p { margin: 0; }
+  .note {
+    background: #f7faf8;
+    border-left: 3px solid #17692f;
+    padding: 8px 10px;
+    margin: 8px 0 10px;
+    break-inside: avoid;
+  }
+  .warn {
+    background: #fff8f2;
+    border-left: 3px solid #c56a12;
+    padding: 8px 10px;
+    margin: 8px 0 10px;
+    break-inside: avoid;
+  }
+  ol.steps { list-style: none; padding: 0; margin: 8px 0 12px; }
+  ol.steps > li {
+    position: relative;
+    margin: 0 0 0 8px;
+    padding: 7px 8px 7px 36px;
+    border-left: 2px solid #d5e6db;
+    break-inside: avoid;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    counter-increment: step;
+    position: absolute;
+    left: -11px;
+    top: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #17692f;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+    line-height: 20px;
+  }
+  ol.steps { counter-reset: step; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.5pt; break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #e3ebe6; }
+  th { background: #17692f; color: #fff; font-weight: 600; }
+  tr:nth-child(even) td { background: #f7faf8; }
+  code {
+    font-family: Consolas, monospace;
+    font-size: 9pt;
+    background: #f3f6f4;
+    padding: 0 3px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="eyebrow">PTT Advertising Solutions</div>
+  <h1>Gắn nhân sự vào dự án</h1>
+  <p class="lead">Cách tạo dự án PTT rồi chỉ định người được tham gia và người được chia lead của dự án đó. Dành cho người setup dự án trên https://rs.pttads.vn.</p>
+  <div class="meta">
+    <div><span>Menu</span><strong>Bán hàng → Dự án PTT</strong></div>
+    <div><span>Trang danh sách</span><strong>/crm/delivery-projects</strong></div>
+    <div><span>Tạo mới</span><strong>/crm/delivery-projects/new</strong></div>
+    <div><span>Pool nhân sự</span><strong>Chi tiết dự án → Tổng quan</strong></div>
+  </div>
+</section>
+
+<section class="chapter first">
+  <p class="kicker">Đọc trước</p>
+  <h2>Một dự án có hai lớp người</h2>
+  <p>Đừng gộp hai việc này làm một. Điền PM lúc tạo dự án không làm người đó nhận lead.</p>
+  <div class="cards">
+    <div class="card">
+      <h3>Người phụ trách dự án</h3>
+      <p>Điền ở bước 1 khi tạo dự án: <strong>PM</strong> và <strong>AM</strong>, bằng mã nhân viên. Đây là người đứng tên dự án.</p>
+    </div>
+    <div class="card green">
+      <h3>Người tham gia nhận lead</h3>
+      <p>Gắn sau, trong chi tiết dự án, mục <strong>Nhân viên nhận lead</strong>. Chỉ những người trong danh sách này mới được chia lead của dự án.</p>
+    </div>
+  </div>
+  <div class="note">Mục Nhân viên nhận lead chỉ hiện khi dự án có năng lực nhận lead. Tài khoản gắn người cần quyền <code>crm_b2b_projects</code> mức manage, hoặc <code>crm_delivery_projects</code> mức edit.</div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">Chu trình</p>
+  <h2>Từ dự án tới nhân sự</h2>
+  <ol class="steps">
+    <li>Đăng nhập https://rs.pttads.vn. Mở <strong>Bán hàng → Dự án PTT</strong>. Trang tự chuyển sang danh sách dự án.</li>
+    <li>Bấm <strong>+ Tạo dự án</strong>. Đi hết wizard: thông tin cơ bản, phạm vi, mốc bàn giao, ngân sách, KPI.</li>
+    <li>Ở bước thông tin cơ bản, nếu bật giao hàng thì điền mã <strong>PM</strong>. Có thể điền thêm mã <strong>AM</strong>. Lưu dự án.</li>
+    <li>Mở dự án vừa tạo. Ở tab <strong>Tổng quan</strong>, tìm khối <strong>Nhân viên nhận lead</strong>.</li>
+    <li>Chọn nhân viên, vai trò, vị trí, rồi bấm <strong>Thêm vào dự án</strong>. Làm lần lượt từng người.</li>
+    <li>Giữ ô <strong>Nhận lead của dự án</strong> nếu người đó được chia lead. Bỏ ô nếu người đó chỉ thuộc dự án, không nhận lead tự động.</li>
+    <li>Bấm <strong>Lưu pool</strong>. Dòng xác nhận là «Đã lưu nhân viên nhận lead của dự án.»</li>
+  </ol>
+  <h3>Ba ô khi thêm một người</h3>
+  <table>
+    <thead><tr><th>Ô</th><th>Chọn gì</th><th>Ý nghĩa</th></tr></thead>
+    <tbody>
+      <tr><td>Nhân viên</td><td>Tên trong danh sách</td><td>Người được đưa vào dự án</td></tr>
+      <tr><td>Vai trò</td><td>Kinh doanh hoặc Quản lý dự án</td><td>Vai của người đó trên dự án này</td></tr>
+      <tr><td>Vị trí</td><td>S, A, B hoặc C</td><td>Mức gắn với dự án, không phải chức danh công ty</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter">
+  <p class="kicker">Điều kiện</p>
+  <h2>Khi nào thêm được người</h2>
+  <p>Danh sách chọn chỉ gồm nhân viên đủ điều kiện. Hệ thống từ chối nếu thiếu một trong các điều kiện dưới đây.</p>
+  <table>
+    <thead><tr><th>Điều kiện</th><th>Sửa ở đâu</th></tr></thead>
+    <tbody>
+      <tr><td>Tài khoản đang hoạt động</td><td>Nhân sự → Nhân viên. Tài khoản ngưng thì bật lại rồi mới thêm.</td></tr>
+      <tr><td>Đã bật «Cho phép nhận lead»</td><td>Cùng hồ sơ nhân viên. Chưa bật thì không vào được pool.</td></tr>
+      <tr><td>Chưa bấm Tạm dừng trên sổ đội</td><td>Bán hàng → Đội AE. Tạm dừng không rút người khỏi dự án, nhưng chặn lead mới.</td></tr>
+    </tbody>
+  </table>
+  <div class="warn">Gỡ một người bằng nút <strong>Gỡ</strong> trên dòng của họ, rồi bấm <strong>Lưu pool</strong>. Chưa lưu thì danh sách trên màn hình chưa thành danh sách thật.</div>
+</section>
+
+<section class="chapter">
+  <p class="kicker">Sau khi lưu</p>
+  <h2>Lead của dự án chạy tới ai</h2>
+  <p>Lead gắn với dự án này chỉ được chia tự động cho người thỏa đủ bốn việc cùng lúc:</p>
+  <ol class="steps">
+    <li>Có tên trong pool của dự án.</li>
+    <li>Ô Nhận lead của dự án đang bật.</li>
+    <li>Hồ sơ nhân viên đang bật Cho phép nhận lead và tài khoản đang hoạt động.</li>
+    <li>Chưa Tạm dừng trên sổ đội.</li>
+  </ol>
+  <p>Hết người thỏa điều kiện thì lead vào hàng <strong>Phải tra soát</strong>, người phụ trách để trống.</p>
+  <p>Nhân viên không có quyền xem mọi dự án chỉ thấy những dự án mình có tên trong pool. Vì vậy một người báo «không thấy dự án» thường là chưa được thêm, hoặc đã thêm nhưng chưa bấm Lưu pool.</p>
+  <div class="note">Dự án bất động sản (<strong>Bán hàng → Dự án BĐS</strong>) và dự án nghiên cứu (<strong>Kế hoạch → Nghiên cứu thị trường</strong>) là hai chỗ khác. Hướng dẫn này chỉ dùng cho dự án PTT nhận lead.</div>
+</section>
+
+</body>
+</html>

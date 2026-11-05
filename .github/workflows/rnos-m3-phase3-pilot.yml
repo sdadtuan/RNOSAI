@@ -1,0 +1,31 @@
+name: RNOS-M3 Phase 3 pilot
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'deploy/m3-pilot-cohort.example.json'
+      - 'docs/runbooks/m3-phase3-pilot-enterprise-checklist.md'
+      - 'docs/templates/m3-pilot-uat-v1-checklist.md'
+      - 'scripts/rnos_m3_phase3_gate.sh'
+      - 'scripts/m3_pilot_*.sh'
+      - 'services/portal-web/e2e/m3-pilot-uat-probes.spec.ts'
+
+jobs:
+  phase3-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright chromium
+        run: cd services/portal-web && npm ci && npx playwright install chromium
+      - name: Phase 3 gate
+        run: |
+          chmod +x scripts/*.sh
+          SKIP_IOS_BUILD=1 SKIP_ANDROID_BUILD=1 RUN_DEEPLINK_SMOKE=0 bash scripts/rnos_m3_phase3_gate.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rnos-m3-phase3-gate-report
+          path: .local-dev/rnos-m3-phase3-gate-report.json

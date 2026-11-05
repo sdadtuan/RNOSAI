@@ -1,0 +1,211 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { WinDrawer } from '@/components/win';
+import { WinRbacBadge } from '@/components/win/WinRbacBadge';
+import {
+  buildOrgOnboardDeepLink,
+  buildOrgUsersDeepLink,
+  canLinkToOrgAdmin,
+  canOnboardFromRoster,
+} from '@/lib/admin/staff-bridge';
+import { patchCrmStaff, type CrmStaffRow, type StaffOrgUserSummary } from '@/lib/api';
+import type { StoredStaffUser } from '@/lib/auth';
+
+type Props = {
+  open: boolean;
+  staff: CrmStaffRow | null;
+  orgUser?: StaffOrgUserSummary | null;
+  managerOptions: CrmStaffRow[];
+  token: string;
+  canEdit: boolean;
+  viewer: StoredStaffUser | null;
+  onClose: () => void;
+  onSaved: (row: CrmStaffRow) => void;
+};
+
+export function StaffEditDrawer({
+  open,
+  staff,
+  orgUser,
+  managerOptions,
+  token,
+  canEdit,
+  viewer,
+  onClose,
+  onSaved,
+}: Props) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [canReceiveLeads, setCanReceiveLeads] = useState(false);
+  const [reportsToId, setReportsToId] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const canLink = canLinkToOrgAdmin(viewer);
+  const canOnboard = canOnboardFromRoster(viewer);
+
+  useEffect(() => {
+    if (!staff) return;
+    setName(staff.name ?? '');
+    setPhone(staff.phone ?? '');
+    setEmail(staff.email ?? '');
+    setJobTitle(staff.position_catalog_name?.trim() || staff.job_title || '');
+    setCanReceiveLeads(Boolean(staff.can_receive_leads));
+    setReportsToId(staff.reports_to_id != null ? String(staff.reports_to_id) : '');
+    setError('');
+  }, [staff]);
+
+  async function save() {
+    if (!staff || !canEdit) return;
+    setBusy(true);
+    setError('');
+    try {
+      const updated = await patchCrmStaff(token, staff.id, {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        job_title: staff.position_catalog_name?.trim() || jobTitle.trim(),
+        can_receive_leads: canReceiveLeads,
+        reports_to_id: reportsToId ? Number(reportsToId) : null,
+      });
+      onSaved(updated);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!staff) return null;
+
+  const emailTrimmed = email.trim();
+
+  return (
+    <WinDrawer
+      open={open}
+      title={`Sửa hồ sơ — ${staff.name}`}
+      onClose={onClose}
+      footer={
+        canEdit ? (
+          <>
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
+              Hủy
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy}>
+              Lưu
+            </button>
+          </>
+        ) : null
+      }
+    >
+      {error ? <p className="form-error">{error}</p> : null}
+      <div className="staff-edit-drawer__meta">
+        <div>
+          <span className="muted">Mã nội bộ:</span> {staff.internal_code || '—'}
+        </div>
+        <div>
+          <span className="muted">Phòng ban:</span> {staff.department || '—'}
+        </div>
+        <div>
+          <span className="muted">Trạng thái:</span> {staff.active ? 'Active' : 'Inactive'}
+        </div>
+        {orgUser ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem' }}>
+            <span className="muted">RBAC:</span>
+            <WinRbacBadge positionCode={orgUser.position_code} jobFunctions={orgUser.job_functions} />
+            {canLink && emailTrimmed ? (
+              <Link
+                href={buildOrgUsersDeepLink(emailTrimmed)}
+                className="nav-link"
+                style={{ fontSize: '0.85rem' }}
+              >
+                Cấu hình tài khoản & quyền
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <div className="stack-gap" style={{ gap: '0.35rem' }}>
+            <p className="muted" style={{ margin: 0 }}>
+              Chưa có tài khoản login.
+            </p>
+            {canOnboard && emailTrimmed ? (
+              <Link
+                href={buildOrgOnboardDeepLink({
+                  email: emailTrimmed,
+                  crmStaffId: staff.id,
+                  name: name.trim() || staff.name,
+                  phone: phone.trim() || staff.phone,
+                  jobTitle: jobTitle.trim() || staff.job_title,
+                  internalCode: staff.internal_code,
+                })}
+                className="btn btn-sm btn-secondary"
+              >
+                Onboard NV
+              </Link>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <label>
+        Họ tên
+        <input value={name} onChange={(e) => setName(e.target.value)} readOnly={!canEdit} />
+      </label>
+      <label>
+        SĐT
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} readOnly={!canEdit} />
+      </label>
+      <label>
+        Email
+        <input value={email} onChange={(e) => setEmail(e.target.value)} readOnly={!canEdit} />
+      </label>
+      <label>
+        Chức danh
+        <input
+          value={staff.position_catalog_name?.trim() || jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          readOnly={Boolean(staff.position_catalog_name?.trim()) || !canEdit}
+        />
+      </label>
+      {staff.position_catalog_name?.trim() ? (
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Theo chức vụ {staff.position_catalog_code}. Đổi ở Cấu hình tài khoản & quyền.
+        </p>
+      ) : null}
+      <label>
+        Quản lý trực tiếp
+        <select
+          value={reportsToId}
+          disabled={!canEdit}
+          onChange={(e) => setReportsToId(e.target.value)}
+        >
+          <option value="">— Không gán —</option>
+          {managerOptions
+            .filter((row) => row.id !== staff.id && Boolean(row.active))
+            .map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+                {row.position_catalog_code ? ` (${row.position_catalog_code})` : ''}
+              </option>
+            ))}
+        </select>
+      </label>
+      <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+        Dùng làm người nhận Đến mặc định trên báo cáo ngày.
+      </p>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <input
+          type="checkbox"
+          checked={canReceiveLeads}
+          disabled={!canEdit}
+          onChange={(e) => setCanReceiveLeads(e.target.checked)}
+        />
+        Cho phép nhận lead (hiện trong pool dự án PTT)
+      </label>
+    </WinDrawer>
+  );
+}

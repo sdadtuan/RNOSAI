@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Account Management — KPI Hub mockup</title>
+  <style>
+    :root {
+      --ptt: #17692f;
+      --ptt-deep: #145a28;
+      --paper: #fffdf8;
+      --cream: #f3efe6;
+      --ink: #111827;
+      --mute: #6b7280;
+      --line: #e5e7eb;
+      --line-warm: #e7e0d4;
+      --ok: #059669;
+      --warn: #ea580c;
+      --hot: #b91c1c;
+      --amber: #d97706;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line-warm);
+    }
+    .topbar-brand { font-weight: 700; color: var(--ptt); }
+    .topbar-sep { color: #d1d5db; }
+    .topbar-sub { font-size: 13px; color: var(--mute); }
+    .env {
+      font-size: 11px; font-weight: 800; letter-spacing: .06em;
+      padding: 3px 8px; border-radius: 999px;
+      background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
+    }
+    .topbar-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .search {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 34px; padding: 0 10px 0 12px; border: 1px solid var(--line);
+      border-radius: 8px; background: #f9fafb; color: var(--mute); font-size: 13px;
+      min-width: 180px;
+    }
+    .kbd { font-size: 11px; border: 1px solid #e5e7eb; border-radius: 5px; padding: 1px 6px; background: #fff; }
+    .icon-btn {
+      width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px;
+      background: #fff; display: grid; place-items: center; cursor: pointer;
+    }
+    .avatar {
+      width: 34px; height: 34px; border-radius: 999px; background: var(--ptt);
+      color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    }
+
+    .shell { display: flex; flex: 1; min-height: 0; }
+    .sidebar {
+      flex: 0 0 220px; width: 220px; background: #fff;
+      border-right: 1px solid var(--line-warm); display: flex; flex-direction: column;
+    }
+    .nav { padding: 12px 8px; flex: 1; }
+    .link {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px; border-radius: 8px; color: #374151; font-size: 15px;
+    }
+    .link.is-active { background: #ecfdf5; color: var(--ok); font-weight: 600; }
+    .dot-on { width: 8px; height: 8px; border-radius: 99px; background: var(--ok); }
+
+    .main { flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; }
+    .header { padding: 18px 16px 4px; }
+    .head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+    .title { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+    .sub { margin: 4px 0 0; color: var(--mute); }
+    .btn {
+      height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line);
+      background: #fff; display: inline-flex; align-items: center; cursor: pointer; font-weight: 600; font-size: 14px;
+    }
+    .btn-ptt { background: var(--ptt); color: #fff; border-color: var(--ptt); }
+    .btn-ghost:hover { background: #f9fafb; }
+    .content { padding: 12px 16px 16px; display: grid; gap: 14px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .field {
+      height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+    }
+
+    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .tile { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .tile span { display: block; font-size: 13px; color: var(--mute); }
+    .tile strong { display: block; margin-top: 6px; font-size: 26px; color: var(--ptt); letter-spacing: -.02em; }
+    .tile--warn strong { color: var(--warn); }
+    .tile--hot strong { color: var(--hot); }
+
+    .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+    .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+    .panel-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+    .panel h3 { margin: 0; font-size: 13px; letter-spacing: .06em; color: #4b5563; }
+    .hint { font-size: 12px; color: var(--mute); }
+
+    .chart-wrap { position: relative; }
+    .bubble-chart { width: 100%; height: 230px; display: block; }
+    .axis-x, .axis-y { font-size: 11px; fill: #9ca3af; }
+    .swatches { display: flex; gap: 12px; font-size: 12px; color: #4b5563; margin-top: 8px; }
+    .swatch { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch i { width: 9px; height: 9px; border-radius: 99px; display: block; }
+
+    .actions-list { display: grid; gap: 10px; }
+    .action {
+      display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid #f3f4f6;
+    }
+    .action:last-child { border-bottom: 0; }
+    .action b { font-size: 14px; }
+    .muted { color: var(--mute); font-size: 13px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; color: var(--mute); font-size: 11px; letter-spacing: .04em; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+    td { padding: 11px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    tr:hover td { background: #f9fafb; }
+    .health { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+    .orb { width: 9px; height: 9px; border-radius: 99px; display: inline-block; }
+    .orb-ok { background: #16a34a; }
+    .orb-warn { background: #d97706; }
+    .orb-hot { background: #dc2626; }
+
+    .metrics { display: grid; gap: 10px; }
+    .metric { display: grid; grid-template-columns: 92px 1fr 64px; gap: 8px; align-items: center; font-size: 13px; }
+    .track { height: 8px; background: #f3f4f6; border-radius: 99px; overflow: hidden; }
+    .bar { height: 100%; background: var(--ptt); border-radius: 99px; }
+    .bar.sky { background: #0284c7; }
+    .bar.gold { background: #ca8a04; }
+    .nrr {
+      margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+      background: #ecfdf5; color: #047857; font-weight: 700;
+    }
+
+    .alerts { display: grid; gap: 10px; }
+    .alert {
+      padding: 10px 12px; border-radius: 10px; border: 1px solid #fed7aa; background: #fff7ed;
+    }
+    .alert--hot { border-color: #fecaca; background: #fef2f2; }
+    .alert b { display: block; margin-bottom: 2px; }
+
+    .fresh {
+      margin-top: auto; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+      padding: 10px 16px; border-top: 1px solid var(--line-warm); font-size: 13px; background: var(--paper);
+    }
+    .pill { padding: 3px 9px; border-radius: 999px; border: 1px solid #a7f3d0; background: #ecfdf5; color: #047857; font-size: 12px; }
+
+    @media (max-width: 1100px) {
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <span class="topbar-brand">KPI Hub Enterprise</span>
+      <span class="topbar-sep">|</span>
+      <span class="topbar-sub">PTT Digital / Agency Operations</span>
+      <span class="env">PRODUCTION</span>
+      <div class="topbar-tools">
+        <div class="search">🔍 Tìm… <span class="kbd">⌘K</span></div>
+        <button class="icon-btn" type="button" aria-label="Thông báo">🔔</button>
+        <div class="avatar" title="PTT">PTT</div>
+      </div>
+    </header>
+
+    <div class="shell">
+      <aside class="sidebar">
+        <nav class="nav">
+          <a class="link" href="#">Dashboard</a>
+          <a class="link" href="#">Marketing</a>
+          <a class="link" href="#">Sales</a>
+          <a class="link" href="#">Project</a>
+          <a class="link is-active" href="#">Account <i class="dot-on" aria-hidden="true"></i></a>
+          <a class="link" href="#">Governance</a>
+          <a class="link" href="#">Reports</a>
+          <a class="link" href="#">Settings</a>
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="header">
+          <div class="head">
+            <div>
+              <h1 class="title">Account Management</h1>
+              <p class="sub">Quản lý quan hệ khách hàng, dự án, gia hạn và hiệu quả hợp đồng</p>
+            </div>
+            <button class="btn btn-ptt" type="button">+ Khách hàng</button>
+          </div>
+        </header>
+
+        <div class="content">
+          <div class="filters">
+            <select class="field" aria-label="Kỳ">
+              <option>Q3/2026</option>
+              <option>Q2/2026</option>
+              <option>Q1/2026</option>
+            </select>
+            <select class="field" aria-label="Account Manager">
+              <option>Account Manager</option>
+              <option>PTT Tuan</option>
+              <option>Minh Anh</option>
+              <option>Quốc Huy</option>
+            </select>
+            <select class="field" aria-label="Health">
+              <option>Health</option>
+              <option>Green</option>
+              <option>Amber</option>
+              <option>Red</option>
+            </select>
+            <select class="field" aria-label="Ngành hàng">
+              <option>Ngành hàng</option>
+              <option>Bất động sản</option>
+              <option>Y tế</option>
+              <option>Giáo dục</option>
+            </select>
+            <button class="btn btn-ghost" type="button">Lọc nâng cao</button>
+          </div>
+
+          <div class="tiles">
+            <article class="tile"><span>Khách hoạt động</span><strong>42</strong></article>
+            <article class="tile"><span>Doanh thu HĐ</span><strong>6,84 tỷ</strong></article>
+            <article class="tile tile--warn"><span>Sắp gia hạn</span><strong>8</strong></article>
+            <article class="tile tile--hot"><span>Churn Risk</span><strong>3</strong></article>
+          </div>
+
+          <div class="split">
+            <section class="panel">
+              <div class="panel-h">
+                <h3>SỨC KHỎE KHÁCH HÀNG</h3>
+                <span class="hint">Giá trị hợp đồng × Tương tác</span>
+              </div>
+              <div class="chart-wrap">
+                <svg class="bubble-chart" viewBox="0 0 520 230" role="img" aria-label="Bubble chart sức khỏe khách">
+                  <line x1="48" y1="200" x2="500" y2="200" stroke="#e5e7eb" />
+                  <line x1="48" y1="18" x2="48" y2="200" stroke="#e5e7eb" />
+                  <text class="axis-x" x="274" y="222">Tương tác</text>
+                  <text class="axis-y" x="12" y="118" transform="rotate(-90 12 118)">Giá trị HĐ</text>
+                  <text class="axis-x" x="48" y="216">Thấp</text>
+                  <text class="axis-x" x="470" y="216">Cao</text>
+                  <circle cx="390" cy="52" r="28" fill="#16a34a" fill-opacity=".78"><title>An Gia Land · 1,2 tỷ · Health 92</title></circle>
+                  <circle cx="330" cy="98" r="20" fill="#22c55e" fill-opacity=".72"><title>Casa Home · 860tr · Health 88</title></circle>
+                  <circle cx="250" cy="128" r="16" fill="#16a34a" fill-opacity=".7"><title>PTT Retail · 640tr · Health 81</title></circle>
+                  <circle cx="210" cy="118" r="18" fill="#d97706" fill-opacity=".8"><title>LAVIA Clinic · 420tr · Health 72</title></circle>
+                  <circle cx="150" cy="148" r="14" fill="#dc2626" fill-opacity=".8"><title>EduNext Academy · 280tr · Health 61</title></circle>
+                  <circle cx="300" cy="158" r="12" fill="#22c55e" fill-opacity=".7"><title>Green Farm · 190tr · Health 86</title></circle>
+                  <circle cx="180" cy="78" r="15" fill="#d97706" fill-opacity=".75"><title>Nova Media · 510tr · Health 69</title></circle>
+                  <circle cx="420" cy="140" r="11" fill="#16a34a" fill-opacity=".7"><title>Smile Dental · 150tr · Health 90</title></circle>
+                  <text x="390" y="56" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">An Gia</text>
+                  <text x="210" y="122" text-anchor="middle" font-size="9" fill="#fff" font-weight="700">LAVIA</text>
+                  <text x="150" y="152" text-anchor="middle" font-size="8" fill="#fff" font-weight="700">Edu</text>
+                </svg>
+                <div class="swatches">
+                  <span class="swatch"><i style="background:#16a34a"></i>Green</span>
+                  <span class="swatch"><i style="background:#d97706"></i>Amber</span>
+                  <span class="swatch"><i style="background:#dc2626"></i>Red</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-h">
+                <h3>GIA HẠN &amp; HÀNH ĐỘNG ƯU TIÊN</h3>
+              </div>
+              <div class="actions-list">
+                <div class="action">
+                  <b>EduNext</b>
+                  <span class="muted">Health 61 · gia hạn 29/09</span>
+                </div>
+                <div class="action">
+                  <b>LAVIA</b>
+                  <span class="muted">Health 72 · gia hạn 18/10</span>
+                </div>
+                <div class="action">
+                  <b>An Gia</b>
+                  <span class="muted">QBR ngày 12/09</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-h">
+              <h3>DANH MỤC KHÁCH HÀNG</h3>
+              <span class="hint">42 khách · Q3/2026</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>CLIENT</th>
+                  <th>ACCOUNT OWNER</th>
+                  <th>PROJECTS</th>
+                  <th>CONTRACT</th>
+                  <th>MARGIN</th>
+                  <th>RENEWAL</th>
+                  <th>HEALTH</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>An Gia Land</b></td>
+                  <td>PTT Tuan</td>
+                  <td>03</td>
+                  <td>1,2 tỷ</td>
+                  <td>34%</td>
+                  <td>15/12</td>
+                  <td><span class="health">92 <i class="orb orb-ok"></i></span></td>
+                </tr>
+                <tr>
+                  <td><b>LAVIA Clinic</b></td>
+                  <td>Minh Anh</td>
+                  <td>02</td>
+                  <td>420tr</td>
+                  <td>28%</td>
+                  <td>18/10</td>
+                  <td><span class="health">72 <i class="orb orb-warn"></i></span></td>
+                </tr>
+                <tr>
+                  <td><b>EduNext Academy</b></td>
+                  <td>Quốc Huy</td>
+                  <td>01</td>
+                  <td>280tr</td>
+                  <td>24%</td>
+                  <td>29/09</td>
+                  <td><span class="health">61 <i class="orb orb-hot"></i></span></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <div class="split">
+            <section class="panel">
+              <div class="panel-h">
+                <h3>REVENUE &amp; CLIENT VALUE</h3>
+                <span class="hint">Contract / Revenue / Forecast</span>
+              </div>
+              <div class="metrics">
+                <div class="metric"><span>Contract</span><div class="track"><div class="bar" style="width:92%"></div></div><b>6,84 tỷ</b></div>
+                <div class="metric"><span>Revenue</span><div class="track"><div class="bar sky" style="width:74%"></div></div><b>5,10 tỷ</b></div>
+                <div class="metric"><span>Forecast</span><div class="track"><div class="bar gold" style="width:81%"></div></div><b>5,62 tỷ</b></div>
+              </div>
+              <div class="nrr">NRR: 108%</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-h">
+                <h3>CẢNH BÁO ACCOUNT</h3>
+              </div>
+              <div class="alerts">
+                <div class="alert alert--hot">
+                  <b>Health Score giảm 12 điểm</b>
+                  <span class="muted">EduNext Academy · Quốc Huy</span>
+                </div>
+                <div class="alert">
+                  <b>Margin dưới 30%</b>
+                  <span class="muted">LAVIA Clinic 28% · EduNext 24%</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <footer class="fresh">
+          Dữ liệu cập nhật: Hôm nay, 08:45
+          <span class="pill">CRM Fresh</span>
+          <span class="pill">CSD Fresh</span>
+        </footer>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

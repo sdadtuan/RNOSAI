@@ -1,0 +1,246 @@
+export interface LeadV1 {
+  id: number;
+  full_name: string;
+  phone: string;
+  email: string;
+  status: string;
+  source: string;
+  channel: string;
+  client_id: string | null;
+  campaign_id: string | null;
+  external_lead_id: string | null;
+  owner_id: number | null;
+  /** Display name of assigned AM (from crm_staff). */
+  owner_name?: string | null;
+  created_at: string;
+  received_at: string;
+  /** Last row touch (status, care, call, notes). Used for Kanban recency. */
+  updated_at?: string | null;
+  last_call_at?: string | null;
+  is_duplicate: boolean;
+  /** B2B Project OS */
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
+  assign_strategy?: string | null;
+  assign_confidence?: number | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  /** B2B list enrichments (W1) */
+  project_code?: string | null;
+  ai_band?: 'hot' | 'warm' | 'cold' | null;
+  sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
+  /** Working minutes past the first-contact limit. Null when the clock is not late. */
+  sla_late_minutes?: number | null;
+  /** Working minutes the card has stood in its current column. */
+  column_minutes?: number | null;
+  stale?: boolean;
+  quote_stale?: boolean;
+  callback_today?: boolean;
+  next_call_at?: string | null;
+  callback_at?: string | null;
+  last_call_result?: string | null;
+  hold_until?: string | null;
+  b2_complete?: boolean;
+  b2_assigned_at?: string | null;
+  /** Latest active presales handoff: pending, with_solution, released, or empty. */
+  solution_handoff?: string | null;
+  /** crm_proposals row exists for this lead. */
+  has_quote?: boolean;
+  /** crm_contracts row exists for this lead. */
+  has_contract?: boolean;
+  in_call?: boolean;
+  /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
+  expected_value?: number | null;
+  margin_pct?: number | null;
+  company_name?: string;
+  company_address?: string;
+  logo_asset_id?: string | null;
+  review_queue?: {
+    active: boolean;
+    message?: string;
+    hours_waiting?: number | null;
+  };
+}
+
+export interface LeadsListResponseV1 {
+  leads: LeadV1[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface LeadRow {
+  id: number;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
+  source: string | null;
+  owner_id: number | null;
+  created_at: string | null;
+  is_duplicate: number | null;
+  meta_json: string | null;
+}
+
+export interface PgLeadRow {
+  sqlite_lead_id: number | string;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
+  source: string | null;
+  owner_id: number | null;
+  /** Joined from crm_staff.name when available. */
+  owner_name?: string | null;
+  is_duplicate: boolean | null;
+  agency_client_id: string | null;
+  channel: string | null;
+  external_lead_id: string | null;
+  campaign_id: string | null;
+  received_at: Date | string | null;
+  created_at: Date | string | null;
+  meta_json?: string | Record<string, unknown> | null;
+  first_assigned_at?: Date | string | null;
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
+  assign_strategy?: string | null;
+  assign_confidence?: number | null;
+  company_name?: string | null;
+  company_address?: string | null;
+  logo_asset_id?: string | null;
+  /** B2B list enrichment (from PG joins) */
+  project_code?: string | null;
+  lead_score?: number | null;
+  b2b_call_state?: string | null;
+  b2b_has_call?: boolean | null;
+  b2b_call_answered?: boolean | null;
+  b2b_assigned_at?: Date | string | null;
+  b2b_hop_count?: number | null;
+  last_call_at?: Date | string | null;
+  last_call_result?: string | null;
+  next_call_at?: Date | string | null;
+  callback_at?: Date | string | null;
+  hold_until?: Date | string | null;
+  b2_complete?: boolean | null;
+  b2_assigned_at?: Date | string | null;
+  solution_handoff?: string | null;
+  has_quote?: boolean | null;
+  has_contract?: boolean | null;
+  updated_at?: Date | string | null;
+}
+
+export type ReviewQueueListFilter = 'only' | 'hide';
+
+export interface ListLeadsQuery {
+  client_id?: string;
+  status?: string;
+  /** Match any stored status (caller includes aliases such as new/moi). */
+  statuses?: string[];
+  /** Match the latest logged call result (Không nghe máy, Máy bận, Hẹn gọi lại, …). */
+  call_results?: string[];
+  /** Match the latest active presales handoff (pending, with_solution). */
+  handoffs?: string[];
+  source?: string;
+  channel?: string;
+  q?: string;
+  received_from?: string;
+  received_to?: string;
+  limit?: number;
+  offset?: number;
+  review_queue_only?: boolean;
+  /** When false, include review-queue leads in the main list. Default hide when funnel enabled. */
+  hide_review_queue?: boolean;
+  review_queue_filter?: ReviewQueueListFilter;
+  /** Populated by LeadsService when filtering PG reads via SQLite funnel state. */
+  review_queue_ids?: number[];
+  owner_id?: number;
+  unassigned_only?: boolean;
+  /** Leads that already have an owner. Ignored when unassigned_only is set. */
+  assigned_only?: boolean;
+  /** Filter by operational flow (spa CSKH vs B2B sales). */
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  /** WIN-3-C — restrict list to assigned agency clients. */
+  allowed_client_ids?: string[];
+  /** B2B Project OS — project-scoped list visibility (flag on + B2B flow). */
+  b2b_list_scope?: {
+    staffId: number;
+    viewAll: boolean;
+    isDirector: boolean;
+    memberProjectPool?: boolean;
+    seesAllB2b?: boolean;
+  };
+  /** Marketing Leader: only leads already handed to Solution or past that step. */
+  from_solution_onward?: boolean;
+}
+
+export interface CreateLeadV1Body {
+  full_name: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+  source?: string;
+  channel?: string;
+  client_id?: string | null;
+  campaign_id?: string | null;
+  external_lead_id?: string | null;
+  owner_id?: number | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
+  /** Optional seed meta (webhook ingest path, idempotency, etc.). */
+  meta?: Record<string, unknown>;
+}
+
+export interface PatchLeadV1Body {
+  owner_id?: number | null;
+  /** B2B manual owner change — required when PTT_B2B_PROJECT_OS=1 + b2b_prospect. */
+  split?: 'keep_first_touch' | 'reset_closer' | 'no_split';
+  status?: string;
+  score?: number;
+  assigned_by?: string;
+  /** Reason stored on crm_lead_assignment_log when owner changes. */
+  assign_reason?: string;
+  /** Required for terminal status changes when PTT_LEAD_STATUS_GATE=1. */
+  audit_note?: string;
+  /** Call or activity text supplied when moving Mới → Đã liên hệ. */
+  contact_note?: string;
+  /** Catalog id from crm_lead_sla_settings.payload.kanban.lost_reasons. */
+  lost_reason?: string;
+  lost_reason_note?: string;
+  /** Required when moving to nurture. */
+  next_call_at?: string | null;
+  /** Link to a quote file. A crm_proposals row with total_vnd also counts. */
+  quote_url?: string;
+  /** GDKD / assign cap only — bypass B2 & outreach gates with status_override_reason. */
+  allow_status_override?: boolean;
+  status_override_reason?: string;
+  /** WIN-4-B — requires crm_leads.view_financial */
+  expected_value?: number | null;
+  margin_pct?: number | null;
+  company_name?: string;
+  company_address?: string;
+  industry_slug?: string | null;
+  industry?: string | null;
+  phone?: string;
+  email?: string;
+  logo_asset_id?: string | null;
+}
+
+export interface PatchLeadResult {
+  lead: LeadV1;
+  assigned: boolean;
+  scored: boolean;
+  status_changed?: boolean;
+  previous_status?: string | null;
+}
+
+export interface BulkAssignLeadsBody {
+  lead_ids: number[];
+  owner_id: number;
+  reason?: string;
+}
+
+export interface BulkAssignLeadsResult {
+  assigned: number;
+  skipped: number;
+  lead_ids: number[];
+}

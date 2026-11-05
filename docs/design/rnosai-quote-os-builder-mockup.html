@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="bld-01">BLD-01 Builder · Khách & bối cảnh</option><option value="bld-02">BLD-02 Builder · Phương án A/B/C</option><option value="bld-03">BLD-03 Builder · Dịch vụ & SKU</option><option value="bld-04">BLD-04 Builder · KPI 3 lớp</option><option value="bld-05">BLD-05 Builder · Chi phí & margin</option><option value="bld-06">BLD-06 Builder · Điều khoản</option><option value="bld-07">BLD-07 Builder · Lịch sử</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="bld-01" onclick="show('bld-01')">BLD-01</button><button class="sc" type="button" data-page="bld-02" onclick="show('bld-02')">BLD-02</button><button class="sc" type="button" data-page="bld-03" onclick="show('bld-03')">BLD-03</button><button class="sc" type="button" data-page="bld-04" onclick="show('bld-04')">BLD-04</button><button class="sc" type="button" data-page="bld-05" onclick="show('bld-05')">BLD-05</button><button class="sc" type="button" data-page="bld-06" onclick="show('bld-06')">BLD-06</button><button class="sc" type="button" data-page="bld-07" onclick="show('bld-07')">BLD-07</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="bld-01" data-title="Builder · Khách & bối cảnh">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-01 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="card">
+      <div class="card-h"><b>Khách hàng &amp; bối cảnh</b><span class="muted">SoR AM 360 · không đổi UUID tay</span></div>
+      <div class="client-top"><div class="client-logo">AP</div><div><h3>Công ty Cổ phần An Phát</h3><p class="muted">Nguyễn Minh Anh · Marketing Director · minhanh@anphat.vn</p><p class="muted">Lead <button class="linkish" type="button">LD-2026-0441</button> · Deal Room / Consult</p></div></div>
+      <div class="ctx">
+        <div><div class="lbl">Mục tiêu</div>Tạo lead chất lượng dự án căn hộ cao cấp Q4</div>
+        <div><div class="lbl">Thời gian</div>01/10/2026 — 31/12/2026</div>
+        <div><div class="lbl">Đối tượng</div>25–45 · TP.HCM · thu nhập trung-cao</div>
+      </div>
+      <div class="form-2" style="margin-top:12px">
+        <label class="muted">Ngày báo giá<input class="inp" type="date" value="2026-09-08"/></label>
+        <label class="muted">Hiệu lực đến *<input class="inp" type="date" value="2026-10-07"/></label>
+      </div>
+    </div>
+    <p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-02" data-title="Builder · Phương án A/B/C">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-02 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <p class="muted">Tối đa 1 phương án <code>recommended</code>. Client chỉ thấy option <code>client_visible</code>. Chọn 1 option lúc accept (PUB-02).</p>
+    <div class="opt-grid">
+      <button class="opt is-on is-rec" type="button"><span class="pill s-ok">Recommended</span><h3>A · Growth Launch</h3><p>3 tháng · 4 kênh · 48 deliverable</p><b>265.647.600 ₫</b></button>
+      <button class="opt" type="button"><h3>B · Essential</h3><p>3 tháng · 2 kênh · 28 deliverable</p><b>186.400.000 ₫</b></button>
+      <button class="opt" type="button"><h3>C · Aggressive</h3><p>3 tháng · 5 kênh · media 200tr</p><b>348.000.000 ₫</b></button>
+    </div>
+    <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th></th><th>A</th><th>B</th><th>C</th></tr></thead><tbody>
+      <tr><td>Phí DV</td><td>132.600.000</td><td>96.000.000</td><td>156.000.000</td></tr>
+      <tr><td>Media</td><td>120.000.000</td><td>72.000.000</td><td>200.000.000</td></tr>
+      <tr><td>Lead forecast</td><td>1.200</td><td>720</td><td>1.800</td></tr>
+      <tr><td>GM nội bộ</td><td class="dn">22,4%</td><td>28,1%</td><td>21,0%</td></tr>
+    </tbody></table></div>
+    <div class="actions"><button class="btn" type="button">Nhân bản phương án</button><button class="btn" type="button">Ẩn C khỏi khách</button></div>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-03" data-title="Builder · Dịch vụ & SKU">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-03 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="svc">
+      <div class="svc-h"><span class="svc-no">1</span><div><h3>Meta Ads Performance</h3><p class="muted"><span class="tag">DV08</span> <span class="tag">ops_service_profile</span> <span class="tag">fee + media</span></p></div><div class="svc-price">48.000.000 ₫<small>fee / 3 tháng · media 120tr tách dòng</small></div></div>
+      <div class="sku" style="padding:0 14px"><span class="muted">SKU 3 tầng (package_tier)</span>
+        <button type="button">Cơ bản</button><button class="is-on" type="button">Tiêu chuẩn</button><button type="button">Chuyên sâu</button>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span>Campaign set</span><b>3</b></div>
+        <div class="metric"><span>Ad set</span><b>12</b></div>
+        <div class="metric teal"><span>CTR mục tiêu</span><b>≥1,8%</b></div>
+        <div class="metric teal"><span>CPL mục tiêu</span><b>≤100K</b></div>
+        <div class="metric teal"><span>Lead forecast</span><b>1.200</b></div>
+      </div>
+      <div class="funnelbox">
+        <div><div class="lbl">Funnel Meta (forecast)</div>
+          <div class="funnel"><div class="fstep"><b>2,4tr</b><span>Imp.</span></div><div class="fstep"><b>43K</b><span>Click</span></div><div class="fstep"><b>1.5K</b><span>Lead</span></div><div class="fstep"><b>1.2K</b><span>SQL</span></div></div>
+        </div>
+        <div class="funnel-kpis"><div class="funnel-kpi"><span>CTR</span><b>1,8%</b></div><div class="funnel-kpi"><span>CVR</span><b>3,5%</b></div><div class="funnel-kpi"><span>CPL</span><b>100K</b></div><div class="funnel-kpi"><span>Nhãn</span><b>projected</b></div></div>
+      </div>
+      <div class="svc-foot"><div><strong>Included</strong>Setup + tối ưu tuần + A/B 8 creative</div><div><strong>Timeline</strong>Kickoff 5 ngày làm việc</div><div><strong>Assumption</strong>Media ≥ 40tr/tháng</div></div>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><span class="svc-no">2</span><div><h3>Social Media Management</h3><p class="muted"><span class="tag">DV05</span> <span class="tag">Tiêu chuẩn</span></p></div><div class="svc-price">54.000.000 ₫<small>retainer 3 tháng</small></div></div>
+      <div class="metrics">
+        <div class="metric"><span>Bài / tháng</span><b>24</b></div>
+        <div class="metric"><span>Reels / tháng</span><b>12</b></div>
+        <div class="metric"><span>Kênh</span><b>FB + TikTok</b></div>
+        <div class="metric"><span>Báo cáo</span><b>Tuần</b></div>
+        <div class="metric"><span>Hạng KPI</span><b>committed</b></div>
+      </div>
+    </div>
+    <div class="alert"><span>Service <b>Draft</b> / custom chưa Commercial kích hoạt — không thêm vào quote client-facing.</span><button class="btn" type="button" onclick="show('cat-02')">Mở catalog</button></div>
+    <div class="actions"><button class="btn" type="button" onclick="show('cat-01')">＋ Từ Catalog</button><button class="btn" type="button">Dòng tùy chỉnh (flag + reason)</button></div>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-04" data-title="Builder · KPI 3 lớp">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-04 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="card"><b>Phân lớp KPI bắt buộc trước publish</b>
+      <p class="muted">Cam kết bàn giao ≠ mục tiêu tối ưu ≠ forecast. Forecast không được style như cam kết.</p>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Chỉ số</th><th>Lớp</th><th>Giá trị</th><th>Nguồn</th><th>Assumption</th></tr></thead><tbody>
+      <tr><td>24 bài + 12 Reels / tháng</td><td><span class="pill s-ok">committed</span></td><td>36 asset</td><td>deliverable</td><td>Duyệt nội dung ≤2 ngày</td></tr>
+      <tr><td>CTR Meta</td><td><span class="pill s-info">optimization</span></td><td>≥1,8%</td><td>Ads Manager</td><td>Creative A/B đủ 8 mẫu</td></tr>
+      <tr><td>Lead</td><td><span class="pill s-warn">forecast</span></td><td>1.000–1.200</td><td>CRM + pixel</td><td>Media 120tr · LP live</td></tr>
+      <tr><td>Ngân sách media</td><td><span class="pill">assumption</span></td><td>120.000.000 ₫</td><td>khách</td><td>Thanh toán đúng lịch</td></tr>
+    </tbody></table></div>
+    <p class="muted">Paid media: bắt buộc budget + platform + geo/audience + measurement trước gửi khách.</p>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-05" data-title="Builder · Chi phí & margin">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-05 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="alert"><span>Màn finance-restricted. Không xuống portal / PDF / public API. Guard <code>crm_quote.finance</code>.</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Line</th><th>Fee net</th><th>Labor</th><th>Outsource</th><th>Tools</th><th>GP</th><th>GM</th></tr></thead><tbody>
+      <tr><td>DV08 Meta · Tiêu chuẩn</td><td>45.600.000</td><td>28.000.000</td><td>8.000.000</td><td>1.200.000</td><td>8.400.000</td><td class="dn">18,4%</td></tr>
+      <tr><td>DV05 Social</td><td>51.300.000</td><td>32.000.000</td><td>4.000.000</td><td>800.000</td><td>14.500.000</td><td>28,3%</td></tr>
+      <tr><td>DV12 Brand Film</td><td>29.100.000</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="pill s-warn">thiếu cost</span></td></tr>
+    </tbody></table></div>
+    <div class="card">
+      <div class="side-row"><span>Net Service Revenue</span><b>126.000.000 ₫</b></div>
+      <div class="side-row"><span>Direct cost</span><b>97.776.000 ₫</b></div>
+      <div class="side-row"><span>Gross profit</span><b>28.224.000 ₫</b></div>
+      <div class="side-row"><span>Gross margin</span><b class="dn">22,4%</b></div>
+      <p class="muted">NSR = fee-only, loại media no-markup. Override rate/cost = Finance + reason. NSR=0 → GM <code>null</code>.</p>
+    </div>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-06" data-title="Builder · Điều khoản">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-06 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="card form">
+      <label>Template điều khoản<select class="inp"><option>PTT HCM · chuẩn 2026</option><option>Retainer</option></select></label>
+      <label>Lệch template (Legal)<textarea class="inp">Không — dùng clause snapshot chuẩn</textarea></label>
+      <p class="muted">Clause lệch → route <code>crm_quote.legal</code>. Wording accept: <b>Xác nhận đề xuất</b>, không “ký hợp đồng”.</p>
+    </div>
+    <div class="card"><b>Lịch thanh toán — tổng % = 100</b>
+      <div class="tbl-wrap"><table><thead><tr><th>#</th><th>%</th><th>Số tiền</th><th>Mốc</th></tr></thead><tbody>
+        <tr><td>1</td><td>50</td><td>132.823.800</td><td>Xác nhận đề xuất</td></tr>
+        <tr><td>2</td><td>30</td><td>79.694.280</td><td>Ngày 15 tháng 2</td></tr>
+        <tr><td>3</td><td>20</td><td>53.129.520</td><td>Nghiệm thu · nhận phần dư làm tròn</td></tr>
+      </tbody></table></div>
+      <p class="muted">Lệch 1 ₫ → đợt cuối. Lệch % → block submit. Payment term &gt; 60 ngày → Finance.</p>
+    </div>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section><section class="page" id="bld-07" data-title="Builder · Lịch sử">
+
+<div class="crumb">Kinh doanh / Báo giá / Builder / QT-PTT-2026-000089</div>
+<div class="head"><div><h1>Growth Proposal Q4/2026</h1><p class="sub">BLD-07 · An Phát · LD-2026-0441 · autosave 09:18 · row_version 7 · <span class='pill s-warn'>Nháp / chờ duyệt</span></p></div><div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn" type="button" onclick="show('prs-01')">Xem Proposal</button><button class="btn-primary btn" type="button" onclick="show('apr-02')">Gửi phê duyệt</button></div></div>
+<div class="tabs">
+  <button class="tab" type="button" onclick="show('bld-01')">Bối cảnh</button>
+  <button class="tab" type="button" onclick="show('bld-02')">Phương án</button>
+  <button class="tab" type="button" onclick="show('bld-03')">Dịch vụ</button>
+  <button class="tab" type="button" onclick="show('bld-04')">KPI</button>
+  <button class="tab" type="button" onclick="show('bld-05')">Chi phí</button>
+  <button class="tab" type="button" onclick="show('bld-06')">Điều khoản</button>
+  <button class="tab" type="button" onclick="show('bld-07')">Lịch sử</button>
+  <button class="tab" type="button" onclick="show('prs-01')">Studio</button>
+</div>
+
+<div class="builder">
+  <div>
+    <div class="tbl-wrap"><table><thead><tr><th>Ver</th><th>State</th><th>Thay đổi</th><th>Ai</th><th>Khi</th></tr></thead><tbody>
+      <tr><td>v1</td><td>superseded</td><td>Gửi khách 01/09 · option A</td><td>AM Minh</td><td>01/09</td></tr>
+      <tr><td>v2</td><td>submitted</td><td>Meta 42tr → 48tr · discount 3→5% · payment 60/40 → 50/30/20</td><td>AM Minh</td><td>08/09</td></tr>
+    </tbody></table></div>
+    <div class="card"><div class="card-h"><b>Diff v1 → v2 (commercial critical)</b></div>
+      <div class="diff"><b>DV08 unit price</b><p class="muted">42.000.000 → 48.000.000 · tăng 1 campaign set</p></div>
+      <div class="diff"><b>Package discount</b><p class="muted">3% → 5%</p></div>
+      <div class="diff"><b>Payment</b><p class="muted">60/40 → 50/30/20</p></div>
+      <p class="muted">Sửa sau Approved → revision mới, v cũ immutable, re-route policy.</p>
+    </div>
+  </div>
+  <aside class="sticky">
+  <div class="card"><div class="card-h"><b>Tóm tắt đầu tư</b><span class="muted">client-facing</span></div>
+    <div class="side-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+    <div class="side-row"><span>Media (pass-through)</span><b>120.000.000 ₫</b></div>
+    <div class="side-row"><span>Chiết khấu package</span><b class="up">−6.630.000 ₫</b></div>
+    <div class="side-row"><span>VAT 8% (snapshot)</span><b>19.677.600 ₫</b></div>
+    <div class="total-row"><span>Tổng phải thu</span><b>265.647.600 ₫</b></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe nội bộ</b><span class="muted">finance</span></div>
+    <div class="side-row"><span>NSR (fee only)</span><b>126.000.000 ₫</b></div>
+    <div class="side-row"><span>Gross margin</span><b><span class="pill s-warn">22,4% · dưới floor</span></b></div>
+    <div class="side-row"><span>Discount</span><b>5%</b></div>
+    <p class="muted">Media không vào NSR. Submit dưới 25% → Finance + GDKD.</p>
+  </div>
+  <div class="card"><div class="card-h"><b>Thanh toán</b><button class="linkish" type="button" onclick="show('bld-06')">Sửa</button></div>
+    <div class="flow-row"><span class="flow-num">1</span><div><b>50% · 132.823.800 ₫</b><span class="muted">Ký xác nhận / kickoff</span></div></div>
+    <div class="flow-row"><span class="flow-num">2</span><div><b>30% · 79.694.280 ₫</b><span class="muted">Giữa kỳ tháng 2</span></div></div>
+    <div class="flow-row"><span class="flow-num">3</span><div><b>20% · 53.129.520 ₫</b><span class="muted">Nghiệm thu — làm tròn đợt cuối</span></div></div>
+  </div>
+</aside>
+</div>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,706 @@
+'use client';
+
+import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
+import { PresalesClientBriefCard } from '@/components/PresalesClientBriefCard';
+import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
+import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  completeLeadCareStage,
+  ensureLeadPresales,
+  fetchLeadFunnel,
+  fetchLeadPresalesMarketingPlan,
+  patchLeadPresalesMarketingPlan,
+  patchLeadPresalesTask,
+  postLeadPresalesMarketingPlanAiDraft,
+  postLeadPresalesTaskAiAssist,
+  releaseLeadReviewQueue,
+  submitLeadCareReport,
+  type LeadFunnelSnapshot,
+} from '@/lib/api';
+import { LeadPipelineB2Panel } from '@/components/crm/LeadPipelineB2Panel';
+import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
+import { LeadPipelinePresalesPanel } from '@/components/crm/LeadPipelinePresalesPanel';
+import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
+import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import {
+  hydratePresalesR5Form,
+  shouldHydratePresalesMarketingPlan,
+} from '@/lib/crm/presales-r5-plan.util';
+import type {
+  FunnelStepState,
+  IntakeStepSummary,
+  PresalesFunnelStepKey,
+} from '@/lib/crm/funnel-stepper.types';
+import type { B2OutcomePlan } from '@/lib/crm/lead-b2-outcome';
+import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } from '@/lib/auth';
+import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
+import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
+import { M1FirstCallCard } from '@/app/crm/leads/meeting-prep/M1FirstCallCard';
+import type { LeadMeetingPrepStatus } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
+
+interface Props {
+  token: string;
+  leadId: number;
+  user: StoredStaffUser | null;
+  serviceSlug?: string;
+  serviceOptions?: Array<{ slug: string; name: string }>;
+  syncFunnel?: LeadFunnelSnapshot | null;
+  fetchOnMount?: boolean;
+  onOpenConsultTab?: () => void;
+  onOpenMeetingPrepTab?: () => void;
+  onMessage?: (msg: string) => void;
+  onError?: (msg: string) => void;
+  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onFunnelUpdated?: () => void;
+  /** Hero SLA+SCI panel đã gộp — ẩn thẻ M1 trùng trong funnel */
+  hideM1Card?: boolean;
+  /** S0: B2B + B2 xong. Khi false, không render #funnel-presales. */
+  showPresalesBlock?: boolean;
+  /** S1: softphone vừa gọi — nhắc AM chọn outcome. */
+  highlightAfterCall?: boolean;
+  layout?: 'legacy' | 'pipeline';
+  activeStepKey?: PresalesFunnelStepKey;
+  activeStepState?: FunnelStepState;
+  intakeSummary?: IntakeStepSummary | null;
+  onStepChange?: (key: PresalesFunnelStepKey) => void;
+}
+
+const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
+  { slug: 'dich-vu-seo-tong-the', name: 'SEO tổng thể' },
+  { slug: 'dich-vu-seo-local', name: 'SEO Local' },
+  { slug: 'dich-vu-seo-audit', name: 'SEO Audit' },
+  { slug: 'dich-vu-aeo', name: 'AEO' },
+];
+
+export function mergePresalesServiceOptions(
+  catalog?: Array<{ slug: string; name: string }>,
+): Array<{ slug: string; name: string }> {
+  const bySlug = new Map<string, { slug: string; name: string }>();
+  for (const item of DEFAULT_PRESALES_SERVICES) {
+    bySlug.set(item.slug, item);
+  }
+  for (const item of catalog ?? []) {
+    const slug = String(item.slug ?? '').trim();
+    if (!slug) continue;
+    bySlug.set(slug, { slug, name: String(item.name ?? slug).trim() || slug });
+  }
+  return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+}
+
+const DEFAULT_PRESALES_SLUG = 'dich-vu-seo-tong-the';
+
+export function LeadFunnelPanel({
+  token,
+  leadId,
+  user,
+  serviceSlug,
+  serviceOptions,
+  syncFunnel,
+  fetchOnMount = true,
+  onOpenConsultTab,
+  onOpenMeetingPrepTab,
+  onMessage,
+  onError,
+  onFunnelChange,
+  onFunnelUpdated,
+  hideM1Card = false,
+  showPresalesBlock = true,
+  highlightAfterCall = false,
+  layout = 'legacy',
+  activeStepKey = 'b2',
+  activeStepState = 'current',
+  intakeSummary = null,
+  onStepChange,
+}: Props) {
+  const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [panelError, setPanelError] = useState('');
+  const [panelMessage, setPanelMessage] = useState('');
+  const [planName, setPlanName] = useState('');
+  const [planNorthStar, setPlanNorthStar] = useState('');
+  const [planObjectives, setPlanObjectives] = useState('');
+  const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
+  const [planValidation, setPlanValidation] = useState<string[]>([]);
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
+  const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
+  const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
+  const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
+  const [aiModel, setAiModel] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const flushBriefRef = useRef<(() => Promise<void>) | null>(null);
+  const bindBriefFlush = useCallback((flush: (() => Promise<void>) | null) => {
+    flushBriefRef.current = flush;
+  }, []);
+  const [prepStatus, setPrepStatus] = useState<LeadMeetingPrepStatus | null>(null);
+  const presalesServiceOptions = useMemo(
+    () => mergePresalesServiceOptions(serviceOptions),
+    [serviceOptions],
+  );
+  const [selectedServiceSlug, setSelectedServiceSlug] = useState(
+    () => serviceSlug?.trim() || DEFAULT_PRESALES_SLUG,
+  );
+  const autoPresalesTriedRef = useRef(false);
+
+  useEffect(() => {
+    if (serviceSlug?.trim()) {
+      setSelectedServiceSlug(serviceSlug.trim());
+    }
+  }, [serviceSlug]);
+
+  useEffect(() => {
+    if (serviceSlug?.trim()) return;
+    if (presalesServiceOptions.some((item) => item.slug === selectedServiceSlug)) return;
+    setSelectedServiceSlug(presalesServiceOptions[0]?.slug ?? DEFAULT_PRESALES_SLUG);
+  }, [presalesServiceOptions, selectedServiceSlug, serviceSlug]);
+
+  const applyMarketingPlanFields = useCallback(
+    (plan: Record<string, unknown>, validationMessages: string[], isAiDraft = false) => {
+      const hydrated = hydratePresalesR5Form(plan);
+      setPlanName(hydrated.planName);
+      setPlanNorthStar(hydrated.planNorthStar);
+      setPlanObjectives(hydrated.planObjectives);
+      setPlanStrategy(hydrated.planStrategy);
+      setPlanValidation(validationMessages);
+      setShowAiDraftBadge(isAiDraft);
+    },
+    [],
+  );
+
+  const hydrateMarketingPlan = useCallback(
+    async (stage?: string | null) => {
+      if (stage !== 'consult' && stage !== 'proposal') return;
+      setPlanLoading(true);
+      try {
+        const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
+        applyMarketingPlanFields(
+          mp.plan,
+          mp.validation.messages ?? [],
+          Boolean(mp.ai_draft?.is_ai_draft),
+        );
+        setAiModel(mp.ai_draft?.model_name ?? null);
+      } catch {
+        setPlanValidation([]);
+        setShowAiDraftBadge(false);
+        setAiModel(null);
+      } finally {
+        setPlanLoading(false);
+      }
+    },
+    [applyMarketingPlanFields, leadId, token],
+  );
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setPanelError('');
+    try {
+      const snap = await fetchLeadFunnel(token, leadId);
+      setFunnel(snap);
+      onFunnelChange?.(snap);
+      await hydrateMarketingPlan(snap.presales?.presales.stage);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Tải funnel thất bại';
+      setPanelError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [hydrateMarketingPlan, token, leadId, onError, onFunnelChange]);
+
+  useEffect(() => {
+    if (!fetchOnMount && syncFunnel) {
+      setFunnel(syncFunnel);
+      setLoading(false);
+      return;
+    }
+    void reload();
+  }, [fetchOnMount, reload, syncFunnel]);
+
+  useEffect(() => {
+    const stage = syncFunnel?.presales?.presales.stage;
+    if (
+      !shouldHydratePresalesMarketingPlan({
+        fetchOnMount,
+        hasSyncFunnel: Boolean(syncFunnel),
+        stage,
+      })
+    ) {
+      return;
+    }
+    void hydrateMarketingPlan(stage);
+    // Remount (Consult → Tổng quan) reloads saved R5 once; skip funnel snapshot deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount / lead only
+  }, [hydrateMarketingPlan, leadId, token]);
+
+  useEffect(() => {
+    if (syncFunnel) {
+      setFunnel(syncFunnel);
+    }
+  }, [syncFunnel]);
+
+  useEffect(() => {
+    if (!leadMeetingPrepEnabled() || !canViewLmp(user)) return;
+    void fetchLeadMeetingPrep(token, leadId)
+      .then((row) => setPrepStatus(row.status))
+      .catch(() => setPrepStatus(null));
+  }, [token, leadId, user]);
+
+  const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
+  const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
+  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
+  const prepChip = prepStatus ? prepStatusChipLabel(prepStatus) : null;
+
+  async function run(action: () => Promise<void>, refreshContract = false) {
+    setBusy(true);
+    setPanelError('');
+    try {
+      await action();
+      if (refreshContract) onFunnelUpdated?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Thao tác thất bại';
+      setPanelError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    autoPresalesTriedRef.current = false;
+  }, [leadId]);
+
+  /** Lead đã xong B2 nhưng chưa có pre-sales → tạo luôn (không cần nút). */
+  useEffect(() => {
+    if (!funnel || busy || loading) return;
+    if (autoPresalesTriedRef.current) return;
+    if (!canEdit) return;
+    if (!funnel.presales_on_lead_enabled) return;
+    if (!showPresalesForFlow(funnel.lead_flow_kind ?? 'b2b_prospect')) return;
+    if (!funnel.presales_care_gate.complete) return;
+    if (funnel.presales) return;
+    if (funnel.review_queue.active) return;
+
+    autoPresalesTriedRef.current = true;
+    const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+    void run(async () => {
+      const out = await ensureLeadPresales(token, leadId, slug);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      setPanelMessage('Đã xong B2 — sang Pre Sale.');
+      onMessage?.('Đã xong B2 — sang Pre Sale');
+      onStepChange?.('intake_bant');
+    });
+    // Intentionally narrow deps: one-shot when funnel gate is ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-ensure once per lead
+  }, [
+    funnel?.presales,
+    funnel?.presales_care_gate.complete,
+    funnel?.lead_flow_kind,
+    funnel?.presales_on_lead_enabled,
+    funnel?.review_queue.active,
+    canEdit,
+    busy,
+    loading,
+    leadId,
+  ]);
+
+  async function submitB2Outcome(plan: B2OutcomePlan) {
+    await run(async () => {
+      if (plan.kind === 'complete_b2') {
+        await submitLeadCareReport(token, leadId, plan.report);
+        const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+        const out = await completeLeadCareStage(token, leadId, plan.completeNote, {
+          serviceSlug: slug,
+        });
+        setFunnel(out.funnel);
+        onFunnelChange?.(out.funnel);
+        const spaDone = out.funnel.lead_flow_kind === 'spa_operational';
+        const movedToPresales = Boolean(out.funnel.presales) && !spaDone;
+        setPanelMessage(
+          spaDone
+            ? 'Đã xong B2'
+            : movedToPresales
+              ? 'Đã xong B2 — sang Pre Sale.'
+              : 'Đã xong B2 — pre-sales đã mở.',
+        );
+        onMessage?.(movedToPresales ? 'Đã xong B2 — sang Pre Sale' : 'Đã xong B2');
+        if (movedToPresales) onStepChange?.('intake_bant');
+        await reload();
+        return;
+      }
+      const out = await submitLeadCareReport(token, leadId, plan.report);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      const msg =
+        plan.kind === 'wrong_number'
+          ? 'Đã ghi số sai — chưa mở Pre-sales'
+          : 'Đã ghi nhận không nghe — gọi lại';
+      setPanelMessage(msg);
+      onMessage?.(msg);
+      await reload();
+    }, plan.kind === 'complete_b2');
+  }
+
+  const intakeHref = `/crm/intake?lead_id=${leadId}${
+    funnel?.presales?.presales.service_slug
+      ? `&service_slug=${encodeURIComponent(funnel.presales.presales.service_slug)}`
+      : selectedServiceSlug
+        ? `&service_slug=${encodeURIComponent(selectedServiceSlug)}`
+        : ''
+  }`;
+
+  function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
+    applyMarketingPlanFields(plan, validationMessages);
+  }
+
+  async function saveMarketingPlan() {
+    await flushBriefRef.current?.();
+    const out = await patchLeadPresalesMarketingPlan(token, leadId, {
+      name: planName,
+      north_star: planNorthStar,
+      objectives: planObjectives,
+      strategy_framework: planStrategy,
+    });
+    setFunnel(out.funnel);
+    onFunnelChange?.(out.funnel);
+    if (out.plan) {
+      applyMarketingPlanFields(out.plan, out.validation.messages ?? [], false);
+    } else {
+      setPlanValidation(out.validation.messages ?? []);
+      setShowAiDraftBadge(false);
+    }
+    onMessage?.('Đã lưu KH MKT sơ bộ');
+  }
+
+  async function runMarketingPlanAiDraft() {
+    setAiPlanDraftBusy(true);
+    try {
+      const out = await postLeadPresalesMarketingPlanAiDraft(token, leadId);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      await applyMarketingPlanResponse(out.plan, out.validation.messages ?? []);
+      setShowAiDraftBadge(Boolean(out.ai_draft?.is_ai_draft ?? out.requires_sp_review));
+      setAiModel(out.ai?.model ?? out.ai_draft?.model_name ?? null);
+      onMessage?.(out.validation.ok ? 'Đã tạo AI draft KH MKT sơ bộ' : 'AI draft — cần bổ sung thêm trường');
+    } finally {
+      setAiPlanDraftBusy(false);
+    }
+  }
+
+  function renderPresalesTasks() {
+    if (!funnel?.presales) return null;
+    return (funnel.presales?.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
+      <PresalesTaskFormCard
+        key={task.id}
+        stage={funnel.presales!.presales.stage}
+        task={task}
+        draft={taskDrafts[task.id] ?? {}}
+        disabled={busy || !canEdit}
+        showAiAssist={
+          funnel.presales!.presales.stage === 'consult' && task.ai_prompt_key === 'consult_analysis'
+        }
+        aiBusy={aiBusyTaskId === task.id}
+        onAiAssist={(taskId, formData) =>
+          void run(async () => {
+            setAiBusyTaskId(taskId);
+            try {
+              const out = await postLeadPresalesTaskAiAssist(token, leadId, taskId, {
+                form_context: formData,
+              });
+              setFunnel(out.funnel);
+              onFunnelChange?.(out.funnel);
+              onMessage?.('AI phân tích xong');
+            } finally {
+              setAiBusyTaskId(null);
+            }
+          })
+        }
+        onDraftChange={(taskId, key, value) =>
+          setTaskDrafts((prev) => ({
+            ...prev,
+            [taskId]: { ...(prev[taskId] ?? {}), [key]: value },
+          }))
+        }
+        onValidationError={(msg) => setPanelError(msg)}
+        onSaveForm={(taskId, formData) =>
+          void run(async () => {
+            const out = await patchLeadPresalesTask(token, leadId, taskId, { form_data: formData });
+            setFunnel(out.funnel);
+            onFunnelChange?.(out.funnel);
+          })
+        }
+        onToggleDone={(taskId, nextDone, formData) =>
+          void run(async () => {
+            const out = await patchLeadPresalesTask(token, leadId, taskId, {
+              is_done: nextDone,
+              form_data: formData,
+            });
+            setFunnel(out.funnel);
+            onFunnelChange?.(out.funnel);
+            setTaskDrafts((prev) => {
+              const next = { ...prev };
+              delete next[taskId];
+              return next;
+            });
+            onMessage?.(nextDone ? 'Đã hoàn thành task pre-sales' : 'Đã bỏ hoàn thành task');
+          })
+        }
+      />
+    ));
+  }
+
+  const r5Form = (
+    <>
+      <PresalesClientBriefCard
+        token={token}
+        leadId={leadId}
+        disabled={busy || aiPlanDraftBusy || planLoading}
+        canEdit={canEdit}
+        canAiDraft={canAiDraft}
+        aiBusy={aiPlanDraftBusy}
+        onFlushReady={bindBriefFlush}
+        onError={setPanelError}
+        onAiDraft={() => run(() => runMarketingPlanAiDraft(), true)}
+      />
+      <PresalesR5PlanForm
+        planName={planName}
+        planNorthStar={planNorthStar}
+        planObjectives={planObjectives}
+        planStrategy={planStrategy}
+        planValidation={planValidation}
+        disabled={busy || aiPlanDraftBusy || planLoading}
+        canEdit={canEdit}
+        showAiDraftBadge={showAiDraftBadge}
+        aiModel={aiModel}
+        onPlanNameChange={setPlanName}
+        onNorthStarChange={setPlanNorthStar}
+        onObjectivesChange={setPlanObjectives}
+        onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
+        onSave={() => void run(() => saveMarketingPlan(), true)}
+        aiBusy={aiPlanDraftBusy}
+      />
+    </>
+  );
+
+  if (loading && !funnel) {
+    return <p className="muted">Đang tải funnel B2 / pre-sales…</p>;
+  }
+  if (!funnel) return null;
+
+  const flowKind = funnel.lead_flow_kind ?? 'b2b_prospect';
+  const isOperationalFlow = flowKind === 'spa_operational';
+  const showPresales = showPresalesForFlow(flowKind);
+  const panelTitle = isOperationalFlow
+    ? 'Funnel CSKH vận hành — Liên hệ lần đầu'
+    : 'Pipeline bán hàng — từ liên hệ đến báo giá';
+  const inReview = funnel.review_queue.active;
+  const b2Done = Boolean(funnel.care_pipeline.stages[0]?.done);
+  const showM1Card =
+    showPresales && !b2Done && leadMeetingPrepEnabled() && canViewLmp(user);
+  const b2Panel = (
+    <LeadPipelineB2Panel
+      funnel={funnel}
+      canEdit={canEdit}
+      inReview={inReview}
+      busy={busy}
+      highlightAfterCall={highlightAfterCall}
+      onSubmit={(plan) => submitB2Outcome(plan)}
+      onError={setPanelError}
+      token={token}
+      leadId={leadId}
+      canWriteFr={canEdit}
+      embedFrSla={layout === 'pipeline'}
+      statusChip={layout === 'pipeline' ? prepChip : null}
+    />
+  );
+
+  return (
+    <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
+      {layout === 'pipeline' ? null : (
+        <div className="lead-funnel-panel__head">
+          <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
+          {prepChip && onOpenMeetingPrepTab ? (
+            <button type="button" className="lmp-funnel-chip" onClick={() => onOpenMeetingPrepTab()}>
+              {prepChip}
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {panelError ? (
+        <div className="lead-alert lead-alert--error" role="alert">
+          {panelError}
+        </div>
+      ) : null}
+      {panelMessage ? (
+        <div className="lead-alert lead-alert--success" role="status">
+          {panelMessage}
+        </div>
+      ) : null}
+
+      {showM1Card && !hideM1Card ? (
+        <M1FirstCallCard
+          token={token}
+          leadId={leadId}
+          user={user}
+          show={showM1Card}
+          onOpenTalkTrack={onOpenMeetingPrepTab}
+          onMessage={onMessage}
+          onError={onError}
+        />
+      ) : null}
+
+      {inReview && (
+        <div className="banner banner-warn">
+          <strong>Phải tra soát (GDKD)</strong>
+          <p style={{ margin: '0.35rem 0 0' }}>
+            {funnel.review_queue.message}
+            {funnel.review_queue.hours_waiting != null
+              ? ` · đã chờ ${funnel.review_queue.hours_waiting}h`
+              : ''}
+          </p>
+          {canAssign ? (
+            <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
+              <Link href="/crm/leads/review-queue" className="nav-link">
+                Mở inbox Phải tra soát →
+              </Link>
+            </p>
+          ) : null}
+          {canAssign && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={busy}
+              style={{ marginTop: '0.5rem' }}
+              onClick={() =>
+                void run(async () => {
+                  await releaseLeadReviewQueue(token, leadId, {
+                    mode: 'auto',
+                    note: 'Release từ ops-web',
+                    split: 'reset_closer',
+                  });
+                  onMessage?.('Đã release lead khỏi review queue');
+                  await reload();
+                })
+              }
+            >
+              Release (auto gán lại AM)
+            </button>
+          )}
+        </div>
+      )}
+
+      <PresalesSolutionHandoffBanner funnel={funnel} user={user} />
+
+      {layout === 'pipeline' ? (
+        <LeadPipelineStepPanel
+          activeStepKey={activeStepKey}
+          stepState={activeStepState}
+          inReview={inReview}
+          reviewBanner={null}
+          b2={b2Panel}
+          presalesLead={
+            !funnel.presales_care_gate.complete ? (
+              <p className="banner banner-warn">{funnel.presales_care_gate.message}</p>
+            ) : (
+              <LeadPipelinePresalesPanel
+                funnel={funnel}
+                canEdit={canEdit}
+                busy={busy}
+                selectedServiceSlug={selectedServiceSlug}
+                serviceOptions={presalesServiceOptions}
+                intakeHref={intakeHref}
+                onServiceChange={setSelectedServiceSlug}
+                onStartPresales={() =>
+                  void run(async () => {
+                    const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+                    const out = await ensureLeadPresales(token, leadId, slug);
+                    setFunnel(out.funnel);
+                    onFunnelChange?.(out.funnel);
+                    onMessage?.('Đã bắt đầu pre-sales');
+                  }, true)
+                }
+                onOpenConsultTab={onOpenConsultTab}
+                tasks={renderPresalesTasks()}
+                r5Form={r5Form}
+                stage="lead"
+              />
+            )
+          }
+          intake={
+            intakeSummary?.preview || intakeSummary?.latest_completed ? null : (
+              <LeadPipelineIntakePanel
+                leadId={leadId}
+                serviceSlug={funnel.presales?.presales.service_slug || selectedServiceSlug}
+                intakeSummary={intakeSummary}
+              />
+            )
+          }
+          consult={
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() => undefined}
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+              stage="consult"
+            />
+          }
+          proposal={
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() => undefined}
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+              stage="proposal"
+            />
+          }
+        />
+      ) : (
+        <>
+          {b2Panel}
+          {showPresalesBlock &&
+          showPresales &&
+          funnel.presales_on_lead_enabled &&
+          funnel.presales_care_gate.complete &&
+          !inReview ? (
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() =>
+                void run(async () => {
+                  const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+                  const out = await ensureLeadPresales(token, leadId, slug);
+                  setFunnel(out.funnel);
+                  onFunnelChange?.(out.funnel);
+                  onMessage?.('Đã bắt đầu pre-sales');
+                }, true)
+              }
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+            />
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}

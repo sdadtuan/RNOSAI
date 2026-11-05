@@ -1,0 +1,88 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4 · Tạo/sửa báo giá — P13 mockup</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div class="app"><aside id="sb"></aside><div class="main"><header id="tb"></header><main class="content">
+<div class="page-head"><div><h1>QT-PTT-2026-000006 <span class="small muted">v1</span> <span class="chip q-draft"><span class="dot"></span>Nháp</span> <span class="chip test">TEST</span></h1>
+<div class="sub">Màn sửa proposal (Quote OS) · Nguồn giá <b>P13</b> · Tham số giá: <b>PV-2026-01</b> (snapshot khi gửi duyệt) · Tự lưu 11:42</div></div>
+<div class="actions"><a class="btn" href="S6-xem-truoc-bao-gia.html">Xem trước PDF</a><button class="btn">Lưu nháp</button><button class="btn primary" onclick="openEl('m-submit')">Gửi duyệt nội bộ</button></div></div>
+
+<div class="split" style="grid-template-columns:minmax(0,1fr) 340px">
+<div>
+<div class="card"><div class="card-h">1. Khách hàng &amp; deal</div><div class="card-b grid g3" style="gap:12px">
+ <div class="field"><label>Khách hàng <span class="req">*</span></label><select class="input"><option>[TEST P13] Khách thử nghiệm</option><option>Mẫu An Phát</option></select><span class="help">Tìm theo tên/MST — lấy từ CRM Khách hàng</span></div>
+ <div class="field"><label>Deal / Cơ hội</label><select class="input"><option>— Không gắn deal —</option><option>D-221 · Website 2026</option></select></div>
+ <div class="field"><label>Người liên hệ</label><input class="input" value="Nguyễn Văn Mẫu · Marketing"></div>
+ <div class="field"><label>Hiệu lực báo giá (ngày)</label><input class="input" value="" placeholder="TBD — CEO chốt (D4)"></div>
+ <div class="field"><label>Kiểu hiển thị cho khách</label><select class="input"><option>Gói + phạm vi (mặc định)</option><option>Chi tiết từng hạng mục</option></select></div>
+ <div class="field"><label>Ngày dự kiến bắt đầu</label><input class="input" value="05/10/2026" aria-label="Ngày (dd/mm/yyyy)"></div>
+</div></div>
+
+<div class="card"><div class="card-h">2. Dịch vụ <span class="r"><button class="btn sm" onclick="openEl('m-pkg')">+ Thêm gói</button> <button class="btn sm" onclick="openEl('m-item')">+ Hạng mục lẻ</button></span></div>
+<div class="alert warn" style="margin:12px"><span class="ic">⚠</span><div class="grow"><b>Đảo giá gói:</b> WEB Nâng cao (117.591.000) đang rẻ hơn Tiêu chuẩn (121.629.000) với tham số hiện hành. Nếu khách hỏi Nâng cao, cần CEO xác nhận (D7).</div></div>
+<table class="t"><thead><tr><th style="width:36%">Dòng</th><th>Loại</th><th class="num">Giờ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th></th></tr></thead><tbody>
+<tr><td><b>WEB · Website &amp; Landing page — Tiêu chuẩn</b><div class="small muted">43 hạng mục (41 tính phí, 2 khách tự làm) · CK gói 5% đã gồm · <a href="#" onclick="openEl('m-scope');return false">xem phạm vi</a></div></td><td><span class="chip lvl">Gói</span></td><td class="num">390</td><td class="num">1</td><td class="num">121.629.000</td><td class="num"><b>121.629.000</b></td><td><button class="btn ghost sm" aria-label="Xóa dòng">✕</button></td></tr>
+<tr><td><b>WEB-04-08</b> Tích hợp form/CRM bổ sung<div class="small muted">Hạng mục lẻ · vai trò Dev · 16h</div></td><td><span class="chip">Lẻ</span></td><td class="num">16</td><td class="num"><input id="qty" class="input" type="number" min="1" value="2" style="width:64px;text-align:right" aria-label="Số lượng"></td><td class="num">5.253.000</td><td class="num"><b id="itemTot">10.506.000</b></td><td><button class="btn ghost sm" aria-label="Xóa dòng">✕</button></td></tr>
+</tbody></table>
+<div class="card-b small muted">⚠ WEB-04-08 đã nằm trong gói WEB Tiêu chuẩn → cảnh báo <span class="mono">item_already_in_package</span> (không chặn — ở đây cố ý bán thêm 2 tích hợp).</div></div>
+
+<div class="card"><div class="card-h">3. Chi phí chuyển tiếp (pass-through) <span class="r small muted">Không tính VAT dịch vụ · không tính vào giá trị HĐ (D5)</span></div>
+<table class="t"><thead><tr><th>Khoản</th><th class="num">Ngân sách / chi phí bên thứ ba</th><th class="num">Phí quản lý</th><th>Ghi chú</th></tr></thead><tbody>
+<tr><td><b>Ngân sách quảng cáo</b> (Meta/Google)<div class="small muted">Khách nạp trực tiếp hoặc PTT thu hộ</div></td><td class="num"><input class="input" value="50.000.000" style="width:130px;text-align:right" aria-label="Ngân sách QC"> /tháng</td><td class="num">10% → <b>5.000.000</b><div class="small muted">min: — (chưa nhập)</div></td><td class="small">Phí QC = MAX(ngân sách × 10%, tối thiểu)</td></tr>
+<tr><td><b>Booking bên thứ ba</b> (báo/KOL)</td><td class="num">—</td><td class="num">10% × chi phí</td><td class="small muted">Chưa có dòng — <a href="#">+ Thêm booking</a></td></tr>
+</tbody></table></div>
+
+<div class="card"><div class="card-h">4. Ghi chú &amp; điều khoản</div><div class="card-b"><textarea class="input" rows="3">Tiến độ thanh toán: 50% khi ký – 50% khi nghiệm thu (mẫu). Giá chưa gồm chi phí tên miền/hosting.</textarea></div></div>
+</div>
+
+<aside class="sticky">
+<div class="card totals"><div class="card-h">Tổng báo giá <span class="r small muted">tự tính</span></div><div class="card-b">
+<div class="kv"><span>Tạm tính dịch vụ</span><b id="sub">132.135.000</b></div>
+<div class="kv"><span>Chiết khấu <input id="disc" class="input" type="number" min="0" max="100" value="0" style="width:56px;display:inline-block;padding:2px 6px" aria-label="Chiết khấu %">%</span><b id="dAmt">0</b></div>
+<div class="kv"><span>Sau chiết khấu</span><b id="net">132.135.000</b></div>
+<div class="kv"><span>VAT 8%</span><b id="vat">10.570.800</b></div>
+<div class="kv grand"><span>Tổng phí dịch vụ</span><b id="tot">142.705.800</b></div>
+<hr><div class="kv small"><span>Ngân sách QC (chuyển tiếp)</span><span>50.000.000/tháng</span></div>
+<div class="kv small"><span>Phí quản lý QC</span><span>5.000.000/tháng</span></div>
+<hr><div class="small muted" style="border:1px dashed var(--n-300);border-radius:6px;padding:6px 8px">Biên LN % ẩn với AM — chỉ hiện khi có quyền <span class="mono">p13.quote.margin.view</span> (CEO/Tài chính/GĐKD).</div>
+</div></div>
+<div class="alert info" id="discBanner" style="display:none"><span class="ic">i</span><div><b>Chiết khấu cần CEO duyệt.</b> Báo giá sẽ chuyển “Chờ duyệt nội bộ” và chỉ gửi khách sau khi CEO duyệt. Lý do chiết khấu là bắt buộc.</div></div>
+<div class="field" id="discReason" style="display:none"><label>Lý do chiết khấu <span class="req">*</span></label><textarea class="input" rows="2" placeholder="VD: khách ký 2 dịch vụ…"></textarea></div>
+<div class="alert danger"><span class="ic">!</span><div class="small"><b>Chưa gửi được:</b> thiếu hiệu lực báo giá (<span class="mono">quote_validity_missing</span>). Lưu nháp vẫn được.</div></div><div class="alert ok"><span class="ic">✓</span><div class="small">Tham số giá đầy đủ · không cần duyệt (CK 0%).</div></div>
+</aside></div>
+<div class="foot-note">Số tiền dùng tham số TEST (spec §7.2) — Dữ liệu mẫu, không phải giá thật của PTT.</div>
+</main></div></div>
+
+<div class="modal-bg" id="m-pkg"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Thêm gói dịch vụ</div><div class="mb">
+<div class="field"><label>Dịch vụ</label><select class="input"><option>WEB · Website &amp; Landing page</option><option>ADS · Quảng cáo chuyển đổi</option></select></div>
+<div class="grid g3" style="gap:8px">
+<label class="card card-b"><input type="radio" name="lv"> <b>Cơ bản</b><div class="small">364h · 119.495.000</div></label>
+<label class="card card-b" style="border-color:var(--g-700)"><input type="radio" name="lv" checked> <b>Tiêu chuẩn</b><div class="small">390h · 121.629.000</div></label>
+<label class="card card-b"><input type="radio" name="lv"> <b>Nâng cao</b><div class="small">398h · 117.591.000 <span class="chip q-rejected">NC&lt;TC</span></div></label></div>
+<div class="small muted">Mỗi dịch vụ chỉ 1 gói / báo giá.</div></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-pkg')">Hủy</button><button class="btn primary" onclick="closeEl('m-pkg')">Thêm</button></div></div></div>
+
+<div class="modal-bg" id="m-item"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Thêm hạng mục lẻ</div><div class="mb">
+<input class="input" placeholder="Tìm mã/tên hạng mục…" value="WEB-04"><table class="t"><tbody>
+<tr><td class="mono">WEB-04-07</td><td>Tối ưu tốc độ trang</td><td class="small muted">Đã trong gói</td></tr>
+<tr><td class="mono">WEB-04-08</td><td>Tích hợp form/CRM bổ sung</td><td class="num">5.253.000</td></tr></tbody></table></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-item')">Đóng</button></div></div></div>
+
+<div class="modal-bg" id="m-scope"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Phạm vi WEB Tiêu chuẩn</div><div class="mb small">
+K Khởi động 7 · N Nghiên cứu 3 · P Kế hoạch 5 · S Sản xuất/Thiết lập 9 · T Triển khai/Go-live 5 · D Đo lường &amp; Tối ưu 4 · B Nghiệm thu/Bàn giao 6 · V Vận hành/Duy trì 4 hạng mục. <br>2 hạng mục “Khách tự làm” (giá 0).</div>
+<div class="mf"><button class="btn" onclick="closeEl('m-scope')">Đóng</button></div></div></div>
+
+<div class="modal-bg" id="m-submit"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Gửi CEO duyệt báo giá?</div><div class="mb">
+<div class="kv"><span>Tổng phí dịch vụ</span><b id="mTot">142.705.800</b></div><div class="kv"><span>Chiết khấu</span><b id="mDisc">0%</b></div>
+<div class="small">Sau khi gửi, báo giá bị khóa sửa cho tới khi CEO duyệt/từ chối. Tham số giá PV-2026-01 sẽ được snapshot.</div>
+<div class="field"><label>Ghi chú cho CEO</label><textarea class="input" rows="2"></textarea></div></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-submit')">Hủy</button><button class="btn primary" onclick="closeEl('m-submit')">Gửi duyệt</button></div></div></div>
+<script src="assets/app.js"></script>
+<script>
+shell('s3','Bán hàng &amp; CRM / Báo giá (/crm/proposals) / <b>QT-PTT-2026-000006</b>','AM','MN');
+function f(n){return n.toLocaleString('vi-VN')}
+function calc(){const q=Math.max(1,+qty.value||1),it=q*5253000,sub=121629000+it,p=Math.min(100,Math.max(0,+disc.value||0));
+ const d=Math.round(sub*p/100/1000)*1000,net=sub-d,v=Math.round(net*0.08),t=net+v;
+ itemTot.textContent=f(it);document.getElementById('sub').textContent=f(sub);dAmt.textContent=d?'−'+f(d):'0';document.getElementById('net').textContent=f(net);
+ document.getElementById('vat').textContent=f(v);document.getElementById('tot').textContent=f(t);mTot.textContent=f(t);mDisc.textContent=p+'%';
+ discBanner.style.display=discReason.style.display=p>0?'':'none';}
+qty.oninput=disc.oninput=calc;
+</script></body></html>

@@ -1,0 +1,816 @@
+'use client';
+
+import { KeyboardEvent, MouseEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { CsdChatBubble } from '@/components/crm/csd/CsdChatBubble';
+import {
+  fetchCsdTickets,
+  type CsdAttachmentRow,
+  type CsdChatEmotionId,
+  type CsdConversationMemberRow,
+  type CsdConversationRow,
+  type CsdMessageRow,
+  type CsdTicketRow,
+} from '@/lib/crm/csd-api';
+import { CSD_CHAT_EMOTIONS, CSD_CHAT_INSERT_EMOJIS } from '@/lib/crm/csd-chat-emotions';
+import {
+  formatDateChip,
+  isCsdChatImageMime,
+  resolveCsdConversationAvatar,
+  resolveCsdMessagePeer,
+  shouldShowDateChip,
+} from '@/lib/crm/csd-chat-display';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatAddMembersModal } from '@/components/crm/csd/CsdChatAddMembersModal';
+import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
+import { CsdChatGroupMembersPanel } from '@/components/crm/csd/CsdChatGroupMembersPanel';
+
+function mentionToken(draft: string): string | null {
+  const match = draft.match(/(^|[\s])@(\d*)$/);
+  return match ? match[2] : null;
+}
+
+function ticketToken(draft: string): string | null {
+  const match = draft.match(/(^|[\s])#([A-Za-z0-9-]*)$/);
+  return match ? match[2] : null;
+}
+
+type CsdChatThreadProps = {
+  token: string;
+  active: CsdConversationRow | null;
+  messages: CsdMessageRow[];
+  members: CsdConversationMemberRow[];
+  relatedTickets: CsdTicketRow[];
+  draft: string;
+  replyTo: CsdMessageRow | null;
+  pendingFiles: CsdAttachmentRow[];
+  meStaffId: number | null;
+  canWrite: boolean;
+  busy: boolean;
+  closed: boolean;
+  sendLockHint?: string;
+  canPin?: boolean;
+  onPinMessage?: (message: CsdMessageRow) => void;
+  onUnpin?: () => void;
+  priorityHint?: 'P1' | 'P2' | null;
+  density?: 'page' | 'dock';
+  showMobileBack?: boolean;
+  onExpand?: () => void;
+  onMinimize?: () => void;
+  onDraftChange: (value: string) => void;
+  onSend: () => void;
+  onSendEmotion: (emoji: string) => void;
+  onReply: (message: CsdMessageRow) => void;
+  onCancelReply: () => void;
+  onCreateTicket: (message: CsdMessageRow) => void;
+  onReopen: () => void;
+  onPickFile: (file: File) => void;
+  onRemovePending: (fileId: string) => void;
+  onEditMessage: (message: CsdMessageRow, bodyText: string) => void;
+  onDeleteMessage: (message: CsdMessageRow) => void;
+  onCopyLink: (message: CsdMessageRow) => void;
+  onForward: (message: CsdMessageRow) => void;
+  onReact?: (message: CsdMessageRow, emotion: CsdChatEmotionId) => void;
+  onMobileBack?: () => void;
+  onShowContext?: () => void;
+  onToggleContextPanel?: () => void;
+  contextPanelOpen?: boolean;
+  onPaneClick?: () => void;
+  onRename?: (aliasVi: string) => Promise<boolean>;
+  onDismissPriorityHint?: () => void;
+  onApplyPriorityHint?: () => void;
+  onStartVoiceCall?: () => void;
+  onStartVideoCall?: () => void;
+  callBusy?: boolean;
+  canInviteMembers?: boolean;
+  canLeaveGroup?: boolean;
+  onInviteMembers?: (staffIds: number[]) => Promise<boolean>;
+  onLeaveGroup?: () => void;
+};
+
+export function CsdChatThread({
+  token,
+  active,
+  messages,
+  members,
+  relatedTickets,
+  draft,
+  replyTo,
+  pendingFiles,
+  meStaffId,
+  canWrite,
+  busy,
+  closed,
+  sendLockHint,
+  canPin = false,
+  onPinMessage,
+  onUnpin,
+  onDraftChange,
+  onSend,
+  onSendEmotion,
+  onReply,
+  onCancelReply,
+  onCreateTicket,
+  onReopen,
+  onPickFile,
+  onRemovePending,
+  onEditMessage,
+  onDeleteMessage,
+  onCopyLink,
+  onForward,
+  onReact,
+  onMobileBack,
+  onShowContext,
+  onToggleContextPanel,
+  contextPanelOpen = false,
+  onPaneClick,
+  onRename,
+  onExpand,
+  onMinimize,
+  onDismissPriorityHint,
+  onApplyPriorityHint,
+  onStartVoiceCall,
+  onStartVideoCall,
+  callBusy = false,
+  priorityHint,
+  density = 'page',
+  showMobileBack,
+  canInviteMembers = false,
+  canLeaveGroup = false,
+  onInviteMembers,
+  onLeaveGroup,
+}: CsdChatThreadProps) {
+  const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
+  const [renaming, setRenaming] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState('');
+  const [membersPanelOpen, setMembersPanelOpen] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const messagesRef = useRef<HTMLUListElement>(null);
+  const bottomRef = useRef<HTMLLIElement>(null);
+  const mentionQ = mentionToken(draft);
+  const hashQ = ticketToken(draft);
+  const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
+  const pinnedMessage = active?.pinned_message_id
+    ? messages.find((m) => m.id === active.pinned_message_id) ?? null
+    : null;
+
+  useEffect(() => {
+    setMembersPanelOpen(false);
+    setAddMembersOpen(false);
+  }, [active?.id]);
+
+  useEffect(() => {
+    if (hashQ == null) {
+      setTicketSuggest([]);
+      return;
+    }
+    const q = hashQ.trim();
+    if (q.length < 1) {
+      setTicketSuggest([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchCsdTickets(token, { q, limit: '8' })
+      .then((out) => {
+        if (!cancelled) setTicketSuggest(out.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setTicketSuggest([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hashQ, token]);
+
+  useEffect(() => {
+    setRenaming(false);
+    setEmojiOpen(false);
+    setThreadSearchOpen(false);
+    setThreadSearch('');
+    setAliasDraft(active?.alias_vi || active?.name_vi || '');
+  }, [active?.id, active?.alias_vi, active?.name_vi]);
+
+  const threadSearchNorm = threadSearch.trim().toLowerCase();
+  const lastMessageId = messages[messages.length - 1]?.id ?? null;
+
+  useEffect(() => {
+    if (!threadSearchNorm) return;
+    const first = messagesRef.current?.querySelector('.csd-chat-message-row.is-search-hit');
+    first?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [threadSearchNorm, lastMessageId]);
+
+  useLayoutEffect(() => {
+    if (!active?.id) return;
+    const pin = () => {
+      const list = messagesRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    };
+    pin();
+    const id = requestAnimationFrame(pin);
+    return () => cancelAnimationFrame(id);
+  }, [active?.id, lastMessageId, messages.length]);
+
+  const mentionOptions = members
+    .map((m) => m.member_staff_id)
+    .filter((id, index, all) => all.indexOf(id) === index)
+    .filter((id) => mentionQ == null || String(id).startsWith(mentionQ));
+
+  if (mentionQ && /^\d+$/.test(mentionQ)) {
+    const typed = Number(mentionQ);
+    if (typed > 0 && !mentionOptions.includes(typed)) mentionOptions.push(typed);
+  }
+
+  function insertAtToken(prefix: '@' | '#', value: string) {
+    const next = draft.replace(prefix === '@' ? /(^|[\s])@\d*$/ : /(^|[\s])#[A-Za-z0-9-]*$/, `$1${prefix}${value} `);
+    onDraftChange(next);
+    setTicketSuggest([]);
+  }
+
+  function onDraftKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  }
+
+  if (!active) {
+    return (
+      <section className="csd-chat-workspace__thread" onClick={onPaneClick}>
+        <div className="csd-chat-thread-empty">
+          <p>Chọn hội thoại để xem tin nhắn</p>
+        </div>
+      </section>
+    );
+  }
+
+  const isClient = active.kind === 'client';
+  const threadAvatar = resolveCsdConversationAvatar(active);
+  const displayName = (active.alias_vi?.trim() || active.name_vi).trim();
+  const canVoiceCall = active.kind === 'direct';
+  const hasInfoAction = Boolean(onToggleContextPanel || onShowContext);
+
+  function handleInfo(e: MouseEvent) {
+    e.stopPropagation();
+    if (onToggleContextPanel) onToggleContextPanel();
+    else onShowContext?.();
+  }
+
+  function toggleThreadSearch() {
+    setThreadSearchOpen((open) => {
+      if (open) setThreadSearch('');
+      return !open;
+    });
+  }
+
+  return (
+    <section className="csd-chat-workspace__thread" onClick={onPaneClick}>
+      <div className="csd-chat-thread-toolbar">
+        {showMobileBack ? (
+          <button type="button" className="csd-chat-icon-btn" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
+            ←
+          </button>
+        ) : null}
+        <div className="csd-chat-thread-toolbar__peer">
+          {active.kind === 'group' ? (
+            <CsdChatGroupAvatar
+              token={token}
+              name={displayName}
+              conversationId={active.id}
+              groupHasAvatar={active.group_has_avatar}
+              groupAvatarUpdatedAt={active.group_avatar_updated_at}
+              groupAvatarPreview={active.group_avatar_preview}
+              members={members}
+              className="csd-chat-avatar csd-chat-avatar--toolbar"
+            />
+          ) : (
+            <CsdChatAvatar
+              token={token}
+              name={displayName}
+              seed={threadAvatar.seed}
+              staffId={threadAvatar.staffId}
+              conversationId={threadAvatar.conversationId}
+              hasAvatar={threadAvatar.hasAvatar}
+              avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
+              className="csd-chat-avatar csd-chat-avatar--toolbar"
+            />
+          )}
+          {renaming && onRename ? (
+            <form
+              className="csd-chat-rename csd-chat-rename--toolbar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onRename(aliasDraft.trim()).then((ok) => {
+                  if (ok) setRenaming(false);
+                });
+              }}
+            >
+              <input
+                className="kpi-input"
+                value={aliasDraft}
+                maxLength={191}
+                onChange={(e) => setAliasDraft(e.target.value)}
+                placeholder="Tên gợi nhớ"
+                aria-label="Tên gợi nhớ"
+                data-testid="csd-chat-rename-input"
+              />
+              <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-rename-save">
+                Lưu
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setRenaming(false)}>
+                Hủy
+              </button>
+            </form>
+          ) : (
+            <div className="csd-chat-thread-toolbar__meta">
+              <h3 className="csd-chat-thread-toolbar__name">{displayName}</h3>
+              <div className="csd-chat-thread-toolbar__sub">
+                {active.kind === 'group' ? (
+                  <button
+                    type="button"
+                    className="csd-chat-thread-toolbar__members"
+                    data-testid="csd-chat-thread-member-count"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMembersPanelOpen(true);
+                    }}
+                  >
+                    <span className="csd-chat-thread-ico csd-chat-thread-ico--person" aria-hidden />
+                    {members.length} thành viên
+                  </button>
+                ) : null}
+                {active.kind === 'group' && onRename && canWrite ? (
+                  <span className="csd-chat-thread-toolbar__sep" aria-hidden>
+                    |
+                  </span>
+                ) : null}
+                {onRename && canWrite ? (
+                  <button
+                    type="button"
+                    className="csd-chat-thread-toolbar__rename"
+                    data-testid="csd-chat-rename"
+                    aria-label="Đổi tên gợi nhớ"
+                    onClick={() => {
+                      setAliasDraft(active.alias_vi || active.name_vi);
+                      setRenaming(true);
+                    }}
+                  >
+                    <span className="csd-chat-thread-ico csd-chat-thread-ico--tag" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="csd-chat-thread-toolbar__actions">
+          {active.kind === 'group' && canInviteMembers ? (
+            <button
+              type="button"
+              className="csd-chat-thread-tool-btn"
+              aria-label="Thêm thành viên"
+              title="Thêm thành viên"
+              data-testid="csd-chat-thread-add-member"
+              disabled={closed}
+              onClick={(e) => {
+                e.stopPropagation();
+                setAddMembersOpen(true);
+              }}
+            >
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--add-member" aria-hidden />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="csd-chat-thread-tool-btn"
+            aria-label="Gọi điện"
+            title={canVoiceCall ? 'Gọi điện' : 'Chỉ hỗ trợ hội thoại DM'}
+            disabled={!canVoiceCall || callBusy || closed}
+            data-testid="csd-chat-thread-call"
+            onClick={() => onStartVoiceCall?.()}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--phone" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="csd-chat-thread-tool-btn"
+            aria-label="Gọi video"
+            title={canVoiceCall ? 'Gọi video' : 'Chỉ hỗ trợ hội thoại DM'}
+            disabled={!canVoiceCall || callBusy || closed}
+            data-testid="csd-chat-thread-video"
+            onClick={() => onStartVideoCall?.()}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--video" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className={`csd-chat-thread-tool-btn${threadSearchOpen ? ' is-active' : ''}`}
+            aria-label={threadSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm tin nhắn'}
+            aria-pressed={threadSearchOpen}
+            title="Tìm kiếm"
+            data-testid="csd-chat-thread-search-toggle"
+            onClick={toggleThreadSearch}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--search" aria-hidden />
+          </button>
+          {active.kind === 'group' && onToggleContextPanel && !contextPanelOpen ? (
+            <button
+              type="button"
+              className="csd-chat-thread-group-admin-btn"
+              data-testid="csd-chat-group-admin-open"
+              onClick={handleInfo}
+            >
+              Quản lý nhóm
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`csd-chat-thread-tool-btn${contextPanelOpen ? ' is-active' : ''}`}
+            aria-label={active.kind === 'group' ? 'Quản lý nhóm' : 'Thông tin hội thoại'}
+            title={active.kind === 'group' ? 'Quản lý nhóm' : 'Thông tin hội thoại'}
+            data-testid={onToggleContextPanel ? 'csd-chat-context-panel-toggle' : 'csd-chat-thread-info'}
+            aria-expanded={contextPanelOpen}
+            disabled={!hasInfoAction}
+            onClick={handleInfo}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--info" aria-hidden />
+          </button>
+          {onExpand ? (
+            <button type="button" className="csd-chat-thread-tool-btn" aria-label="Mở rộng" onClick={onExpand}>
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--expand" aria-hidden />
+            </button>
+          ) : null}
+          {onMinimize ? (
+            <button type="button" className="csd-chat-thread-tool-btn" aria-label="Thu nhỏ" onClick={onMinimize}>
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--minimize" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {threadSearchOpen ? (
+        <div className="csd-chat-thread-search" data-testid="csd-chat-thread-search">
+          <span className="csd-chat-thread-ico csd-chat-thread-ico--search" aria-hidden />
+          <input
+            type="search"
+            value={threadSearch}
+            onChange={(e) => setThreadSearch(e.target.value)}
+            placeholder="Tìm trong hội thoại"
+            aria-label="Tìm trong hội thoại"
+            autoFocus
+          />
+          {threadSearchNorm ? (
+            <span className="csd-chat-thread-search__count">
+              {messages.filter((m) => !m.is_deleted && m.body_text.toLowerCase().includes(threadSearchNorm)).length} kết quả
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {priorityHint ? (
+        <div className="csd-chat-priority-hint" data-testid="csd-chat-priority-hint">
+          <span>Gợi ý tạo ticket {priorityHint}</span>
+          <button type="button" className="btn btn-sm" onClick={onApplyPriorityHint}>
+            Tạo ticket {priorityHint}
+          </button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onDismissPriorityHint}>
+            Bỏ qua
+          </button>
+        </div>
+      ) : null}
+      {isClient ? (
+        <p className="csd-chat-client-banner" data-testid="csd-chat-client-banner">
+          Bạn đang gửi cho khách hàng
+        </p>
+      ) : null}
+      {active?.pinned_message_id ? (
+        <div className="csd-chat-pin-banner" data-testid="csd-chat-pin-banner">
+          <div className="csd-chat-pin-banner__body">
+            <strong>Tin đã ghim</strong>
+            <span>
+              {pinnedMessage?.body_text?.trim()
+                ? pinnedMessage.body_text.slice(0, 120)
+                : 'Tin nhắn đã được ghim'}
+            </span>
+          </div>
+          {canPin && onUnpin ? (
+            <button type="button" className="csd-chat-context-link-btn" disabled={busy} onClick={onUnpin}>
+              Bỏ ghim
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <ul ref={messagesRef} className="csd-chat-messages" data-testid="csd-chat-messages">
+        {messages.map((m, index) => {
+          const quoted = m.reply_to_id ? messages.find((q) => q.id === m.reply_to_id) : null;
+          const linked = m.ticket_id ? relatedById.get(m.ticket_id) : null;
+          const pill = linked
+            ? `${linked.code} · ${linked.priority} · ${linked.status}`
+            : (m.ticket_code ?? 'Ticket liên kết');
+          const isMine = meStaffId != null && m.author_staff_id === meStaffId;
+          const prev = index > 0 ? messages[index - 1] : null;
+          const showChip = shouldShowDateChip(prev?.created_at, m.created_at);
+          const peer = isMine ? null : resolveCsdMessagePeer(m, { active, members });
+          const showName =
+            !isMine &&
+            active.kind === 'group' &&
+            (index === 0 || messages[index - 1]?.author_staff_id !== m.author_staff_id);
+          const searchHit =
+            Boolean(threadSearchNorm) &&
+            !m.is_deleted &&
+            m.body_text.toLowerCase().includes(threadSearchNorm);
+          return (
+            <li key={m.id} className={`csd-chat-message-row${searchHit ? ' is-search-hit' : ''}`}>
+              {showChip ? (
+                <div className="csd-chat-date-chip" data-testid="csd-chat-date-chip">
+                  {formatDateChip(m.created_at)}
+                </div>
+              ) : null}
+              <CsdChatBubble
+                token={token}
+                message={m}
+                isMine={isMine}
+                quoted={quoted ?? null}
+                ticketPill={m.ticket_id ? pill : null}
+                ticketHref={m.ticket_id ? `/crm/csd/tickets/${m.ticket_id}` : null}
+                closed={closed}
+                canWrite={canWrite}
+                busy={busy}
+                density={density}
+                showName={showName}
+                peer={peer}
+                allowCreateTicket={!m.ticket_id && active.kind !== 'announcement'}
+                meStaffId={meStaffId}
+                onReply={onReply}
+                onCreateTicket={onCreateTicket}
+                onEdit={onEditMessage}
+                onDelete={onDeleteMessage}
+                onCopyLink={onCopyLink}
+                onForward={onForward}
+                onReact={onReact}
+                canPin={canPin}
+                isPinned={active?.pinned_message_id === m.id}
+                onPin={onPinMessage}
+                onUnpin={onUnpin}
+              />
+            </li>
+          );
+        })}
+        <li ref={bottomRef} className="csd-chat-messages__anchor" aria-hidden />
+      </ul>
+      {closed ? (
+        <div className="csd-chat-closed">
+          <p className="muted">
+            {sendLockHint || 'Hội thoại đã đóng hoặc lưu trữ. Composer bị khóa.'}
+          </p>
+          {!sendLockHint && canWrite ? (
+            <button type="button" className="btn btn-sm" disabled={busy} onClick={onReopen}>
+              Mở lại
+            </button>
+          ) : null}
+        </div>
+      ) : canWrite ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSend();
+          }}
+          className="csd-chat-compose"
+        >
+          {replyTo ? (
+            <div className="csd-chat-reply-bar">
+              <span>Trả lời: {replyTo.body_text.slice(0, 80)}</span>
+              <button type="button" className="csd-chat-icon-btn" onClick={onCancelReply}>
+                Huỷ
+              </button>
+            </div>
+          ) : null}
+          {pendingFiles.length > 0 ? (
+            <ul className="csd-chat-pending" data-testid="csd-chat-pending-files">
+              {pendingFiles.map((file) => (
+                <li key={file.id}>
+                  <span className={`csd-chat-file-chip${isCsdChatImageMime(file.mime_type) ? ' is-image' : ''}`}>
+                    {isCsdChatImageMime(file.mime_type) ? 'Ảnh · ' : ''}
+                    {file.file_name}
+                  </span>
+                  <button type="button" className="csd-chat-icon-btn" onClick={() => onRemovePending(file.id)}>
+                    Bỏ
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="csd-chat-compose__toolbar">
+            <button
+              type="button"
+              className={`csd-chat-tool-btn${emojiOpen ? ' is-active' : ''}`}
+              aria-label="Emotion"
+              title="Emotion"
+              data-testid="csd-chat-emoji"
+              onClick={() => setEmojiOpen((v) => !v)}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"
+                />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  d="M8.2 14.2c.9 1.3 2.2 2 3.8 2s2.9-.7 3.8-2M9 10h.01M15 10h.01"
+                />
+              </svg>
+            </button>
+            <label className="csd-chat-tool-btn" title="Gửi hình ảnh">
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                data-testid="csd-chat-attach-image"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onPickFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <rect x="3.5" y="5" width="17" height="14" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="9" cy="10" r="1.6" fill="currentColor" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" d="m7.5 17 3.6-4.2 2.4 2.7 2.2-2.6 3.3 4.1" />
+              </svg>
+              <span className="sr-only">Hình ảnh</span>
+            </label>
+            <label className="csd-chat-tool-btn csd-chat-attach" title="Đính file">
+              <input
+                type="file"
+                hidden
+                data-testid="csd-chat-attach"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onPickFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  d="M16.5 7.5v7.2a4.5 4.5 0 0 1-9 0V6.8a3.2 3.2 0 1 1 6.4 0v7.4a1.9 1.9 0 1 1-3.8 0V8"
+                />
+              </svg>
+              <span className="sr-only">Đính file</span>
+            </label>
+            {active.kind === 'group' && canInviteMembers ? (
+              <button
+                type="button"
+                className="csd-chat-tool-btn"
+                title="Thêm thành viên"
+                aria-label="Thêm thành viên"
+                data-testid="csd-chat-compose-add-member"
+                disabled={closed}
+                onClick={() => setAddMembersOpen(true)}
+              >
+                <span className="csd-chat-thread-ico csd-chat-thread-ico--add-member" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+          {emojiOpen ? (
+            <div className="csd-chat-emoji-panel" data-testid="csd-chat-emoji-panel">
+              <div className="csd-chat-emoji-panel__row">
+                {CSD_CHAT_EMOTIONS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="csd-chat-emoji-panel__emotion"
+                    title={item.label}
+                    data-testid={`csd-chat-emotion-${item.id}`}
+                    onClick={() => {
+                      setEmojiOpen(false);
+                      onSendEmotion(item.emoji);
+                    }}
+                  >
+                    {item.emoji}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="csd-chat-emoji-panel__grid">
+                {CSD_CHAT_INSERT_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="csd-chat-emoji-panel__insert"
+                    onClick={() => onDraftChange(`${draft}${emoji}`)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="csd-chat-compose__row">
+            <div className="csd-chat-compose__field">
+              <textarea
+                rows={1}
+                placeholder={`Nhập @, tin nhắn tới ${active.name_vi}`}
+                value={draft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                onKeyDown={onDraftKeyDown}
+                data-testid="csd-chat-draft"
+              />
+              {mentionQ != null ? (
+                <ul className="csd-chat-suggest" data-testid="csd-chat-mention-suggest">
+                  {mentionOptions.length === 0 ? (
+                    <li className="muted">Gõ staff id</li>
+                  ) : (
+                    mentionOptions.map((id) => (
+                      <li key={id}>
+                        <button type="button" onClick={() => insertAtToken('@', String(id))}>
+                          @{id}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
+              {hashQ != null && ticketSuggest.length > 0 ? (
+                <ul className="csd-chat-suggest" data-testid="csd-chat-ticket-suggest">
+                  {ticketSuggest.map((t) => (
+                    <li key={t.id}>
+                      <button type="button" onClick={() => insertAtToken('#', t.code)}>
+                        #{t.code} · {t.priority} · {t.status}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+            {draft.trim() || pendingFiles.length > 0 ? (
+              <button
+                type="submit"
+                className="csd-chat-send"
+                disabled={busy || (!draft.trim() && pendingFiles.length === 0)}
+              >
+                Gửi
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="csd-chat-quick-like"
+                disabled={busy}
+                aria-label="Gửi Thích"
+                title="Gửi Thích"
+                data-testid="csd-chat-quick-like"
+                onClick={() => onSendEmotion('👍')}
+              >
+                👍
+              </button>
+            )}
+          </div>
+        </form>
+      ) : null}
+      {membersPanelOpen && active.kind === 'group' ? (
+        <CsdChatGroupMembersPanel
+          token={token}
+          members={members}
+          meStaffId={meStaffId}
+          canInvite={canInviteMembers}
+          canLeave={canLeaveGroup}
+          busy={busy}
+          onClose={() => setMembersPanelOpen(false)}
+          onAddMembers={() => {
+            setMembersPanelOpen(false);
+            setAddMembersOpen(true);
+          }}
+          onLeaveGroup={
+            onLeaveGroup
+              ? () => {
+                  setMembersPanelOpen(false);
+                  onLeaveGroup();
+                }
+              : undefined
+          }
+        />
+      ) : null}
+      {active.kind === 'group' && onInviteMembers ? (
+        <CsdChatAddMembersModal
+          token={token}
+          open={addMembersOpen}
+          busy={busy}
+          members={members}
+          onClose={() => setAddMembersOpen(false)}
+          onConfirm={async (staffIds) => {
+            const ok = await onInviteMembers(staffIds);
+            if (ok) setAddMembersOpen(false);
+            return ok;
+          }}
+        />
+      ) : null}
+    </section>
+  );
+}

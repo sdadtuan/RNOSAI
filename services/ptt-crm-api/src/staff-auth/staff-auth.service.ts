@@ -1,0 +1,936 @@
+import { Injectable, UnauthorizedException, ForbiddenException, Inject, forwardRef, ServiceUnavailableException } from '@nestjs/common';
+import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
+import { AppConfigService, StaffStubUser } from '../config/app-config.service';
+import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
+import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
+import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
+import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
+import { p13PositionCaps } from '../p13/p13-caps';
+import { p13Flag, p13FlagsFromPolicy } from '../p13/p13-flag';
+import { verifyPortalPassword } from '../portal/portal-password.util';
+import {
+  StaffLoginResult,
+  StaffMeResponse,
+  StaffRosterResponse,
+  StaffRosterRow,
+  StaffSectionCap,
+  StaffSsoConfigResponse,
+  StaffUserProfile,
+} from './staff-auth.types';
+import { signStaffJwt, StaffJwtPayload, verifyStaffJwt } from './staff-jwt.util';
+import { parseNumericStaffSub } from './staff-user-id.util';
+import {
+  exchangeStaffAuthorizationCode,
+  normalizeKeycloakGroups,
+  positionRequiresMfa,
+  staffEmailFromClaims,
+  staffMfaSatisfied,
+  verifyStaffKeycloakAccessToken,
+} from './staff-keycloak.util';
+import { StaffAuthAuditRepository } from './staff-auth-audit.repository';
+import { StaffKeycloakGroupsRepository } from './staff-keycloak-groups.repository';
+import { StaffSessionsRepository, isUuidStaffUserId } from './staff-sessions.repository';
+import type { StaffLoginMethod } from './staff-account.types';
+
+export type StaffSessionMeta = {
+  ip: string | null;
+  userAgent: string;
+  loginMethod: StaffLoginMethod;
+};
+
+const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
+  { section: 'dashboard', action: 'view' },
+  { section: 'crm_leads', action: 'view' },
+  { section: 'crm_leads', action: 'edit' },
+  { section: 'crm_leads', action: 'assign' },
+  { section: 'crm_presales_solution', action: 'view' },
+  { section: 'crm_presales_solution', action: 'edit' },
+  { section: 'crm_presales_solution', action: 'claim' },
+  { section: 'crm_presales_solution', action: 'release' },
+  { section: 'crm_board_customers', action: 'view' },
+  { section: 'crm_board_customers', action: 'edit' },
+  { section: 'crm_board_customers', action: 'create' },
+  { section: 'crm_board', action: 'view' },
+  { section: 'crm_board', action: 'edit' },
+  { section: 'crm_sales_overview', action: 'view' },
+  { section: 'crm_sales_plans', action: 'view' },
+  { section: 'crm_sales_plans', action: 'create' },
+  { section: 'crm_sales_funnel', action: 'view' },
+  { section: 'crm_sales_training', action: 'view' },
+  { section: 'crm_sales_training', action: 'create' },
+  { section: 'crm_sales_market', action: 'view' },
+  { section: 'crm_sales_market', action: 'create' },
+  { section: 'crm_research', action: 'view' },
+  { section: 'crm_research', action: 'create' },
+  { section: 'crm_research', action: 'edit' },
+  { section: 'crm_research', action: 'run' },
+  { section: 'crm_research', action: 'approve' },
+  { section: 'crm_research', action: 'export' },
+  { section: 'crm_research', action: 'configure' },
+  { section: 'crm_sales_prospects', action: 'view' },
+  { section: 'crm_sales_prospects', action: 'create' },
+  { section: 'crm_payroll_attendance', action: 'view' },
+  { section: 'crm_payroll_salary', action: 'view' },
+  { section: 'crm_payroll_salary', action: 'edit' },
+  { section: 'crm_payroll_salary', action: 'export' },
+  { section: 'crm_business_dashboard', action: 'view' },
+  { section: 'crm_business_dashboard', action: 'export' },
+  { section: 'crm_business_dashboard', action: 'configure' },
+  { section: 'ai_analytics', action: 'query' },
+  { section: 'ai_forecast', action: 'commit' },
+  { section: 'crm_owner_weekly_dashboard', action: 'view' },
+  { section: 'crm_owner_weekly_dashboard', action: 'export' },
+  { section: 'crm_owner_weekly_dashboard', action: 'configure' },
+  { section: 'crm_data_config', action: 'view' },
+  { section: 'crm_data_config', action: 'configure' },
+  { section: 'ai_admin', action: 'view' },
+  { section: 'ai_admin', action: 'configure' },
+  { section: 'ceo_command', action: 'view' },
+  { section: 'ceo_command', action: 'act' },
+  { section: 'ceo_command', action: 'configure' },
+  { section: 'csd', action: 'view' },
+  { section: 'csd', action: 'write' },
+  { section: 'csd', action: 'assign' },
+  { section: 'csd', action: 'manage' },
+  { section: 'csd', action: 'admin' },
+  { section: 'iwr', action: 'view' },
+  { section: 'iwr', action: 'write' },
+  { section: 'iwr', action: 'review' },
+  { section: 'iwr', action: 'lists' },
+  { section: 'iwr', action: 'schedule' },
+  { section: 'iwr', action: 'export' },
+  { section: 'iwr', action: 'manage' },
+  { section: 'iwr', action: 'executive' },
+  { section: 'iwr', action: 'bcc' },
+  { section: 'iwr', action: 'external' },
+  { section: 'automation_workflows', action: 'view' },
+  { section: 'automation_workflows', action: 'configure' },
+  { section: 'automation_workflows', action: 'simulate' },
+  { section: 'crm_search', action: 'view' },
+  { section: 'crm_search', action: 'configure' },
+  { section: 'playbooks', action: 'view' },
+  { section: 'playbooks', action: 'configure' },
+  { section: 'crm_re_projects', action: 'view' },
+  { section: 'crm_re_projects', action: 'create' },
+  { section: 'crm_re_projects', action: 'edit' },
+  { section: 'crm_re_projects', action: 'delete' },
+  { section: 'crm_re_projects', action: 'export' },
+  { section: 'crm_re_projects_products', action: 'view' },
+  { section: 'crm_re_projects_products', action: 'create' },
+  { section: 'crm_re_projects_products', action: 'edit' },
+  { section: 'crm_re_projects_products', action: 'delete' },
+  { section: 'crm_re_projects_budget', action: 'view' },
+  { section: 'crm_re_projects_budget', action: 'create' },
+  { section: 'crm_re_projects_budget', action: 'edit' },
+  { section: 'crm_re_projects_budget', action: 'delete' },
+  { section: 'crm_re_projects_budget', action: 'export' },
+  { section: 'crm_re_projects_kpi', action: 'view' },
+  { section: 'crm_re_projects_kpi', action: 'create' },
+  { section: 'crm_re_projects_kpi', action: 'edit' },
+  { section: 'crm_re_projects_kpi', action: 'delete' },
+  { section: 'crm_re_projects_risks', action: 'view' },
+  { section: 'crm_re_projects_risks', action: 'create' },
+  { section: 'crm_re_projects_risks', action: 'edit' },
+  { section: 'crm_re_projects_risks', action: 'delete' },
+  { section: 'crm_staff_roster', action: 'view' },
+  { section: 'crm_staff_roster', action: 'edit' },
+  { section: 'crm_kpi_records', action: 'view' },
+  { section: 'crm_kpi_records', action: 'edit' },
+  { section: 'crm_staff_kpi_am_sp', action: 'view' },
+  { section: 'crm_agency', action: 'view' },
+  { section: 'crm_agency', action: 'create' },
+  { section: 'crm_facebook_ads', action: 'view' },
+  { section: 'crm_google_ads', action: 'view' },
+  { section: 'crm_google_ads', action: 'export' },
+  { section: 'crm_zalo_ads', action: 'view' },
+  { section: 'crm_zalo_ads', action: 'export' },
+  { section: 'meta_campaign_write', action: 'view' },
+  { section: 'meta_campaign_write', action: 'approve' },
+  { section: 'crm_seo', action: 'view' },
+  { section: 'crm_seo_aeo', action: 'view' },
+  { section: 'crm_seo_aeo', action: 'edit' },
+  { section: 'crm_seo_aeo_write', action: 'view' },
+  { section: 'crm_seo_aeo_write', action: 'edit' },
+  { section: 'crm_seo_aeo_write', action: 'create' },
+  { section: 'crm_seo_aeo_settings', action: 'view' },
+  { section: 'crm_seo_aeo_settings', action: 'configure' },
+  { section: 'crm_seo_aeo_settings', action: 'edit' },
+  { section: 'crm_seo_aeo_approve', action: 'view' },
+  { section: 'crm_seo_aeo_approve', action: 'approve' },
+  { section: 'crm_seo_aeo_technical', action: 'view' },
+  { section: 'crm_seo_aeo_technical', action: 'edit' },
+  { section: 'crm_seo_aeo_reports', action: 'view' },
+  { section: 'crm_seo_aeo_reports', action: 'export' },
+  { section: 'crm_email_mkt', action: 'view' },
+  { section: 'crm_email_mkt', action: 'write' },
+  { section: 'crm_email_mkt', action: 'settings' },
+  { section: 'crm_email_mkt', action: 'compliance' },
+  { section: 'crm_email_mkt', action: 'approve' },
+  { section: 'crm_email_mkt', action: 'deliverability' },
+  { section: 'crm_email_mkt', action: 'reports' },
+];
+
+/** Every action the staff console can check. Super-admin receives all of them on every module. */
+const SUPER_ADMIN_ACTIONS = [
+  'view', 'edit', 'create', 'delete', 'export', 'configure', 'act', 'approve', 'claim', 'release',
+  'write', 'settings', 'compliance', 'deliverability', 'reports', 'assign', 'view_all', 'manage',
+  'override', 'review_queue', 'view_all_leads', 'view_financial', 'view_pii', 'generate', 'publish',
+  'approve_internal', 'qa', 'production', 'admin', 'execute', 'view_team', 'finance_request',
+  'request', 'send', 'query', 'commit', 'review', 'lists', 'schedule', 'executive', 'bcc',
+  'external', 'simulate', 'org', 'rbac', 'audit', 'policy', 'run', 'feedback', 'submit',
+] as const;
+
+const SUPER_ADMIN_SECTIONS = `
+ai_admin ai_analytics ai_forecast automation_workflows ceo_command csd iwr
+crm_ae_team crm_agency crm_assistant crm_b2b_projects crm_board crm_board_create
+crm_board_create__btn_new_case crm_board_customers crm_board_customers__btn_create
+crm_board_funnel crm_board_kanban crm_board_playbook crm_board_workspace
+crm_business_dashboard crm_daily_work_report crm_data_config crm_delivery_projects
+crm_email_mkt crm_facebook_ads crm_gdkd crm_google_ads crm_hdsd crm_hub_campaigns
+crm_hub_campaigns__btn_create crm_hub_contracts crm_hub_contracts__btn_create
+crm_hub_reminders crm_hub_reminders__btn_create crm_kpi_alerts crm_kpi_chart
+crm_kpi_metrics crm_kpi_metrics__btn_save crm_kpi_records crm_kpi_records__btn_save
+crm_leads crm_leads__btn_activity crm_leads__btn_ai_classify crm_leads__btn_ai_recommend
+crm_leads__btn_ai_search crm_leads__btn_ai_summary crm_leads__btn_assign crm_leads__btn_config
+crm_leads__btn_convert crm_leads__btn_create crm_leads__btn_delete crm_leads__btn_edit
+crm_leads__btn_export_pdf crm_leads__btn_export_xlsx crm_leads__btn_fb_sync crm_leads__btn_import
+crm_leads__btn_merge crm_leads__btn_rescore crm_leads__btn_rules crm_leads__btn_save
+crm_mkt_ai crm_mktplan crm_owner_weekly_dashboard crm_payroll_attendance crm_payroll_device
+crm_payroll_salary crm_presales_solution crm_re_projects crm_re_projects__btn_create
+crm_re_projects_budget crm_re_projects_business crm_re_projects_kpi crm_re_projects_marketing
+crm_re_projects_marketing__btn_save crm_re_projects_products crm_re_projects_products__btn_save
+crm_re_projects_risks crm_re_projects_sales crm_research crm_sales_deals crm_sales_funnel
+crm_sales_market crm_sales_overview crm_sales_plans crm_sales_prospects crm_sales_reports
+crm_sales_training crm_search crm_seo_aeo crm_seo_aeo_approve crm_seo_aeo_reports
+crm_seo_aeo_settings crm_seo_aeo_technical crm_seo_aeo_write crm_sop_overdue crm_sop_runs
+crm_sop_templates crm_staff_departments crm_staff_departments__btn_add crm_staff_kpi_am_sp
+crm_staff_positions crm_staff_positions__btn_add crm_staff_roster crm_staff_roster__btn_add
+crm_staff_roster__btn_export_xlsx crm_staff_roster__btn_import
+crm_vd.admin crm_vd.bible crm_vd.budget crm_vd.delivery crm_vd.gate1 crm_vd.gate2 crm_vd.gate3
+crm_vd.keyframe crm_vd.motion crm_vd.post crm_vd.project crm_vd.qc crm_vd.report crm_vd.script
+dashboard meta_campaign_write p13_catalog p13_holidays p13_pricing p13_quote playbooks
+`.trim().split(/\s+/);
+
+function superAdminGrantRows(): Array<{ section_id: string; action: string }> {
+  const rows: Array<{ section_id: string; action: string }> = [];
+  for (const section_id of SUPER_ADMIN_SECTIONS) {
+    for (const action of SUPER_ADMIN_ACTIONS) {
+      rows.push({ section_id, action });
+    }
+  }
+  return rows;
+}
+
+let superAdminSectionCapsCache: StaffSectionCap[] | null = null;
+function superAdminSectionCaps(): StaffSectionCap[] {
+  if (!superAdminSectionCapsCache) {
+    superAdminSectionCapsCache = superAdminGrantRows().map((row) => ({
+      section: row.section_id,
+      action: row.action,
+    }));
+  }
+  return superAdminSectionCapsCache;
+}
+
+@Injectable()
+export class StaffAuthService {
+  private pool: Pool | null = null;
+  private readonly meCache = new Map<string, { at: number; value: StaffMeResponse }>();
+  private readonly positionCodes = new Map<number, string | null>();
+
+  constructor(
+    private readonly config: AppConfigService,
+    @Inject(forwardRef(() => StaffJobFunctionsRepository))
+    private readonly jobFunctions: StaffJobFunctionsRepository,
+    @Inject(forwardRef(() => StaffPermissionSetsRepository))
+    private readonly permissionSets: StaffPermissionSetsRepository,
+    @Inject(forwardRef(() => StaffBreakGlassRepository))
+    private readonly breakGlass: StaffBreakGlassRepository,
+    @Inject(forwardRef(() => StaffUserClientsRepository))
+    private readonly userClients: StaffUserClientsRepository,
+    private readonly authAudit: StaffAuthAuditRepository,
+    private readonly keycloakGroups: StaffKeycloakGroupsRepository,
+    private readonly sessions: StaffSessionsRepository,
+  ) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  /** Map staff JWT (UUID sub) to numeric crm_staff.id for PG bigint columns. */
+  async resolveCrmStaffUserId(payload: StaffJwtPayload | undefined): Promise<number | null> {
+    if (!payload?.sub) return null;
+    const numeric = parseNumericStaffSub(payload.sub);
+    if (numeric != null) return numeric;
+    const email = payload.email?.trim();
+    if (!email) return null;
+    try {
+      const result = await this.db.query(
+        `SELECT id FROM crm_staff
+         WHERE active = TRUE AND lower(trim(email)) = lower(trim($1))
+         LIMIT 1`,
+        [email],
+      );
+      const id = result.rows[0]?.id;
+      return id != null ? Number(id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async login(
+    email: string,
+    password: string,
+    meta?: StaffSessionMeta,
+  ): Promise<StaffLoginResult> {
+    if (!this.config.staffNestLoginAllowed()) {
+      throw new UnauthorizedException({ error: 'password_login_disabled' });
+    }
+    const normalized = email.trim().toLowerCase();
+    const user = await this.resolveUser(normalized, password);
+    if (!user) {
+      throw new UnauthorizedException({ error: 'Invalid credentials' });
+    }
+    void this.authAudit.write('fallback_password', {
+      userId: user.id,
+      email: user.email,
+      detail: { mode: this.config.staffAuthMode },
+    });
+    return this.issueTokens(user, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod: 'nest_password' },
+    });
+  }
+
+  async exchangeOidc(
+    params: {
+      code: string;
+      redirectUri: string;
+      codeVerifier: string;
+    },
+    meta?: StaffSessionMeta,
+  ): Promise<StaffLoginResult> {
+    const issuer = this.config.staffKeycloakIssuer;
+    if (!issuer) {
+      throw new UnauthorizedException({ error: 'staff_sso_not_configured' });
+    }
+    if (this.config.staffAuthMode === 'nest') {
+      throw new UnauthorizedException({ error: 'staff_sso_disabled' });
+    }
+
+    let tokenResponse;
+    try {
+      tokenResponse = await exchangeStaffAuthorizationCode({
+        issuer,
+        fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
+        clientId: this.config.staffKeycloakClientId,
+        code: params.code,
+        redirectUri: params.redirectUri,
+        codeVerifier: params.codeVerifier,
+      });
+    } catch (err) {
+      throw new UnauthorizedException({
+        error: 'oidc_exchange_failed',
+        message: err instanceof Error ? err.message : 'exchange failed',
+      });
+    }
+
+    const claims = await verifyStaffKeycloakAccessToken(tokenResponse.access_token, {
+      issuer,
+      fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
+      audience: this.config.staffKeycloakAudience,
+    });
+    if (!claims) {
+      throw new UnauthorizedException({ error: 'invalid_keycloak_token' });
+    }
+
+    const email = staffEmailFromClaims(claims);
+    if (!email) {
+      throw new UnauthorizedException({ error: 'missing_email_claim' });
+    }
+
+    const groups = normalizeKeycloakGroups(claims.groups);
+    const linked = await this.linkOidcUser(claims.sub, email, groups);
+    if (!linked) {
+      throw new UnauthorizedException({ error: 'user_not_provisioned', email });
+    }
+
+    const positionCode = await this.loadPositionCode(linked.positionId);
+    if (
+      positionRequiresMfa(positionCode, this.config.staffMfaRequiredPositionCodes) &&
+      !staffMfaSatisfied(claims)
+    ) {
+      void this.authAudit.write('mfa_blocked', {
+        userId: linked.id,
+        email: linked.email,
+        detail: { position_code: positionCode, acr: claims.acr ?? null },
+      });
+      throw new ForbiddenException({
+        error: 'mfa_required',
+        message: 'OTP bắt buộc cho chức vụ này',
+        email: linked.email,
+      });
+    }
+
+    void this.authAudit.write(linked.linkedNew ? 'sso_link' : 'sso_login', {
+      userId: linked.id,
+      email: linked.email,
+      detail: { groups, oidc_sub: claims.sub },
+    });
+
+    return this.issueTokens(linked, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod: 'sso' },
+    });
+  }
+
+  getSsoConfig(): StaffSsoConfigResponse {
+    return {
+      mode: this.config.staffAuthMode,
+      issuer: this.config.staffKeycloakIssuer,
+      client_id: this.config.staffKeycloakClientId,
+      nest_login_allowed: this.config.staffNestLoginAllowed(),
+      mfa_required_positions: this.config.staffMfaRequiredPositionCodes,
+    };
+  }
+
+  async assertConfigureSso(user: StaffJwtPayload): Promise<void> {
+    const caps = await this.loadCaps(user.position_id);
+    if (!this.hasCap(caps, 'crm_data_config', 'configure')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_data_config', action: 'configure' });
+    }
+  }
+
+  async refresh(refreshToken: string, meta?: StaffSessionMeta): Promise<StaffLoginResult> {
+    const payload = verifyStaffJwt(refreshToken, this.config.staffJwtSecret);
+    if (!payload || payload.token_type !== 'refresh') {
+      throw new UnauthorizedException({ error: 'Invalid or expired refresh token' });
+    }
+    await this.assertTokenVersion(payload);
+
+    const userBase = {
+      id: payload.sub,
+      email: payload.email,
+      displayName: payload.display_name,
+      positionId: payload.position_id,
+      tokenVersion: payload.tv ?? 0,
+    };
+
+    const now = new Date();
+    if (payload.sid && isUuidStaffUserId(payload.sub)) {
+      const row = await this.sessions.findById(payload.sid);
+      if (
+        !row ||
+        row.user_id !== payload.sub ||
+        row.revoked_at ||
+        row.expires_at.getTime() < now.getTime()
+      ) {
+        throw new UnauthorizedException({ error: 'session_revoked' });
+      }
+      const expiresAt = new Date(now.getTime() + this.config.staffRefreshTtlSec * 1000);
+      await this.sessions.touch(payload.sid, expiresAt, now);
+      return this.issueTokens(userBase, { sid: payload.sid });
+    }
+
+    const loginMethod: StaffLoginMethod =
+      meta?.loginMethod ??
+      (this.config.staffAuthMode !== 'nest' ? 'sso' : 'nest_password');
+    return this.issueTokens(userBase, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod },
+    });
+  }
+
+  async verifyAccessToken(token: string): Promise<StaffJwtPayload> {
+    const payload = verifyStaffJwt(token, this.config.staffJwtSecret);
+    if (!payload || payload.token_type !== 'access') {
+      throw new UnauthorizedException({ error: 'Invalid or expired token' });
+    }
+    await this.assertTokenVersion(payload);
+    await this.assertSession(payload);
+    return payload;
+  }
+
+  private async assertSession(payload: StaffJwtPayload): Promise<void> {
+    if (!payload.sid || !isUuidStaffUserId(payload.sub)) {
+      return;
+    }
+    const row = await this.sessions.findById(payload.sid);
+    const now = new Date();
+    if (
+      !row ||
+      row.user_id !== payload.sub ||
+      row.revoked_at ||
+      row.expires_at.getTime() < now.getTime()
+    ) {
+      throw new UnauthorizedException({ error: 'session_revoked' });
+    }
+  }
+
+  async me(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
+    const cacheKey = `${accessPayload.sub}:${accessPayload.position_id}`;
+    const hit = this.meCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < 30_000) return hit.value;
+    const value = await this.loadMe(accessPayload);
+    this.meCache.set(cacheKey, { at: Date.now(), value });
+    return value;
+  }
+
+  private async loadMe(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
+    const baseCaps = await this.loadCaps(accessPayload.position_id);
+    const jobFunctions = await this.jobFunctions.loadUserFunctionCodes(accessPayload.sub);
+    const functionCaps = await this.jobFunctions.loadCapsForFunctions(jobFunctions);
+    const setCaps = await this.permissionSets.loadCapsForUser(accessPayload.sub);
+    const breakGlassCaps = await this.breakGlass.loadActiveCapsForUser(accessPayload.sub);
+    const caps = this.mergeCaps(baseCaps, [
+      ...functionCaps,
+      ...setCaps,
+      ...breakGlassCaps.map((cap) => ({ section_id: cap.section, action: cap.action })),
+    ]);
+    const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
+    const position_code = await this.loadPositionCode(accessPayload.position_id);
+    const mergedCaps = this.mergeCaps(
+      isSuperAdminPositionCode(position_code)
+        ? this.mergeCaps(caps, [
+            { section_id: 'ceo_command', action: 'view' },
+            { section_id: 'ceo_command', action: 'act' },
+            { section_id: 'ceo_command', action: 'configure' },
+            { section_id: 'csd', action: 'view' },
+            { section_id: 'csd', action: 'write' },
+            { section_id: 'csd', action: 'assign' },
+            { section_id: 'csd', action: 'manage' },
+            { section_id: 'csd', action: 'admin' },
+            { section_id: 'iwr', action: 'view' },
+            { section_id: 'iwr', action: 'write' },
+            { section_id: 'iwr', action: 'review' },
+            { section_id: 'iwr', action: 'lists' },
+            { section_id: 'iwr', action: 'schedule' },
+            { section_id: 'iwr', action: 'export' },
+            { section_id: 'iwr', action: 'manage' },
+            { section_id: 'iwr', action: 'executive' },
+            { section_id: 'iwr', action: 'bcc' },
+            { section_id: 'iwr', action: 'external' },
+            { section_id: 'crm_ae_team', action: 'view' },
+            { section_id: 'crm_ae_team', action: 'manage' },
+            { section_id: 'crm_ae_team', action: 'view_all' },
+            { section_id: 'crm_delivery_projects', action: 'view' },
+            { section_id: 'crm_delivery_projects', action: 'edit' },
+            { section_id: 'crm_delivery_projects', action: 'manage' },
+            { section_id: 'crm_b2b_projects', action: 'view' },
+            { section_id: 'crm_b2b_projects', action: 'edit' },
+            { section_id: 'crm_leads', action: 'view' },
+            { section_id: 'crm_leads', action: 'edit' },
+            { section_id: 'crm_leads', action: 'assign' },
+            { section_id: 'crm_gdkd', action: 'view_all_leads' },
+            { section_id: 'crm_presales_solution', action: 'view' },
+            { section_id: 'crm_presales_solution', action: 'edit' },
+            { section_id: 'crm_board', action: 'view' },
+            { section_id: 'crm_board_customers', action: 'view' },
+          ])
+        : caps,
+      p13PositionCaps(position_code),
+    );
+    const client_ids = await this.resolveJwtClientIds(accessPayload.sub, position_code);
+    let p13Settings: Record<string, boolean> = {};
+    try {
+      const flagRow = await this.db.query(
+        `SELECT policy_json->'p13_flags' AS flags FROM crm_quote_settings WHERE tenant_id = 'PTT' LIMIT 1`,
+      );
+      p13Settings = p13FlagsFromPolicy(flagRow.rows[0]?.flags);
+    } catch {
+      p13Settings = {};
+    }
+    let ae_team_access: 'none' | 'lead' | 'all' = 'none';
+    if (mergedCaps.some((cap) => cap.section === 'crm_ae_team' && cap.action === 'view_all')) {
+      ae_team_access = 'all';
+    } else {
+      try {
+        const lead = await this.db.query(
+          `SELECT 1 FROM staff_user_teams WHERE user_id = $1 AND team_role = 'lead' LIMIT 1`,
+          [accessPayload.sub],
+        );
+        if (lead.rows.length) ae_team_access = 'lead';
+      } catch {
+        ae_team_access = 'none';
+      }
+    }
+    return {
+      id: accessPayload.sub,
+      email: accessPayload.email,
+      display_name: accessPayload.display_name,
+      position_id: accessPayload.position_id,
+      position_code: position_code ?? undefined,
+      job_functions: jobFunctions.length ? jobFunctions : undefined,
+      permission_sets: permission_sets.length ? permission_sets : undefined,
+      client_ids,
+      caps: mergedCaps,
+      feature_flags: { p13_enabled: p13Flag('ENABLED', process.env, p13Settings) },
+      ae_team_access,
+    };
+  }
+
+  isSuperAdminPosition(positionCode: string | null | undefined): boolean {
+    return isSuperAdminPositionCode(positionCode);
+  }
+
+  /** Admin đã được gắn toàn quyền theo chức vụ. Không đọc lại bảng quyền. */
+  async isSuperAdminUser(payload: StaffJwtPayload): Promise<boolean> {
+    return this.isSuperAdminPosition(await this.loadPositionCode(payload.position_id));
+  }
+
+  superAdminCaps(): StaffSectionCap[] {
+    return superAdminSectionCaps();
+  }
+
+  async loadPositionCodePublic(positionId: number): Promise<string | null> {
+    return this.loadPositionCode(positionId);
+  }
+
+  private async resolveJwtClientIds(
+    userId: string,
+    positionCode: string | null,
+  ): Promise<string[] | undefined> {
+    if (!this.config.staffScopePilotEnabled) return undefined;
+    if (isSuperAdminPositionCode(positionCode)) return undefined;
+    const ids = await this.userClients.loadClientIdsForUser(userId);
+    return ids.length ? ids : undefined;
+  }
+
+  async listActiveStaff(): Promise<StaffRosterResponse> {
+    const staff: StaffRosterRow[] = [];
+    if (this.config.staffAllowStubUsers) {
+      for (const stub of this.config.staffStubUsers) {
+        staff.push({
+          id: stub.staffId,
+          email: stub.email,
+          display_name: stub.displayName || stub.email,
+          position_id: stub.positionId,
+        });
+      }
+    }
+    try {
+      const result = await this.db.query(
+        `SELECT id::text, email, display_name, position_id
+         FROM staff_users
+         WHERE active IS TRUE
+         ORDER BY display_name, email`,
+      );
+      for (const row of result.rows) {
+        staff.push({
+          id: String(row.id),
+          email: String(row.email),
+          display_name: String(row.display_name || row.email),
+          position_id: Number(row.position_id),
+        });
+      }
+    } catch {
+      /* staff_users may not exist on fresh dev */
+    }
+    const seen = new Set<string>();
+    const deduped = staff.filter((row) => {
+      const key = row.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    deduped.sort((a, b) =>
+      (a.display_name || a.email).localeCompare(b.display_name || b.email, 'vi'),
+    );
+    return { staff: deduped };
+  }
+
+  hasCap(caps: StaffSectionCap[], section: string, action: string): boolean {
+    return caps.some((c) => c.section === section && c.action === action);
+  }
+
+  private async issueTokens(
+    user: {
+      id: string;
+      email: string;
+      displayName: string;
+      positionId: number;
+      tokenVersion?: number;
+    },
+    opts?: { sid?: string; sessionMeta?: StaffSessionMeta },
+  ): Promise<StaffLoginResult> {
+    const position_code = await this.loadPositionCode(user.positionId);
+    const client_ids = await this.resolveJwtClientIds(user.id, position_code);
+    const tv = user.tokenVersion ?? (await this.loadTokenVersion(user.id)) ?? 0;
+
+    let sid = opts?.sid;
+    if (!sid && opts?.sessionMeta && isUuidStaffUserId(user.id)) {
+      sid = randomUUID();
+      const expiresAt = new Date(Date.now() + this.config.staffRefreshTtlSec * 1000);
+      try {
+        await this.sessions.insert({
+          id: sid,
+          userId: user.id,
+          loginMethod: opts.sessionMeta.loginMethod,
+          userAgent: opts.sessionMeta.userAgent,
+          ip: opts.sessionMeta.ip,
+          expiresAt,
+        });
+      } catch {
+        if (process.env.NODE_ENV === 'production') {
+          throw new ServiceUnavailableException({ error: 'sessions_not_ready' });
+        }
+        sid = undefined;
+      }
+    }
+
+    const base = {
+      sub: user.id,
+      email: user.email,
+      display_name: user.displayName,
+      position_id: user.positionId,
+      tv,
+      ...(sid ? { sid } : {}),
+      ...(client_ids?.length ? { client_ids } : {}),
+    };
+    const accessToken = signStaffJwt(
+      { ...base, token_type: 'access' },
+      this.config.staffJwtSecret,
+      this.config.staffJwtTtlSec,
+    );
+    const refreshToken = signStaffJwt(
+      { ...base, token_type: 'refresh' },
+      this.config.staffJwtSecret,
+      this.config.staffRefreshTtlSec,
+    );
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: 'Bearer',
+      expires_in: this.config.staffJwtTtlSec,
+      refresh_expires_in: this.config.staffRefreshTtlSec,
+      user: {
+        id: user.id,
+        email: user.email,
+        display_name: user.displayName,
+        position_id: user.positionId,
+        position_code: position_code ?? undefined,
+        client_ids,
+      },
+    };
+  }
+
+  async hasCapForPosition(positionId: number, section: string, action: string): Promise<boolean> {
+    const caps = await this.loadCaps(positionId);
+    return this.hasCap(caps, section, action);
+  }
+
+  private async resolveUser(
+    email: string,
+    password: string,
+  ): Promise<(StaffUserProfile & { displayName: string; positionId: number }) | null> {
+    if (this.config.staffAllowStubUsers) {
+      const stub = this.config.staffStubUsers.find(
+        (u) => u.email === email && u.password === password,
+      );
+      if (stub) {
+        return {
+          id: stub.staffId,
+          email: stub.email,
+          display_name: stub.displayName,
+          displayName: stub.displayName,
+          position_id: stub.positionId,
+          positionId: stub.positionId,
+        };
+      }
+    }
+    try {
+      const result = await this.db.query(
+        `SELECT id::text, email, password_hash, display_name, position_id, expires_at
+         FROM staff_users
+         WHERE LOWER(email) = $1 AND active IS TRUE
+           AND (expires_at IS NULL OR expires_at > NOW())
+         LIMIT 1`,
+        [email],
+      );
+      const row = result.rows[0] as
+        | {
+            id: string;
+            email: string;
+            password_hash: string;
+            display_name: string;
+            position_id: number;
+            expires_at: string | null;
+          }
+        | undefined;
+      if (!row || !verifyPortalPassword(password, row.password_hash)) {
+        return null;
+      }
+      void this.db.query(`UPDATE staff_users SET last_login_at = NOW() WHERE id = $1::uuid`, [
+        row.id,
+      ]);
+      return {
+        id: row.id,
+        email: row.email,
+        display_name: row.display_name || row.email,
+        displayName: row.display_name || row.email,
+        position_id: row.position_id,
+        positionId: row.position_id,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private mergeCaps(base: StaffSectionCap[], extra: Array<{ section_id: string; action: string }>): StaffSectionCap[] {
+    const map = new Map<string, StaffSectionCap>();
+    for (const cap of base) {
+      map.set(`${cap.section}:${cap.action}`, cap);
+    }
+    for (const cap of extra) {
+      map.set(`${cap.section_id}:${cap.action}`, { section: cap.section_id, action: cap.action });
+    }
+    return [...map.values()].sort((a, b) =>
+      `${a.section}:${a.action}`.localeCompare(`${b.section}:${b.action}`, 'vi'),
+    );
+  }
+
+  private async loadPositionCode(positionId: number): Promise<string | null> {
+    if (this.positionCodes.has(positionId)) return this.positionCodes.get(positionId) ?? null;
+    try {
+      const result = await this.db.query<{ code: string }>(
+        `SELECT code FROM crm_positions WHERE id = $1 LIMIT 1`,
+        [positionId],
+      );
+      const code = result.rows[0]?.code ? String(result.rows[0].code) : null;
+      this.positionCodes.set(positionId, code);
+      return code;
+    } catch {
+      return null;
+    }
+  }
+
+  async loadCaps(positionId: number): Promise<StaffSectionCap[]> {
+    const code = await this.loadPositionCode(positionId);
+    if (isSuperAdminPositionCode(code)) return superAdminSectionCaps();
+    try {
+      const result = await this.db.query(
+        `SELECT section_id, action
+         FROM staff_section_permissions
+         WHERE position_id = $1
+         ORDER BY section_id, action`,
+        [positionId],
+      );
+      if (result.rowCount && result.rowCount > 0) {
+        return result.rows.map((row) => ({
+          section: String(row.section_id),
+          action: String(row.action),
+        }));
+      }
+    } catch {
+      // table may not exist yet on fresh dev
+    }
+    return DEFAULT_STUB_CAPS;
+  }
+
+  private async loadTokenVersion(userId: string): Promise<number | null> {
+    if (parseNumericStaffSub(userId) != null && this.config.staffAllowStubUsers) {
+      return 0;
+    }
+    try {
+      const result = await this.db.query<{ auth_token_version: number }>(
+        `SELECT auth_token_version FROM staff_users WHERE id = $1::uuid LIMIT 1`,
+        [userId],
+      );
+      if (!result.rows[0]) return null;
+      return Number(result.rows[0].auth_token_version ?? 0);
+    } catch {
+      return null;
+    }
+  }
+
+  private async assertTokenVersion(payload: StaffJwtPayload): Promise<void> {
+    if (parseNumericStaffSub(payload.sub) != null && this.config.staffAllowStubUsers) {
+      return;
+    }
+    const current = await this.loadTokenVersion(payload.sub);
+    if (current == null) {
+      return;
+    }
+    const tokenTv = payload.tv ?? 0;
+    if (tokenTv !== current) {
+      void this.authAudit.write('token_revoked', {
+        userId: payload.sub,
+        email: payload.email,
+        detail: { token_tv: tokenTv, current_tv: current },
+      });
+      throw new UnauthorizedException({ error: 'token_revoked' });
+    }
+  }
+
+  private async linkOidcUser(
+    oidcSub: string,
+    email: string,
+    groups: string[],
+  ): Promise<
+    (StaffUserProfile & { displayName: string; positionId: number; tokenVersion: number; linkedNew: boolean }) | null
+  > {
+    type StaffOidcRow = {
+      id: string;
+      email: string;
+      display_name: string;
+      position_id: number;
+      auth_token_version: number;
+      oidc_sub: string | null;
+    };
+
+    try {
+      const bySub = await this.db.query(
+        `SELECT id::text, email, display_name, position_id, auth_token_version, oidc_sub
+         FROM staff_users
+         WHERE oidc_sub = $1 AND active IS TRUE
+         LIMIT 1`,
+        [oidcSub],
+      );
+      let row = bySub.rows[0] as StaffOidcRow | undefined;
+      let linkedNew = false;
+
+      if (!row) {
+        const byEmail = await this.db.query(
+          `SELECT id::text, email, display_name, position_id, auth_token_version, oidc_sub
+           FROM staff_users
+           WHERE LOWER(email) = $1 AND active IS TRUE
+           LIMIT 1`,
+          [email],
+        );
+        row = byEmail.rows[0] as StaffOidcRow | undefined;
+        if (row && !row.oidc_sub) {
+          await this.db.query(
+            `UPDATE staff_users SET oidc_sub = $1, updated_at = NOW(), last_login_at = NOW() WHERE id = $2::uuid`,
+            [oidcSub, row.id],
+          );
+          linkedNew = true;
+        }
+      } else {
+        void this.db.query(`UPDATE staff_users SET last_login_at = NOW() WHERE id = $1::uuid`, [row.id]);
+      }
+
+      if (!row) {
+        const mapped = await this.keycloakGroups.resolvePositionFromGroups(groups);
+        if (!mapped) {
+          return null;
+        }
+        return null;
+      }
+
+      return {
+        id: row.id,
+        email: row.email,
+        display_name: row.display_name || row.email,
+        displayName: row.display_name || row.email,
+        position_id: row.position_id,
+        positionId: row.position_id,
+        tokenVersion: Number(row.auth_token_version ?? 0),
+        linkedNew,
+      };
+    } catch {
+      return null;
+    }
+  }
+}

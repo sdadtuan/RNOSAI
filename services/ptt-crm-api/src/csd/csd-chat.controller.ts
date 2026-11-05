@@ -1,0 +1,421 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Request, Response } from 'express';
+import { StaffAccountService } from '../staff-auth/staff-account.service';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { CsdChatCallsService } from './csd-chat-calls.service';
+import { CsdChatService } from './csd-chat.service';
+import type {
+  CsdActor,
+  CsdConversationKind,
+  CsdConversationListFilter,
+  CreateCsdConversationInput,
+  CreateCsdTicketInput,
+  SendCsdMessageInput,
+} from './csd.types';
+import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
+
+type AuthedReq = Request & {
+  staffUser?: StaffJwtPayload;
+  staffAuthVia?: 'internal' | 'jwt';
+};
+
+@Controller('api/crm/csd')
+@UseGuards(StaffOrInternalKeyGuard, StaffCsdGuard)
+export class CsdChatController {
+  constructor(
+    private readonly chat: CsdChatService,
+    private readonly chatCalls: CsdChatCallsService,
+    private readonly staffAuth: StaffAuthService,
+    private readonly staffAccount: StaffAccountService,
+  ) {}
+
+  private async actor(req: AuthedReq): Promise<CsdActor> {
+    if (!req.staffUser) {
+      return { staffId: 0, staffLabel: 'system', caps: [] };
+    }
+    const me = await this.staffAuth.me(req.staffUser);
+    const staffId = (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+    return {
+      staffId,
+      staffLabel: me.display_name || me.email || String(staffId),
+      caps: me.caps,
+    };
+  }
+
+  @Get('chat/unread-count')
+  @RequireCsdAction('view')
+  async unreadConversationCount(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.chat.unreadConversationCount(actor);
+  }
+
+  @Get('chat/attachments')
+  @RequireCsdAction('view')
+  async listChatAttachments(
+    @Req() req: AuthedReq,
+    @Query('conversation_id') conversationId?: string,
+    @Query('peer_staff_id') peerStaffId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.listMemberAttachments(actor, {
+      conversation_id: conversationId,
+      peer_staff_id: peerStaffId ? Number(peerStaffId) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('conversations')
+  @RequireCsdAction('view')
+  async listConversations(
+    @Req() req: AuthedReq,
+    @Query('filter') filter?: CsdConversationListFilter,
+    @Query('kind') kind?: CsdConversationKind,
+    @Query('client_account_id') clientAccountId?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.listConversations(actor, {
+      filter,
+      kind,
+      client_account_id: clientAccountId,
+      q,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('conversations')
+  @RequireCsdAction('write')
+  async createConversation(@Req() req: AuthedReq, @Body() body: CreateCsdConversationInput) {
+    const actor = await this.actor(req);
+    return this.chat.createConversation(actor, body);
+  }
+
+  @Patch('conversations/:id/alias')
+  @RequireCsdAction('write')
+  async setConversationAlias(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { alias_vi?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.setConversationAlias(actor, id, body.alias_vi ?? '');
+  }
+
+  @Patch('conversations/:id')
+  @RequireCsdAction('write')
+  async patchConversation(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name_vi?: string;
+      description?: string;
+      clear_avatar?: boolean;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.patchConversation(actor, id, body ?? {});
+  }
+
+  @Post('conversations/:id/avatar')
+  @RequireCsdAction('write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 1_000_000 },
+    }),
+  )
+  async uploadGroupAvatar(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.uploadGroupAvatar(actor, id, file);
+  }
+
+  @Delete('conversations/:id/avatar')
+  @RequireCsdAction('write')
+  async deleteGroupAvatar(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.clearGroupAvatar(actor, id);
+  }
+
+  @Get('conversations/:id/avatar')
+  @RequireCsdAction('view')
+  async groupAvatar(@Param('id') id: string, @Res() res: Response) {
+    const out = await this.chat.readGroupAvatar(id);
+    if (!out) {
+      throw new NotFoundException({ error: 'avatar_not_found' });
+    }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(out.buffer);
+  }
+
+  @Get('staff/:staffId/avatar')
+  @RequireCsdAction('view')
+  async staffAvatar(@Param('staffId') staffId: string, @Res() res: Response) {
+    const out = await this.staffAccount.readAvatarByCrmStaffId(Number(staffId));
+    if (!out) {
+      throw new NotFoundException({ error: 'avatar_not_found' });
+    }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(out.buffer);
+  }
+
+  @Get('conversations/:id/messages')
+  @RequireCsdAction('view')
+  async listMessages(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('after') after?: string,
+    @Query('q') q?: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.listMessages(actor, id, after, q);
+  }
+
+  @Get('conversations/:id/related-tickets')
+  @RequireCsdAction('view')
+  async listRelatedTickets(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listRelatedTickets(actor, id);
+  }
+
+  @Get('conversations/:id/attachments')
+  @RequireCsdAction('view')
+  async listConversationAttachments(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listConversationAttachments(actor, id);
+  }
+
+  @Post('conversations/:id/messages')
+  @RequireCsdAction('write')
+  async sendMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: SendCsdMessageInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.sendMessage(actor, id, body);
+  }
+
+  @Patch('messages/:id')
+  @RequireCsdAction('write')
+  async editMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { body_text: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.editMessage(actor, id, body);
+  }
+
+  @Delete('messages/:id')
+  @RequireCsdAction('write')
+  async deleteMessage(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.deleteMessage(actor, id);
+  }
+
+  @Put('messages/:id/reactions')
+  @RequireCsdAction('write')
+  async reactToMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { emotion?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.reactToMessage(actor, id, body.emotion ?? '');
+  }
+
+  @Post('messages/:id/create-ticket')
+  @RequireCsdAction('write')
+  async createTicketFromMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: Partial<CreateCsdTicketInput>,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.createTicketFromMessage(actor, id, body);
+  }
+
+  @Get('conversations/:id/members')
+  @RequireCsdAction('view')
+  async listMembers(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listMembers(actor, id);
+  }
+
+  @Post('conversations/:id/members')
+  @RequireCsdAction('write')
+  async addMember(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { member_staff_id: number; role?: 'owner' | 'admin' | 'member' | 'viewer' },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.addMember(actor, id, body);
+  }
+
+  @Patch('conversations/:id/members/:staffId')
+  @RequireCsdAction('write')
+  async setMemberRole(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('staffId') staffId: string,
+    @Body() body: { role?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.setMemberRole(actor, id, Number(staffId), String(body?.role ?? ''));
+  }
+
+  @Delete('conversations/:id/members/:staffId')
+  @RequireCsdAction('write')
+  async removeMember(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('staffId') staffId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.removeMember(actor, id, Number(staffId));
+  }
+
+  @Get('conversations/:id/join-requests')
+  @RequireCsdAction('view')
+  async listJoinRequests(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listJoinRequests(actor, id);
+  }
+
+  @Post('conversations/:id/join-requests/:requestId/approve')
+  @RequireCsdAction('write')
+  async approveJoinRequest(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.approveJoinRequest(actor, id, requestId);
+  }
+
+  @Post('conversations/:id/join-requests/:requestId/reject')
+  @RequireCsdAction('write')
+  async rejectJoinRequest(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.rejectJoinRequest(actor, id, requestId);
+  }
+
+  @Post('conversations/:id/transfer-owner')
+  @RequireCsdAction('write')
+  async transferOwner(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { new_owner_staff_id?: number },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.transferOwner(actor, id, Number(body?.new_owner_staff_id));
+  }
+
+  @Delete('conversations/:id/pin')
+  @RequireCsdAction('write')
+  async unpinConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.unpinConversation(actor, id);
+  }
+
+  @Post('messages/:id/pin')
+  @RequireCsdAction('write')
+  async pinMessage(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.pinMessage(actor, id);
+  }
+
+  @Post('conversations/:id/read')
+  @RequireCsdAction('view')
+  async markRead(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.markRead(actor, id);
+  }
+
+  @Post('conversations/:id/close')
+  @RequireCsdAction('write')
+  async closeConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.closeConversation(actor, id);
+  }
+
+  @Post('conversations/:id/archive')
+  @RequireCsdAction('write')
+  async archiveConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.archiveConversation(actor, id);
+  }
+
+  @Post('conversations/:id/forward')
+  @RequireCsdAction('write')
+  async forwardMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { message_id: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.forwardMessage(actor, id, body);
+  }
+
+  @Post('conversations/:id/reopen')
+  @RequireCsdAction('write')
+  async reopenConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.reopenConversation(actor, id);
+  }
+
+  @Post('calls/presence-token')
+  @RequireCsdAction('view')
+  async callPresenceToken(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.chatCalls.preparePresenceToken(actor);
+  }
+
+  @Post('conversations/:id/calls/token')
+  @RequireCsdAction('view')
+  async directCallToken(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { mode?: 'voice' | 'video' },
+  ) {
+    const actor = await this.actor(req);
+    const mode = body.mode === 'video' ? 'video' : 'voice';
+    return this.chatCalls.prepareDirectCall(actor, id, mode);
+  }
+}

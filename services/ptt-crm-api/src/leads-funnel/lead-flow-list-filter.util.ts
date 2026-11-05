@@ -1,0 +1,119 @@
+import type { LeadFlowKind } from './lead-flow-kind.util';
+
+type SqlDialect = 'postgres' | 'sqlite';
+
+function explicitFlowExpr(dialect: SqlDialect, alias: string): string {
+  const meta = `${alias}.meta_json`;
+  if (dialect === 'postgres') {
+    return `lower(trim(COALESCE(${meta}->>'lead_flow_kind', ${meta}->>'lead_flow', '')))`;
+  }
+  return `lower(trim(COALESCE(json_extract(${meta}, '$.lead_flow_kind'), json_extract(${meta}, '$.lead_flow'), '')))`;
+}
+
+function hasAgencyClientExpr(dialect: SqlDialect, alias: string): string {
+  if (dialect === 'postgres') {
+    return `${alias}.agency_client_id IS NOT NULL`;
+  }
+  return `COALESCE(json_extract(${alias}.meta_json, '$.agency_client_id'), '') <> ''`;
+}
+
+function statusExpr(alias: string): string {
+  return `lower(trim(COALESCE(${alias}.status, '')))`;
+}
+
+/** Mirrors resolveLeadFlowKind() for list queries (presales not considered). */
+export function buildSpaOperationalListFilter(dialect: SqlDialect, alias = 'l'): string {
+  const explicit = explicitFlowExpr(dialect, alias);
+  const hasClient = hasAgencyClientExpr(dialect, alias);
+  const status = statusExpr(alias);
+
+  return `(
+    ${explicit} IN ('spa_operational', 'spa')
+    OR (
+      ${hasClient}
+      AND ${explicit} NOT IN ('b2b_prospect', 'b2b')
+      AND ${status} NOT IN ('won', 'proposal')
+    )
+  )`;
+}
+
+/** Positive match for B2B — mirrors resolveLeadFlowKind() list semantics. */
+export function buildB2bProspectListFilter(dialect: SqlDialect, alias = 'l'): string {
+  const explicit = explicitFlowExpr(dialect, alias);
+  const hasClient = hasAgencyClientExpr(dialect, alias);
+  const status = statusExpr(alias);
+
+  return `(
+    ${explicit} IN ('b2b_prospect', 'b2b')
+    OR ${status} IN ('won', 'proposal')
+    OR (
+      ${explicit} NOT IN ('spa_operational', 'spa')
+      AND NOT (${hasClient})
+    )
+  )`;
+}
+
+export function buildLeadFlowKindListFilter(
+  kind: LeadFlowKind,
+  dialect: SqlDialect,
+  alias = 'l',
+): string {
+  if (kind === 'spa_operational') return buildSpaOperationalListFilter(dialect, alias);
+  return buildB2bProspectListFilter(dialect, alias);
+}
+
+export interface B2bListScopeInput {
+  staffId: number;
+  viewAll: boolean;
+  isDirector: boolean;
+  /** Account Manager: project membership of any role, not only project_manager. */
+  memberProjectPool?: boolean;
+  /** Account Manager sees every B2B lead. Contact masking still uses memberProjectPool. */
+  seesAllB2b?: boolean;
+}
+
+/** B2B list visibility — AE/sales: own owner_id only; AM: every B2B lead; PM: project pool; view-all/director: empty. */
+export function buildB2bListScopeClause(
+  dialect: SqlDialect,
+  alias: string,
+  scope: B2bListScopeInput,
+  staffParam: string,
+): string {
+  if (scope.viewAll || scope.isDirector) return '';
+  if (scope.seesAllB2b) {
+    const active =
+      dialect === 'postgres'
+        ? `COALESCE(st.active, FALSE) IS TRUE`
+        : `COALESCE(st.active, 0) = 1`;
+    return `EXISTS (
+      SELECT 1 FROM crm_staff st
+      WHERE st.id = ${staffParam} AND ${active}
+    )`;
+  }
+  const b2b = buildB2bProspectListFilter(dialect, alias);
+  const projectCol =
+    dialect === 'postgres'
+      ? `${alias}.b2b_project_id`
+      : `trim(COALESCE(json_extract(${alias}.meta_json, '$.b2b_project_id'), ''))`;
+  const roleFilter = scope.memberProjectPool
+    ? ''
+    : ` AND COALESCE(ps.role, 'sales') = 'project_manager'`;
+  const sqliteRoleFilter = scope.memberProjectPool
+    ? ''
+    : ` AND COALESCE(role, 'sales') = 'project_manager'`;
+  const pmPool =
+    dialect === 'postgres'
+      ? `SELECT ps.project_id
+         FROM crm_b2b_project_staff ps
+         INNER JOIN crm_staff st ON st.id = ps.staff_id AND COALESCE(st.active, FALSE) IS TRUE
+         WHERE ps.staff_id = ${staffParam}${roleFilter}`
+      : `SELECT project_id FROM crm_b2b_project_staff
+         WHERE staff_id = ${staffParam}${sqliteRoleFilter}`;
+  return `(
+    NOT (${b2b}) OR
+    ${alias}.owner_id = ${staffParam} OR
+    ${projectCol} IN (
+      ${pmPool}
+    )
+  )`;
+}

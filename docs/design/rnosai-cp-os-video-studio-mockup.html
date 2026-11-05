@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · CP OS · video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--navy:#0f2747;--accent:#2563eb;--ok:#16a34a;--warn:#d97706;--hot:#dc2626;--info:#0891b2;--bg:#f4f6f8;--surface:#fff;--border:#e5e7eb;--ink:#111827;--mute:#6b7280;--sidebar:248px}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}
+body{font-family:"Be Vietnam Pro",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+.app{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+.logo{font-weight:800;color:var(--navy)}
+.search-btn{flex:1;max-width:520px;height:36px;margin:0 auto;border:1px solid var(--border);border-radius:10px;background:#f9fafb;color:var(--mute);display:flex;justify-content:space-between;align-items:center;padding:0 12px}
+.kbd{border:1px solid var(--border);border-radius:5px;padding:1px 6px;background:#fff;font-size:11px}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.icon-btn{width:36px;height:36px;border:0;background:none;position:relative}
+.dot{position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--hot);border-radius:99px}
+.ava{width:32px;height:32px;border-radius:99px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.catalog{background:#fff;border-bottom:1px solid var(--border);padding:7px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.catalog b{font-size:11px;color:var(--mute)}
+.sc{border:1px solid var(--border);background:#fff;border-radius:999px;padding:3px 8px;font-size:11px}
+.sc.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ops{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.scope{height:30px;border:1px solid var(--border);border-radius:8px;padding:0 8px;background:#f9fafb;font-size:12px;font-weight:600}
+.fresh{font-size:11px;color:var(--mute)}
+.demo-more{font-size:12px}.demo-more summary{cursor:pointer;color:var(--mute);font-weight:600}
+.demo-more[open]{width:100%}.demo-more[open] .sc{margin:3px 3px 0 0}
+.shell{display:flex;flex:1;min-height:0}
+.sidebar{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column}
+.nav{padding:10px 8px;display:grid;gap:2px;flex:1}
+.grp{font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;padding:10px 10px 4px}
+.nav-btn{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:#e2e8f0;border-radius:10px;padding:8px 10px;text-align:left;font-size:13px}
+.nav-btn.is-on{background:var(--accent);color:#fff;font-weight:600}
+.sb-foot{padding:10px;border-top:1px solid #16355c;font-size:11px;color:#94a3b8}.sb-foot b{color:#e2e8f0;display:block}
+.main{flex:1;min-width:0;padding:18px 22px 40px}
+.page{display:none}.page.is-on{display:block}
+.subpage{display:none}.subpage.is-on{display:block}
+.crumb{font-size:12px;color:var(--mute);margin-bottom:6px}
+.head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:12px}
+h1{margin:0;font-size:22px;letter-spacing:-.03em}h2,h3{margin:0 0 8px;font-size:14px}
+.sub{margin:4px 0 0;color:var(--mute);font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--border);background:#fff;font-weight:600}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.tile{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left}
+.tile span{display:block;font-size:12px;color:var(--mute)}
+.tile strong{display:block;margin:4px 0 2px;font-size:20px}
+.tile em{font-style:normal;font-size:12px;font-weight:700}
+.up{color:var(--ok)}.dn{color:var(--hot)}
+.grid2{display:grid;grid-template-columns:1.3fr .9fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0;margin-bottom:12px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.linkish{border:0;background:none;color:var(--accent);font-weight:600;padding:0}
+.muted{color:var(--mute);font-size:12px}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;color:var(--mute);padding:8px;border-bottom:1px solid var(--border);background:#f8fafc}
+td{padding:8px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.pill{display:inline-flex;border-radius:99px;padding:2px 8px;font-size:12px;font-weight:700}
+.s-ok{background:#dcfce7;color:#166534}.s-warn{background:#fef3c7;color:#92400e}.s-bad{background:#fee2e2;color:#991b1b}.s-info{background:#e0f2fe;color:#075985}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 11px;font-size:12px}
+.tab.is-on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--border);background:#fff;border-radius:99px;padding:4px 10px;font-size:12px}
+.chip.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.alert{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.tl{border-left:2px solid var(--border);margin-left:8px;padding-left:14px}.tl .ev{margin:0 0 14px}
+.form{display:grid;gap:8px}.form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.inp{height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:#fff}
+textarea.inp{height:auto;min-height:88px;padding:8px 10px}
+.form-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.studio{display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:12px}
+.thumb{background:linear-gradient(135deg,#d6e3f0,#94a3b8);border-radius:10px;min-height:160px;display:grid;place-items:center;color:#fff;font-weight:700}
+.media-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.media-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;padding:0;text-align:left}
+.media-card .ph{height:88px;background:#cbd5e1}
+.media-card b{display:block;padding:6px 8px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.cal .wd{padding:8px;background:#f8fafc;font-size:11px;color:var(--mute);font-weight:700;text-align:center}
+.cal .day{min-height:88px;padding:6px;border-top:1px solid var(--border);border-right:1px solid var(--border)}
+.cal .ev{display:block;margin-top:4px;padding:2px 5px;border-left:2px solid var(--info);background:#ecfeff;border-radius:4px;font-size:10px}
+.note{font-size:11px;color:#9ca3af;margin-top:8px}
+.bars{display:flex;align-items:end;gap:8px;height:80px}
+.bars i{flex:1;background:var(--accent);border-radius:4px 4px 0 0;display:block}
+.track{display:flex;align-items:center;gap:8px;margin:8px 0}
+.track b{width:56px;font-size:11px;color:var(--mute)}
+.track i{height:18px;background:var(--accent);border-radius:4px;display:inline-block}
+.stepper{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.stepper span{border:1px solid var(--border);border-radius:99px;padding:4px 10px;background:#fff;font-size:12px}
+.stepper span.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--border);vertical-align:middle}
+.notify{display:none;position:absolute;right:14px;top:56px;width:360px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;z-index:50;box-shadow:0 8px 24px #0002}
+.notify.is-on{display:block}
+code{font-size:11px;background:#f3f4f6;padding:1px 4px;border-radius:4px}
+@media(max-width:1100px){.grid2,.grid3,.studio{grid-template-columns:1fr}.media-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · CP OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm project, video, asset, job…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="Nguyễn Minh">NM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>Render job_4412 failed · timeout</p>
+      <p>Client review Peak 16:9 +24h</p>
+      <p>Credit The Peak 80%</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Vận hành</b>
+    <select class="scope"><option>Vai trò: Producer — Lan</option><option>AM — Minh</option><option>Brand — Mai</option><option>Finance</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="vid-01">VID-01 Studio</option><option value="vid-02">VID-02 Storyboard</option><option value="vid-03">VID-03 Timeline</option><option value="vid-04">VID-04 Render Ops</option><option value="vid-05">VID-05 Review</option><option value="vid-06">VID-06 Batch</option><option value="vid-07">VID-07 Template</option><option value="vid-08">VID-08 Version</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="vid-01" onclick="show('vid-01')">VID-01 Studio</button><button class="sc" type="button" data-page="vid-02" onclick="show('vid-02')">VID-02 Storyboard</button><button class="sc" type="button" data-page="vid-03" onclick="show('vid-03')">VID-03 Timeline</button><button class="sc" type="button" data-page="vid-04" onclick="show('vid-04')">VID-04 Render Ops</button><button class="sc" type="button" data-page="vid-05" onclick="show('vid-05')">VID-05 Review</button><button class="sc" type="button" data-page="vid-06" onclick="show('vid-06')">VID-06 Batch</button><button class="sc" type="button" data-page="vid-07" onclick="show('vid-07')">VID-07 Template</button><button class="sc" type="button" data-page="vid-08" onclick="show('vid-08')">VID-08 Version</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav"><div class="grp">SẢN XUẤT SÁNG TẠO</div><button class="nav-btn" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button><button class="nav-btn" type="button" data-page="prj-01" onclick="show('prj-01')">Dự án</button><button class="nav-btn is-on" type="button" data-page="vid-01" onclick="show('vid-01')">Video AI</button><button class="nav-btn" type="button" data-page="med-01" onclick="show('med-01')">Thư viện</button><button class="nav-btn" type="button" data-page="brk-01" onclick="show('brk-01')">Brand Kit</button><button class="nav-btn" type="button" data-page="cal-01" onclick="show('cal-01')">Lịch xuất bản</button><button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button><button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button></div>
+      <div class="sb-foot">Credit PTT<br><b>1.160 / 5.000</b>storage — nếu chưa đo</div>
+    </aside>
+    <main class="main" id="page-title-wrap"><section class="page is-on" id="vid-01" data-title="Video Studio">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Video Studio — Peak Reels 9:16</div>
+<div class="head"><div><h1>Video Studio — Peak Reels 9:16</h1><p class="sub">VID-01 · FR-VID-001…010 · autosave 2s · estimate + pricing</p></div><div class="actions"><button class="btn" type="button" onclick="show('vid-02')">Storyboard</button><button class="btn-primary btn" type="button" onclick="show('vid-04')">Tạo video (reserve)</button></div></div>
+<div class="tabs"><button class="tab is-on" type="button" onclick="show('vid-01')">Studio</button><button class="tab" type="button" onclick="show('vid-02')">Storyboard</button><button class="tab" type="button" onclick="show('vid-03')">Timeline</button><button class="tab" type="button" onclick="show('vid-04')">Ops</button><button class="tab" type="button" onclick="show('vid-05')">Review</button><button class="tab" type="button" onclick="show('vid-06')">Batch</button><button class="tab" type="button" onclick="show('vid-07')">Template</button><button class="tab" type="button" onclick="show('vid-08')">Version</button></div>
+<div class="studio">
+  <div class="card form">
+    <div class="tabs"><button class="tab is-on">Prompt</button><button class="tab">Kịch bản</button><button class="tab">URL</button></div>
+    <textarea class="inp" style="min-height:120px">Cinematic aerial The Peak sunset, luxury lobby, CTA đăng ký tour, không claim giá ảo.</textarea>
+    <p class="muted">842 / 2.000 ký tự · moderation trước dispatch</p>
+    <label><input type="checkbox" checked/> Tự tạo kịch bản (hook, scene, VO, overlay, CTA)</label>
+    <button class="btn" type="button" onclick="show('med-01')">DAM picker (asset_version_id)</button>
+    <div class="media-grid" style="grid-template-columns:1fr 1fr"><div class="media-card"><div class="ph"></div><b>logo v3</b></div><div class="media-card"><div class="ph"></div><b>vo-12</b></div></div>
+  </div>
+  <div class="card">
+    <div class="thumb">Preview 9:16 · 00:12 / 00:30</div>
+    <div class="grid3" style="margin-top:8px">
+      <div class="media-card"><div class="ph"></div><b>1 Hook · lock</b></div>
+      <div class="media-card"><div class="ph"></div><b>2 Lobby</b></div>
+      <div class="media-card"><div class="ph"></div><b>3 CTA</b></div>
+    </div>
+    <button class="linkish" type="button" onclick="show('vid-03')">Mở timeline 4 track</button>
+  </div>
+  <div class="card form">
+    <label>Tỉ lệ<select class="inp"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
+    <label>Duration<select class="inp"><option>30s</option><option>15s</option><option>60s</option></select></label>
+    <label>Style<select class="inp"><option>Cinematic luxury</option></select></label>
+    <label>Locale / Voice<select class="inp"><option>vi-VN · Nữ ấm</option></select></label>
+    <label>Model<select class="inp"><option>stub-pro · pricing 2026-09</option></select></label>
+    <label>Brand Kit<select class="inp"><option>The Peak v12</option></select></label>
+    <p><b>Ước tính 42 cr</b> · watermark draft ON</p>
+    <p class="muted">Block nếu: AI tắt · asset ≠ Ready · rights · credit · moderation</p>
+  </div>
+</div>
+<div class="tbl-wrap"><table><thead><tr><th>Job</th><th>Trạng thái</th><th>Stage</th></tr></thead><tbody><tr><td>job_4419</td><td><span class="pill s-info">Encoding 78%</span></td><td>encode</td></tr><tr><td>job_4412</td><td><span class="pill s-bad">Failed</span></td><td>render</td></tr></tbody></table></div>
+</section><section class="page" id="vid-02" data-title="Storyboard">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Script &amp; Storyboard</div>
+<div class="head"><div><h1>Script &amp; Storyboard</h1><p class="sub">VID-02 · FR-VID-004/005/011/012 · lock không bị regenerate</p></div><div class="actions"><div class="tabs"><button class="tab" type="button" onclick="show('vid-01')">Studio</button><button class="tab is-on" type="button" onclick="show('vid-02')">Storyboard</button><button class="tab" type="button" onclick="show('vid-03')">Timeline</button><button class="tab" type="button" onclick="show('vid-04')">Ops</button><button class="tab" type="button" onclick="show('vid-05')">Review</button></div></div></div>
+<div class="grid2">
+  <div>
+    <div class="card"><b>1 · Hook 0–4s</b> <span class="pill s-ok">Locked</span><p>Visual: aerial sunset. VO: “Sống trên mây.” Overlay: THE PEAK (28/42 ký tự).</p>
+      <button class="btn" disabled>Regenerate (locked)</button></div>
+    <div class="card"><b>2 · Lobby 4–18s</b><p>B-roll lobby. VO tiện ích. QC: logo visibility warning.</p>
+      <button class="btn">Duplicate</button> <button class="btn">Split</button> <button class="btn">Regenerate scene</button></div>
+    <div class="card"><b>3 · CTA 18–30s</b><p>Mandatory CTA outro + disclaimer BĐS.</p></div>
+  </div>
+  <div class="card"><b>Rule panel</b>
+    <p>Brand Kit v12 · palette lock</p>
+    <p>Asset policy: VO-PEAK-12 còn 5 ngày</p>
+    <p>Approval: has_claim = false → Legal optional</p>
+    <p class="muted">Reorder / merge / delete theo policy template.</p>
+  </div>
+</div>
+</section><section class="page" id="vid-03" data-title="Timeline">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Timeline Editor</div>
+<div class="head"><div><h1>Timeline Editor</h1><p class="sub">VID-03 · 4 track · undo 20 · completed version immutable</p></div><div class="actions"><button class="btn" type="button">Undo</button><button class="btn">Redo</button></div></div>
+<div class="tabs"><button class="tab" type="button" onclick="show('vid-01')">Studio</button><button class="tab is-on" type="button" onclick="show('vid-03')">Timeline</button><button class="tab" type="button" onclick="show('vid-05')">Review</button></div>
+<div class="card">
+  <p class="muted">Zoom · snap · trim · volume · ducking</p>
+  <div class="track"><b>Scene</b><i style="width:18%"></i><i style="width:46%;background:#64748b"></i><i style="width:28%;background:#0ea5e9"></i></div>
+  <div class="track"><b>VO</b><i style="width:88%;background:#7c3aed"></i></div>
+  <div class="track"><b>Music</b><i style="width:100%;background:#059669;opacity:.5"></i></div>
+  <div class="track"><b>Caption</b><i style="width:30%"></i><i style="width:40%;background:#d97706"></i></div>
+</div>
+<div class="alert"><span>Missing asset nếu revoke VO-PEAK-12 → block render (FR-VID-016).</span></div>
+</section><section class="page" id="vid-04" data-title="Render Ops">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Render Operations</div>
+<div class="head"><div><h1>Render Operations</h1><p class="sub">VID-04 · FR-VID-017…022 · child job · SSE 5–10s fallback</p></div><div class="actions"><button class="btn-primary btn" type="button">Retry child job_4412</button></div></div>
+<div class="tabs"><button class="tab" type="button" onclick="show('vid-01')">Studio</button><button class="tab is-on" type="button" onclick="show('vid-04')">Ops</button><button class="tab" type="button" onclick="show('ovr-03')">Monitor</button></div>
+<div class="tbl-wrap"><table><thead><tr><th>Job</th><th>Parent</th><th>State</th><th>Prio</th><th>Idempotency</th><th>Credit</th></tr></thead><tbody><tr><td>job_4419</td><td>—</td><td><span class="pill s-info">encoding</span></td><td>High</td><td>pot_9f</td><td>reserved 42</td></tr><tr><td>job_4412</td><td>—</td><td><span class="pill s-bad">failed</span></td><td>Std</td><td>pot_8a</td><td>release pending</td></tr><tr><td>job_4412b</td><td>job_4412</td><td><span class="pill s-info">queued</span></td><td>High</td><td>pot_8a_r2</td><td>reserve 42 — không double</td></tr></tbody></table></div>
+<div class="card"><b>job_4412 trace</b>
+  <p>1 Validation+reserve ✓ · 2 Moderation+rights ✓ · 3 Scene gen ✓ · 4 TTS ✓ · 5 Mix ✓ · 6 Composite ✓ · 7 Encode ✗ timeout · 8 QC — · 9 CDN —</p>
+  <p class="muted">Cancel chỉ stage cho phép. Fallback provider = child + cùng pricing snapshot.</p>
+</div>
+</section><section class="page" id="vid-05" data-title="Review">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Review &amp; Approval — Peak 16:9 v3</div>
+<div class="head"><div><h1>Review &amp; Approval — Peak 16:9 v3</h1><p class="sub">VID-05 · timecode · QC 9 · matrix · compare · client = Hub</p></div><div class="actions"><button class="btn" type="button" onclick="show('vid-08')">Version detail</button><button class="btn-primary btn" type="button">Brand approve</button></div></div>
+<div class="tabs"><button class="tab" type="button" onclick="show('vid-01')">Studio</button><button class="tab is-on" type="button" onclick="show('vid-05')">Review</button><button class="tab" type="button" onclick="show('vid-08')">Version</button></div>
+<div class="grid2">
+  <div>
+    <div class="thumb">Player 16:9 · 00:14 · comment @00:14</div>
+    <div class="card"><b>Comments</b>
+      <p>00:14 · Mai · Open · Caption sát mép — hạ 8px</p>
+      <p>00:22 · Minh · Resolved · CTA đã đủ</p>
+      <textarea class="inp" placeholder="Comment + mention + attachment"></textarea>
+    </div>
+  </div>
+  <div>
+    <div class="card"><b>QC · Warning (không Block)</b><div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Kết quả</th></tr></thead><tbody><tr><td>Technical res/duration/audio</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Safe area 8%</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Caption overflow</td><td><span class="pill s-warn">Warning</span></td></tr><tr><td>Logo presence</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>CTA bắt buộc</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Disclaimer BĐS</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Loudness / missing audio</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Black / frozen frame</td><td><span class="pill s-ok">Pass</span></td></tr><tr><td>Moderation</td><td><span class="pill s-ok">Pass</span></td></tr></tbody></table></div></div>
+    <div class="card"><b>Approval</b>
+      <p>internal_review → <b>client_review (Hub cr_8841)</b> → legal → final</p>
+      <p class="muted">Sửa draft sau approve → invalidate. Compare v3↔v2: script, kit, asset, cost.</p>
+    </div>
+  </div>
+</div>
+</section><section class="page" id="vid-06" data-title="Batch">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Batch Video Factory</div>
+<div class="head"><div><h1>Batch Video Factory</h1><p class="sub">VID-06 · FR-VID-029…033 · 4 bước · partial retry</p></div><div class="actions"><button class="btn-primary btn" type="button">Chạy batch (estimate 1.920 cr)</button></div></div>
+<div class="stepper"><span class="is-on">1 Template</span><span class="is-on">2 Mapping</span><span class="is-on">3 Variants</span><span>4 Review & Run</span></div>
+<div class="grid2">
+  <div class="card">
+    <b>Template</b> <span class="pill s-ok">SKU Reels v4 published</span>
+    <p>Biến: <code>{{project_name}} {{price_from}} {{location}} {{cta}} {{hotline}}</code></p>
+    <p>Nguồn: CSV 48 hàng · 2 invalid (thiếu CTA)</p>
+  </div>
+  <div class="card">
+    <b>Variant matrix</b>
+    <p>Ratio 9:16 × Lang vi · en × Voice nữ × CTA A/B = <b>192 output</b> lý thuyết</p>
+    <p>Lần này: 9:16 × vi × 1 voice × CTA A = <b>46 valid</b></p>
+  </div>
+</div>
+<div class="tbl-wrap"><table><thead><tr><th>Hàng</th><th>project_name</th><th>price_from</th><th>cta</th><th>Status</th></tr></thead><tbody><tr><td>1</td><td>The Peak A</td><td>Từ 4,2 tỷ</td><td>Đăng ký tour</td><td><span class="pill s-ok">OK</span></td></tr><tr><td>2</td><td>The Peak B</td><td>—</td><td>Đăng ký</td><td><span class="pill s-bad">invalid price</span></td></tr></tbody></table></div>
+<p class="muted">Partial success · retry theo hàng · export error CSV · reconcile ledger không double-charge.</p>
+</section><section class="page" id="vid-07" data-title="Template">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Template Manager</div>
+<div class="head"><div><h1>Template Manager</h1><p class="sub">VID-07 · version · variables · brand lock · output profile</p></div><div class="actions"><button class="btn-primary btn" type="button">Tạo template</button></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Ver</th><th>Biến</th><th>Brand lock</th><th>Status</th><th>Dùng</th></tr></thead><tbody><tr><td>SKU Reels</td><td>v4</td><td>5</td><td><span class="pill s-ok">Peak v12</span></td><td>Published</td><td>46 batch</td></tr><tr><td>TVC cutdown</td><td>v2</td><td>3</td><td>Peak v12</td><td>Draft</td><td>—</td></tr><tr><td>Localization EN</td><td>v1</td><td>6</td><td>PTT default</td><td>Published</td><td>0</td></tr></tbody></table></div>
+<p class="note">Dùng template = tạo draft. Completed version không đổi khi template sửa.</p>
+</section><section class="page" id="vid-08" data-title="Version">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Video Version v3 — Peak 16:9</div>
+<div class="head"><div><h1>Video Version v3 — Peak 16:9</h1><p class="sub">VID-08 · snapshot bất biến · download signed URL + audit</p></div><div class="actions"><button class="btn" type="button">Tải (signed 15p)</button></div></div>
+<div class="grid2">
+  <div class="card"><b>Snapshot</b>
+    <p>Draft rev 11 · Brand Kit v12 · Model stub-pro · Pricing 2026-09</p>
+    <p>Assets: logo v3 · vo-12 v1 · b-roll v2</p>
+    <p>Prompt/script hash <code>sha256:9c…</code></p>
+    <p>QC Warning · approval client_review</p>
+  </div>
+  <div class="card"><b>Output & cost</b>
+    <p>URI <code>s3://…/v3.mp4</code> · 42 cr charged</p>
+    <p>Downloads: NM 09:12 (Hub) · — runtime không hard-code URL</p>
+    <p class="muted">PATCH bị 409 khi immutable=true.</p>
+  </div>
+</div>
+</section></main>
+  </div>
+</div>
+<script>
+const HUB_MSG='POST /creatives — không mint portal';
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  const t=document.getElementById('page-title');
+  if(t && el) t.textContent=el.dataset.title||id;
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP={
+  'ovr-02':'ovr-01','ovr-03':'ovr-01','ovr-04':'ovr-01',
+  'prj-02':'prj-01','prj-03':'prj-01','prj-04':'prj-01',
+  'vid-02':'vid-01','vid-03':'vid-01','vid-04':'vid-01','vid-05':'vid-01','vid-06':'vid-01','vid-07':'vid-01','vid-08':'vid-01',
+  'med-02':'med-01','med-03':'med-01','med-04':'med-01','med-05':'med-01','med-06':'med-01',
+  'brk-02':'brk-01','brk-03':'brk-01','brk-04':'brk-01','brk-05':'brk-01',
+  'cal-02':'cal-01','cal-03':'cal-01','cal-04':'cal-01','cal-05':'cal-01',
+  'rpt-02':'rpt-01','rpt-03':'rpt-01','rpt-04':'rpt-01','rpt-05':'rpt-01',
+  'set-02':'set-01','set-03':'set-01','set-04':'set-01','set-05':'set-01','set-06':'set-01','set-07':'set-01','set-08':'set-01'
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,576 @@
+import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
+import { AppConfigService } from '../config/app-config.service';
+import { JobQueueRepository } from './job-queue.repository';
+import {
+  metaConfigFromEnv,
+  normalizeWebhookChannel,
+  parseMetaWebhook,
+  parseFacebookWebhookJson,
+} from './meta-webhook.parser';
+import { extractMetaLeadgenContext } from './meta-webhook-context';
+import { exchangeForPageAccessToken } from './meta-page-token';
+import { MetaWebhookRepository } from './meta-webhook.repository';
+import { MetaOpsWebhookService } from './meta-ops-webhook.service';
+import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
+import { B2bConversationsService } from '../b2b-projects/b2b-conversations.service';
+import { parseEmailWebhook } from './email-webhook.parser';
+import { parseGoogleWebhook } from './google-webhook.parser';
+import { parseZaloWebhook } from './zalo-webhook.parser';
+import { parseTikTokWebhook } from './tiktok-webhook.parser';
+import { WebhookNestIngestService } from './webhook-nest-ingest.service';
+import type { NormalizedLeadPayload } from './webhook-lead.types';
+
+export interface WebhookHandleResult {
+  kind: 'json' | 'challenge';
+  status: number;
+  body: Record<string, unknown> | string;
+  contentType?: string;
+}
+
+@Injectable()
+export class WebhooksService {
+  private readonly logger = new Logger(WebhooksService.name);
+
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly jobQueue: JobQueueRepository,
+    private readonly metaWebhookRepo: MetaWebhookRepository,
+    private readonly metaOpsWebhookService: MetaOpsWebhookService,
+    private readonly b2bIngest: B2bIngestService,
+    private readonly b2bConversations: B2bConversationsService,
+    private readonly nestIngest: WebhookNestIngestService,
+  ) {}
+
+  listChannels(): Record<string, unknown> {
+    return {
+      channels: ['meta', 'zalo', 'google', 'tiktok', 'email'],
+      capabilities: {
+        meta: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
+        zalo: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
+        google: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
+        tiktok: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
+        email: { supports_webhooks: true, supports_lead_ingest: false, nest_native: true },
+      },
+      routing: {
+        meta: this.config.webhooksNestMetaEnabled ? 'nest' : 'none',
+        zalo: this.config.webhooksNestZaloEnabled ? 'nest' : 'none',
+        google: this.config.webhooksNestGoogleEnabled ? 'nest' : 'none',
+        tiktok: this.config.webhooksNestTiktokEnabled ? 'nest' : 'none',
+        email: this.config.webhooksNestEmailEnabled ? 'nest' : 'none',
+        default_fallback: 'none',
+      },
+    };
+  }
+
+  async handle(channelRaw: string, req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
+    const channel = normalizeWebhookChannel(channelRaw);
+    if (channel === 'meta' && this.config.webhooksNestMetaEnabled) {
+      return this.handleMeta(req, projectSlug);
+    }
+    if (channel === 'email' && this.config.webhooksNestEmailEnabled) {
+      return this.handleEmail(req);
+    }
+    if (channel === 'zalo' && this.config.webhooksNestZaloEnabled) {
+      return this.handleZalo(req, projectSlug);
+    }
+    if (channel === 'google' && this.config.webhooksNestGoogleEnabled) {
+      return this.handleGoogle(req);
+    }
+    if (channel === 'tiktok' && this.config.webhooksNestTiktokEnabled) {
+      return this.handleTikTok(req, projectSlug);
+    }
+    throw new ServiceUnavailableException({ error: 'channel_not_migrated', channel });
+  }
+
+  private async enqueuePreparedLeads(
+    channel: string,
+    leads: NormalizedLeadPayload[],
+    opts: { correlationId: string; clientId?: string; projectSlug?: string },
+  ): Promise<{ leads: NormalizedLeadPayload[]; unmatched: number }> {
+    const prepared = await this.b2bIngest.prepareWebhookLeads({
+      channel,
+      projectSlug: opts.projectSlug,
+      leads,
+    });
+    return { leads: prepared.toEnqueue, unmatched: prepared.unmatchedCount };
+  }
+
+  private async ingestLeadsOrThrow(
+    channel: string,
+    leads: NormalizedLeadPayload[],
+    opts: { correlationId: string; clientId?: string },
+    response: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      const ingest = await this.nestIngest.ingestPreparedLeads(leads, {
+        channel,
+        correlationId: opts.correlationId,
+        clientId: opts.clientId,
+      });
+      response.mode = ingest.mode;
+      response.accepted = true;
+      response.created_count = ingest.created;
+      response.duplicate_count = ingest.duplicates;
+      response.failed_count = ingest.failed;
+      response.lead_ids = ingest.lead_ids;
+      if (ingest.jobs) {
+        response.job_ids = ingest.jobs.map((j) => j.id);
+        response.jobs = ingest.jobs;
+      }
+      if (ingest.mode === 'nest' && ingest.failed > 0 && ingest.created === 0 && ingest.duplicates === 0) {
+        throw new ServiceUnavailableException({
+          verified: true,
+          accepted: false,
+          error: 'nest_ingest_failed',
+          results: ingest.results,
+        });
+      }
+      this.logger.log(
+        `webhook v1 channel=${channel} mode=${ingest.mode} created=${ingest.created} duplicates=${ingest.duplicates} failed=${ingest.failed} correlation_id=${opts.correlationId}`,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook ingest failed correlation_id=${opts.correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'ingest_failed',
+      });
+    }
+  }
+
+  private async handleMeta(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = flattenQuery(req.query as Record<string, unknown>);
+    const headerClientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+
+    const mode = query['hub.mode'] ?? query.hub_mode;
+    const hasHubHandshake = Boolean(query['hub.verify_token'] || query.hub_verify_token || query['hub.challenge']);
+    // Meta (and some App Dashboard probes) GET the callback URL with no hub.* query
+    // before the subscribe handshake. Treat that as a health check, not a signed POST.
+    if (req.method === 'GET' && mode !== 'subscribe' && !hasHubHandshake) {
+      return {
+        kind: 'challenge',
+        status: 200,
+        body: 'ok',
+        contentType: 'text/plain',
+      };
+    }
+    if (mode === 'subscribe') {
+      const parsed = await parseMetaWebhook({
+        headers,
+        rawBody,
+        query,
+        clientId: headerClientId,
+        config: metaConfigFromEnv(),
+      });
+      if (parsed.challenge !== undefined) {
+        return {
+          kind: 'challenge',
+          status: 200,
+          body: String(parsed.challenge),
+          contentType: 'text/plain',
+        };
+      }
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Invalid verify token',
+      });
+    }
+
+    const payload = parseFacebookWebhookJson(rawBody);
+    const ctx = extractMetaLeadgenContext(payload);
+    const resolvedClientId = await this.metaWebhookRepo.resolveClientId({
+      headerClientId,
+      pageIds: ctx.pageIds,
+      formIds: ctx.formIds,
+    });
+    const rawPageToken = await this.metaWebhookRepo.resolvePageAccessToken(resolvedClientId, ctx.pageIds);
+    const pageToken = rawPageToken
+      ? await exchangeForPageAccessToken(
+          rawPageToken,
+          ctx.pageIds[0] ?? '',
+          metaConfigFromEnv().graphApiVersion,
+        )
+      : rawPageToken;
+    const effectiveClientId =
+      resolvedClientId ??
+      this.metaWebhookRepo.normalizeClientUuid(headerClientId) ??
+      'unknown';
+
+    const parsed = await parseMetaWebhook({
+      headers,
+      rawBody,
+      query,
+      clientId: effectiveClientId,
+      resolvedClientId,
+      pageAccessToken: pageToken,
+      config: metaConfigFromEnv(),
+    });
+
+    if (!parsed.verified) {
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'meta',
+      correlation_id: correlationId,
+      lead_count: parsed.leads.length,
+      events: parsed.events,
+      handler: 'nest',
+      resolved_client_id: resolvedClientId,
+      page_ids: parsed.page_ids ?? ctx.pageIds,
+      form_ids: parsed.form_ids ?? ctx.formIds,
+    };
+
+    const opsResult = await this.metaOpsWebhookService.processPayload(payload);
+    response.ops_webhook = opsResult;
+
+    if (!parsed.leads.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads('meta', parsed.leads, {
+      correlationId,
+      clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
+      projectSlug,
+    });
+    response.b2b_unmatched_count = unmatched;
+    response.lead_count = leadsToEnqueue.length;
+
+    if (!leadsToEnqueue.length) {
+      response.created_count = 0;
+      response.accepted = true;
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      await this.ingestLeadsOrThrow(
+        'meta',
+        leadsToEnqueue,
+        {
+          correlationId,
+          clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
+        },
+        response,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
+
+  private async handleEmail(req: Request): Promise<WebhookHandleResult> {
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = req.query as Record<string, string>;
+    const clientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+    const verify = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_EMAIL_WEBHOOK_VERIFY ?? '0').trim().toLowerCase(),
+    );
+
+    const parsed = parseEmailWebhook({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      rawBody,
+      clientId,
+      verify,
+    });
+
+    if (!parsed.verified) {
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'email',
+      correlation_id: correlationId,
+      event_count: parsed.events.length,
+      handler: 'nest',
+    };
+
+    if (!parsed.events.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      const enqueue = await this.jobQueue.enqueueEmailJob({
+        jobType: 'email_engagement_ingest',
+        payload: { events: parsed.events, client_id: clientId },
+        idempotencyKey: `email_engagement:${correlationId}:${parsed.events.length}`,
+        correlationId,
+        clientId,
+      });
+      response.mode = 'queue';
+      response.accepted = true;
+      response.job_id = enqueue.id;
+      this.logger.log(
+        `webhook v1 channel=email events=${parsed.events.length} correlation_id=${correlationId}`,
+      );
+    } catch (err) {
+      this.logger.error(`email webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
+
+  private async handleZalo(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = req.query as Record<string, string>;
+    const clientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+
+    const parsed = parseZaloWebhook({ headers, rawBody, clientId });
+
+    if (!parsed.verified) {
+      this.logger.warn(`zalo webhook rejected ${parsed.reject_reason ?? 'Unauthorized'}`);
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    if (!parsed.leads.length) {
+      const summary = zaloPayloadSummary(rawBody);
+      this.logger.warn(`zalo webhook accepted with no lead event=${summary.event} info_keys=${summary.infoKeys}`);
+    }
+
+    const conversationCount = await this.b2bConversations.ingestZaloWebhook({
+      rawBody,
+      projectSlug,
+    });
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'zalo',
+      correlation_id: correlationId,
+      lead_count: parsed.leads.length,
+      events: parsed.events,
+      handler: 'nest',
+      conversation_persisted: conversationCount,
+    };
+
+    if (!parsed.leads.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads('zalo', parsed.leads, {
+      correlationId,
+      clientId,
+      projectSlug,
+    });
+    response.b2b_unmatched_count = unmatched;
+    response.lead_count = leadsToEnqueue.length;
+
+    if (!leadsToEnqueue.length) {
+      response.created_count = 0;
+      response.accepted = true;
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      await this.ingestLeadsOrThrow(
+        'zalo',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
+
+  private async handleGoogle(req: Request): Promise<WebhookHandleResult> {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = req.query as Record<string, string>;
+    const clientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+
+    const parsed = parseGoogleWebhook({ headers, rawBody, clientId });
+
+    if (!parsed.verified) {
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'google',
+      correlation_id: correlationId,
+      lead_count: parsed.leads.length,
+      events: parsed.events,
+      handler: 'nest',
+    };
+
+    if (!parsed.leads.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads(
+        'google',
+        parsed.leads,
+        { correlationId, clientId },
+      );
+      response.b2b_unmatched_count = unmatched;
+      response.lead_count = leadsToEnqueue.length;
+      if (!leadsToEnqueue.length) {
+        response.created_count = 0;
+        response.accepted = true;
+        return { kind: 'json', status: 200, body: response };
+      }
+      await this.ingestLeadsOrThrow(
+        'google',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
+
+  private async handleTikTok(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = flattenQuery(req.query as Record<string, unknown>);
+    const clientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+
+    const parsed = parseTikTokWebhook({ headers, rawBody, clientId, query });
+
+    if (!parsed.verified) {
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'tiktok',
+      correlation_id: correlationId,
+      lead_count: parsed.leads.length,
+      events: parsed.events,
+      handler: 'nest',
+    };
+
+    if (!parsed.leads.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads(
+        'tiktok',
+        parsed.leads,
+        { correlationId, clientId, projectSlug },
+      );
+      response.b2b_unmatched_count = unmatched;
+      response.lead_count = leadsToEnqueue.length;
+      if (!leadsToEnqueue.length) {
+        response.created_count = 0;
+        response.accepted = true;
+        return { kind: 'json', status: 200, body: response };
+      }
+      await this.ingestLeadsOrThrow(
+        'tiktok',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
+}
+
+function firstQueryValue(value: unknown): string {
+  if (Array.isArray(value)) return firstQueryValue(value[0]);
+  if (value == null) return '';
+  if (typeof value === 'object') return '';
+  return String(value);
+}
+
+function flattenQuery(raw: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    out[key] = firstQueryValue(value);
+  }
+  return out;
+}
+
+function zaloPayloadSummary(rawBody: Buffer): { event: string; infoKeys: string } {
+  try {
+    const body = JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>;
+    const event = String(body.event_name ?? body.event ?? '');
+    const info = body.info ?? body.message ?? body.data;
+    const infoKeys =
+      info && typeof info === 'object' && !Array.isArray(info) ? Object.keys(info).slice(0, 12).join(',') : typeof info;
+    return { event, infoKeys };
+  } catch {
+    return { event: '', infoKeys: 'invalid_json' };
+  }
+}
+
+function cryptoRandomUuid(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `corr-${Date.now()}`;
+}

@@ -1,0 +1,139 @@
+'use client';
+
+import Link from 'next/link';
+import type { ReactNode } from 'react';
+import type { LeadRow } from '@/lib/api';
+import type { LeadFlowKind } from '@/lib/crm/lead-flow-kind';
+import { leadStatusLabel, leadStatusTone } from '@/lib/crm/lead-status';
+
+function leadInitials(name: string | null | undefined): string {
+  const parts = (name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export function LeadDetailHero({
+  lead,
+  ownerLabel,
+  flowKind,
+  flowLabel,
+  nbaTitle,
+  showCockpit,
+  onOpenCockpit,
+  showAssign,
+  onOpenAssign,
+  contactActions,
+  party,
+  hideMeta,
+}: {
+  lead: LeadRow;
+  ownerLabel?: string | null;
+  flowKind?: LeadFlowKind;
+  flowLabel?: string;
+  nbaTitle?: string | null;
+  showCockpit?: boolean;
+  onOpenCockpit?: () => void;
+  showAssign?: boolean;
+  onOpenAssign?: () => void;
+  contactActions?: ReactNode;
+  party?: ReactNode;
+  hideMeta?: boolean;
+}) {
+  const tone = leadStatusTone(lead.status);
+  const created = lead.created_at?.slice(0, 10) ?? '—';
+  const showActions = Boolean(contactActions) || Boolean(showCockpit) || Boolean(showAssign);
+
+  return (
+    <header
+      className={`lead-detail-hero${party ? ' lead-detail-hero--with-party' : ''}`}
+      data-testid="lead-detail-hero"
+    >
+      <div className="lead-detail-hero__top">
+        <Link href="/crm/leads" className="lead-detail-hero__back">
+          ← Danh sách leads
+        </Link>
+        <span className="lead-detail-hero__id">#{lead.id}</span>
+      </div>
+
+      <div className="lead-detail-hero__body">
+        <div className="lead-detail-hero__avatar" aria-hidden>
+          {leadInitials(lead.full_name)}
+        </div>
+
+        <div className="lead-detail-hero__info">
+          <div className="lead-detail-hero__title-row">
+            <h1 className="lead-detail-hero__name">{lead.full_name || '—'}</h1>
+            {flowKind && flowLabel ? (
+              <span
+                className={`lead-kind-tag lead-kind-tag--${flowKind === 'spa_operational' ? 'spa' : 'b2b'}`}
+                title={flowLabel}
+              >
+                {flowLabel}
+              </span>
+            ) : null}
+            <span className={`lead-status-badge lead-status-badge--${tone}`}>
+              {leadStatusLabel(lead.status)}
+            </span>
+            {nbaTitle ? (
+              <span className="lead-detail-hero__nba">{nbaTitle}</span>
+            ) : null}
+          </div>
+
+          {showActions ? (
+            <div className="lead-detail-hero__actions">
+              {contactActions}
+              {showAssign || showCockpit ? (
+                <div className="lead-detail-hero__trailing">
+                  {showAssign ? (
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={onOpenAssign}>
+                      Phân công
+                    </button>
+                  ) : null}
+                  {showCockpit ? (
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={onOpenCockpit}>
+                      Mở Sales Cockpit
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {hideMeta ? null : (
+          <div className="lead-detail-hero__meta">
+              {lead.phone ? (
+                <span className="lead-detail-hero__meta-item">
+                  <span className="lead-detail-hero__meta-label">SĐT</span>
+                  <span className="lead-detail-hero__meta-value">{lead.phone}</span>
+                </span>
+              ) : null}
+              {lead.email ? (
+                <span className="lead-detail-hero__meta-item">
+                  <span className="lead-detail-hero__meta-label">Email</span>
+                  <span className="lead-detail-hero__meta-value">{lead.email}</span>
+                </span>
+              ) : null}
+              <span className="lead-detail-hero__meta-item">
+                <span className="lead-detail-hero__meta-label">Nguồn</span>
+                <span className="lead-detail-hero__meta-value">{lead.source || '—'}</span>
+              </span>
+              <span className="lead-detail-hero__meta-item">
+                <span className="lead-detail-hero__meta-label">Owner</span>
+                <span className="lead-detail-hero__meta-value">{ownerLabel || 'Chưa phân'}</span>
+              </span>
+              <span className="lead-detail-hero__meta-item">
+                <span className="lead-detail-hero__meta-label">Ngày tạo</span>
+                <span className="lead-detail-hero__meta-value">{created}</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+      {party}
+    </header>
+  );
+}

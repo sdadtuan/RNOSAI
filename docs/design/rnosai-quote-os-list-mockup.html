@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Danh sách & tạo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="lst-01">LST-01 Danh sách báo giá</option><option value="new-01">NEW-01 Tạo báo giá</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="lst-01" onclick="show('lst-01')">LST-01</button><button class="sc" type="button" data-page="new-01" onclick="show('new-01')">NEW-01</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="lst-01" data-title="Danh sách báo giá">
+<div class="crumb">Kinh doanh / Báo giá / Danh sách</div>
+<div class="head"><div><h1>Danh sách báo giá</h1><p class="sub">LST-01 · 14 status · mã QT-PTT-{{YYYY}}-{{SEQ:6}} · margin chỉ finance</p></div><div class="actions"><button class="btn" type="button">Xuất CSV</button><button class="btn-primary btn" type="button" onclick="show('new-01')">Tạo báo giá</button></div></div>
+<div class="filters">
+  <button class="chip is-on">Tất cả (62)</button><button class="chip">Của tôi</button><button class="chip">Chờ tôi phê duyệt</button><button class="chip">Sắp hết hạn ≤7n</button><button class="chip">Đã gửi chưa phản hồi</button>
+  <select class="scope"><option>Owner: Tất cả</option><option>AM Minh</option><option>AM Kiều</option></select>
+  <input class="inp" placeholder="Mã / khách / lead / title"/>
+</div>
+<div class="tbl-wrap"><table><thead><tr><th>Mã / ver</th><th>Khách · Lead</th><th>Phương án</th><th>Tổng · phí DV</th><th>GM</th><th>Status</th><th>Hiệu lực</th><th>Owner</th><th></th></tr></thead><tbody>
+<tr><td><button class="linkish" type="button" onclick="show('bld-01')">QT-PTT-2026-000089</button><br><span class="muted">v2 working</span></td><td>An Phát<br><span class="muted">LD-2026-0441 · AM 360</span></td><td>A · Growth Launch</td><td>265.647.600 ₫<br><span class="muted">phí 132.600.000</span></td><td><span class="pill s-warn">22,4%</span></td><td><span class="pill s-warn">Chờ duyệt</span></td><td>10/09 · còn 2n</td><td>AM Minh</td><td><button class="btn" type="button" onclick="show('bld-01')">Mở</button></td></tr>
+<tr><td>QT-PTT-2026-000102</td><td>Bloom Spa<br><span class="muted">LD-2026-0512</span></td><td>B · Retainer</td><td>84.240.000 ₫</td><td><span class="pill s-ok">31,2%</span></td><td><span class="pill s-info">Đã gửi</span></td><td>20/09 · 12n</td><td>AM Kiều</td><td><button class="btn" type="button">Nhân bản</button></td></tr>
+<tr><td>QT-PTT-2026-000044</td><td>EduNext<br><span class="muted">đã convert</span></td><td>A</td><td>156.000.000 ₫</td><td><span class="pill s-ok">28,0%</span></td><td><span class="pill s-ok">Đã xác nhận</span></td><td>—</td><td>AM Minh</td><td><button class="btn" type="button" onclick="show('cvt-01')">Lifecycle</button></td></tr>
+</tbody></table></div>
+<p class="muted">Chip status đầy đủ: nháp · chờ rà soát · chờ duyệt · yêu cầu chỉnh · đã duyệt · đã gửi · đã xem · thương lượng · xác nhận · từ chối · hết hạn · hủy · đã thay · lưu trữ. Cột GM ẩn nếu không <code>crm_quote.finance</code>.</p>
+<p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+</section><section class="page" id="new-01" data-title="Tạo báo giá">
+<div class="crumb">Kinh doanh / Báo giá / Tạo báo giá</div>
+<div class="head"><div><h1>Tạo báo giá</h1><p class="sub">NEW-01 · nguồn Lead / AM 360 / trống · select tên, cấm dán UUID · không tạo khách ma</p></div><div class="actions"><button class="btn" type="button" onclick="show(&quot;lst-01&quot;)">Hủy</button><button class="btn-primary btn" type="button" onclick="show(&quot;bld-01&quot;)">Tạo nháp</button></div></div>
+<div class="stepper"><span class="is-on">1. Nguồn</span><span>2. Header</span><span>3. Builder</span></div>
+<div class="grid3">
+  <button class="card opt is-on" type="button"><span class="pill s-info">Khuyến nghị</span><h3>Từ Lead / Deal Room</h3><p class="muted">Kế thừa khách, owner, close date, tags. Deep-link <code>?lead_id=</code> từ Consult.</p></button>
+  <button class="card opt" type="button"><h3>Từ AM 360</h3><p class="muted">Chọn khách đang active. Gắn lead sau nếu có.</p></button>
+  <button class="card opt" type="button"><h3>Trống</h3><p class="muted">Bắt buộc chọn khách trước submit. Không invent client.</p></button>
+</div>
+<div class="grid2">
+  <div class="card form">
+    <label>Lead *<select class="inp"><option>LD-2026-0441 · An Phát · Growth Q4 · AM Minh</option><option>LD-2026-0512 · Bloom Spa · Retainer</option></select></label>
+    <label>Khách (AM 360) *<select class="inp"><option>Công ty Cổ phần An Phát</option><option>Bloom Spa</option><option>EduNext</option></select><span class="muted">SoR <code>crm_clients</code> — form không có ô UUID</span></label>
+    <label>Tiêu đề *<input class="inp" value="Growth Proposal Q4/2026"/></label>
+    <label>Loại<select class="inp"><option>new_business</option><option>renewal</option><option>upsell</option><option>retainer</option><option>campaign</option></select></label>
+  </div>
+  <div class="card">
+    <b>Prefill từ lead</b>
+    <div class="side-row"><span>Owner</span><b>AM Minh</b></div>
+    <div class="side-row"><span>Liên hệ quyết định</span><b>Nguyễn Minh Anh · Marketing Director</b></div>
+    <div class="side-row"><span>Expected close</span><b>30/09/2026</b></div>
+    <div class="side-row"><span>Entity phát hành</span><b>PTT HCM</b></div>
+    <div class="side-row"><span>Mã sẽ cấp</span><b>QT-PTT-2026-000089</b></div>
+    <p class="muted">Tạo = root <code>crm_proposals</code> + working v1. Currency VND. valid_until mặc định +30 ngày.</p>
+  </div>
+</div>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+name: RNOS-09-10 Deal Score NBA Gate
+
+on:
+  pull_request:
+    paths:
+      - 'services/ops-web/**'
+      - 'services/ptt-crm-api/src/ai-intelligence/**'
+      - 'scripts/rnos09_10_*.sh'
+      - 'scripts/playwright_ops_nba_deal_score_e2e.sh'
+      - '.github/workflows/rnos09-10-nba-deal-score.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/ops-web/**'
+      - 'services/ptt-crm-api/src/ai-intelligence/**'
+      - 'scripts/rnos09_10_*.sh'
+      - 'scripts/playwright_ops_nba_deal_score_e2e.sh'
+      - '.github/workflows/rnos09-10-nba-deal-score.yml'
+
+jobs:
+  nba-deal-score-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PTT_SQLITE_PATH: ${{ github.workspace }}/ptt.db
+      OPS_E2E_URL: http://127.0.0.1:3200
+      OPS_E2E_API_URL: http://127.0.0.1:3000
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            services/ops-web/package-lock.json
+            services/ptt-crm-api/package-lock.json
+      - name: Install Playwright Chromium
+        working-directory: services/ops-web
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+      - name: Run RNOS-09/10 gate
+        run: |
+          chmod +x scripts/rnos09_10_nba_deal_score_gate.sh scripts/playwright_ops_nba_deal_score_e2e.sh
+          bash scripts/rnos09_10_nba_deal_score_gate.sh

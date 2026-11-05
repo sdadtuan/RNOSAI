@@ -1,0 +1,88 @@
+{
+  "$schema": "magnific-spaces-blueprint/1.0",
+  "note": "Magnific Spaces KHÔNG hỗ trợ paste/import file này lên canvas. Dùng như spec dựng tay trong Spaces, hoặc publish thành Flow rồi chạy qua API (xem social-916-flow-api-runs.json).",
+  "name": "Social 9:16 Image-to-Video",
+  "platform": "Magnific Spaces",
+  "nodes": [
+    {
+      "id": "text_image_prompt",
+      "type": "Text",
+      "color": "blue",
+      "position": [0, 0],
+      "default": "Vertical social ad frame, elegant woman applying serum, soft golden hour light, clean minimal bathroom, premium skincare bottle foreground, photorealistic, no text, no logo, face and product upper two-thirds, 9:16 vertical, cinematic"
+    },
+    {
+      "id": "image_gen",
+      "type": "Image Generator",
+      "position": [350, 0],
+      "settings": {
+        "aspect_ratio": "9:16",
+        "model": "auto_or_preferred",
+        "outputs": 1
+      }
+    },
+    {
+      "id": "text_motion_prompt",
+      "type": "Text",
+      "color": "blue",
+      "position": [350, 180],
+      "default": "Very subtle slow push-in toward face and product, minimal movement, stable identity, no morphing, cinematic smooth, 5 seconds"
+    },
+    {
+      "id": "video_kling",
+      "type": "Video Generator",
+      "position": [750, 0],
+      "settings": {
+        "mode": "image-to-video",
+        "model": "Kling (latest available)",
+        "duration_sec": 5,
+        "aspect_ratio": "9:16",
+        "resolution": "1080P"
+      },
+      "ports": {
+        "prompt": "text_motion_prompt.output",
+        "start_frame": "image_gen.output"
+      }
+    },
+    {
+      "id": "video_seedance",
+      "type": "Video Generator",
+      "position": [750, 200],
+      "settings": {
+        "mode": "image-to-video",
+        "model": "Seedance (latest available)",
+        "duration_sec": 5,
+        "aspect_ratio": "9:16",
+        "resolution": "1080P"
+      },
+      "ports": {
+        "prompt": "text_motion_prompt.output",
+        "start_frame": "image_gen.output"
+      }
+    },
+    {
+      "id": "video_upscale",
+      "type": "Video Upscaler",
+      "position": [1100, 100],
+      "optional": true,
+      "note": "Chỉ nối clip đã chọn từ Kling hoặc Seedance"
+    }
+  ],
+  "connections": [
+    ["text_image_prompt", "image_gen", "prompt"],
+    ["text_motion_prompt", "video_kling", "prompt"],
+    ["text_motion_prompt", "video_seedance", "prompt"],
+    ["image_gen", "video_kling", "start_frame"],
+    ["image_gen", "video_seedance", "start_frame"]
+  ],
+  "publish_as_flow": {
+    "inputs": [
+      { "api_key": "image_prompt", "source_node": "text_image_prompt", "type": "text" },
+      { "api_key": "motion_prompt", "source_node": "text_motion_prompt", "type": "text" }
+    ],
+    "outputs": [
+      { "label": "Video Kling", "source_node": "video_kling" },
+      { "label": "Video Seedance", "source_node": "video_seedance" }
+    ]
+  }
+}

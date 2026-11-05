@@ -1,0 +1,78 @@
+{
+  "wave": "W1",
+  "component": "revops_enterprise_shell",
+  "srs": "REVOPS-ENT-001 v2.0 §10.2",
+  "branch": "feat/revops-enterprise-w1",
+  "head_commit": "72464ade",
+  "environment": "local-dev",
+  "evaluated_at": "2026-09-06T10:06:00+07:00",
+  "signed_at": null,
+  "ok": false,
+  "flags_required": {
+    "NEXT_PUBLIC_REVOPS_SHELL": "1",
+    "NEXT_PUBLIC_LEAD_PIPELINE_TAB": "1"
+  },
+  "gates": {
+    "ptt_crm_api_test_revops": true,
+    "ops_web_unit_revops_w1": true,
+    "playwright_revops_shell_w1": false,
+    "playwright_lead_pipeline_tab": false,
+    "playwright_skip_reason": "API :3000 unreachable; 6/6 tests skipped (2026-09-06 local run)"
+  },
+  "srs_10_2": {
+    "revops_shell_sidebar_topbar_breadcrumb": true,
+    "twelve_nav_routes_mapped": true,
+    "command_center_api_aggregate": true,
+    "quick_create_six_modals": true,
+    "embed_leads_kpi_am_no_double_sidebar": true,
+    "feature_flag_revops_shell": true
+  },
+  "lead_pipeline_tab": {
+    "AC-TAB-001_default_b2b": false,
+    "AC-TAB-002_gate_b2": false,
+    "AC-TAB-003_intake_redirect": false,
+    "AC-TAB-004_hash_b2": false,
+    "AC-TAB-005_spa_hidden": false,
+    "AC-TAB-006_contract_tab": false,
+    "automated_note": "AC-TAB-001/004/006 covered by e2e when API up; 002/003/005 require manual staging"
+  },
+  "manual_staging": {
+    "director_opens_command_center": false,
+    "ops_nav_revenue_operations_link": false,
+    "rbac_leads_only_denied_revops": false,
+    "commission_tile_shows_dash_w1": false
+  },
+  "commands": {
+    "api": "cd services/ptt-crm-api && npm run test:revops",
+    "unit": "cd services/ops-web && npm run test:unit:revops-w1",
+    "e2e": "cd services/ops-web && npm run test:e2e:revops-w1"
+  },
+  "deliverables": [
+    "e6d31eb6 feat(revops): add feature flag and RBAC catalog",
+    "27d1181f feat(revops): add navigation config",
+    "73a66570 feat(revops): add RevOpsShell layout and tokens",
+    "6489b4f9 feat(revops): add command center aggregate API",
+    "d3331011 feat(revops): add W1 quick-create and lead/deal modals",
+    "1e2b4165 feat(revops): add Command Center page",
+    "4eb7a2c4 feat(revops): wire OpsNav, route caps, and embed mode",
+    "72464ade chore(revops): add W1 UAT gate npm scripts and playwright flags",
+    "807cae39..fe44389b Track A: Lead Pipeline tab (A1–A6)"
+  ],
+  "artifacts": {
+    "plan": "docs/superpowers/plans/2026-09-06-revops-enterprise-and-lead-pipeline.md",
+    "srs": "docs/superpowers/specs/2026-09-05-revops-enterprise-mockup-srs.md",
+    "lead_pipeline_srs": "docs/superpowers/specs/2026-09-05-lead-pipeline-tab-srs.md",
+    "this_file": "docs/evidence/revops-w1-signoff.json"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "Playwright e2e not executed (CRM API / Docker postgres down)",
+    "Manual staging checklist §10.2 not run with NEXT_PUBLIC_REVOPS_SHELL=1",
+    "Lead Pipeline AC-TAB-002/003/005 manual only"
+  ],
+  "notes": "Code-complete for W1 scope. Full PO sign-off (ok=true) requires green e2e on staging + manual UAT + signoffs.product_owner date/name."
+}

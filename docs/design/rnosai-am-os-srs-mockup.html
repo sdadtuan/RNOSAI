@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RNOSAI · Account Management — mockup vận hành</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --navy:#0F2747; --accent:#2563EB; --ok:#16A34A; --warn:#D97706; --hot:#DC2626;
+      --info:#0891B2; --bg:#F4F6F8; --surface:#FFFFFF; --border:#E5E7EB; --ink:#111827; --mute:#6B7280; --risk:#EA580C;
+      --sidebar:248px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%}
+    body{font-family:"Be Vietnam Pro",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+    button,input,select,textarea{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:none}
+    .app{min-height:100vh;display:flex;flex-direction:column}
+    .topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+    .logo{font-weight:800;color:var(--navy)}
+    .search-btn{flex:1;max-width:520px;height:36px;margin:0 auto;border:1px solid var(--border);border-radius:10px;background:#f9fafb;color:var(--mute);display:flex;justify-content:space-between;align-items:center;padding:0 12px;font-size:13px}
+    .kbd{border:1px solid var(--border);border-radius:5px;padding:1px 6px;background:#fff;font-size:11px}
+    .top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+    .icon-btn{width:36px;height:36px;border:0;background:none;position:relative}
+    .dot{position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--hot);border-radius:99px}
+    .ava{width:32px;height:32px;border-radius:99px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+    .catalog{background:#fff;border-bottom:1px solid var(--border);padding:7px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .catalog b{font-size:11px;color:var(--mute);margin-right:2px}
+    .sc{border:1px solid var(--border);background:#fff;border-radius:999px;padding:3px 8px;font-size:11px}
+    .sc.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+    .ops{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+    .scope{height:30px;border:1px solid var(--border);border-radius:8px;padding:0 8px;background:#f9fafb;font-size:12px;font-weight:600}
+    .fresh{font-size:11px;color:var(--mute)}
+    .nav-btn .badge{margin-left:auto;background:#16355c;color:#93c5fd;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700}
+    .nav-btn.is-on .badge{background:rgba(255,255,255,.22);color:#fff}
+    .sb-foot{padding:10px;border-top:1px solid #16355c;font-size:11px;color:#94a3b8}
+    .sb-foot b{color:#e2e8f0;display:block}
+    .tile{position:relative;overflow:hidden}
+    .tile .spark{position:absolute;right:10px;bottom:10px;opacity:.85}
+    .tbl-wrap{overflow:auto;max-height:min(62vh,640px);border:1px solid var(--border);border-radius:12px;background:#fff}
+    .tbl-wrap table{margin:0}
+    .tbl-wrap th{position:sticky;top:0;background:#f8fafc;z-index:1}
+    body.dense td,body.dense th{padding:5px 8px}
+    body.dense .card{padding:12px}
+    .acct{display:flex;align-items:center;gap:8px}
+    .logo-dot{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;flex:0 0 28px}
+    .child{padding-left:22px}
+    .child::before{content:"↳ ";color:var(--mute)}
+    .meter{height:6px;background:#e5e7eb;border-radius:99px;overflow:hidden}
+    .meter>i{display:block;height:100%;border-radius:99px}
+    .dir-only{display:none}
+    body.role-dir .dir-only{display:block}
+    body.role-dir .am-only-hide{display:none}
+    .week{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+    .week .slot{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px}
+    .sla-clock{font-variant-numeric:tabular-nums;font-weight:700}
+    .cov{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .cov .box{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:10px}
+    .stack-bar{display:flex;height:18px;border-radius:99px;overflow:hidden}
+    .stack-bar i{display:block;height:100%}
+    .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--mute)}
+    .legend b{color:var(--ink)}
+    .hint{font-size:11px;color:#9ca3af}
+    .demo-more{font-size:12px}
+    .demo-more summary{cursor:pointer;color:var(--mute);font-weight:600}
+    .demo-more[open]{width:100%}
+    .demo-more[open] .sc{margin:3px 3px 0 0}
+    .shell{display:flex;flex:1;min-height:0}
+    .sidebar{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column}
+    .app.collapsed .sidebar{width:64px;flex-basis:64px}
+    .nav{padding:10px 8px;display:grid;gap:2px;flex:1}
+    .grp{font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;padding:10px 10px 4px}
+    .app.collapsed .grp,.app.collapsed .nav-btn span{display:none}
+    .nav-btn{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:#e2e8f0;border-radius:10px;padding:8px 10px;text-align:left;font-size:13px}
+    .nav-btn.is-on{background:var(--accent);color:#fff;font-weight:600}
+    .collapse{margin:8px;border:0;background:#16355c;color:#94a3b8;border-radius:8px;padding:8px}
+    .main{flex:1;min-width:0;padding:18px 22px 40px}
+    .page{display:none}.page.is-on{display:block}
+    .crumb{font-size:12px;color:var(--mute);margin-bottom:6px}
+    .head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:12px}
+    h1{margin:0;font-size:22px;letter-spacing:-.03em} h2,h3{margin:0 0 8px;font-size:14px}
+    .sub{margin:4px 0 0;color:var(--mute);font-size:13px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .btn{height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--border);background:#fff;font-weight:600;font-size:13px}
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn-danger{background:var(--hot);border-color:var(--hot);color:#fff}
+    .field,.inp{height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:#fff}
+    .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+    .tile{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left}
+    .tile span{display:block;font-size:12px;color:var(--mute)}
+    .tile strong{display:block;margin:4px 0 2px;font-size:20px}
+    .up{color:var(--ok);font-size:12px;font-weight:700}.dn{color:var(--hot);font-size:12px;font-weight:700}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0;margin-bottom:12px}
+    .card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+    .linkish{border:0;background:none;color:var(--accent);font-weight:600;font-size:13px;padding:0}
+    .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .chip{border:1px solid var(--border);background:#fff;border-radius:99px;padding:4px 10px;font-size:12px}
+    .chip.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+    .row{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+    .muted{color:var(--mute);font-size:12px}
+    .dotc{width:10px;height:10px;border-radius:99px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;font-size:11px;color:var(--mute);padding:8px;border-bottom:1px solid var(--border)}
+    td{padding:8px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+    tr.click{cursor:pointer} tr.click:hover td{background:#f9fafb}
+    .pill{display:inline-flex;border-radius:99px;padding:2px 8px;font-size:12px;font-weight:700}
+    .h-ok{background:#dcfce7;color:#166534}.h-watch{background:#fef3c7;color:#92400e}
+    .h-risk{background:#ffedd5;color:#9a3412}.h-crit{background:#fee2e2;color:#991b1b}
+    .s-ok{background:#dcfce7;color:#166534}.s-warn{background:#fef3c7;color:#92400e}.s-bad{background:#fee2e2;color:#991b1b}
+    .t-new{background:#f3f4f6;color:#374151}.t-prog{background:#dbeafe;color:#1d4ed8}
+    .t-wait{background:#ede9fe;color:#6d28d9}.t-done{background:#dcfce7;color:#166534}
+    .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+    .tab{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 11px;font-size:12px}
+    .tab.is-on{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .kanban{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;overflow-x:auto}
+    .col{background:#f3f4f6;border-radius:12px;padding:10px;min-height:240px}
+    .kcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
+    .grid2{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+    .grid-ob{display:grid;grid-template-columns:220px 1fr;gap:12px}
+    .side-list{display:grid;gap:4px}
+    .side-list button{text-align:left;border:0;background:none;padding:8px;border-radius:8px}
+    .side-list button.is-on{background:#eff6ff;color:var(--accent);font-weight:600}
+    .tl{border-left:2px solid var(--border);margin-left:8px;padding-left:14px}
+    .tl .ev{margin:0 0 14px}
+    .qacts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+    .form{display:grid;gap:8px}.form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+    .form-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .bars{display:flex;align-items:flex-end;gap:10px;height:120px}
+    .bar{width:22px;border-radius:5px 5px 0 0}
+    .phone{width:320px;margin:0 auto;border:10px solid #111;border-radius:28px;background:#fff;min-height:560px;padding:12px}
+    .drawer-bg{display:none;position:fixed;inset:0;background:rgba(17,24,39,.4);z-index:60}
+    .drawer-bg.is-on{display:block}
+    .drawer{position:absolute;top:0;right:0;width:min(480px,100%);height:100%;background:#fff;padding:18px;overflow:auto}
+    .palette{display:none;position:fixed;left:50%;top:10vh;transform:translateX(-50%);width:min(680px,94vw);background:#fff;border-radius:12px;z-index:70;padding:12px;box-shadow:0 24px 50px rgba(17,24,39,.2)}
+    .palette.is-on{display:block}
+    .toast{display:none;position:fixed;bottom:18px;right:18px;z-index:80;background:var(--navy);color:#fff;padding:10px 14px;border-radius:10px}
+    .toast.is-on{display:block}
+    .notify{display:none;position:absolute;right:70px;top:52px;width:360px;background:#fff;border:1px solid var(--border);border-radius:12px;z-index:50;padding:10px;box-shadow:0 10px 24px rgba(0,0,0,.12)}
+    .notify.is-on{display:block}
+    .menu-pop{display:none;position:absolute;right:0;top:38px;background:#fff;border:1px solid var(--border);border-radius:10px;min-width:210px;z-index:20;padding:6px}
+    .menu-pop.is-on{display:grid}
+    .menu{position:relative}
+    .menu-pop button{border:0;background:none;text-align:left;padding:8px;border-radius:8px}
+    .bulk{display:none;background:var(--navy);color:#fff;border-radius:10px;padding:10px;margin-bottom:10px;justify-content:space-between}
+    .bulk.is-on{display:flex}
+    .banner{background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px;font-weight:600}
+    .check{display:block;margin:6px 0;font-size:13px}
+    .p360{display:none}.p360.is-on{display:block}
+    .modal-wrap{display:none;position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:65;place-items:center;padding:20px}
+    .modal-wrap.is-on{display:grid}
+    .modal{width:min(640px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:12px;padding:18px}
+    .modal--wide{width:min(780px,96vw)}
+    .drawer-panel{display:none}
+    .drawer-panel.is-on{display:block}
+    textarea.inp{height:auto;min-height:72px;padding:8px 10px;resize:vertical}
+    .heat{display:grid;grid-template-columns:80px repeat(6,1fr);gap:4px;font-size:11px}
+    .heat i{display:block;height:22px;border-radius:4px}
+    .m-cta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+    @media(max-width:720px){.tiles,.split,.grid2,.kanban,.grid-ob,.form-2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · AM</span></span>
+    <button class="search-btn" type="button" onclick="openPalette()"><span>Tìm account, HĐ, contact, task, renewal…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · Giờ LV còn 7h12</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')" title="5 chưa đọc">🔔<i class="dot"></i></button>
+      <button class="icon-btn" type="button" title="Trợ giúp">❔</button>
+      <span class="ava" title="Nguyễn Minh — AM Team HCM">NM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b><button class="linkish" type="button">Đánh dấu đã đọc</button></div>
+      <p>🔴 2 phút trước · REQ-000291 đã vi phạm Resolution SLA<br><span class="muted">EduNext · Account Director đã được escalation</span></p>
+      <p>🟠 25 phút trước · RC-2026-00128 còn 37 ngày tới hết hạn<br><span class="muted">Bloom Spa · Next action quá hạn hôm nay</span></p>
+      <p>🟡 1 giờ trước · Health Score Công ty An Phú 76 → 72<br><span class="muted">Nguyên nhân: KPI Delivery, SLA breach</span></p>
+      <p>🟢 Hôm qua · Invoice INV-2026-08001 đã được thanh toán<br><span class="muted">Công ty An Phú</span></p>
+      <button class="linkish" type="button">Xem tất cả thông báo</button>
+    </div>
+  </header>
+
+  <div class="catalog">
+    <b>Vận hành</b>
+    <select class="scope" id="role" onchange="setRole(this.value)">
+      <option value="am">Vai trò: AM — Nguyễn Minh</option>
+      <option value="dir">Vai trò: Director — Phạm Quang</option>
+      <option value="admin">Vai trò: Admin CRM</option>
+    </select>
+    <select class="scope" id="scope" onchange="setScope(this.value)">
+      <option value="me">Phạm vi: Của tôi (48)</option>
+      <option value="team">Phạm vi: Team HCM (186)</option>
+      <option value="all">Phạm vi: Toàn PTT (1.248)</option>
+    </select>
+    <select class="scope" onchange="document.body.classList.toggle('dense', this.value==='dense')">
+      <option value="comfy">Mật độ: Thoáng</option>
+      <option value="dense">Mật độ: Gọn (bảng lớn)</option>
+    </select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="jumpDemo(this.value)">
+        <option value="dash">01 Dashboard</option>
+        <option value="clients">02 Danh sách</option>
+        <option value="account">03 Account 360</option>
+        <option value="timeline">04 Timeline</option>
+        <option value="account-form">05 Tạo KH</option>
+        <option value="contact">06 Contact</option>
+        <option value="handover">07 Handover</option>
+        <option value="onboard-ws">08 Onboard</option>
+        <option value="onboard-tpl">09 Template</option>
+        <option value="contract">10 Hợp đồng</option>
+        <option value="renewals">11 Pipeline</option>
+        <option value="rc">12 Case gia hạn</option>
+        <option value="finance">13 Finance</option>
+        <option value="work">14 Work Queue</option>
+        <option value="work-detail">15 Chi tiết việc</option>
+        <option value="work-d">16 Tạo việc</option>
+        <option value="meet">17 Log họp</option>
+        <option value="esc">18 Escalate</option>
+        <option value="health">19 Risk Center</option>
+        <option value="health-detail">20 Health score</option>
+        <option value="risk">21 Tạo risk</option>
+        <option value="recovery">22 Recovery</option>
+        <option value="scorecard">23 Scorecard</option>
+        <option value="growth">24 Growth</option>
+        <option value="opp">25 Tạo opp</option>
+        <option value="feedback">26 Feedback</option>
+        <option value="survey">27 Survey</option>
+        <option value="reports">28 Báo cáo</option>
+        <option value="fields">29 Fields</option>
+        <option value="sla-cfg">30 SLA</option>
+        <option value="notify">31 Thông báo</option>
+        <option value="ai">32 AI</option>
+        <option value="mobile">M01 Mobile</option>
+        <option value="palette">00 Palette</option>
+      </select>
+      <details class="demo-more"><summary>Toàn catalog</summary>
+    <button class="sc is-on" type="button" onclick="show('dash',this)">01 Dashboard</button>
+    <button class="sc" type="button" onclick="show('clients',this)">02 List</button>
+    <button class="sc" type="button" onclick="show('account',this)">03 360</button>
+    <button class="sc" type="button" onclick="show('account',this);tab360('timeline')">04 Timeline</button>
+    <button class="sc" type="button" onclick="show('account-form',this)">05 Tạo KH</button>
+    <button class="sc" type="button" onclick="openDrawer('contact')">06 Contact</button>
+    <button class="sc" type="button" onclick="show('handover',this)">07 Handover</button>
+    <button class="sc" type="button" onclick="show('onboard-ws',this)">08 Onboard</button>
+    <button class="sc" type="button" onclick="show('onboard-tpl',this)">09 Template</button>
+    <button class="sc" type="button" onclick="show('contract',this)">10 HĐ</button>
+    <button class="sc" type="button" onclick="show('renewals',this)">11 Pipeline</button>
+    <button class="sc" type="button" onclick="show('rc',this)">12 Case GH</button>
+    <button class="sc" type="button" onclick="show('finance',this)">13 Finance</button>
+    <button class="sc" type="button" onclick="show('work',this)">14 Queue</button>
+    <button class="sc" type="button" onclick="show('work-detail',this)">15 Việc</button>
+    <button class="sc" type="button" onclick="openDrawer('work')">16 Tạo việc</button>
+    <button class="sc" type="button" onclick="openDrawer('meet')">17 Log họp</button>
+    <button class="sc" type="button" onclick="openDrawer('esc')">18 Escalate</button>
+    <button class="sc" type="button" onclick="show('health',this)">19 Risk</button>
+    <button class="sc" type="button" onclick="show('health-detail',this)">20 Score</button>
+    <button class="sc" type="button" onclick="openDrawer('risk')">21 Tạo risk</button>
+    <button class="sc" type="button" onclick="show('recovery',this)">22 Plan</button>
+    <button class="sc" type="button" onclick="show('scorecard',this)">23 Scorecard</button>
+    <button class="sc" type="button" onclick="show('growth',this)">24 Growth</button>
+    <button class="sc" type="button" onclick="openDrawer('opp')">25 Tạo opp</button>
+    <button class="sc" type="button" onclick="show('feedback',this)">26 Feedback</button>
+    <button class="sc" type="button" onclick="openDrawer('survey')">27 Survey</button>
+    <button class="sc" type="button" onclick="show('reports',this)">28 Báo cáo</button>
+    <button class="sc" type="button" onclick="show('fields',this)">29 Fields</button>
+    <button class="sc" type="button" onclick="show('sla-cfg',this)">30 SLA</button>
+    <button class="sc" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">31 Thông báo</button>
+    <button class="sc" type="button" onclick="openDrawer('ai')">32 AI</button>
+    <button class="sc" type="button" onclick="show('mobile',this)">M01 Mobile</button>
+    <button class="sc" type="button" onclick="openPalette()">00 Palette</button>
+      </details>
+    </div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <nav class="nav">
+        <div class="grp">TỔNG QUAN</div>
+        <button class="nav-btn is-on" data-nav="dash" type="button" onclick="show('dash')">▦ <span>Dashboard</span><em class="badge" data-k="today">12</em></button>
+        <div class="grp">KHÁCH HÀNG</div>
+        <button class="nav-btn" data-nav="clients" type="button" onclick="show('clients')">👤 <span>Danh sách</span><em class="badge" data-k="acct">48</em></button>
+        <button class="nav-btn" data-nav="handover" type="button" onclick="show('handover')">🚀 <span>Onboarding</span><em class="badge">5</em></button>
+        <div class="grp">CÔNG VIỆC</div>
+        <button class="nav-btn" data-nav="work" type="button" onclick="show('work')">☑ <span>Work Queue</span><em class="badge" data-k="work">12</em></button>
+        <div class="grp">HỢP ĐỒNG</div>
+        <button class="nav-btn" data-nav="renewals" type="button" onclick="show('renewals')">📄 <span>Gia hạn</span><em class="badge" data-k="rc">12</em></button>
+        <div class="grp">PHÂN TÍCH</div>
+        <button class="nav-btn" data-nav="reports" type="button" onclick="show('reports')">📊 <span>Báo cáo</span></button>
+        <button class="nav-btn" data-nav="health" type="button" onclick="show('health')">❤ <span>Health &amp; Risk</span><em class="badge" data-k="risk">7</em></button>
+        <div class="grp">CẤU HÌNH</div>
+        <button class="nav-btn" data-nav="scorecard" type="button" onclick="show('scorecard')">⚙ <span>Cấu hình</span></button>
+      </nav>
+      <div class="sb-foot"><b id="who">Nguyễn Minh</b><span id="who-meta">AM · Team HCM · 42/40 account (quá tải +2)</span></div>
+      <button class="collapse" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">« Thu gọn</button>
+    </aside>
+
+    <div class="main">
+      <!-- 01 -->
+      <section class="page is-on" id="page-dash">
+        <div class="crumb">Tổng quan / Account Management</div>
+        <div class="head">
+          <div>
+            <h1>Bàn làm việc hôm nay</h1>
+            <p class="sub" id="dash-sub">Thứ Bảy 05/09/2026 · Phạm vi <b>Của tôi</b> · 48/1.248 account · Tải 42/40 (quá +2) · View đã lưu: <b>Ưu tiên buổi sáng</b></p>
+          </div>
+          <div class="actions">
+            <select class="field"><option>Tháng này</option><option>Tuần này</option><option>Quý này</option><option>YTD 2026</option></select>
+            <button class="btn" type="button">Bộ lọc ▾</button>
+            <button class="btn" type="button" onclick="toast('Đã lưu view “Ưu tiên buổi sáng”')">Lưu view</button>
+            <div class="menu">
+              <button class="btn btn-primary" type="button" onclick="toggleEl('create-menu')">+ Tạo mới ▾</button>
+              <div class="menu-pop" id="create-menu">
+                <button type="button" onclick="show('account-form')">Khách hàng</button>
+                <button type="button" onclick="openDrawer('work')">Công việc</button>
+                <button type="button" onclick="openDrawer('renewal')">Kế hoạch / Renewal</button>
+                <button type="button" onclick="openDrawer('opp')">Cơ hội</button>
+                <button type="button" onclick="openDrawer('meet')">Log tương tác</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tiles">
+          <button class="tile" type="button" onclick="show('clients')"><span>Khách hàng active</span><strong data-k="kpi-acct">48</strong><div class="up" data-k="kpi-acct-d">+3 tháng này</div><svg class="spark" width="56" height="22"><polyline fill="none" stroke="#2563EB" stroke-width="2" points="0,16 10,14 20,15 30,10 40,8 55,6"/></svg></button>
+          <button class="tile" type="button"><span>MRR hiện tại</span><strong data-k="kpi-mrr">1,28 tỷ</strong><div class="up" data-k="kpi-mrr-d">+12,5%</div><svg class="spark" width="56" height="22"><polyline fill="none" stroke="#16A34A" stroke-width="2" points="0,18 10,16 20,14 30,12 40,9 55,5"/></svg></button>
+          <button class="tile" type="button" onclick="show('renewals')"><span>Gia hạn 90 ngày</span><strong data-k="kpi-ren">420 triệu</strong><div class="up" data-k="kpi-ren-d">12 case</div></button>
+          <button class="tile" type="button" onclick="show('health')"><span>Revenue at risk</span><strong data-k="kpi-risk">185 triệu</strong><div class="dn" data-k="kpi-risk-d">5 account</div></button>
+          <button class="tile" type="button" onclick="show('work')"><span>SLA quá hạn</span><strong data-k="kpi-sla">7</strong><div class="dn" data-k="kpi-sla-d">−2 vs T7</div></button>
+          <button class="tile" type="button" onclick="show('feedback')"><span>CSAT</span><strong data-k="kpi-csat">4,7/5</strong><div class="up">+0,2</div></button>
+        </div>
+        <section class="card dir-only">
+          <div class="card-h"><h2>Điều hành danh mục — toàn PTT</h2><span class="muted">12 team · 86 AM · 23 account chưa gán · 4 AM quá tải</span></div>
+          <div class="cov">
+            <div class="box"><span class="muted">Tải trung bình</span><strong>38 / 40</strong><div class="meter"><i style="width:95%;background:#d97706"></i></div></div>
+            <div class="box"><span class="muted">Chưa gán owner</span><strong>23</strong><button class="linkish" type="button" onclick="show('clients')">Phân công →</button></div>
+            <div class="box"><span class="muted">AM nghỉ / ủy quyền</span><strong>2</strong><div class="muted">Lê Hương → Minh (đến 12/09)</div></div>
+            <div class="box"><span class="muted">QBR tuần này</span><strong>19 cuộc</strong><div class="muted">6 chưa có recap</div></div>
+          </div>
+        </section>
+        <div class="split">
+          <section class="card">
+            <div class="card-h"><h2>Hàng đợi 2 giờ tới <span class="muted" data-k="today-n">(12 việc)</span></h2><button class="linkish" type="button" onclick="show('work')">Inbox đầy đủ →</button></div>
+            <div class="chips"><button class="chip is-on" type="button">Quá hạn 3</button><button class="chip" type="button">Hôm nay 6</button><button class="chip" type="button">Sắp hạn 3</button><button class="chip" type="button">Chưa nhận 4</button></div>
+            <div class="row"><i class="dotc" style="background:var(--hot)"></i><span>08:30 Phản hồi khiếu nại — EduNext<div class="muted">Complaint P1 · <span class="sla-clock" style="color:var(--hot)">SLA −1h 18m</span> · Hương</div></span><button class="btn btn-danger" type="button" onclick="show('work-detail')">Xử lý ngay</button></div>
+            <div class="row"><i class="dotc" style="background:var(--risk)"></i><span>10:00 Gửi proposal gia hạn — Bloom Spa<div class="muted">Renewal · Attention · <span class="sla-clock" style="color:var(--warn)">còn 1h 42m</span></div></span><button class="btn" type="button" onclick="toast('Đã nhận · gán Nguyễn Minh')">Nhận việc</button></div>
+            <div class="row"><i class="dotc" style="background:var(--warn)"></i><span>11:15 Invoice sắp hạn — CityLand<div class="muted">Finance sync · 78tr · hạn 07/09</div></span><button class="btn" type="button" onclick="show('finance')">Mở</button></div>
+            <div class="row"><i class="dotc" style="background:var(--warn)"></i><span>14:00 QBR Q3 — Công ty An Phú<div class="muted">CEO + Delivery · phòng 4F · chưa có agenda</div></span><button class="btn" type="button" onclick="openDrawer('meet')">Soạn agenda</button></div>
+            <div class="row"><i class="dotc" style="background:var(--ok)"></i><span>16:30 Follow-up — Green Home<div class="muted">Call · expansion AI Agent</div></span><button class="btn" type="button" onclick="openDrawer('meet')">Log</button></div>
+            <div class="row"><i class="dotc" style="background:#94a3b8"></i><span>Chưa nhận — Access Meta Ads — NovaMart<div class="muted">Onboarding · Client blocker</div></span><button class="btn" type="button" onclick="toast('Đã nhận việc')">Nhận việc</button></div>
+          </section>
+          <section class="card">
+            <div class="card-h"><h2>Account cần chú ý</h2><div class="chips"><button class="chip is-on" type="button">Health</button><button class="chip" type="button">Doanh thu</button><button class="chip" type="button">Gia hạn</button></div></div>
+            <table>
+              <tr class="click" onclick="show('account');tab360('health')"><td>1. EduNext</td><td><span class="pill h-crit">34 Crit</span></td><td>65tr</td><td>15 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+              <tr class="click" onclick="show('account')"><td>2. Bloom Spa</td><td><span class="pill h-risk">58 Risk</span></td><td>42tr</td><td>37 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+              <tr class="click" onclick="show('account')"><td>3. CityLand</td><td><span class="pill h-risk">51 Risk</span></td><td>78tr</td><td>22 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+              <tr class="click" onclick="show('account')"><td>4. An Phú Group</td><td><span class="pill h-watch">72 Watch</span></td><td>85tr</td><td>53 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+              <tr class="click" onclick="show('account')"><td>5. NovaMart</td><td><span class="pill h-watch">68 Watch</span></td><td>54tr</td><td>71 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+              <tr class="click" onclick="show('account')"><td>6. Green Home</td><td><span class="pill h-ok">88 OK</span></td><td>120tr</td><td>101 ngày</td><td><button class="linkish" type="button">Mở</button></td></tr>
+            </table>
+            <button class="linkish" type="button" onclick="show('health')">Xem Risk Center →</button>
+          </section>
+        </div>
+        <div class="split">
+          <section class="card">
+            <div class="card-h"><h2>Renewal forecast</h2><span class="muted" data-k="fc">360tr / 420tr · weighted 85,7%</span></div>
+            <div class="stack-bar" title="T9–T12"><i style="width:32%;background:#16a34a"></i><i style="width:38%;background:#2563eb"></i><i style="width:18%;background:#d97706"></i><i style="width:12%;background:#dc2626"></i></div>
+            <div class="legend"><span><b style="color:#16a34a">■</b> Committed 135tr</span><span><b style="color:#2563eb">■</b> Likely 160tr</span><span><b style="color:#d97706">■</b> Risk 75tr</span><span><b style="color:#dc2626">■</b> Unlikely 50tr</span></div>
+            <p class="hint">Click đoạn → lọc pipeline. Không kéo sang Renewed nếu chưa có HĐ/phụ lục.</p>
+          </section>
+          <section class="card">
+            <div class="card-h"><h2>Phân bố Health</h2><span class="muted" data-k="havg">TB 76,4 ↓ 2,1</span></div>
+            <div class="stack-bar"><i style="width:65%;background:#16a34a"></i><i style="width:21%;background:#f59e0b"></i><i style="width:10%;background:#ea580c"></i><i style="width:4%;background:#dc2626"></i></div>
+            <p><span class="pill h-ok" data-k="h1">Healthy 31</span> <span class="pill h-watch" data-k="h2">Watch 10</span> <span class="pill h-risk" data-k="h3">At Risk 5</span> <span class="pill h-crit" data-k="h4">Critical 2</span></p>
+          </section>
+        </div>
+        <section class="card">
+          <div class="card-h"><h2>Sổ khách đang giữ</h2><div class="actions"><span class="hint">J/K chọn dòng · Enter mở</span><button class="btn" type="button" onclick="toast('Đã lưu view')">Lưu view</button><button class="btn" type="button" onclick="toast('Export xếp hàng · sẽ báo khi xong')">Xuất dữ liệu</button></div></div>
+          <div class="filters"><input class="field" placeholder="Tìm tên, mã, SĐT, email…"/><select class="field"><option>Ngành</option><option>BĐS</option><option>Edu</option><option>F&amp;B</option></select><select class="field"><option>Health</option></select><select class="field"><option>Gia hạn</option></select><select class="field"><option>Dịch vụ</option></select><label class="muted"><input type="checkbox" checked/> Có cảnh báo</label></div>
+          <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Khách hàng</th><th>Team</th><th>Gói</th><th>Health</th><th>MRR</th><th>Gia hạn</th><th>Việc tiếp theo</th></tr></thead>
+            <tbody>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#0F2747">AP</i><span><b>Tập đoàn An Phú</b><div class="muted">Parent · 3 đơn vị con</div></span></div></td><td>HCM</td><td>SEO + Perf</td><td><span class="pill h-watch">🟡 72</span></td><td>85tr</td><td>28/10</td><td>QBR 14:00</td></tr>
+              <tr class="click" onclick="show('account')"><td class="child">An Phú — HCM</td><td>HCM</td><td>SEO</td><td><span class="pill h-watch">🟡 70</span></td><td>48tr</td><td>28/10</td><td>Report tuần</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#be185d">BS</i><b>Bloom Spa</b></div></td><td>HCM</td><td>Social + Ads</td><td><span class="pill h-risk">🟠 58</span></td><td>42tr</td><td>12/10</td><td>Renewal call</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#dc2626">EN</i><b>EduNext</b></div></td><td>HCM</td><td>Brand + Lead</td><td><span class="pill h-crit">🔴 34</span></td><td>65tr</td><td>20/09</td><td>Escalation</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#16a34a">GH</i><b>Green Home</b></div></td><td>HCM</td><td>Full funnel</td><td><span class="pill h-ok">🟢 88</span></td><td>120tr</td><td>15/12</td><td>Demo AI</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#0891b2">CL</i><b>CityLand</b></div></td><td>HCM</td><td>Lead Gen</td><td><span class="pill h-risk">🟠 51</span></td><td>78tr</td><td>27/09</td><td>Invoice 07/09</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#7c3aed">NV</i><b>NovaMart</b></div></td><td>HCM</td><td>Social</td><td><span class="pill h-watch">🟡 68</span></td><td>54tr</td><td>15/11</td><td>Access Meta</td></tr>
+              <tr class="click" onclick="show('account')"><td><div class="acct"><i class="logo-dot" style="background:#ca8a04">PH</i><b>Phúc Hưng Pharma</b></div></td><td>HCM</td><td>SEO</td><td><span class="pill h-ok">🟢 81</span></td><td>36tr</td><td>02/01</td><td>Weekly OK</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="muted">Hiển thị 8 / 48 sổ của tôi · sort: Critical → Risk → SLA → ngày GH</p>
+        </section>
+      </section>
+
+      <!-- 02 -->
+      <section class="page" id="page-clients">
+        <div class="head"><div><h1 id="list-title">Khách hàng <span class="muted">(1.248 · trang 1/25)</span></h1><p class="sub">Sort server · 50 dòng/trang · Cột tùy chỉnh theo quyền field</p></div><div class="actions"><button class="btn" type="button" onclick="toast('Đã lưu view Team HCM — Attention')">Lưu view</button><button class="btn" type="button">Import</button><button class="btn" type="button" onclick="toast('Export &gt;10k chạy nền · thông báo khi file sẵn')">Export</button><button class="btn" type="button">Cột ⚙</button><button class="btn btn-primary" type="button" onclick="show('account-form')">+ Account</button></div></div>
+        <div class="chips">
+          <button class="chip is-on" type="button">Tất cả</button>
+          <button class="chip" type="button">Của tôi (48)</button>
+          <button class="chip" type="button">Cần chú ý (27)</button>
+          <button class="chip" type="button">Gia hạn 90 ngày (64)</button>
+          <button class="chip" type="button">Chưa gán owner (23)</button>
+          <button class="chip" type="button">Parent group (41)</button>
+        </div>
+        <div class="filters"><input class="field" placeholder="Tên, mã ACC, MST, contact, SĐT, email" style="min-width:260px"/><select class="field"><option>Owner</option></select><select class="field"><option>Team: tất cả</option><option>HCM</option><option>HN</option><option>Đà Nẵng</option></select><select class="field"><option>Health</option></select><select class="field"><option>Lifecycle</option></select><select class="field"><option>Ngành</option></select><button class="btn" type="button">+ Bộ lọc</button></div>
+        <p class="muted">View: <b>Cần chú ý — Team HCM</b> · <label><input type="checkbox" checked/> Có hành động cần xử lý</label> · Shared với Team Lead</p>
+        <div class="bulk" id="bulk"><span>Đã chọn 12 khách · 9 HCM · 3 HN · 186tr MRR</span><span><button class="btn" type="button" onclick="openDrawer('owner')">Đổi Owner</button> <button class="btn" type="button">Thêm Tag</button> <button class="btn" type="button" onclick="openDrawer('work')">Tạo Task</button> <button class="btn" type="button" onclick="toast('Bỏ chọn')">Bỏ chọn</button></span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th><input type="checkbox" onchange="document.getElementById('bulk').classList.toggle('is-on',this.checked)"/></th><th>Khách hàng</th><th>Owner</th><th>Team</th><th>Lifecycle</th><th>Health</th><th>MRR</th><th>Gia hạn</th><th>SLA</th></tr></thead>
+            <tbody>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><div class="acct"><i class="logo-dot" style="background:#0F2747">AP</i><span><b>Tập đoàn An Phú</b><div class="muted">ACC-000124 · Parent · 3 con</div></span></div></td><td>Nguyễn Minh</td><td>HCM</td><td>Active</td><td><span class="pill h-watch">🟡 72</span></td><td>85tr</td><td>28/10</td><td><span class="pill s-ok">OK</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td class="child">An Phú — Hà Nội</td><td>Phạm Linh</td><td>HN</td><td>Active</td><td><span class="pill h-ok">🟢 84</span></td><td>22tr</td><td>28/10</td><td><span class="pill s-ok">OK</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>Bloom Spa</b></td><td>Trần Anh</td><td>HCM</td><td>Active</td><td><span class="pill h-risk">🟠 58</span></td><td>42tr</td><td>12/10</td><td><span class="pill s-warn">Warn</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>EduNext</b></td><td>Lê Hương <span class="muted">ủy quyền Minh</span></td><td>HCM</td><td>At Risk</td><td><span class="pill h-crit">🔴 34</span></td><td>65tr</td><td>20/09</td><td><span class="pill s-bad">Breach</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>Green Home</b></td><td>Nguyễn Minh</td><td>HCM</td><td>Active</td><td><span class="pill h-ok">🟢 88</span></td><td>120tr</td><td>15/12</td><td><span class="pill s-ok">OK</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>CityLand</b></td><td>Nguyễn Minh</td><td>HCM</td><td>Active</td><td><span class="pill h-risk">🟠 51</span></td><td>78tr</td><td>27/09</td><td><span class="pill s-warn">Warn</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>NovaMart</b></td><td>Trần Anh</td><td>HCM</td><td>Onboarding</td><td><span class="pill h-watch">🟡 68</span></td><td>54tr</td><td>15/11</td><td><span class="pill s-ok">OK</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>VinaFoods</b></td><td class="muted">— Chưa gán</td><td>HN</td><td>Pending HO</td><td><span class="pill t-new">—</span></td><td>91tr</td><td>01/10</td><td><span class="pill t-new">—</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>Đà Nẵng Hospitality</b></td><td>Võ Khoa</td><td>ĐN</td><td>Active</td><td><span class="pill h-ok">🟢 90</span></td><td>44tr</td><td>18/02</td><td><span class="pill s-ok">OK</span></td></tr>
+              <tr class="click" onclick="show('account')"><td onclick="event.stopPropagation()"><input type="checkbox"/></td><td><b>Phúc Hưng Pharma</b></td><td>Nguyễn Minh</td><td>HCM</td><td>Active</td><td><span class="pill h-ok">🟢 81</span></td><td>36tr</td><td>02/01</td><td><span class="pill s-ok">OK</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">1–50 / 1.248 · ← Trước · <b>1</b> 2 3 … 25 · Tiếp → · Cột đông: bật mật độ Gọn</p>
+      </section>
+
+      <!-- 03+04 360 -->
+      <section class="page" id="page-account">
+        <div class="crumb">Khách hàng / Tập đoàn An Phú / Công ty An Phú — HCM</div>
+        <div class="card">
+          <div class="head">
+            <div>
+              <h1>Công ty An Phú — HCM <span class="pill s-ok">Active</span> <button class="pill h-watch" type="button" onclick="show('health-detail')">🟡 Health 72 / 100 Watch</button></h1>
+              <p class="sub">ACC-000124 · Con của <b>Tập đoàn An Phú</b> · Agency / BĐS · Tier A · Team HCM · Owner Nguyễn Minh ▾ · Delivery Lê Trang · Media Mai Linh</p>
+              <div class="qacts">
+                <button class="btn" type="button" onclick="openDrawer('meet')">Log tương tác</button>
+                <button class="btn" type="button" onclick="openDrawer('work')">Tạo công việc</button>
+                <button class="btn" type="button" onclick="openDrawer('risk')">Tạo rủi ro</button>
+                <button class="btn" type="button" onclick="openDrawer('renewal')">Bắt đầu gia hạn</button>
+                <button class="btn" type="button" onclick="openDrawer('opp')">Tạo cơ hội</button>
+                <button class="btn" type="button" onclick="openDrawer('ai')">✨ Hỏi AI</button>
+                <button class="btn" type="button" onclick="openDrawer('more360')">⋮</button>
+              </div>
+            </div>
+          </div>
+          <div class="tabs" id="tabs360">
+            <button class="tab is-on" type="button" data-t="ov" onclick="tab360('ov')">Tổng quan</button>
+            <button class="tab" type="button" data-t="timeline" onclick="tab360('timeline')">Timeline</button>
+            <button class="tab" type="button" data-t="proj" onclick="tab360('proj')">Dự án &amp; dịch vụ</button>
+            <button class="tab" type="button" data-t="wk" onclick="tab360('wk')">Công việc</button>
+            <button class="tab" type="button" data-t="fin" onclick="tab360('fin')">Hợp đồng &amp; Tài chính</button>
+            <button class="tab" type="button" data-t="health" onclick="tab360('health')">Health &amp; Risk</button>
+            <button class="tab" type="button" data-t="gro" onclick="tab360('gro')">Cơ hội</button>
+            <button class="tab" type="button" data-t="fb" onclick="tab360('fb')">Phản hồi</button>
+            <button class="tab" type="button" data-t="doc" onclick="tab360('doc')">Tài liệu</button>
+            <button class="tab" type="button" data-t="audit" onclick="tab360('audit')">Audit</button>
+          </div>
+          <div class="p360 is-on" id="p360-ov">
+            <div class="grid2">
+              <div>
+                <div class="card"><div class="card-h"><h3>Tổng quan khách hàng</h3><button class="linkish" type="button" onclick="show('account-form')">Chỉnh sửa</button></div><p>Website anphu.vn · MST 0312xxxxxx · HCM + HN + ĐN<br>Kênh Zalo/Email · GMT+7 · Buying committee 5 người<br>Nhóm: An Phú HCM (này) · An Phú HN · An Phú ĐN</p></div>
+                <div class="card"><h3>KPI &amp; Success Plan</h3><p>Mục tiêu 1.200 QL / tháng · T8 1.060 (88%) ↓6%</p><div class="meter"><i style="width:88%;background:#d97706"></i></div><p class="muted">Cadence: report tuần T2 12:00 · QBR quý — next 25/09 · chưa book phòng</p></div>
+                <div class="card"><h3>Dịch vụ đang hoạt động (2 HĐ)</h3><p>SEO &amp; Performance · Retainer 85tr · SLA Gold · HD-2026-0084<br>Brand film Q4 · Project 180tr · HD-2026-0191<br><button class="linkish" type="button" onclick="show('contract')">Mở hợp đồng chính →</button></p></div>
+              </div>
+              <div>
+                <div class="card"><h3>Hành động cần làm (4)</h3><p>🔴 #REQ-291 quá SLA 1h18m<br>🟠 Gia hạn còn 53 ngày<br>🟡 QBR chưa lên lịch<br>🟡 1 invoice sắp hạn</p></div>
+                <div class="card"><h3>Contact chính</h3><p><b>Nguyễn An Phú</b> — CEO<br>09xx xxx xxx · ceo@anphu.vn · Neutral<br><button class="btn" type="button" onclick="openDrawer('contact')">Mở contact</button></p></div>
+                <div class="card"><h3>Tóm tắt tài chính</h3><p>MRR 85tr · Công nợ 0đ · Hóa đơn 05/09/2026</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="p360" id="p360-timeline" style="display:none">
+            <div class="filters"><select class="field"><option>Tất cả hoạt động</option></select><select class="field"><option>Tất cả người dùng</option></select><button class="btn" type="button">＋ Ghi chú</button><button class="btn" type="button" onclick="openDrawer('meet')">📞 Log cuộc gọi</button><button class="btn" type="button" onclick="openDrawer('meet')">📅 Log cuộc họp</button><button class="btn" type="button" onclick="openDrawer('work')">✓ Tạo task</button></div>
+            <div class="tl">
+              <p class="muted">Hôm nay — 05/09/2026</p>
+              <div class="ev"><b>09:18 TASK</b> Gửi báo cáo tháng 08 · Nguyễn Minh · 🟡 In progress<br><button class="linkish" type="button" onclick="show('work-detail')">Mở task</button></div>
+              <div class="ev"><b>08:42 EMAIL</b> Báo cáo tuần 1 T9 đã gửi · System/API · ceo@anphu.vn</div>
+              <p class="muted">Hôm qua — 04/09/2026</p>
+              <div class="ev"><b>15:30 MEETING</b> Họp tối ưu CPA · 4 người · Action: A/B 06/09, recap 05/09</div>
+              <div class="ev"><b>11:10 HEALTH</b> 76 → 72 · System · KPI Delivery −4 · <button class="linkish" type="button" onclick="show('health-detail')">Chi tiết score</button></div>
+              <div class="ev"><b>09:00 INVOICE</b> HĐ-2026-09-001 85.000.000đ hạn 15/09 · Finance Sync</div>
+            </div>
+          </div>
+          <div class="p360" id="p360-proj" style="display:none"><div class="card"><h3>Dự án &amp; dịch vụ</h3><p>SEO Technical · Performance Media · Reporting &amp; QBR · milestone On Track</p></div></div>
+          <div class="p360" id="p360-wk" style="display:none"><div class="card"><h3>Công việc account</h3><p>4 mở · 1 breached · <button class="linkish" type="button" onclick="show('work')">Mở Work Queue</button></p></div></div>
+          <div class="p360" id="p360-fin" style="display:none"><div class="card"><h3>Hợp đồng &amp; tài chính</h3><p>HD-2026-0084 Active · <button class="linkish" type="button" onclick="show('finance')">Financial Snapshot</button></p></div></div>
+          <div class="p360" id="p360-health" style="display:none"><div class="card"><h3>Health &amp; Risk</h3><p>72 Watch · 2 SLA breach · <button class="btn btn-primary" type="button" onclick="show('health-detail')">Mở chi tiết score</button> <button class="btn" type="button" onclick="show('recovery')">Recovery</button></p></div></div>
+          <div class="p360" id="p360-gro" style="display:none"><div class="card"><h3>Cơ hội</h3><p>Tăng ngân sách Ads Q4 · 180tr · Proposal</p></div></div>
+          <div class="p360" id="p360-fb" style="display:none"><div class="card"><h3>Phản hồi</h3><p>NPS 9 · “Báo cáo rõ ràng”</p></div></div>
+          <div class="p360" id="p360-doc" style="display:none"><div class="card"><h3>Tài liệu</h3><p>Proposal.pdf · Hợp đồng.pdf · QBR-Q2.pptx</p></div></div>
+          <div class="p360" id="p360-audit" style="display:none"><div class="card"><h3>Audit</h3><p>05/09 Minh đổi health override — không. 04/09 System tính score 76→72</p></div></div>
+        </div>
+      </section>
+
+      <!-- 05 -->
+      <section class="page" id="page-account-form">
+        <div class="head"><div><h1>Tạo khách hàng mới</h1></div><button class="btn" type="button">Lưu nháp</button></div>
+        <div class="card">
+          <h3>Thông tin định danh (*)</h3>
+          <div class="form-2">
+            <label class="form">Tên pháp lý *<input class="inp" value="Công ty Cổ phần ABC"/></label>
+            <label class="form">Tên hiển thị *<input class="inp" value="ABC Group"/></label>
+            <label class="form">Mã khách hàng<input class="inp" placeholder="Tự sinh sau khi lưu" disabled/></label>
+            <label class="form">Loại * / Ngành *<select class="field"><option>Doanh nghiệp · Bất động sản</option></select></label>
+            <label class="form">Phân khúc / Nguồn<select class="field"><option>Tier B · Sales CRM</option></select></label>
+            <label class="form">Website / Timezone<input class="inp" value="https:// · Asia/Ho_Chi_Minh"/></label>
+          </div>
+          <h3>Sở hữu và vận hành</h3>
+          <div class="form-2">
+            <label class="form">Account Owner *<input class="inp" placeholder="🔎 Chọn owner…"/></label>
+            <label class="form">Team<select class="field"><option>Enterprise</option></select></label>
+            <label class="form">Delivery Owner<input class="inp" placeholder="🔎 Chọn delivery…"/></label>
+            <label class="form">Lifecycle<select class="field"><option>Pending Handover</option></select></label>
+            <label class="form">Gói dịch vụ dự kiến<select class="field"><option>Lead Generation</option></select></label>
+            <label class="form">Kênh ưu tiên<select class="field"><option>Zalo</option></select></label>
+          </div>
+          <h3>Người liên hệ <button class="linkish" type="button">+ Thêm contact</button></h3>
+          <div class="form-2">
+            <input class="inp" placeholder="Họ tên *"/>
+            <input class="inp" placeholder="Chức danh"/>
+            <input class="inp" placeholder="Email"/>
+            <input class="inp" placeholder="SĐT"/>
+          </div>
+          <label class="check"><input type="checkbox" checked/> Đặt làm contact chính</label>
+          <h3>Trường riêng: Bất động sản</h3>
+          <div class="form-2">
+            <label class="form">Dự án chính<input class="inp" value="Vinhomes Riverside"/></label>
+            <label class="form">Mục tiêu lead/tháng<input class="inp" value="500"/></label>
+          </div>
+          <p>Tags: High Value × · HCM ×</p>
+          <div class="actions"><button class="btn" type="button" onclick="show('clients')">Hủy</button><button class="btn" type="button" onclick="toast('Lưu + tạo onboarding')">Lưu và tạo onboarding</button><button class="btn btn-primary" type="button" onclick="toast('Đã lưu khách')">Lưu khách hàng</button></div>
+        </div>
+      </section>
+
+      <!-- 07 -->
+      <section class="page" id="page-handover">
+        <div class="head"><div><h1>Handover khách hàng: Bloom Spa</h1><p class="sub">Deal DL-2026-01024 · Won · Chờ AM xác nhận</p></div></div>
+        <div class="card">
+          <p class="muted">Step 1 Thương mại ✓ → Step 2 Scope &amp; KPI ✓ → Step 3 Stakeholder ✓ → Step 4 Xác nhận</p>
+          <p><b>504.000.000đ / 12 tháng</b> · Billing hàng tháng · Hiệu lực 01/10/2026 · Social + Meta Ads · SLA Premium</p>
+          <p>Mục tiêu: Tăng 30% booking / 3 tháng · KPI: 60 booking/tháng; CPL ≤ 120.000đ<br>Phạm vi: Content 16 bài · Ads · report tuần · QBR · Không gồm landing / KOL</p>
+          <p class="muted">Rủi ro Sales: nhạy CPA, decision maker bận. Tài liệu: Proposal.pdf Báo giá.pdf Hợp đồng.pdf</p>
+          <label class="check"><input type="checkbox" checked/> Tôi đã hiểu scope, KPI và exclusion</label>
+          <label class="check"><input type="checkbox"/> Tôi đã nhận đủ stakeholder và quyền truy cập</label>
+          <label class="check"><input type="checkbox"/> Đã thống nhất owner Delivery/Onboarding</label>
+          <div class="actions"><button class="btn" type="button">Yêu cầu bổ sung thông tin</button><button class="btn" type="button" onclick="toast('Từ chối cần lý do')">Từ chối handover</button><button class="btn btn-primary" type="button" onclick="show('onboard-ws')">Xác nhận nhận bàn giao</button></div>
+        </div>
+      </section>
+
+      <!-- 08 -->
+      <section class="page" id="page-onboard-ws">
+        <div class="head"><div><h1>Onboarding — Bloom Spa</h1><p class="sub">62% hoàn thành · Go-live 01/10/2026 · Owner Trần Anh · Delivery Mai Linh · On Track 🟢</p></div></div>
+        <div class="grid-ob">
+          <nav class="card side-list">
+            <button class="is-on" type="button">Tổng quan</button>
+            <button type="button">Checklist (12)</button>
+            <button type="button">Milestones (4)</button>
+            <button type="button">Stakeholders</button>
+            <button type="button">Tài liệu (8)</button>
+            <button type="button">Activity</button>
+          </nav>
+          <div class="card">
+            <div class="card-h"><h3>Checklist: Kickoff &amp; thiết lập</h3><div class="chips"><span class="chip is-on">Tất cả 12</span><span class="chip">Chưa làm 5</span><span class="chip">Quá hạn 1</span></div></div>
+            <p>✓ Hợp đồng đã xác nhận · Sales · 28/09 · Hoàn thành</p>
+            <p>✓ Tạo workspace dự án · Delivery · 28/09</p>
+            <p>☐ Thu thập quyền truy cập Meta · Client · 29/09 · 🟠 Sắp hạn</p>
+            <p>☐ Kickoff meeting · AM · 29/09</p>
+            <p>☐ Dashboard báo cáo · Data Ops · 30/09</p>
+            <p>☐ Creative approval flow · AM · 30/09</p>
+            <p>☐ Go-live approval · Director · 01/10 · Blocked</p>
+            <p class="muted">Milestones: Kickoff ✓ — Assets 🟡 — Campaign setup — Go-live</p>
+            <div class="actions"><button class="btn" type="button">Lưu thay đổi</button><button class="btn btn-primary" type="button" onclick="openDrawer('golive')">Đánh dấu sẵn sàng Go-live</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 09 -->
+      <section class="page" id="page-onboard-tpl">
+        <div class="head"><div><h1>Cấu hình / Onboarding templates</h1></div><button class="btn btn-primary" type="button">+ Tạo template</button></div>
+        <div class="card">
+          <p><b>Agency — Social &amp; Performance v3</b> <span class="pill s-ok">Published</span> · Industry Agency · Social+Ads · Retainer</p>
+          <table>
+            <thead><tr><th>Giai đoạn</th><th>Hạng mục</th><th>Owner mặc định</th><th>Hạn</th><th>Required</th></tr></thead>
+            <tbody>
+              <tr><td>Pre-kickoff</td><td>Xác nhận hợp đồng</td><td>Account Manager</td><td>T+0</td><td>✓</td></tr>
+              <tr><td>Pre-kickoff</td><td>Thu thập access</td><td>Client</td><td>T+2</td><td>✓</td></tr>
+              <tr><td>Kickoff</td><td>Tổ chức kickoff</td><td>Account Manager</td><td>T+3</td><td>✓</td></tr>
+              <tr><td>Setup</td><td>Thiết lập pixel/tracking</td><td>Delivery</td><td>T+5</td><td>✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section class="page" id="page-contract">
+        <div class="head"><div><h1>HD-2026-0084 — SEO &amp; Performance Retainer</h1><p class="sub">Công ty An Phú · 01/01–31/12/2026 · Còn 117 ngày · <span class="pill s-ok">Active</span></p></div></div>
+        <div class="tabs"><button class="tab is-on" type="button">Tổng quan</button><button class="tab" type="button">Dịch vụ &amp; giá</button><button class="tab" type="button">Lịch thanh toán</button><button class="tab" type="button">Gia hạn</button><button class="tab" type="button">Phụ lục</button><button class="tab" type="button">Tài liệu</button><button class="tab" type="button">Audit</button></div>
+        <div class="split">
+          <div class="card"><p>Giá trị HĐ <b>1.020.000.000đ</b><br>MRR <b>85.000.000đ</b><br>Billing retainer tháng · Net 10 · Auto-renew Không · Notice 30 ngày · SLA Gold · Owner Nguyễn Minh</p></div>
+          <div class="card"><h3>Nghĩa vụ / cam kết</h3><p>☐ Báo cáo tuần T2 trước 12:00 · Weekly · Trong SLA<br>☐ QBR hằng quý · Next 25/09/2026 · Cần lên lịch</p></div>
+        </div>
+        <div class="card">
+          <h3>Dịch vụ / line items</h3>
+          <table>
+            <thead><tr><th>Dịch vụ</th><th>Đơn giá/tháng</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>SEO Technical</td><td>25.000.000đ</td><td>01/01/2026</td><td>31/12/2026</td><td>Active</td></tr>
+              <tr><td>Performance Media Mgmt</td><td>45.000.000đ</td><td>01/01/2026</td><td>31/12/2026</td><td>Active</td></tr>
+              <tr><td>Reporting &amp; QBR</td><td>15.000.000đ</td><td>01/01/2026</td><td>31/12/2026</td><td>Active</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 11 -->
+      <section class="page" id="page-renewals">
+        <div class="head"><div><h1>Gia hạn hợp đồng</h1><p class="sub">Renewable 2,84 tỷ · Forecast weighted 2,21 tỷ · At risk 620 triệu</p></div><div class="actions"><select class="field"><option>Tháng 9–12/2026</option></select><button class="btn" type="button">Kanban</button><button class="btn" type="button">Danh sách</button><button class="btn" type="button">Export</button></div></div>
+        <div class="kanban">
+          <div class="col"><h4>Chưa bắt đầu (4) · 420tr</h4>
+            <div class="kcard"><b>Green Home</b><div class="muted">120tr · 101 ngày · 88 🟢 · Minh</div></div>
+            <div class="kcard"><b>Phúc Hưng</b><div class="muted">36tr · 119 ngày · 81 🟢</div></div>
+            <div class="kcard"><b>Đà Nẵng Hosp.</b><div class="muted">44tr · 166 ngày · 90 🟢 · Khoa</div></div>
+          </div>
+          <div class="col"><h4>Đang đánh giá (6) · 780tr</h4>
+            <div class="kcard" onclick="show('rc')" style="cursor:pointer"><b>Bloom Spa</b><div class="muted">42tr · 37 ngày · 58 🟠 · Anh · Next 10/09</div></div>
+            <div class="kcard"><b>NovaMart</b><div class="muted">54tr · 71 ngày · 68 🟡</div></div>
+            <div class="kcard"><b>VinaFoods</b><div class="muted">91tr · 26 ngày · chưa gán</div></div>
+          </div>
+          <div class="col"><h4>Đàm phán (5) · 1,12 tỷ</h4>
+            <div class="kcard"><b>An Phú Group</b><div class="muted">85tr · 53 ngày · 72 🟡 · Minh</div></div>
+            <div class="kcard"><b>CityLand</b><div class="muted">78tr · 22 ngày · 51 🟠 · invoice overdue</div></div>
+          </div>
+          <div class="col"><h4>Đã quyết định (8) · 520tr</h4>
+            <div class="kcard"><b>EduNext</b><div class="muted">Lost / Churned · Price · 65tr</div></div>
+            <div class="kcard"><b>SunRetail</b><div class="muted">Renewed · phụ lục +12%</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 12 -->
+      <section class="page" id="page-rc">
+        <div class="head"><div><h1>RC-2026-00128 — Bloom Spa</h1><p class="sub">Đang đánh giá · 🟠 Attention · HD-2025-0151 · Hết hạn 12/10/2026 (37 ngày) · Owner Trần Anh</p></div>
+          <div class="actions"><button class="btn" type="button">Cập nhật forecast</button><button class="btn" type="button">Tạo proposal</button><button class="btn" type="button" onclick="openDrawer('meet')">Log tương tác</button><button class="btn" type="button" onclick="openDrawer('work')">Tạo task</button><button class="btn" type="button" onclick="openDrawer('esc')">Escalate</button></div>
+        </div>
+        <div class="split">
+          <div class="card"><p>Forecast <b>Likely 65%</b> · Giá trị 504.000.000 · 12 tháng · Giữ nguyên giá · Chốt 30/09<br>Next action *: Họp đánh giá Q3 · Hạn 10/09/2026 10:00</p></div>
+          <div class="card"><h3>Health &amp; Risk snapshot</h3><p>58 At Risk · 1 invoice overdue 7 ngày · CSAT 3/5 · CPA +18%<br><button class="linkish" type="button" onclick="show('recovery')">Mở recovery plan</button></p><h3>Stakeholder</h3><p>Lan Anh Champion 🟡 · Dr. Bình DM 🔴 chưa gặp 34 ngày</p></div>
+        </div>
+        <div class="card"><h3>Timeline gia hạn</h3><p>05/09 AM cập nhật Likely 65% · 04/09 Meeting booking quality · 01/09 Case tạo tự động (41 ngày)</p>
+          <div class="actions"><button class="btn btn-primary" type="button" onclick="toast('Cần HĐ/phụ lục mới')">Đánh dấu Renewed</button><button class="btn btn-danger" type="button" onclick="openDrawer('lost')">Đánh dấu Lost/Churned</button></div>
+        </div>
+      </section>
+
+      <!-- 13 -->
+      <section class="page" id="page-finance">
+        <div class="head"><div><h1>Tài chính — Công ty An Phú</h1><p class="sub">Nguồn Finance ERP · Đồng bộ 09:05 hôm nay</p></div></div>
+        <div class="tiles" style="grid-template-columns:repeat(5,1fr)">
+          <div class="tile"><span>MRR</span><strong>85tr</strong></div>
+          <div class="tile"><span>Tổng active</span><strong>1,02 tỷ</strong></div>
+          <div class="tile"><span>Công nợ</span><strong>0đ</strong></div>
+          <div class="tile"><span>Quá hạn</span><strong>0đ</strong></div>
+          <div class="tile"><span>Invoice sắp hạn</span><strong>1</strong></div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Invoice</th><th>Kỳ</th><th>Phát hành</th><th>Hạn TT</th><th>Giá trị</th><th>Trạng thái</th></tr></thead>
+            <tbody>
+              <tr><td>INV-2026-09001</td><td>09/2026</td><td>05/09</td><td>15/09</td><td>85.000.000đ</td><td><span class="pill h-watch">Issued</span></td></tr>
+              <tr><td>INV-2026-08001</td><td>08/2026</td><td>05/08</td><td>15/08</td><td>85.000.000đ</td><td><span class="pill h-ok">Paid</span></td></tr>
+              <tr><td>INV-2026-07001</td><td>07/2026</td><td>05/07</td><td>15/07</td><td>85.000.000đ</td><td><span class="pill h-ok">Paid</span></td></tr>
+            </tbody>
+          </table>
+          <p class="muted">Aging: 0–30 0đ · 31–60 0đ · 61–90 0đ · &gt;90 0đ · AM không sửa trạng thái thanh toán</p>
+        </div>
+      </section>
+
+      <!-- 14 -->
+      <section class="page" id="page-work">
+        <div class="head"><div><h1>Work Queue</h1><p class="sub">Inbox vận hành · 12 của tôi · 41 team · 186 toàn PTT · Giờ LV 08:30–17:30 · SLA pause khi Waiting Client</p></div><div class="actions"><button class="btn" type="button" onclick="toast('Đã nhận 3 việc chưa gán')">Nhận việc hàng loạt</button><button class="btn btn-primary" type="button" onclick="openDrawer('work')">+ Tạo công việc</button></div></div>
+        <div class="filters"><select class="field"><option>Của tôi</option><option>Team HCM</option><option>Chưa gán</option></select><select class="field"><option>Tất cả loại</option></select><select class="field"><option>Status</option></select><select class="field"><option>Priority</option></select><select class="field"><option>SLA</option></select><button class="btn" type="button">Danh sách</button><button class="btn" type="button">Board</button><button class="btn" type="button">Calendar</button><button class="btn" type="button">Lưu view</button></div>
+        <div class="week">
+          <div class="slot"><b>T2 08/09</b><div class="muted">6 việc · 2 QBR</div></div>
+          <div class="slot"><b>T3 09/09</b><div class="muted">Demo Green Home</div></div>
+          <div class="slot"><b>T4 10/09</b><div class="muted">QBR An Phú · Proposal Bloom</div></div>
+          <div class="slot"><b>T5 11/09</b><div class="muted">Recovery EduNext</div></div>
+          <div class="slot"><b>T6 12/09</b><div class="muted">Review Director</div></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Pri</th><th>Công việc</th><th>Account</th><th>Assignee</th><th>Status</th><th>SLA</th><th>Hạn</th></tr></thead>
+            <tbody>
+              <tr class="click" onclick="show('work-detail')"><td>🔴</td><td>Phản hồi khiếu nại CPA</td><td>EduNext</td><td>Lê Hương</td><td><span class="pill t-prog">In Progress</span></td><td><span class="pill s-bad">−1h 18m</span></td><td>Quá hạn</td></tr>
+              <tr class="click"><td>🟠</td><td>Gửi proposal gia hạn</td><td>Bloom Spa</td><td>— Chưa nhận</td><td><span class="pill t-new">New</span></td><td><span class="pill s-warn">1h 42m</span></td><td>Hôm nay 10:00</td></tr>
+              <tr class="click"><td>🟠</td><td>Nhắc công nợ INV-09012</td><td>CityLand</td><td>Minh</td><td><span class="pill t-new">New</span></td><td><span class="pill s-warn">2h</span></td><td>07/09</td></tr>
+              <tr class="click"><td>🟡</td><td>Chuẩn bị agenda QBR</td><td>An Phú</td><td>Minh</td><td><span class="pill t-prog">In Progress</span></td><td><span class="pill s-ok">On Track</span></td><td>10/09 16:00</td></tr>
+              <tr class="click"><td>🟡</td><td>Thu thập access Meta</td><td>NovaMart</td><td>Anh</td><td><span class="pill t-wait">Waiting Client</span></td><td>Paused</td><td>Chờ client</td></tr>
+              <tr class="click"><td>🟢</td><td>Cập nhật dashboard T9</td><td>Green Home</td><td>Data Ops</td><td><span class="pill t-wait">Waiting</span></td><td>Paused</td><td>Chờ data</td></tr>
+              <tr class="click"><td>🟢</td><td>Gửi recap weekly</td><td>Phúc Hưng</td><td>Minh</td><td><span class="pill t-prog">In Progress</span></td><td><span class="pill s-ok">OK</span></td><td>T2 12:00</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="kanban">
+          <div class="col"><h4>New (6)</h4><div class="kcard"><b>Bloom Spa</b><div class="muted">Proposal renewal · Due today</div></div></div>
+          <div class="col"><h4>In Progress (8)</h4><div class="kcard"><b>EduNext</b><div class="muted">Complaint CPA · SLA breached</div></div></div>
+          <div class="col"><h4>Waiting Client (4)</h4><div class="kcard"><b>Green Home</b><div class="muted">Awaiting access · SLA paused</div></div></div>
+          <div class="col"><h4>Resolved (20)</h4><div class="kcard"><b>An Phú</b><div class="muted">Weekly report ✓</div></div></div>
+        </div>
+      </section>
+
+      <!-- 15 -->
+      <section class="page" id="page-work-detail">
+        <div class="banner">Resolution SLA breached 1h 18m · Escalate nổi bật</div>
+        <div class="head"><div><h1>REQ-000291 — Phản hồi khiếu nại CPA</h1><p class="sub">EduNext · Complaint · Priority Critical</p></div></div>
+        <div class="grid2">
+          <div class="card">
+            <h3>Nội dung</h3><p>Khách phản ánh CPL tăng 35% tuần 1… · screenshot.png</p>
+            <h3>Comment</h3><p>Minh · 09:05 “Đã kiểm tra, đang đối chiếu audience.”</p>
+            <h3>Action items</h3><p>☐ Report CPL theo adset — Mai — 09:40<br>☐ Gọi khách — Lê — 09:50</p>
+          </div>
+          <div class="card">
+            <p>Status In Progress · Assignee Lê Hương<br>First response 08:30 ✓ · Resolution due 10:00 🔴<br>SLA: Premium Complaint P1</p>
+            <p>Liên kết: HD-2026-0033 · RSK-00045 · RC-2026-00058</p>
+            <div class="actions"><button class="btn" type="button">Chờ khách hàng</button><button class="btn" type="button" onclick="toast('Cần resolution category')">Resolved</button><button class="btn btn-danger" type="button" onclick="openDrawer('esc')">Escalate</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 19 -->
+      <section class="page" id="page-health">
+        <div class="head"><div><h1>Health &amp; Risk Center</h1></div><div class="actions"><select class="field"><option>Team của tôi</option></select><select class="field"><option>30 ngày</option></select><button class="btn" type="button" onclick="show('scorecard')">Cấu hình scorecard</button></div></div>
+        <div class="tiles"><div class="tile"><span>Healthy</span><strong>31</strong></div><div class="tile"><span>Watch</span><strong>10</strong></div><div class="tile"><span>At Risk</span><strong>5</strong></div><div class="tile"><span>Critical</span><strong>2</strong></div><div class="tile"><span>Revenue at risk</span><strong>185tr</strong></div><div class="tile"><span>Open risks</span><strong>18</strong></div></div>
+        <div class="split">
+          <div class="card"><h3>Biến động điểm</h3><p>Line 6 tháng · TB 76,4 ↓ 2,1</p></div>
+          <div class="card"><h3>Tín hiệu phổ biến</h3><p>1. Không tương tác &gt;21 ngày · 8 account<br>2. KPI delivery &lt;80% · 6<br>3. Invoice overdue · 5</p></div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Account</th><th>Score</th><th>Δ 30d</th><th>Revenue</th><th>Signals</th><th>Owner</th><th>Action plan</th></tr></thead>
+            <tbody>
+              <tr class="click" onclick="show('health-detail')"><td>EduNext</td><td><span class="pill h-crit">34</span></td><td class="dn">-22</td><td>65tr</td><td>KPI thấp, SLA</td><td>Hương</td><td>40% <button class="linkish" type="button" onclick="event.stopPropagation();show('recovery')">Mở</button></td></tr>
+              <tr><td>Bloom Spa</td><td><span class="pill h-risk">58</span></td><td class="dn">-12</td><td>42tr</td><td>Overdue, CSAT 3/5</td><td>Anh</td><td>Chưa có <button class="linkish" type="button" onclick="show('recovery')">Tạo</button></td></tr>
+              <tr><td>CityLand</td><td><span class="pill h-risk">51</span></td><td class="dn">-18</td><td>78tr</td><td>No interaction 28d</td><td>Minh</td><td>20%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 20 -->
+      <section class="page" id="page-health-detail">
+        <div class="head"><div><h1>Health Score — Công ty An Phú</h1><p class="sub">🟡 72 / 100 Watch · Cập nhật 09:18 · Scorecard Agency Retainer v3</p></div>
+          <div class="actions"><button class="btn" type="button">Xem công thức</button><button class="btn" type="button" onclick="toast('Đã request tính lại')">Tính lại</button><button class="btn" type="button" onclick="toast('Override cần lý do + role')">Override score</button></div>
+        </div>
+        <div class="card"><p class="muted">Xu hướng 4 tuần: 81 — 79 — 76 — 72</p>
+          <table>
+            <thead><tr><th>Thành phần</th><th>Điểm</th><th>Trọng số</th><th>Đóng góp</th><th>Xu hướng</th></tr></thead>
+            <tbody>
+              <tr><td>KPI Delivery</td><td>70</td><td>30%</td><td>21,0</td><td>↓ -6</td></tr>
+              <tr><td>Engagement</td><td>82</td><td>20%</td><td>16,4</td><td>→ 0</td></tr>
+              <tr><td>Financial</td><td>100</td><td>20%</td><td>20,0</td><td>→ 0</td></tr>
+              <tr><td>Satisfaction</td><td>80</td><td>15%</td><td>12,0</td><td>↓ -2</td></tr>
+              <tr><td>Contract &amp; Support</td><td>52</td><td>15%</td><td>7,8</td><td>↓ -8</td></tr>
+            </tbody>
+          </table>
+          <h3>Tín hiệu</h3>
+          <p>🔴 2 SLA breach 14 ngày −10 · 🟠 QL 88% −4 · 🟡 Chưa QBR Q3 −3 · 🟢 Invoice đúng hạn +2</p>
+          <h3>Khuyến nghị</h3>
+          <p>1. Lên lịch QBR trước 10/09 · 2. RCA 2 SLA breach trong 48h<br><button class="btn" type="button" onclick="openDrawer('ai')">✨ Tạo draft</button></p>
+        </div>
+      </section>
+
+      <!-- 22 -->
+      <section class="page" id="page-recovery">
+        <div class="head"><div><h1>Recovery Plan — EduNext</h1><p class="sub">🔴 Critical 34/100 · In Mitigation · Owner Lê Hương · Sponsor Director Phạm Quang · Review 07/09 09:00</p></div></div>
+        <div class="card">
+          <p><b>Mục tiêu:</b> Health ≥ 60 và xác nhận ý định gia hạn trước 15/09/2026.</p>
+          <p><b>Root causes:</b> CPL +35% (audience + fatigue) · 2 ticket P1 quá SLA.</p>
+          <p>Tiến độ 2/5<br>✓ Phân tích campaign — Mai — Done<br>✓ Gọi khách — Hương — Done<br>☐ Present recovery — Director — 06/09<br>☐ Daily monitoring — Data Ops<br>☐ Xác nhận DM — Hương — 10/09</p>
+          <p>Thoát rủi ro: ☐ Không P1 7 ngày · ☐ CPL ±10% · ☐ CSAT ≥ 4/5</p>
+          <div class="actions"><button class="btn btn-primary" type="button">Lưu</button><button class="btn" type="button">Review ngay</button><button class="btn" type="button" onclick="toast('Cần outcome + lesson')">Đóng recovery plan</button></div>
+        </div>
+      </section>
+
+      <!-- 23 -->
+      <section class="page" id="page-scorecard">
+        <div class="head"><div><h1>Cấu hình / Health Scorecards</h1></div><button class="btn btn-primary" type="button">+ Tạo scorecard</button></div>
+        <div class="card">
+          <p><b>Agency Retainer v3</b> Published · Industry Agency + Retainer</p>
+          <table>
+            <thead><tr><th>Thành phần</th><th>Weight</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>KPI Delivery</td><td>30%</td><td>KPI + milestone on-time</td></tr>
+              <tr><td>Engagement</td><td>20%</td><td>recency + cadence</td></tr>
+              <tr><td>Financial</td><td>20%</td><td>invoice aging</td></tr>
+              <tr><td>Satisfaction</td><td>15%</td><td>CSAT/NPS + complaint</td></tr>
+              <tr><td>Contract &amp; Support</td><td>15%</td><td>expiry + SLA + P1</td></tr>
+            </tbody>
+          </table>
+          <p>Ngưỡng: Healthy 80–100 · Watch 60–79 · At Risk 40–59 · Critical 0–39 · Tổng 100%</p>
+          <p class="muted">Không sửa published — Edit tạo draft version mới</p>
+        </div>
+      </section>
+
+      <!-- 24 -->
+      <section class="page" id="page-growth">
+        <div class="head"><div><h1>Cơ hội tăng trưởng</h1><p class="sub">Pipeline 1,85 tỷ · Weighted 890tr · Won tháng này 320tr</p></div><button class="btn btn-primary" type="button" onclick="openDrawer('opp')">+ Cơ hội</button></div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Account</th><th>Cơ hội</th><th>Loại</th><th>Giá trị</th><th>Stage</th><th>Next step</th></tr></thead>
+            <tbody>
+              <tr><td>Green Home</td><td>AI Agent chăm sóc lead</td><td>Cross-sell</td><td>240tr</td><td>Qualified</td><td>Demo 09/09</td></tr>
+              <tr><td>An Phú</td><td>Tăng ngân sách Ads Q4</td><td>Upsell</td><td>180tr</td><td>Proposal</td><td>Follow-up 07/09</td></tr>
+              <tr><td>Bloom Spa</td><td>Thêm TikTok Ads</td><td>Cross-sell</td><td>120tr</td><td>Discovery</td><td>Discovery call</td></tr>
+            </tbody>
+          </table>
+          <h3>AI suggestions (cần AM xác nhận)</h3>
+          <p>✨ Green Home Health 88, thêm 2 chi nhánh, chưa dùng AI Agent. <button class="linkish" type="button">Xem evidence</button> <button class="linkish" type="button" onclick="openDrawer('opp')">Tạo draft</button></p>
+        </div>
+      </section>
+
+      <!-- 26 -->
+      <section class="page" id="page-feedback">
+        <div class="head"><div><h1>Phản hồi khách hàng</h1></div><div class="actions"><button class="btn btn-primary" type="button" onclick="openDrawer('survey')">Tạo khảo sát</button></div></div>
+        <div class="tiles" style="grid-template-columns:repeat(4,1fr)"><div class="tile"><span>CSAT TB</span><strong>4,7/5</strong></div><div class="tile"><span>NPS</span><strong>+46</strong></div><div class="tile"><span>Response</span><strong>38%</strong></div><div class="tile"><span>Complaints mở</span><strong>3</strong></div></div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Account</th><th>Loại</th><th>Điểm</th><th>Ngày</th><th>Phản hồi</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Bloom Spa</td><td>CSAT</td><td>3/5 🟡</td><td>04/09</td><td>Cần phản hồi cuối tuần</td><td><button class="btn" type="button" onclick="openDrawer('work')">Tạo task</button></td></tr>
+              <tr><td>An Phú</td><td>NPS</td><td>9 🟢</td><td>03/09</td><td>Báo cáo rõ ràng</td><td>Xem</td></tr>
+              <tr><td>EduNext</td><td>Complaint</td><td>High 🔴</td><td>02/09</td><td>CPL tăng</td><td><button class="linkish" type="button" onclick="show('work-detail')">Mở case</button></td></tr>
+            </tbody>
+          </table>
+          <p class="muted">Campaign Q3 BR · Gửi 48 · Phản hồi 18 · Deadline 15/09</p>
+        </div>
+      </section>
+
+      <!-- 28 -->
+      <section class="page" id="page-reports">
+        <div class="head"><div><h1>Báo cáo Retention &amp; Renewal</h1></div><div class="actions"><select class="field"><option>01/01/2026 — 31/12/2026</option></select><button class="btn" type="button">Export</button></div></div>
+        <div class="tiles"><div class="tile"><span>Logo Retention</span><strong>92,4%</strong></div><div class="tile"><span>GRR</span><strong>88,1%</strong></div><div class="tile"><span>NRR</span><strong>106,8%</strong></div><div class="tile"><span>Churned MRR</span><strong>185tr</strong></div><div class="tile"><span>Expansion MRR</span><strong>320tr</strong></div><div class="tile"><span> </span><strong> </strong></div></div>
+        <div class="split">
+          <div class="card">
+            <h3>Retention theo cohort</h3>
+            <div class="heat">
+              <span></span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>T8</span>
+              <span>Q1</span><i style="background:#16a34a"></i><i style="background:#22c55e"></i><i style="background:#86efac"></i><i style="background:#facc15"></i><i style="background:#f59e0b"></i><i style="background:#dc2626"></i>
+              <span>Q2</span><i style="background:#16a34a"></i><i style="background:#16a34a"></i><i style="background:#22c55e"></i><i style="background:#86efac"></i><i style="background:#facc15"></i><i style="background:#f59e0b"></i>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Renewal forecast theo tháng</h3>
+            <div class="bars">
+              <div class="bar" style="height:80%;background:#16a34a"></div>
+              <div class="bar" style="height:70%;background:#2563eb"></div>
+              <div class="bar" style="height:55%;background:#d97706"></div>
+              <div class="bar" style="height:30%;background:#dc2626"></div>
+              <div class="bar" style="height:75%;background:#16a34a"></div>
+              <div class="bar" style="height:62%;background:#2563eb"></div>
+            </div>
+            <p class="muted">Stacked: Committed / Likely / Risk / Unlikely</p>
+          </div>
+        </div>
+        <div class="split">
+          <div class="card"><h3>Churn reasons</h3><p>Price 38% · Delivery 25% · Budget 19% · Stakeholder 11% · Khác 7%</p></div>
+          <div class="card">
+            <h3>Retention theo owner / team</h3>
+            <table>
+              <thead><tr><th>Owner</th><th>Team</th><th>Renewable</th><th>Rate</th><th>At risk</th></tr></thead>
+              <tbody>
+                <tr><td>Nguyễn Minh</td><td>HCM</td><td>1,20 tỷ</td><td>87,5%</td><td>120tr</td></tr>
+                <tr><td>Trần Anh</td><td>HCM</td><td>0,84 tỷ</td><td>81,0%</td><td>96tr</td></tr>
+                <tr><td>Lê Hương</td><td>HCM</td><td>0,62 tỷ</td><td>64,2%</td><td>185tr</td></tr>
+                <tr><td>Phạm Linh</td><td>HN</td><td>1,05 tỷ</td><td>91,0%</td><td>40tr</td></tr>
+                <tr><td>Võ Khoa</td><td>ĐN</td><td>0,48 tỷ</td><td>94,1%</td><td>12tr</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 29 -->
+      <section class="page" id="page-fields">
+        <div class="head"><div><h1>Cấu hình / Custom fields / Account</h1></div><button class="btn btn-primary" type="button" onclick="openDrawer('field')">+ Thêm trường</button></div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Tên</th><th>API key</th><th>Type</th><th>Áp dụng khi</th><th>Required</th></tr></thead>
+            <tbody>
+              <tr><td>Dự án chính</td><td>primary_project</td><td>Lookup</td><td>Industry = Real Estate</td><td>No</td></tr>
+              <tr><td>Mục tiêu lead/tháng</td><td>monthly_lead_target</td><td>Number</td><td>Lead Gen</td><td>Yes</td></tr>
+              <tr><td>Campus</td><td>campus</td><td>Lookup</td><td>Education</td><td>No</td></tr>
+              <tr><td>Hạng thành viên</td><td>membership_tier</td><td>Select</td><td>Beauty</td><td>No</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 30 -->
+      <section class="page" id="page-sla-cfg">
+        <div class="head"><div><h1>Cấu hình / SLA Policies</h1></div><button class="btn btn-primary" type="button">+ Tạo SLA policy</button></div>
+        <div class="card">
+          <p><b>Premium Complaint P1</b> — Active · Tier A + Complaint + Critical</p>
+          <p>First response 30 phút · Resolution 4 giờ (business time)<br>Pause: Waiting Client · Escalate 70% Team Lead · 90% Director · 100% Executive</p>
+          <p class="muted">Lịch VN 08:30–17:30 T2–T6 · Holiday Vietnam 2026</p>
+        </div>
+      </section>
+
+      <!-- M01 -->
+      <section class="page" id="page-mobile">
+        <div class="phone">
+          <p><b>← Công ty An Phú</b> · Active · 🟡 72 Watch</p>
+          <div class="split" style="grid-template-columns:1fr 1fr 1fr"><div><b>85tr</b><div class="muted">MRR</div></div><div><b>53 ngày</b><div class="muted">Gia hạn</div></div><div><b>4</b><div class="muted">Task mở</div></div></div>
+          <h3>Cần xử lý</h3>
+          <p>🔴 2 SLA breach<br>🟡 Lên lịch QBR trước 10/09</p>
+          <button class="linkish" type="button" onclick="show('health-detail')">Xem Health &amp; Risk</button>
+          <h3>Contact chính</h3>
+          <p><b>Nguyễn An Phú</b> — CEO</p>
+          <div class="actions"><button class="btn" type="button" onclick="toast('Gọi 09xx xxx xxx')">📞 Gọi</button><button class="btn" type="button">✉ Email</button><button class="btn" type="button">💬 Zalo</button></div>
+          <h3>Hoạt động gần đây</h3>
+          <p>09:18 Task: Gửi report<br>Hôm qua Meeting: CPA review</p>
+          <div class="m-cta"><button class="btn btn-primary" type="button" onclick="openDrawer('meet')">＋ Log activity</button><button class="btn" type="button" onclick="openDrawer('work')">✓ Tạo task</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="palette" id="palette">
+  <div class="card-h"><b>🔎 Tìm kiếm trong CRM…</b><button class="btn" type="button" onclick="closePalette()">Esc</button></div>
+  <input class="inp" style="width:100%;margin:8px 0" placeholder="an phú" autofocus />
+  <p class="muted">Gợi ý gần đây</p>
+  <button class="row" type="button" onclick="show('account');closePalette()"><i></i><span>Công ty An Phú</span><span class="muted">Account · Active</span></button>
+  <button class="row" type="button" onclick="show('rc');closePalette()"><i></i><span>RC-2026-00128 — Gia hạn Bloom Spa</span><span class="muted">Renewal · Attention</span></button>
+  <p class="muted">Kết quả cho “an phú”</p>
+  <button class="row" type="button" onclick="show('account');closePalette()"><i></i><span>🏢 Công ty An Phú</span><span class="muted">Account · Watch · 85tr/tháng</span></button>
+  <button class="row" type="button" onclick="openDrawer('contact');closePalette()"><i></i><span>👤 Nguyễn An Phú</span><span class="muted">Contact · CEO</span></button>
+  <button class="row" type="button" onclick="show('contract');closePalette()"><i></i><span>📄 HD-2026-0084</span><span class="muted">Contract · Còn 53 ngày</span></button>
+  <button class="row" type="button" onclick="show('work-detail');closePalette()"><i></i><span>✓ Gửi báo cáo tháng 08</span><span class="muted">Task · Hạn hôm nay</span></button>
+  <p class="muted">[↵] Mở · [⌘↵] Tab mới · [↑↓] Điều hướng</p>
+</div>
+
+<div class="drawer-bg" id="drawer-bg" onclick="if(event.target===this)closeDrawer()">
+  <aside class="drawer">
+    <div class="drawer-panel" id="d-contact">
+      <div class="card-h"><h2>Thông tin liên hệ</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <h1 style="font-size:18px">Nguyễn An Phú</h1>
+      <p class="muted">CEO · Decision Maker · Contact chính</p>
+      <p>SĐT: 09xx xxx xxx <button class="linkish" type="button">Gọi</button> <button class="linkish" type="button">Sao chép</button><br>
+      Email: ceo@anphu.vn <button class="linkish" type="button">Email</button><br>
+      Zalo: Đã liên kết <button class="linkish" type="button">Mở hội thoại</button></p>
+      <p>Sentiment gần nhất: 🟡 Neutral<br>Interaction gần nhất: Họp 04/09/2026</p>
+      <label class="form">Vai trò trong buying committee<select class="field"><option>Decision Maker</option></select></label>
+      <label class="form">Thái độ đối với renewal<select class="field"><option>Neutral</option></select></label>
+      <div class="actions" style="margin-top:12px"><button class="btn" type="button" onclick="show('account');tab360('timeline');closeDrawer()">Xem lịch sử tương tác</button><button class="btn btn-primary" type="button">Chỉnh sửa</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-owner">
+      <div class="card-h"><h2>Chuyển owner cho 12 khách hàng</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <label class="form">Owner mới *<input class="inp" placeholder="Tìm người dùng hoặc team…"/></label>
+      <label class="check"><input type="checkbox" checked/> Giữ owner cũ là secondary owner</label>
+      <p>Chuyển các task đang mở</p>
+      <label class="check"><input type="radio" name="xfer"/> Không chuyển</label>
+      <label class="check"><input type="radio" name="xfer" checked/> Chuyển sang owner mới</label>
+      <label class="form">Lý do chuyển giao *<textarea class="inp">Thay đổi phân công khu vực</textarea></label>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã chuyển 12 account');closeDrawer()">Xác nhận chuyển</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-work">
+      <div class="card-h"><h2>Tạo công việc</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <div class="form-2">
+        <label class="form">Loại *<select class="field"><option>Task</option><option>Client Request</option><option>Issue</option><option>Escalation</option></select></label>
+        <label class="form">Account *<select class="field"><option>Công ty An Phú</option><option>Bloom Spa</option><option>EduNext</option></select></label>
+      </div>
+      <label class="form">Tiêu đề *<input class="inp" value="Gửi báo cáo hiệu quả tháng 08"/></label>
+      <label class="form">Mô tả<textarea class="inp"></textarea></label>
+      <div class="form-2">
+        <label class="form">Priority<select class="field"><option>High</option></select></label>
+        <label class="form">Assignee *<select class="field"><option>Nguyễn Minh</option></select></label>
+      </div>
+      <label class="form">Hạn xử lý<input class="inp" value="05/09/2026 17:00"/></label>
+      <label class="form">Áp dụng SLA<select class="field"><option>Theo contract — Gold</option></select></label>
+      <p class="muted">Liên kết: Contract · Renewal Case · Risk</p>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã tạo công việc');closeDrawer()">Tạo công việc</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-meet">
+      <div class="card-h"><h2>Log cuộc họp — Công ty An Phú</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <div class="form-2">
+        <label class="form">Loại *<select class="field"><option>QBR</option><option>Call</option><option>Kickoff</option></select></label>
+        <label class="form">Thời gian *<input class="inp" value="04/09/2026 15:30"/></label>
+      </div>
+      <p>Người tham gia *: Nguyễn An Phú × · Nguyễn Minh ×</p>
+      <div class="form-2">
+        <label class="form">Sentiment<select class="field"><option>Neutral</option></select></label>
+        <label class="form">Visibility<select class="field"><option>Internal</option></select></label>
+      </div>
+      <label class="form">Tóm tắt *<textarea class="inp">Khách hàng phản hồi CPL đang cao hơn mục tiêu. Đội thống nhất thử nghiệm 2 nhóm…</textarea></label>
+      <div class="card-h"><h3>Action items</h3><button class="linkish" type="button">✨ Trích từ AI</button></div>
+      <label class="check"><input type="checkbox" checked/> Tạo task: Chuẩn bị phương án A/B — Mai — 06/09</label>
+      <label class="check"><input type="checkbox" checked/> Tạo task: Gửi meeting recap — Nguyễn Minh — 05/09</label>
+      <label class="check"><input type="checkbox"/> Tạo risk signal: KPI Delivery giảm</label>
+      <p class="muted">Đính kèm: meeting-notes.docx · recording-link</p>
+      <p class="muted">AI chỉ tạo draft; bạn phải tick/chỉnh rồi lưu.</p>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã lưu cuộc họp &amp; tạo 2 task');closeDrawer()">Lưu cuộc họp &amp; tạo task</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-esc">
+      <div class="card-h"><h2>Escalate REQ-000291</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <p>Cấp escalation *</p>
+      <label class="check"><input type="radio" name="esc"/> Team Lead</label>
+      <label class="check"><input type="radio" name="esc" checked/> Account Director</label>
+      <label class="check"><input type="radio" name="esc"/> Executive</label>
+      <label class="form">Lý do *<select class="field"><option>SLA breached + nguy cơ không gia hạn</option></select></label>
+      <label class="form">Tóm tắt tình huống *<textarea class="inp">Khách hàng EduNext khiếu nại CPL tăng 35%; case đã quá SLA.</textarea></label>
+      <label class="form">Đề xuất cần hỗ trợ<textarea class="inp">Cần Director tham gia call với stakeholder trước 11:30.</textarea></label>
+      <p>Người nhận: Account Director — Phạm Quang</p>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-danger" type="button" onclick="toast('Đã gửi escalation');closeDrawer()">Gửi escalation</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-risk">
+      <div class="card-h"><h2>Tạo rủi ro — Công ty An Phú</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <div class="form-2">
+        <label class="form">Danh mục *<select class="field"><option>Delivery</option></select></label>
+        <label class="form">Severity *<select class="field"><option>High</option></select></label>
+        <label class="form">Xác suất *<select class="field"><option>4</option></select></label>
+        <label class="form">Tác động *<select class="field"><option>5 — Risk score 20/25</option></select></label>
+      </div>
+      <label class="form">Tiêu đề *<input class="inp" value="KPI lead có nguy cơ không đạt tháng 09"/></label>
+      <label class="form">Mô tả và bằng chứng *<textarea class="inp">Qualified lead mới đạt 88% target; 2 adset có CPL vượt trần 20%.</textarea></label>
+      <div class="form-2">
+        <label class="form">Owner *<select class="field"><option>Nguyễn Minh</option></select></label>
+        <label class="form">Hạn giảm thiểu *<input class="inp" value="10/09/2026"/></label>
+      </div>
+      <label class="form">Kế hoạch giảm thiểu<textarea class="inp">Rà soát targeting; thử 2 creative; họp QBR; cập nhật dự báo KPI.</textarea></label>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã tạo rủi ro');closeDrawer()">Tạo rủi ro</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-renewal">
+      <div class="card-h"><h2>Bắt đầu gia hạn / Tạo Renewal Case</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <label class="form">Hợp đồng *<select class="field"><option>HD-2026-0084 — An Phú · hết hạn 31/12/2026</option></select></label>
+      <label class="form">Forecast<select class="field"><option>Likely</option><option>Committed</option><option>Risk</option><option>Unlikely</option></select></label>
+      <label class="form">Next action *<input class="inp" value="Họp đánh giá Q3"/></label>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="show('rc');closeDrawer()">Tạo case</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-opp">
+      <div class="card-h"><h2>Tạo cơ hội tăng trưởng</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <div class="form-2">
+        <label class="form">Account *<select class="field"><option>Green Home</option></select></label>
+        <label class="form">Loại *<select class="field"><option>Cross-sell</option><option>Upsell</option></select></label>
+      </div>
+      <label class="form">Dịch vụ/gói *<select class="field"><option>AI Agent chăm sóc lead</option></select></label>
+      <div class="form-2">
+        <label class="form">Giá trị dự kiến<input class="inp" value="240.000.000"/></label>
+        <label class="form">Xác suất<input class="inp" value="50%"/></label>
+      </div>
+      <label class="form">Nhu cầu khách hàng *<textarea class="inp">Khách hàng cần giảm thời gian phản hồi lead ngoài giờ.</textarea></label>
+      <label class="form">Next step *<input class="inp" value="Đặt lịch demo với COO — 09/09/2026"/></label>
+      <p class="muted">Nguồn: AI suggestion · Trigger: Mở thêm chi nhánh</p>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã tạo cơ hội');closeDrawer()">Tạo cơ hội</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-survey">
+      <div class="card-h"><h2>Tạo chiến dịch khảo sát</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <label class="form">Tên campaign *<input class="inp" value="CSAT sau QBR — Q3/2026"/></label>
+      <div class="form-2">
+        <label class="form">Template *<select class="field"><option>CSAT Standard v2</option></select></label>
+        <label class="form">Kênh<select class="field"><option>Email</option></select></label>
+      </div>
+      <p>Đối tượng: Account theo filter · 48 contact dự kiến<br>Điều kiện: Lifecycle Active; QBR completed trong 14 ngày</p>
+      <label class="form">Lịch gửi<input class="inp" value="05/09/2026 09:00"/></label>
+      <p class="muted">Nhắc lại sau 3 ngày · Không gửi nếu đã nhận survey trong 30 ngày<br>Rule: CSAT ≤ 3 → tạo task cho Owner trong 24 giờ</p>
+      <div class="actions"><button class="btn" type="button">Lưu nháp</button><button class="btn btn-primary" type="button" onclick="toast('Đã lên lịch gửi');closeDrawer()">Lên lịch gửi</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-field">
+      <div class="card-h"><h2>Thêm custom field</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <label class="form">Nhãn hiển thị *<input class="inp" value="Mục tiêu booking/tháng"/></label>
+      <label class="form">API key *<input class="inp" value="monthly_booking_target"/></label>
+      <div class="form-2">
+        <label class="form">Loại dữ liệu *<select class="field"><option>Number</option></select></label>
+        <label class="form">Entity<select class="field"><option>Account</option></select></label>
+      </div>
+      <label class="form">Điều kiện hiển thị<input class="inp" value="Industry = Spa/Beauty"/></label>
+      <label class="check"><input type="checkbox"/> Required</label>
+      <label class="check"><input type="checkbox" checked/> Có thể filter</label>
+      <label class="check"><input type="checkbox" checked/> Có thể report</label>
+      <p class="muted">Validation: Min 0 · Max 1.000.000 · Unit booking · AM Edit</p>
+      <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã tạo trường');closeDrawer()">Tạo trường</button></div>
+    </div>
+
+    <div class="drawer-panel" id="d-ai">
+      <div class="card-h"><h2>✨ Trợ lý Account — Công ty An Phú</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <div class="chips"><span class="chip is-on">Tóm tắt account</span><span class="chip">Giải thích health</span><span class="chip">Chuẩn bị QBR</span><span class="chip">Soạn follow-up</span></div>
+      <h3>Tóm tắt 30 ngày gần đây</h3>
+      <p>Công ty An Phú đang ở mức Watch (72/100), giảm 4 điểm trong 14 ngày.</p>
+      <p><b>Điểm tích cực</b><br>• Thanh toán đúng hạn; contact chính vẫn phản hồi đều.</p>
+      <p><b>Rủi ro cần chú ý</b><br>• Có 2 SLA breach; KPI qualified lead mới đạt 88% mục tiêu.</p>
+      <h3>Đề xuất 3 việc tiếp theo</h3>
+      <p>1. Lên lịch QBR trước 10/09 với CEO. <button class="linkish" type="button" onclick="openDrawer('work')">Tạo task</button><br>
+      2. Rà soát SLA breach và root cause trong 48h. <button class="linkish" type="button" onclick="openDrawer('work')">Tạo task</button><br>
+      3. Chuẩn bị phương án tối ưu lead trong báo cáo tuần. <button class="linkish" type="button">Tạo draft</button></p>
+      <p class="muted">Evidence: 2 work items, 5 interactions, KPI snapshot 04/09, contract</p>
+      <div class="actions"><button class="btn" type="button">Mở evidence</button><button class="btn" type="button">👍 Hữu ích</button><button class="btn" type="button">👎 Không hữu ích</button></div>
+      <input class="inp" style="width:100%;margin-top:10px" placeholder="Hỏi về account này…"/>
+      <p class="muted">AI tạo nội dung nháp; bạn cần xác nhận trước khi lưu hoặc gửi.</p>
+    </div>
+
+    <div class="drawer-panel" id="d-more360">
+      <div class="card-h"><h2>Thao tác account</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+      <button class="row" type="button" onclick="show('account-form');closeDrawer()"><i></i><span>Chỉnh sửa account</span><span></span></button>
+      <button class="row" type="button" onclick="openDrawer('contact')"><i></i><span>Thêm contact</span><span></span></button>
+      <button class="row" type="button" onclick="openDrawer('owner')"><i></i><span>Chuyển owner</span><span></span></button>
+      <button class="row" type="button"><i></i><span>Thay đổi lifecycle status</span><span></span></button>
+      <button class="row" type="button"><i></i><span>Archive account</span><span></span></button>
+      <button class="row" type="button"><i></i><span>Hợp nhất trùng (Admin)</span><span></span></button>
+      <button class="row" type="button" onclick="tab360('audit');closeDrawer()"><i></i><span>Xem lịch sử audit</span><span></span></button>
+    </div>
+  </aside>
+</div>
+
+<div class="modal-wrap" id="m-golive">
+  <div class="modal">
+    <div class="card-h"><h2>Xác nhận Go-live</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+    <p>✓ 10/10 hạng mục bắt buộc hoàn thành<br>✓ Contract active<br>✓ Contact chính đã xác nhận<br>⚠ Báo cáo dashboard chưa có dữ liệu 24 giờ</p>
+    <label class="form">Ngày Go-live thực tế *<input class="inp" value="01/10/2026"/></label>
+    <label class="form">Ghi chú<textarea class="inp"></textarea></label>
+    <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-primary" type="button" onclick="toast('Đã xác nhận Go-live');closeDrawer()">Xác nhận Go-live</button></div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="m-lost">
+  <div class="modal">
+    <div class="card-h"><h2>Kết thúc Renewal Case</h2><button class="btn" type="button" onclick="closeDrawer()">×</button></div>
+    <p>Kết quả *</p>
+    <label class="check"><input type="radio" name="lost"/> Lost</label>
+    <label class="check"><input type="radio" name="lost" checked/> Churned</label>
+    <label class="check"><input type="radio" name="lost"/> Paused</label>
+    <label class="form">Lý do chính *<select class="field"><option>Giá/Ngân sách</option><option>Delivery</option><option>Budget</option></select></label>
+    <label class="form">Đối thủ cạnh tranh<input class="inp" placeholder="Nhập tên hoặc chọn…"/></label>
+    <label class="form">Ngày hiệu lực chấm dứt *<input class="inp" value="12/10/2026"/></label>
+    <label class="form">Doanh thu mất dự kiến<input class="inp" value="42.000.000 / tháng"/></label>
+    <label class="form">Có thể phục hồi?<select class="field"><option>Có</option></select></label>
+    <label class="form">Ghi chú / lessons learned *<textarea class="inp"></textarea></label>
+    <div class="actions"><button class="btn" type="button" onclick="closeDrawer()">Hủy</button><button class="btn btn-danger" type="button" onclick="toast('Đã ghi Lost/Churned');closeDrawer()">Xác nhận kết quả</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Đã lưu</div>
+
+<script>
+  const PAGE_NAV = {
+    dash:'dash', clients:'clients', account:'clients', 'account-form':'clients',
+    handover:'handover', 'onboard-ws':'handover', 'onboard-tpl':'scorecard',
+    contract:'renewals', renewals:'renewals', rc:'renewals', finance:'renewals',
+    work:'work', 'work-detail':'work', health:'health', 'health-detail':'health',
+    recovery:'health', scorecard:'scorecard', growth:'reports', feedback:'reports',
+    reports:'reports', fields:'scorecard', 'sla-cfg':'scorecard', mobile:'dash'
+  };
+
+  function show(id, chip) {
+    document.querySelectorAll('.page').forEach((p) => p.classList.toggle('is-on', p.id === 'page-' + id));
+    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('is-on', b.dataset.nav === (PAGE_NAV[id] || id)));
+    document.querySelectorAll('.sc').forEach((c) => c.classList.remove('is-on'));
+    if (chip) chip.classList.add('is-on');
+    else {
+      const map = {dash:0,clients:1,account:2};
+      document.querySelectorAll('.sc')[map[id] ?? -1]?.classList.add('is-on');
+    }
+    document.getElementById('create-menu')?.classList.remove('is-on');
+    window.scrollTo(0, 0);
+  }
+
+  function tab360(name) {
+    show('account');
+    document.querySelectorAll('.p360').forEach((p) => {
+      p.classList.toggle('is-on', p.id === 'p360-' + name);
+      p.style.display = p.id === 'p360-' + name ? 'block' : 'none';
+    });
+    document.querySelectorAll('#tabs360 .tab').forEach((t) => t.classList.toggle('is-on', t.dataset.t === name));
+  }
+
+  function toggleEl(id) {
+    document.getElementById(id)?.classList.toggle('is-on');
+  }
+
+  function openPalette() {
+    document.getElementById('palette').classList.add('is-on');
+  }
+  function closePalette() {
+    document.getElementById('palette').classList.remove('is-on');
+  }
+
+  function openDrawer(name) {
+    document.getElementById('create-menu')?.classList.remove('is-on');
+    if (name === 'golive') { document.getElementById('m-golive').classList.add('is-on'); return; }
+    if (name === 'lost') { document.getElementById('m-lost').classList.add('is-on'); return; }
+    document.getElementById('drawer-bg').classList.add('is-on');
+    document.querySelectorAll('.drawer-panel').forEach((p) => p.classList.toggle('is-on', p.id === 'd-' + name));
+  }
+  function closeDrawer() {
+    document.getElementById('drawer-bg').classList.remove('is-on');
+    document.getElementById('m-golive').classList.remove('is-on');
+    document.getElementById('m-lost').classList.remove('is-on');
+  }
+
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('is-on');
+    setTimeout(() => el.classList.remove('is-on'), 2200);
+  }
+
+  const SCOPE = {
+    me: {
+      sub: 'Thứ Bảy 05/09/2026 · Phạm vi <b>Của tôi</b> · 48/1.248 account · Tải 42/40 (quá +2) · View: <b>Ưu tiên buổi sáng</b>',
+      acct:'48', acctd:'+3 tháng này', mrr:'1,28 tỷ', mrrd:'+12,5%', ren:'420 triệu', rend:'12 case', risk:'185 triệu', riskd:'5 account', sla:'7', slad:'−2 vs T7',
+      today:'12', work:'12', rc:'12', riskn:'7', h1:'Healthy 31', h2:'Watch 10', h3:'At Risk 5', h4:'Critical 2', havg:'TB 76,4 ↓ 2,1', fc:'360tr / 420tr · weighted 85,7%'
+    },
+    team: {
+      sub: 'Thứ Bảy 05/09/2026 · Phạm vi <b>Team HCM</b> · 186 account · 14 AM · 4 quá tải · View team Lead',
+      acct:'186', acctd:'+11 tháng này', mrr:'4,86 tỷ', mrrd:'+8,2%', ren:'1,64 tỷ', rend:'41 case', risk:'720 triệu', riskd:'18 account', sla:'19', slad:'+3 vs T7',
+      today:'41', work:'41', rc:'41', riskn:'18', h1:'Healthy 118', h2:'Watch 41', h3:'At Risk 19', h4:'Critical 8', havg:'TB 74,1 ↓ 1,4', fc:'1,28 tỷ / 1,64 tỷ · 78%'
+    },
+    all: {
+      sub: 'Thứ Bảy 05/09/2026 · Phạm vi <b>Toàn PTT</b> · 1.248 account · 12 team · 86 AM · 23 chưa gán',
+      acct:'1.248', acctd:'+46 tháng này', mrr:'18,64 tỷ', mrrd:'+9,1%', ren:'4,82 tỷ', rend:'164 case', risk:'2,14 tỷ', riskd:'67 account', sla:'41', slad:'−6 vs T7',
+      today:'186', work:'186', rc:'164', riskn:'67', h1:'Healthy 812', h2:'Watch 268', h3:'At Risk 121', h4:'Critical 47', havg:'TB 75,8 ↓ 0,8', fc:'3,91 tỷ / 4,82 tỷ · 81,1%'
+    }
+  };
+
+  function applyKpi(s) {
+    const set = (k, v) => { document.querySelectorAll('[data-k="'+k+'"]').forEach((el) => { el.innerHTML = v; }); };
+    set('kpi-acct', s.acct); set('kpi-acct-d', s.acctd); set('kpi-mrr', s.mrr); set('kpi-mrr-d', s.mrrd);
+    set('kpi-ren', s.ren); set('kpi-ren-d', s.rend); set('kpi-risk', s.risk); set('kpi-risk-d', s.riskd);
+    set('kpi-sla', s.sla); set('kpi-sla-d', s.slad);
+    set('today', s.today); set('today-n', '('+s.today+' việc)'); set('acct', s.acct); set('work', s.work); set('rc', s.rc); set('risk', s.riskn);
+    set('h1', s.h1); set('h2', s.h2); set('h3', s.h3); set('h4', s.h4); set('havg', s.havg); set('fc', s.fc);
+    const sub = document.getElementById('dash-sub'); if (sub) sub.innerHTML = s.sub;
+  }
+
+  function setRole(role) {
+    document.body.classList.toggle('role-dir', role === 'dir' || role === 'admin');
+    const who = document.getElementById('who');
+    const meta = document.getElementById('who-meta');
+    if (who) who.textContent = role === 'am' ? 'Nguyễn Minh' : role === 'dir' ? 'Phạm Quang' : 'Admin CRM';
+    if (meta) meta.textContent = role === 'am' ? 'AM · Team HCM · 42/40 account (quá tải +2)' : role === 'dir' ? 'Director · 12 team · 86 AM' : 'Admin · cấu hình + field + SLA';
+    if (role !== 'am') {
+      document.getElementById('scope').value = 'all';
+      applyKpi(SCOPE.all);
+    } else {
+      document.getElementById('scope').value = 'me';
+      applyKpi(SCOPE.me);
+    }
+  }
+
+  function setScope(scope) {
+    applyKpi(SCOPE[scope] || SCOPE.me);
+  }
+
+  function jumpDemo(v) {
+    const drawers = {contact:1, 'work-d':'work', meet:1, esc:1, risk:1, opp:1, survey:1, ai:1};
+    if (v === 'palette') return openPalette();
+    if (v === 'notify') { document.getElementById('notify').classList.add('is-on'); return; }
+    if (v === 'timeline') return tab360('timeline');
+    if (drawers[v]) return openDrawer(drawers[v] === 1 ? v : drawers[v]);
+    show(v);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
+    if (e.key === 'Escape') { closePalette(); closeDrawer(); document.getElementById('notify').classList.remove('is-on'); }
+  });
+</script>
+</body>
+</html>

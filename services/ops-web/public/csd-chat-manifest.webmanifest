@@ -1,0 +1,17 @@
+{
+  "name": "Chat SD",
+  "short_name": "Chat SD",
+  "description": "Chat nội bộ PTT",
+  "start_url": "/crm/csd/chat?shell=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#eef1f5",
+  "theme_color": "#0f2747",
+  "lang": "vi",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

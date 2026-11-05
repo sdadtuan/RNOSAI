@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PTT Agency — Media OS · Competitive Win</title>
+<style>
+:root{--nav:#101a30;--nav2:#172642;--ink:#15213a;--muted:#718097;--bg:#f4f6fa;--white:#fff;--line:#e2e7ef;--blue:#3268f6;--blue50:#edf2ff;--purple:#7656e9;--purple50:#f2efff;--green:#139567;--green50:#e5f8ef;--amber:#d88400;--amber50:#fff4dd;--red:#d84951;--red50:#fff0f1;--shadow:0 12px 30px rgba(16,26,48,.08);--r:14px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.45}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}
+.app{display:grid;grid-template-columns:258px 1fr;min-height:100vh}
+.side{position:fixed;width:258px;inset:0 auto 0 0;background:var(--nav);color:#c5d0e6;padding:17px 13px;z-index:20;overflow:auto}
+.brand{height:45px;display:flex;align-items:center;gap:11px;padding:0 8px;color:#fff;font-size:18px;font-weight:800}
+.mark{height:32px;width:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#5c89ff,#7450e7);box-shadow:0 7px 17px #0006}
+.workspace{display:flex;align-items:center;gap:9px;margin:17px 7px 20px;padding:9px;border:1px solid #ffffff1c;border-radius:10px;background:#ffffff09}
+.workspace small{display:block;color:#8293b5;font-size:9px;letter-spacing:.08em}
+.workspace b{display:block;color:#fff;font-size:11px;margin-top:2px}
+.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;flex:0 0 auto;background:#ffdfca;color:#a54216}
+.label{margin:18px 11px 7px;color:#7889ad;font-size:9px;letter-spacing:.11em;font-weight:800}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 11px;margin:2px 0;border-radius:8px;text-decoration:none;color:#bfcae0;font-size:12px}
+.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}
+.ic{width:18px;color:#93a4c8;text-align:center}
+.help{margin:22px 8px 8px;background:var(--nav2);border-radius:12px;padding:12px}
+.help b{color:#fff;font-size:11px}.help p{font-size:10px;color:#9dacc7;line-height:1.45;margin:5px 0 0}
+.main{grid-column:2;min-width:0}
+.winbar{position:sticky;top:0;z-index:25;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:linear-gradient(90deg,#15213a,#2a1f55);color:#e8e6ff;font-size:11px;border-bottom:1px solid #3c3470}
+.winbar b{color:#fff}.winbar .tag{background:#3d2f78;color:#d7d0ff}
+.top{position:sticky;top:34px;z-index:15;height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:13px;padding:0 30px}
+.crumb{color:#728097;font-size:12px}.crumb b{color:#3c4961}
+.search{margin-left:auto;display:flex;align-items:center;gap:7px;width:280px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:#8c97a9}
+.search input{border:0;outline:0;background:transparent;width:100%;font-size:12px}
+.topav{width:32px;height:32px;border-radius:50%;background:#d9e5ff;color:#2853b6;display:grid;place-items:center;font-size:11px;font-weight:800}
+.page{padding:22px 30px 80px}
+.screen{display:none}.screen.active{display:block}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:5px 0 18px}
+.head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.035em}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:#3c4961;font-size:11px;font-weight:750}
+.btn.blue{color:#fff;background:var(--blue);border-color:var(--blue);box-shadow:0 5px 12px #3268f63d}
+.btn.danger{color:var(--red);border-color:#f0c4c7}
+.btn.small{padding:6px 8px;font-size:10px}
+.btn[disabled],.btn.off{opacity:.45;cursor:not-allowed}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 2px 5px rgba(18,30,53,.02)}
+.pad{padding:18px}
+.card h3{font-size:13px;margin:0 0 12px}
+.desc{margin:0 0 12px;color:var(--muted);font-size:11px;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.kpi5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi{padding:14px 16px}.kpi small{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em}
+.kpi b{display:block;font-size:22px;margin:6px 0 4px;letter-spacing:-.04em}
+.kpi span{font-size:11px}
+.up{color:var(--green)}.down{color:var(--red)}
+.layout{display:grid;grid-template-columns:minmax(620px,1.4fr) 340px;gap:16px}
+.table-scroll{overflow:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px;min-width:720px}
+.t th{text-align:left;color:#7d899c;background:#fafbfc;padding:10px 9px;border-bottom:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.t td{padding:11px 9px;border-bottom:1px solid #edf0f4;vertical-align:top}
+.t .name{font-weight:750;color:#344058}.t .dep{display:block;color:#768399;font-size:10px;margin-top:3px}
+.tag{display:inline-block;padding:3px 7px;border-radius:12px;font-size:9px;font-weight:800}
+.tag.green{background:var(--green50);color:var(--green)}
+.tag.amber{background:var(--amber50);color:#a86600}
+.tag.red{background:var(--red50);color:#c6404a}
+.tag.blue{background:var(--blue50);color:#2d56da}
+.tag.gray{background:#edf0f5;color:#68748b}
+.tag.lock{background:#eef1f6;color:#6a7690;border:1px dashed #c5cdd8}
+.notice{border:1px solid #e3e9fb;background:#f6f8ff;border-radius:8px;color:#5e6c88;font-size:11px;line-height:1.5;padding:10px;margin:10px 0}
+.notice b{color:#3d57bc}
+.notice.warn{border-color:#f1dda9;background:#fffaed;color:#88610b}
+.notice.danger{border-color:#f0c8cb;background:#fff5f5;color:#a9464e}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #edf0f4;font-size:12px}
+.row:last-child{border:0}.row span{color:#66758c;font-size:11px}
+.bar{height:7px;background:#edf0f5;border-radius:8px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--blue)}
+.bar.conflict i{background:var(--red)}
+.ai{border:1px solid #ddd7ff;border-radius:12px;padding:13px;background:linear-gradient(150deg,#fbfaff,#f2efff)}
+.ai b{display:block;margin-bottom:6px}.ai p{margin:0 0 8px;color:#5c5680;font-size:11px;line-height:1.5}
+.ai .ev{font-size:10px;color:#746c96}
+.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:750;color:#3e4a61;margin-bottom:6px}
+.input,select,textarea{width:100%;outline:0;border:1px solid #dce3ed;border-radius:8px;background:#fff;padding:9px 10px;color:#2b3750;font-size:12px}
+.spine{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.spine em{font-style:normal;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:10px;font-weight:750;color:#3c4961}
+.spine em.on{background:var(--blue50);border-color:#bcccff;color:#2d56da}
+.spine em.win{background:var(--purple50);border-color:#d4c8ff;color:#5439b8}
+.spine em.lock{opacity:.55;border-style:dashed}
+.filter{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line)}
+.link{color:#2d56da;font-size:11px;font-weight:750;background:none;border:0;padding:0;text-decoration:underline}
+.toast{position:fixed;right:24px;bottom:24px;z-index:40;background:#15213a;color:#fff;padding:10px 14px;border-radius:8px;font-size:11px;display:none;max-width:380px;box-shadow:var(--shadow)}
+.toast.show{display:block}
+.modalback{position:fixed;inset:0;background:#101a3073;z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.modalback.show{display:flex}
+.modal{width:min(620px,92vw);background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px}
+.modal h2{margin:0 0 6px;font-size:16px}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.gate{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #edf0f4;font-size:12px}
+.gate:last-child{border:0}
+.gdot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;flex:0 0 auto}
+.gdot.ok{background:var(--green50);color:var(--green)}
+.gdot.warn{background:var(--amber50);color:#a86600}
+.gdot.fail{background:var(--red50);color:#c6404a}
+.cal{display:grid;grid-template-columns:80px repeat(7,1fr);gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:10px}
+.cal b,.cal span{padding:8px 6px;border-right:1px solid #edf0f4;border-bottom:1px solid #edf0f4}
+.cal b{background:#fafbfc;color:#7d899c}
+.slot{display:block;border-radius:4px;padding:3px 4px;margin-top:3px;font-weight:750}
+.slot.hard{background:var(--green50);color:var(--green)}
+.slot.soft{background:var(--amber50);color:#a86600}
+.slot.conflict{background:var(--red50);color:#c6404a}
+.hidden{display:none!important}
+@media(max-width:1100px){.side{display:none}.app{display:block}.kpi5,.layout,.grid2,.grid3{grid-template-columns:1fr}.page{padding:18px 14px}}
+</style>
+</head>
+<body>
+<div class="winbar">
+  <span class="tag">WIN · A</span>
+  <b>Publisher booking close</b>
+  — IO · traffic · brand-safety · reserve/overbook · make-good · discrepancy · evidence pack · margin.
+  8 màn kế thừa v1.0. Không DSP · không cổng C · không invoice MSOS.
+  <span class="tag lock">§4 khóa</span>
+  <span style="margin-left:auto;color:#b8b3d6">Dataset minh họa · cấm seed prod · <code>msos-ops-v1-win</code></span>
+</div>
+<div class="app">
+<aside class="side">
+  <div class="brand"><div class="mark">P</div>PTT Agency</div>
+  <div class="workspace">
+    <div class="avatar">PT</div>
+    <div><small>WORKSPACE</small><b>PTT Agency Vietnam</b></div>
+  </div>
+  <div class="label">MEDIA OS · WIN</div>
+  <nav class="nav">
+    <a href="#command" class="active" data-screen="command"><span class="ic">▦</span>Command Center</a>
+    <a href="#inventory" data-screen="inventory"><span class="ic">▣</span>Inventory &amp; Rate</a>
+    <a href="#packages" data-screen="packages"><span class="ic">◫</span>Packages</a>
+    <a href="#campaigns" data-screen="campaigns"><span class="ic">▶</span>Campaigns</a>
+    <a href="#evidence" data-screen="evidence"><span class="ic">▤</span>Evidence</a>
+    <a href="#outcomes" data-screen="outcomes"><span class="ic">⌁</span>Outcomes</a>
+    <a href="#margin" data-screen="margin"><span class="ic">₫</span>Margin &amp; Deal</a>
+    <a href="#settings" data-screen="settings"><span class="ic">⚙</span>Governance</a>
+  </nav>
+  <div class="label">THAM CHIẾU — KHÔNG SỞ HỮU</div>
+  <nav class="nav">
+    <a href="#" onclick="ext('CRM Core · Client CL-1042','/crm/clients');return false"><span class="ic">◉</span>CRM Client</a>
+    <a href="#" onclick="ext('Creative OS · traffic pack ref','/crm/creative-os');return false"><span class="ic">▣</span>Creative OS</a>
+    <a href="#" onclick="ext('Finance Core · không phát hành invoice','/crm/financials');return false"><span class="ic">₫</span>Finance</a>
+  </nav>
+  <div class="help">
+    <b>Thắng Excel + portal rời</b>
+    <p>Một booking publisher đi hết xương sống trong Media OS. IO ≠ invoice. Không push ad server đối tác.</p>
+  </div>
+</aside>
+<main class="main">
+  <header class="top">
+    <div class="crumb">Media OS · WIN <span>/</span> <b id="crumb">Command Center</b></div>
+    <div class="search">⌕ <input placeholder="IO, placement, media line, evidence pack…"/></div>
+    <div class="topav">TT</div>
+  </header>
+  <div class="page">
+
+<section id="command" class="screen active">
+  <div class="head">
+    <div>
+      <h1>Media Command Center</h1>
+      <p>Hàng đợi thắng: overbook, evidence pack, make-good. Không clone AR aging CRM.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="go('campaigns')">Mở Publisher Live Gate</button>
+      <button class="btn blue" onclick="go('packages')">＋ Tạo IO từ reserve</button>
+    </div>
+  </div>
+  <div class="spine">
+    <em class="on">1 Inventory</em><em class="on">2 Rate</em><em class="on">3 Package</em><em class="win">IO</em><em class="win">Traffic</em><em class="on">4 Line</em><em class="win">Pack</em><em class="on">5 Evidence</em><em class="win">Make-good</em><em class="on">6 Outcome</em><em class="on">7 Margin</em>
+    <em class="lock">§4 Write</em><em class="lock">§4 Cổng C</em><em class="lock">§4 Recon</em><em class="lock">§4 Portal</em>
+  </div>
+  <div class="kpi5">
+    <div class="card kpi"><small>PUBLISHER LINES</small><b>2</b><span>1 Live · 1 chờ traffic</span></div>
+    <div class="card kpi"><small>IO LOCKED</small><b>1</b><span>IO-VNE-0912 · rate v1</span></div>
+    <div class="card kpi"><small>OVERBOOK P0</small><b class="down">1</b><span>Slot 15–16 Sep chồng soft</span></div>
+    <div class="card kpi"><small>MAKE-GOOD MỞ</small><b>1</b><span class="down">−180K imp. vs IO</span></div>
+    <div class="card kpi"><small>CỔNG C</small><b>Khóa</b><span>Eligibility chưa đạt</span></div>
+  </div>
+  <div class="layout">
+    <div class="card pad">
+      <h3>Exception queue · thắng publisher</h3>
+      <p class="desc">P0 capacity / evidence trước P1 connector Meta. Không vanity KPI.</p>
+      <div class="table-scroll">
+        <table class="t">
+          <thead><tr><th>Ưu tiên</th><th>Ngoại lệ</th><th>Evidence</th><th>Hành động</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="tag red">P0</span></td>
+              <td><span class="name">Overbook soft chồng hard</span><span class="dep">INV-PTN-VNE-HP · Billboard homepage · 15–16 Sep</span></td>
+              <td>Hard PKG-048 + soft PKG-051 cùng slot</td>
+              <td><button class="btn small" onclick="go('inventory')">Mở calendar</button></td>
+            </tr>
+            <tr>
+              <td><span class="tag red">P0</span></td>
+              <td><span class="name">Evidence pack chưa official</span><span class="dep">ML-2026-0912-VNE · EP-003 draft</span></td>
+              <td>Thiếu hash + freshness SLA 24h</td>
+              <td><button class="btn small" onclick="go('evidence')">Mở pack</button></td>
+            </tr>
+            <tr>
+              <td><span class="tag amber">P1</span></td>
+              <td><span class="name">Make-good chưa gán capacity</span><span class="dep">MG-011 · DC-004 · −180K imp.</span></td>
+              <td>Cấm ghi actual = plan (GT-P06)</td>
+              <td><button class="btn small" onclick="go('evidence')">Mở discrepancy</button></td>
+            </tr>
+            <tr>
+              <td><span class="tag amber">P1</span></td>
+              <td><span class="name">Traffic Rejected</span><span class="dep">CTP-019 · weight 312KB &gt; 150KB</span></td>
+              <td>Live Gate GT-P02 fail</td>
+              <td><button class="btn small" onclick="go('campaigns')">Mở traffic pack</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <aside>
+      <div class="card pad">
+        <h3>Case thắng · 1 property</h3>
+        <p class="desc">Minh họa homepage billboard dưới partner pilot. Không phải Admicro/VnExpress seed prod.</p>
+        <div class="row"><span>Property</span><b>publisher-pilot.example</b></div>
+        <div class="row"><span>Placement</span><b>HP Billboard · 7 ngày</b></div>
+        <div class="row"><span>CRM</span><button class="link" onclick="ext('Client CL-1042','/crm/clients')">CL-1042</button></div>
+        <div class="row"><span>IO</span><b>IO-VNE-0912 r1</b></div>
+        <button class="btn small" onclick="go('campaigns')">Mở line publisher</button>
+      </div>
+      <div class="ai" style="margin-top:14px">
+        <b>✦ Copilot · A0/A1</b>
+        <p>Draft discrepancy: report 2,82M vs IO 3,00M. Đề xuất make-good 180K — không tự tạo MG, không Live.</p>
+        <div class="ev">AIT-MSOS-WIN-001 · nguồn: IO r1 + partner CSV + EV-021</div>
+        <button class="btn small" style="margin-top:10px" onclick="toast('AI chỉ draft narrative. Người tạo MakeGood.')">Xem draft (không tạo)</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="inventory" class="screen">
+  <div class="head">
+    <div>
+      <h1>Inventory &amp; Rate Card</h1>
+      <p>Property publisher + capacity tuần + conflict. PTT service vẫn SoT. Không yield đa partner.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="openModal('invModal')">＋ Placement PTT</button>
+      <button class="btn blue" onclick="toast('Rate v2 nháp publisher — GT-01 fail nếu bind line.')">Publish rate (GT-01)</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="filter">
+      <select><option>Nguồn: PTT + 1 partner + 1 property publisher</option></select>
+      <select><option>Tuần 14–20 Sep 2026</option></select>
+    </div>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Inventory / Placement</th><th>Chủ</th><th>Unit</th><th>Capacity · tuần</th><th>Rate published</th><th>Safety</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">INV-PTN-VNE-HP · Homepage Billboard</span><span class="dep">publisher-pilot.example · Desktop 970×250 · dataset minh họa</span></td>
+            <td>Partner thật</td>
+            <td>Slot / ngày</td>
+            <td>7 slot · reserved 6 · <b class="down">1 conflict</b></td>
+            <td>RC-PTN-VNE v1 · ₫42M / ngày</td>
+            <td><span class="tag green">Tier A</span></td>
+            <td><button class="btn small" onclick="toast('Ledger: 15–16 Sep soft PKG-051 chồng hard PKG-048.')">Ledger</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">INV-PTT-LAND-01 · Lead Landing Service</span><span class="dep">Form owned · Geo VN</span></td>
+            <td>PTT</td>
+            <td>Lead</td>
+            <td>2.400 · reserved 61%</td>
+            <td>RC-PTT-004 v3 · ₫380K / lead</td>
+            <td><span class="tag green">A</span></td>
+            <td><button class="btn small" onclick="toast('Không conflict tuần này.')">Ledger</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">INV-PTT-NEWS-02 · Newsletter slot</span><span class="dep">Email owned · 1 slot / tuần</span></td>
+            <td>PTT</td>
+            <td>Slot / tuần</td>
+            <td>4 · reserved 50%</td>
+            <td>RC-PTT-004 v3 · ₫12M / slot</td>
+            <td><span class="tag green">A</span></td>
+            <td><button class="btn small" onclick="go('packages')">Reserve từ package</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card pad" style="margin-bottom:14px">
+    <h3>Capacity tuần · INV-PTN-VNE-HP</h3>
+    <p class="desc">1 slot / ngày. Hard = lock. Soft hết hạn 24h. Overbook không im lặng — case P0.</p>
+    <div class="cal">
+      <b></b><b>Mon 14</b><b>Tue 15</b><b>Wed 16</b><b>Thu 17</b><b>Fri 18</b><b>Sat 19</b><b>Sun 20</b>
+      <b>HP Billboard</b>
+      <span><em class="slot hard">PKG-048 hard</em></span>
+      <span><em class="slot hard">PKG-048</em><em class="slot conflict">PKG-051 soft</em></span>
+      <span><em class="slot hard">PKG-048</em><em class="slot conflict">PKG-051 soft</em></span>
+      <span><em class="slot hard">PKG-048</em></span>
+      <span><em class="slot hard">PKG-048</em></span>
+      <span><em class="slot hard">PKG-048</em></span>
+      <span><em class="slot hard">PKG-048</em></span>
+    </div>
+    <div class="notice danger">GT-P0 overbook: không hard-reserve chồng. Soft PKG-051 phải expire hoặc chuyển waitlist trước khi Tạo IO.</div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Rate · RC-PTN-VNE</h3>
+      <div class="row"><span>v1 published · 01 Sep</span><span class="tag green">IO được bind</span></div>
+      <div class="row"><span>v2 draft</span><span class="tag gray">GT-01 fail</span></div>
+    </div>
+    <div class="card pad">
+      <h3>Partner pilot</h3>
+      <p class="desc">PTN-PILOT-001 — 1 property publisher. Không seed mạng giả.</p>
+      <div class="row"><span>Scorecard</span><b>74 / 100</b></div>
+      <div class="row"><span>Reseller C</span><span class="tag lock">Khóa</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="packages" class="screen">
+  <div class="head">
+    <div>
+      <h1>Packages &amp; Reservation</h1>
+      <p>Reserve sạch → <b>Tạo IO</b>. Cổng C không hiện che buy-side.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toast('AI A1: bundle PTT Landing + 7 ngày HP. Không tự hard-reserve, không issue IO.')">✦ Gợi ý bundle</button>
+      <button class="btn blue" onclick="openModal('pkgModal')">＋ Package</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Package</th><th>Inventory</th><th>Sell</th><th>CM</th><th>Reserve</th><th>IO</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">PKG-2026-048</span><span class="dep">Publisher HP · Client ref CL-1042</span></td>
+            <td>INV-PTN-VNE-HP × 7 ngày</td>
+            <td>₫336M</td>
+            <td><span class="tag green">26,8%</span></td>
+            <td><span class="tag green">Hard</span></td>
+            <td><span class="tag green">IO-VNE-0912</span></td>
+            <td><button class="btn small" onclick="go('campaigns')">Mở line</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">PKG-2026-051</span><span class="dep">Cùng slot 15–16 · conflict</span></td>
+            <td>INV-PTN-VNE-HP × 2 ngày</td>
+            <td>₫96M</td>
+            <td><span class="tag amber">24,1%</span></td>
+            <td><span class="tag red">Soft · overbook</span></td>
+            <td><span class="tag gray">Chặn</span></td>
+            <td><button class="btn small" onclick="toast('GT-P01 fail: conflict capacity. Không issue IO.')">Tạo IO</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">PKG-2026-044</span><span class="dep">Lead mix · CL-1042</span></td>
+            <td>PTT Landing + native</td>
+            <td>₫920M</td>
+            <td><span class="tag green">29,4%</span></td>
+            <td><span class="tag amber">Soft · 14h</span></td>
+            <td>—</td>
+            <td><button class="btn small" onclick="openModal('ioModal')">Tạo IO</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Che buy-side (Cổng C)</h3>
+      <p class="desc">Wave 1: khóa. WIN không mở reseller.</p>
+      <label class="row"><span>Ẩn buy cost</span><span class="tag lock">Disabled</span></label>
+      <button class="btn off" disabled>Bật white-label</button>
+    </div>
+    <div class="ai">
+      <b>✦ IO composer · A1</b>
+      <p>Draft IO-VNE-0912 r2: period 14–20 Sep, rate v1, safety snapshot Tier A, qty 7 slot. Người issue.</p>
+      <div class="ev">Không gồm PKG-051 conflict. Confidence high.</div>
+    </div>
+  </div>
+</section>
+
+<section id="campaigns" class="screen">
+  <div class="head">
+    <div>
+      <h1>Campaign Media Lines</h1>
+      <p>Publisher Live Gate = GT-P01 + GT-P02; GT-P03 Warning cần override người. AI không Live, không issue IO.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="openModal('trafficModal')">Mở traffic pack</button>
+      <button class="btn blue" onclick="openModal('lineModal')">＋ Media line từ PKG-048</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="filter">
+      <input class="input" style="max-width:220px" placeholder="ML-… / IO-… / client_id"/>
+      <select><option>Publisher + PTT</option></select>
+    </div>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Media line</th><th>CRM / IO</th><th>Traffic</th><th>Gate Live</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">ML-2026-0912-VNE</span><span class="dep">PKG-048 · HP Billboard · commercial_ref CR-048</span></td>
+            <td>
+              <button class="link" onclick="ext('CRM Client CL-1042','/crm/clients')">CL-1042</button><br>
+              <span class="dep">IO-VNE-0912 r1 · rate v1</span>
+            </td>
+            <td><span class="tag red">CTP-019 Rejected</span></td>
+            <td><span class="tag red">GT-P02 fail</span></td>
+            <td><button class="btn small" onclick="tryLive()">Live (người)</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">ML-2026-0912-001</span><span class="dep">PKG-044 · PTT Landing + Meta map</span></td>
+            <td><button class="link" onclick="ext('CL-1042','/crm/clients')">CL-1042</button></td>
+            <td><span class="tag gray">N/A connector</span></td>
+            <td><span class="tag green">GT-03 pass</span></td>
+            <td><button class="btn small" onclick="ext('Ads Ops','/meta/ads-ops')">Mở Ads Ops</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="card pad">
+      <h3>Publisher Live Gate · ML-2026-0912-VNE</h3>
+      <div class="gate"><span class="gdot ok">✓</span><div><b>GT-P01 IO issue</b><span class="dep">IO-VNE-0912 r1 · rate v1 published · hard reserve · CL-1042 · safety snap A</span></div></div>
+      <div class="gate"><span class="gdot fail" id="g-p02">✕</span><div><b>GT-P02 Traffic ready</b><span class="dep" id="g-p02-txt">CTP-019 Rejected · 970×250 OK · weight 312KB &gt; 150KB · click https OK · backup thiếu</span></div></div>
+      <div class="gate"><span class="gdot warn">!</span><div><b>GT-P03 Partner confirm</b><span class="dep">Chưa đính email/PDF. Warning — Live cần override Media Lead. Không portal partner.</span></div></div>
+      <div class="notice warn" id="live-note">Nút Live khóa đến khi GT-P02 pass. AI không có nút. Không push ad server publisher.</div>
+      <div class="actions">
+        <button class="btn" onclick="openModal('trafficModal')">Sửa traffic pack</button>
+        <button class="btn" onclick="toast('Override GT-P03 chỉ sau GT-P02. Role Media Lead.')">Override GT-P03</button>
+        <button class="btn blue" id="btn-live" disabled onclick="doLive()">Live (người)</button>
+      </div>
+    </div>
+    <aside>
+      <div class="card pad">
+        <h3>Brand-safety snapshot</h3>
+        <p class="desc">Lock vào IO. Đổi exclusion sau lock = change control.</p>
+        <div class="row"><span>Tier</span><b>A</b></div>
+        <div class="row"><span>Alcohol / pharma</span><b>Cấm</b></div>
+        <div class="row"><span>Client exclusions</span><b>3 category</b></div>
+        <button class="btn small" onclick="toast('Change control: revision IO r2 + duyệt. Không silent edit.')">Đổi sau lock</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="evidence" class="screen">
+  <div class="head">
+    <div>
+      <h1>Delivery Evidence</h1>
+      <p>Pack official (GT-P04) + discrepancy lite (GT-P05) + make-good (GT-P06). Không workbench recon/close §4.3.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toast('Upload screenshot + checksum. Pack vẫn draft đến QA.')">＋ File proof</button>
+      <button class="btn blue" onclick="openModal('mgModal')">＋ Make-good từ DC-004</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Pack / Evidence</th><th>Line</th><th>Nguồn</th><th>Freshness</th><th>Official</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">EP-003</span><span class="dep">IO PDF + 2 screenshot · thiếu hash report</span></td>
+            <td>ML-2026-0912-VNE</td>
+            <td>File + partner CSV</td>
+            <td>31h</td>
+            <td><span class="tag red">Draft · GT-P04 fail</span></td>
+            <td><button class="btn small" onclick="toast('Không request invoice. Không closed waterfall.')">Giữ draft</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">EV-021</span><span class="dep">sha256:7a2c… · screenshot 12 Sep 09:10</span></td>
+            <td>ML-2026-0912-VNE</td>
+            <td>Ops upload</td>
+            <td>9h</td>
+            <td><span class="tag amber">Trong pack draft</span></td>
+            <td><button class="btn small" onclick="toast('Cần thêm hash CSV + freshness &lt; 24h để official.')">Gắn pack</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">EV-014</span><span class="dep">Meta insights T-1</span></td>
+            <td>ML-2026-0912-001</td>
+            <td>Connector đọc</td>
+            <td>2h</td>
+            <td><span class="tag green">Yes</span></td>
+            <td><button class="btn small" onclick="go('margin')">Dùng margin</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Discrepancy lite · DC-004</h3>
+      <p class="desc">IO 3,00M imp. · partner report 2,82M · evidence 2,79M. Tolerance 3% → material. Không lock period Finance.</p>
+      <div class="row"><span>Root-cause hypothesis</span><b>Viewability / unsold spill</b></div>
+      <div class="row"><span>Owner</span><b>Media Lead</b></div>
+      <div class="row"><span>Ghi actual = plan</span><span class="tag red">Cấm GT-P06</span></div>
+      <button class="btn small" onclick="toast('AI draft narrative sẵn. Người mở MakeGood.')">Mở draft AI</button>
+    </div>
+    <div class="card pad">
+      <h3>Make-good · MG-011</h3>
+      <p class="desc">Bù 180K imp. hoặc ₫8,4M value. Chưa gán capacity tuần sau → P1.</p>
+      <div class="row"><span>Gắn line gốc</span><b>ML-2026-0912-VNE</b></div>
+      <div class="row"><span>Capacity bù</span><span class="tag amber">Chưa reserve</span></div>
+      <button class="btn small" onclick="openModal('mgModal')">Gán slot bù</button>
+      <button class="btn small off" disabled>§4.3 Workbench đầy đủ</button>
+    </div>
+  </div>
+</section>
+
+<section id="outcomes" class="screen">
+  <div class="head">
+    <div>
+      <h1>Outcome Links</h1>
+      <p>Giữ v1.0: trỏ Lead / MQL / SQL / Sale CRM. Unmatched để mở — cấm insert. Publisher line có UTM landing.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="ext('Mở Lead board CRM','/crm/leads')">Mở CRM Leads</button>
+      <button class="btn blue" onclick="toast('Chỉ link ID tồn tại. 422 nếu lead_id giả.')">＋ Link CRM ID</button>
+    </div>
+  </div>
+  <div class="kpi5">
+    <div class="card kpi"><small>LINKED LEADS</small><b>142</b><span>Ref CRM · không sở hữu</span></div>
+    <div class="card kpi"><small>MQL / SQL</small><b>51 / 18</b><span>Status từ CRM</span></div>
+    <div class="card kpi"><small>WON REVENUE REF</small><b>₫1,12B</b><span>Sale ID CRM</span></div>
+    <div class="card kpi"><small>UNMATCHED</small><b>18%</b><span class="down">UTM null</span></div>
+    <div class="card kpi"><small>PUBLISHER UTM</small><b>CL-1042</b><span>utm_source=publisher_hp</span></div>
+  </div>
+  <div class="card">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Link</th><th>Media line</th><th>CRM object</th><th>Model</th><th>Match</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>OL-2301</td>
+            <td>ML-2026-0912-VNE</td>
+            <td><button class="link" onclick="ext('Lead LD-89002','/crm/leads/89002')">LD-89002 · MQL</button></td>
+            <td>Last touch · 7d</td>
+            <td><span class="tag green">Matched</span></td>
+          </tr>
+          <tr>
+            <td>OL-2201</td>
+            <td>ML-2026-0912-001</td>
+            <td><button class="link" onclick="ext('Lead LD-88921','/crm/leads/88921')">LD-88921 · MQL</button></td>
+            <td>Last touch · 30d</td>
+            <td><span class="tag green">Matched</span></td>
+          </tr>
+          <tr>
+            <td>OL-2218</td>
+            <td>ML-2026-0912-001</td>
+            <td>—</td>
+            <td>—</td>
+            <td><span class="tag red">Unmatched · UTM null</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice">MSOS không tạo Lead/Sale. Attribution incrementality = ngoài WIN.</div>
+</section>
+
+<section id="margin" class="screen">
+  <div class="head">
+    <div>
+      <h1>Margin Waterfall &amp; Deal Wallet</h1>
+      <p>Dòng make-good hiện rõ. Request invoice chỉ khi GT-P04 + GT-P05 (hoặc waiver Controller). IO ≠ invoice.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btn-inv" onclick="tryInvoice()">Request invoice</button>
+      <button class="btn blue" onclick="toast('Submit margin PKG-044: CM 29,4% ≥ floor 24%. Publisher line chờ pack official.')">Submit (GT-06)</button>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="card pad">
+      <h3>Waterfall · ML-2026-0912-VNE · Internal</h3>
+      <div class="row"><span>Client gross sell</span><b>₫336M</b></div>
+      <div class="row"><span>Discount</span><b class="down">− ₫0</b></div>
+      <div class="row"><span>Net media revenue</span><b>₫336M</b></div>
+      <div class="row"><span>Partner delivery cost (IO)</span><b class="down">− ₫246M</b></div>
+      <div class="row"><span>Make-good cost (accrued)</span><b class="down">− ₫8,4M</b></div>
+      <div class="row"><span>Rebate accrued</span><b>₫0</b></div>
+      <div class="row"><span>Service cost (ref Finance)</span><b class="down">− ₫12M</b></div>
+      <div class="row"><b>Contribution margin</b><b class="up" id="cm-vne">₫69,6M · 20,7%</b></div>
+      <p class="desc">CM &lt; floor 24% vì make-good. Director duyệt. Không cộng đủ delivery khi report thiếu.</p>
+      <div class="notice danger" id="inv-note">GT-P10 chặn request: EP-003 chưa official + DC-004 material mở.</div>
+    </div>
+    <aside>
+      <div class="card pad">
+        <h3>Deal Wallet · PTN-PILOT-001</h3>
+        <div class="row"><span>Commitment</span><b>₫2,0B</b></div>
+        <div class="bar"><i style="width:54%"></i></div>
+        <div class="row"><span>Used 54% · expiry 31 Dec</span><span class="tag green">On track</span></div>
+      </div>
+      <div class="card pad" style="margin-top:14px">
+        <h3>Invoice</h3>
+        <p class="desc">MSOS không số invoice. Waiver Controller ghi audit, không xóa discrepancy.</p>
+        <button class="btn small" onclick="toast('Waiver chỉ Controller. AI không waiver.')">Xin waiver (Controller)</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="settings" class="screen">
+  <div class="head">
+    <div>
+      <h1>Governance</h1>
+      <p>Policy IO / safety / discrepancy. C vẫn khóa. Không User/Role, không AI runtime, không knowledge editor.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="ext('IAM','/admin/crm/permission-sets')">Mở IAM</button>
+      <button class="btn" onclick="ext('AI Platform traces','/crm/content-os')">Mở AI Platform</button>
+    </div>
+  </div>
+  <div class="grid3" style="margin-bottom:14px">
+    <div class="card pad">
+      <h3>Flags</h3>
+      <div class="row"><span>MEDIA_OS_ENABLED</span><span class="tag green">Pilot on</span></div>
+      <div class="row"><span>MEDIA_OS_RESELLER</span><span class="tag lock">off</span></div>
+      <div class="row"><span>CONNECTOR_WRITE</span><span class="tag lock">off</span></div>
+    </div>
+    <div class="card pad">
+      <h3>Partner scorecard</h3>
+      <div class="row"><span>Delivery reliability</span><b>96,1%</b></div>
+      <div class="row"><span>Discrepancy</span><b>6,0%</b></div>
+      <div class="row"><span>Brand-safety incidents</span><b>0</b></div>
+      <div class="row"><span>Tổng</span><b>74 / ngưỡng C: 85</b></div>
+    </div>
+    <div class="card pad">
+      <h3>Reseller Eligibility</h3>
+      <div class="row"><span>KYC</span><span class="tag green">Pass</span></div>
+      <div class="row"><span>Scorecard ≥ 85</span><span class="tag red">Fail 74</span></div>
+      <div class="row"><span>Cổng C</span><span class="tag lock">Khóa</span></div>
+    </div>
+  </div>
+  <div class="card pad">
+    <h3>Policy registry · WIN</h3>
+    <div class="table-scroll">
+      <table class="t" style="min-width:0">
+        <thead><tr><th>Policy</th><th>Rule</th><th>Enforcement</th></tr></thead>
+        <tbody>
+          <tr><td>Margin floor</td><td>CM &lt; 24% → director; &lt; 18% block</td><td>Hard + approval</td></tr>
+          <tr><td>IO ≠ invoice</td><td>Issue IO không tạo số HĐ</td><td>Hard</td></tr>
+          <tr><td>Discrepancy tolerance</td><td>&gt; 3% qty → case material; chặn invoice</td><td>Hard + waiver Controller</td></tr>
+          <tr><td>Actual ≠ plan khi thiếu</td><td>GT-P06</td><td>Hard</td></tr>
+          <tr><td>Brand-safety lock</td><td>Đổi sau IO = revision + duyệt</td><td>Change control</td></tr>
+          <tr><td>AI action</td><td>Cấm issue IO / confirm partner / Live / make-good close / invoice</td><td>Hard block</td></tr>
+          <tr><td>Reseller C</td><td>Eligibility §4.2</td><td>Flag + hard</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice" style="margin-top:14px"><b>§4 không vào mockup:</b> wizard ghi connector, close calendar, partner portal, che buy-side. Chỉ chip khóa.</div>
+</section>
+
+  </div>
+</main>
+</div>
+
+<div class="modalback" id="invModal">
+  <div class="modal">
+    <h2>Placement PTT</h2>
+    <p class="desc">Inventory PTT sở hữu. Không tạo Client. Property publisher chỉ dưới partner pilot.</p>
+    <div class="field"><label>Tên</label><input class="input" value="PTT Lead Landing · extra geo"/></div>
+    <div class="field"><label>Đơn vị capacity</label><select><option>Slot / tuần</option><option>Lead</option><option>Impression</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('invModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('invModal');toast('Draft INV — chờ rate published.')">Lưu draft</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="pkgModal">
+  <div class="modal">
+    <h2>Tạo package</h2>
+    <div class="field"><label>Client ref (CRM)</label><input class="input" value="CL-1042" readonly/></div>
+    <div class="field"><label>Inventory</label><select><option>Publisher HP 7 ngày</option><option>PTT Landing + Partner native</option></select></div>
+    <div class="field"><label>Ẩn buy-side</label><select disabled><option>Khóa — Eligibility fail</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('pkgModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('pkgModal');toast('PKG draft. Soft reserve 24h. Conflict hiện P0.')">Lưu</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="ioModal">
+  <div class="modal">
+    <h2>Issue Insertion Order</h2>
+    <p class="desc">IO nội bộ — không phải invoice. Bind rate published + reserve sạch + safety snapshot.</p>
+    <div class="field"><label>Package</label><input class="input" value="PKG-2026-044" readonly/></div>
+    <div class="field"><label>Rate version</label><select><option>RC-PTT-004 v3 published</option><option disabled>v4 draft — GT-01 fail</option></select></div>
+    <div class="field"><label>Brand-safety snapshot</label><input class="input" value="Tier A · copy exclusions tại lock" readonly/></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('ioModal')">Hủy</button>
+      <button class="btn" onclick="toast('AI A1 draft IO PDF. Người issue.')">✦ Draft AI</button>
+      <button class="btn blue" onclick="closeModal('ioModal');toast('IO draft r1. Chưa Live. Không số HĐ.')">Issue IO (người)</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="lineModal">
+  <div class="modal">
+    <h2>Media line từ package</h2>
+    <div class="field"><label>Package / IO</label><input class="input" value="PKG-2026-048 · IO-VNE-0912" readonly/></div>
+    <div class="field"><label>Map</label><select><option>IO tay — publisher, không ad server</option><option>Meta AS-8821 (đọc)</option></select></div>
+    <p class="desc">Không push VnExpress / Admicro. Live sau Publisher Live Gate, người bấm.</p>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('lineModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('lineModal');toast('ML draft. AI không Live.')">Tạo draft line</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="trafficModal">
+  <div class="modal">
+    <h2>Creative Traffic Pack · CTP-019</h2>
+    <p class="desc">Ref Creative OS. Rejected chặn Live (GT-P02). Không upload lên ad server đối tác từ MSOS.</p>
+    <div class="field"><label>Creative ref</label><input class="input" value="CRV-4401 · Creative OS" readonly/></div>
+    <div class="field"><label>Size / weight / click</label><input class="input" id="tr-spec" value="970×250 · 312KB · https://cl-1042.example/lp"/></div>
+    <div class="field"><label>Backup GIF</label><select id="tr-backup"><option value="no">Thiếu — fail</option><option value="yes">Đã gắn backup</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('trafficModal')">Đóng</button>
+      <button class="btn" onclick="rejectTraffic()">Giữ Rejected</button>
+      <button class="btn blue" onclick="approveTraffic()">Đánh dấu Approved-by-partner</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="mgModal">
+  <div class="modal">
+    <h2>Make-good · MG-011</h2>
+    <p class="desc">Gán capacity bù. Không im lặng cộng actual = plan. AI không close case.</p>
+    <div class="field"><label>Qty bù</label><input class="input" value="180.000 impression"/></div>
+    <div class="field"><label>Slot tuần sau</label><select><option>INV-PTN-VNE-HP · 21–22 Sep (trống)</option><option disabled>15–16 Sep — conflict</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('mgModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('mgModal');toast('Hard reserve bù 21–22 Sep. Waterfall giữ −₫8,4M đến khi deliver.')">Gán capacity (người)</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+const names={command:'Command Center',inventory:'Inventory & Rate',packages:'Packages',campaigns:'Campaigns',evidence:'Evidence',outcomes:'Outcomes',margin:'Margin & Deal',settings:'Governance'};
+const state={trafficOk:false,packOfficial:false,discrepancyOpen:true};
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('.nav a[data-screen]').forEach(a=>a.classList.toggle('active',a.dataset.screen===id));
+  document.getElementById('crumb').textContent=names[id]||id;
+  history.replaceState(null,'','#'+id);
+  window.scrollTo({top:0,behavior:'smooth'});
+  try{localStorage.setItem('msos-ops-v1-win',JSON.stringify({screen:id,t:Date.now(),trafficOk:state.trafficOk}))}catch(e){}
+}
+document.querySelectorAll('.nav a[data-screen]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.screen)}));
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>t.classList.remove('show'),3400)}
+function ext(label,href){toast('Deep-link '+label+' → '+href+' (module ngoài MSOS).')}
+function openModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.modalback').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')}));
+function tryLive(){if(!state.trafficOk){toast('GT-P02 fail — traffic Rejected. AI không Live.');return}toast('Mở gate checklist. Người bấm Live.')}
+function doLive(){
+  if(!state.trafficOk){toast('Live khóa: GT-P02.');return}
+  toast('Line Live (người). GT-P03 Warning đã override. Không push ad server.');
+}
+function rejectTraffic(){
+  state.trafficOk=false;
+  document.getElementById('g-p02').className='gdot fail';
+  document.getElementById('g-p02').textContent='✕';
+  document.getElementById('g-p02-txt').textContent='CTP-019 Rejected · weight / backup fail';
+  document.getElementById('btn-live').disabled=true;
+  closeModal('trafficModal');
+  toast('GT-P02 fail. Live khóa.');
+}
+function setTrafficPass(quiet){
+  state.trafficOk=true;
+  document.getElementById('g-p02').className='gdot ok';
+  document.getElementById('g-p02').textContent='✓';
+  document.getElementById('g-p02-txt').textContent='CTP-019 Approved-by-partner · 970×250 · 148KB · https · backup GIF';
+  document.getElementById('btn-live').disabled=false;
+  document.getElementById('live-note').className='notice';
+  document.getElementById('live-note').innerHTML='GT-P01+P02 pass. GT-P03 Warning — Live được nếu Media Lead override. AI không bấm.';
+  const sel=document.getElementById('tr-backup');
+  if(sel)sel.value='yes';
+  if(!quiet){closeModal('trafficModal');toast('GT-P02 pass. Nút Live (người) mở.');}
+}
+function approveTraffic(){
+  const backup=document.getElementById('tr-backup').value==='yes';
+  if(!backup){toast('Backup bắt buộc trên placement này. Vẫn Rejected.');return}
+  setTrafficPass(false);
+}
+function tryInvoice(){
+  if(!state.packOfficial||state.discrepancyOpen){
+    toast('GT-P10 chặn: pack draft + discrepancy material. Không số HĐ. Xin waiver Controller hoặc đóng DC.');
+    return;
+  }
+  ext('Finance request draft invoice','/crm/financials');
+}
+(function(){
+  try{
+    const s=JSON.parse(localStorage.getItem('msos-ops-v1-win')||'{}');
+    if(s.trafficOk)setTrafficPass(true);
+    const h=(location.hash||'').slice(1);
+    if(names[h])go(h);
+    else if(s.screen&&names[s.screen])go(s.screen);
+  }catch(e){
+    const h=(location.hash||'#command').slice(1);
+    if(names[h])go(h);
+  }
+})();
+</script>
+</body>
+</html>

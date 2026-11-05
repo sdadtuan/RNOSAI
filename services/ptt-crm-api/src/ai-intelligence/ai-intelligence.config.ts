@@ -1,0 +1,178 @@
+import { Injectable } from '@nestjs/common';
+
+function envFlag(name: string, defaultValue = false): boolean {
+  const raw = (process.env[name] ?? '').trim().toLowerCase();
+  if (!raw) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(raw);
+}
+
+export type CopilotRolloutMode = 'pilot' | 'team' | 'all';
+
+export interface StaffCapRef {
+  section: string;
+  action: string;
+}
+
+@Injectable()
+export class AiIntelligenceConfigService {
+  readonly copilotEnabled: boolean;
+  readonly copilotRolloutMode: CopilotRolloutMode;
+  readonly copilotTeamCaps: string[];
+  readonly nbaLlmPrimary: boolean;
+  readonly scoreV2Enabled: boolean;
+  readonly pilotUserIds: string[];
+  readonly llmProvider: string;
+  readonly llmModel: string;
+  readonly llmTimeoutMs: number;
+  readonly logPii: boolean;
+  readonly logPrompts: boolean;
+  readonly scoreAsync: boolean;
+  readonly llmApiKey: string | null;
+  readonly summarizeRateLimitPerMin: number;
+  readonly summarizeMinTextLength: number;
+  readonly leadRoutingEnabled: boolean;
+  readonly leadRoutingMlEnabled: boolean;
+  readonly upsellEnabled: boolean;
+  readonly orchestratorEnabled: boolean;
+  readonly orchestratorCronEnabled: boolean;
+  readonly toolsApiEnabled: boolean;
+  readonly intakeSalesKitLlmEnabled: boolean;
+  readonly intakeLlmScoreEnabled: boolean;
+  readonly intakeSalesKitModeLocked: boolean;
+  readonly intakeSalesKitModeEnv: string | null;
+  readonly intakeSalesKitLlmTimeoutMs: number;
+  readonly intakeSalesKitOpenAiKey: string | null;
+  readonly intakeSalesKitOpenAiModel: string;
+  readonly intakeSalesKitOllamaBaseUrl: string | null;
+  readonly intakeSalesKitOllamaApiKey: string | null;
+  readonly intakeSalesKitOllamaModel: string;
+  readonly salesKitLoraMinPairs: number;
+  readonly salesKitLoraEnabled: boolean;
+  readonly ceoCommandEnabled: boolean;
+  readonly ceoCommandLlmEnabled: boolean;
+  readonly ceoCommandLlmModel: string;
+  readonly ceoCommandLlmBaseUrl: string | null;
+  readonly ceoCommandLlmApiKey: string | null;
+  readonly ceoCommandLlmTimeoutMs: number;
+  readonly ceoCommandLoraMinPairs: number;
+  readonly ceoCommandLoraEnabled: boolean;
+  /** §23 CEO Lifecycle Tower — đa pháp nhân filter (default off). */
+  readonly ceoTowerLegalEntityEnabled: boolean;
+
+  constructor() {
+    this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
+    const rolloutRaw = (process.env.PTT_AI_COPILOT_ROLLOUT_MODE ?? 'pilot').trim().toLowerCase();
+    this.copilotRolloutMode =
+      rolloutRaw === 'team' || rolloutRaw === 'all' ? rolloutRaw : 'pilot';
+    this.copilotTeamCaps = (process.env.PTT_AI_COPILOT_TEAM_CAPS ?? 'crm_leads')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    this.nbaLlmPrimary = envFlag('PTT_AI_NBA_LLM_PRIMARY', false);
+    this.scoreV2Enabled = envFlag('PTT_AI_SCORE_V2', false);
+    this.pilotUserIds = (process.env.PTT_AI_PILOT_USER_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    this.llmProvider = (process.env.PTT_AI_LLM_PROVIDER ?? 'openai').trim();
+    this.llmModel = (process.env.PTT_AI_LLM_MODEL ?? 'gpt-4o-mini').trim();
+    this.llmTimeoutMs = Math.max(
+      1000,
+      Number(process.env.PTT_AI_LLM_TIMEOUT_MS ?? 8000) || 8000,
+    );
+    this.logPii = envFlag('PTT_AI_LOG_PII', false);
+    this.logPrompts = envFlag('PTT_AI_LOG_PROMPTS', false);
+    this.scoreAsync = envFlag('PTT_AI_SCORE_ASYNC', true);
+    this.llmApiKey =
+      (process.env.AI_LLM_API_KEY ?? process.env.PTT_AI_LLM_API_KEY ?? '').trim() || null;
+    this.summarizeRateLimitPerMin = Math.max(
+      1,
+      Number(process.env.PTT_AI_SUMMARIZE_RATE_LIMIT_PER_MIN ?? 20) || 20,
+    );
+    this.summarizeMinTextLength = Math.max(
+      10,
+      Number(process.env.PTT_AI_SUMMARIZE_MIN_TEXT ?? 50) || 50,
+    );
+    this.leadRoutingEnabled = envFlag('PTT_AI_LEAD_ROUTING_ENABLED', true);
+    this.leadRoutingMlEnabled = envFlag('PTT_AI_LEAD_ROUTING_ML_ENABLED', true);
+    this.upsellEnabled = envFlag('PTT_AI_UPSELL_ENABLED', true);
+    this.orchestratorEnabled = envFlag('PTT_AI_ORCHESTRATOR_ENABLED', false);
+    this.orchestratorCronEnabled = envFlag('PTT_AI_ORCHESTRATOR_CRON_ENABLED', false);
+    this.toolsApiEnabled = envFlag('PTT_AI_TOOLS_API_ENABLED', false);
+    this.intakeSalesKitLlmEnabled = envFlag('PTT_INTAKE_SALES_KIT_LLM', false);
+    this.intakeLlmScoreEnabled = envFlag('PTT_INTAKE_LLM_SCORE', false);
+    this.intakeSalesKitModeLocked = envFlag('PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK', false);
+    const modeEnv = (process.env.PTT_INTAKE_SALES_KIT_LLM_MODE ?? '').trim().toLowerCase();
+    this.intakeSalesKitModeEnv = modeEnv || null;
+    const kitTimeout = Number(process.env.PTT_INTAKE_SALES_KIT_LLM_TIMEOUT_MS ?? 0);
+    this.intakeSalesKitLlmTimeoutMs = Math.max(
+      1000,
+      kitTimeout > 0 ? kitTimeout : this.llmTimeoutMs,
+    );
+    this.intakeSalesKitOpenAiKey = this.llmApiKey;
+    this.intakeSalesKitOpenAiModel = (
+      process.env.PTT_INTAKE_SALES_KIT_LLM_MODEL ?? this.llmModel
+    ).trim();
+    const globalBase = (process.env.PTT_AI_LLM_BASE_URL ?? '').trim();
+    const kitBase = (process.env.PTT_INTAKE_SALES_KIT_LLM_BASE_URL ?? '').trim();
+    this.intakeSalesKitOllamaBaseUrl =
+      kitBase || globalBase || 'http://127.0.0.1:11434/v1';
+    this.intakeSalesKitOllamaApiKey =
+      (process.env.PTT_INTAKE_SALES_KIT_LLM_API_KEY ?? '').trim() ||
+      (globalBase || kitBase ? 'ollama' : null);
+    this.intakeSalesKitOllamaModel = (
+      process.env.PTT_INTAKE_SALES_KIT_LLM_MODEL ?? 'qwen2.5:7b-instruct'
+    ).trim();
+    this.salesKitLoraMinPairs = Math.max(
+      1,
+      Number(process.env.PTT_SALES_KIT_LORA_MIN_PAIRS ?? 200) || 200,
+    );
+    this.salesKitLoraEnabled = envFlag('PTT_SALES_KIT_LORA_ENABLED', false);
+    this.ceoCommandEnabled = envFlag('PTT_CEO_COMMAND', true);
+    this.ceoCommandLlmEnabled = envFlag('PTT_CEO_COMMAND_LLM', false);
+    const ceoBase = (process.env.PTT_CEO_COMMAND_LLM_BASE_URL ?? '').trim();
+    const globalBaseCeo = (process.env.PTT_AI_LLM_BASE_URL ?? '').trim();
+    this.ceoCommandLlmBaseUrl = ceoBase || globalBaseCeo || null;
+    this.ceoCommandLlmApiKey =
+      (process.env.PTT_CEO_COMMAND_LLM_API_KEY ?? '').trim() ||
+      this.llmApiKey ||
+      (this.ceoCommandLlmBaseUrl ? 'ollama' : null);
+    this.ceoCommandLlmModel = (
+      process.env.PTT_CEO_COMMAND_LLM_MODEL ?? this.llmModel
+    ).trim();
+    const ceoTimeout = Number(process.env.PTT_CEO_COMMAND_LLM_TIMEOUT_MS ?? 0);
+    this.ceoCommandLlmTimeoutMs = Math.max(
+      1000,
+      ceoTimeout > 0 ? ceoTimeout : 12000,
+    );
+    this.ceoCommandLoraMinPairs = Math.max(
+      1,
+      Number(process.env.PTT_CEO_COMMAND_LORA_MIN_PAIRS ?? 200) || 200,
+    );
+    this.ceoCommandLoraEnabled = envFlag('PTT_CEO_COMMAND_LORA_ENABLED', false);
+    this.ceoTowerLegalEntityEnabled = envFlag('PTT_CEO_TOWER_LEGAL_ENTITY', false);
+  }
+
+  isPilotUser(staffId: string | undefined | null): boolean {
+    if (!staffId) return false;
+    if (this.pilotUserIds.length === 0) return true;
+    return this.pilotUserIds.includes(staffId);
+  }
+
+  hasTeamCopilotCap(caps: StaffCapRef[] | undefined | null): boolean {
+    if (!caps?.length || !this.copilotTeamCaps.length) return false;
+    return this.copilotTeamCaps.some((section) =>
+      caps.some(
+        (cap) =>
+          cap.section === section && (cap.action === 'view' || cap.action === 'edit'),
+      ),
+    );
+  }
+
+  canUseCopilot(staffId: string | undefined | null, caps?: StaffCapRef[] | null): boolean {
+    if (!this.copilotEnabled) return false;
+    if (this.copilotRolloutMode === 'all') return Boolean(staffId);
+    if (this.copilotRolloutMode === 'team') return this.hasTeamCopilotCap(caps);
+    return this.isPilotUser(staffId);
+  }
+}

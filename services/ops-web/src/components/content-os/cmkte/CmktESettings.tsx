@@ -1,0 +1,319 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import type { ContentOsContext } from '@/lib/content-os-api';
+import {
+  AUDIT_EXPORT_EMPTY_TOAST,
+  AUDIT_EXPORT_ERROR_TOAST,
+  AUDIT_RETENTION_COPY,
+  DEFAULT_DIRECT_SOCIAL_PUBLISH,
+  DEFAULT_SSO_ENFORCED,
+  SSO_ENFORCED_LABEL,
+  isAuditExportEmpty,
+  ssoEnforcedControl,
+} from '@/lib/crm/cmkte-settings';
+import {
+  isSafeFacebookDialogRedirect,
+  startFacebookOAuth,
+  type ChannelAccountPublic,
+} from '@/lib/crm/cmkte-api';
+import { facebookPageHealth } from '@/lib/crm/cmkte-win-publish';
+
+export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
+export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
+export const SETTINGS_EXPORT_OK_TOAST = 'Đã xuất audit.';
+export const FB_CONNECT_OK_TOAST = 'Đã kết nối Facebook Page.';
+export const FB_CONNECT_ERROR_TOAST = 'Không kết nối được Facebook Page.';
+export const HOLD_OK_TOAST = 'Đã áp dụng hold.';
+export const HOLD_REASON_TOAST = 'Lý do hold không hợp lệ.';
+export const HOLD_FORBIDDEN_TOAST = 'Không có quyền áp dụng hold.';
+export const HOLD_FAILED_TOAST = 'Không áp dụng được hold.';
+
+export function facebookConnectStatusCopy(status: 'ok' | 'error' | null | undefined): string {
+  if (status === 'ok') return FB_CONNECT_OK_TOAST;
+  if (status === 'error') return FB_CONNECT_ERROR_TOAST;
+  return '';
+}
+
+export function holdErrorToast(err: unknown): string {
+  const status =
+    err && typeof err === 'object' && 'status' in err ? Number((err as { status?: unknown }).status) : 0;
+  if (status === 400) return HOLD_REASON_TOAST;
+  if (status === 403) return HOLD_FORBIDDEN_TOAST;
+  return HOLD_FAILED_TOAST;
+}
+
+export function disconnectConnectorId(
+  account?: Pick<ChannelAccountPublic, 'connector_id'> | null,
+): number | null {
+  const id = account?.connector_id;
+  return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
+}
+
+function downloadAuditCsv(csv: string): void {
+  if (typeof document === 'undefined') return;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'cmkt-audit-export.csv';
+  document.body.appendChild(anchor);
+  anchor.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    anchor.remove();
+  }, 0);
+}
+
+function flagLabel(value: boolean | undefined): string {
+  if (value == null) return '—';
+  return value ? 'Bật' : 'Tắt';
+}
+
+export function CmktESettings({
+  context,
+  directSocialPublish = DEFAULT_DIRECT_SOCIAL_PUBLISH,
+  ssoEnforced = DEFAULT_SSO_ENFORCED,
+  accounts = [],
+  holdItemId,
+  oauthToken,
+  fbStatus,
+  onSavePolicy,
+  onExportAudit,
+  onDisconnect,
+  onApplyHold,
+}: {
+  context: ContentOsContext | null;
+  directSocialPublish?: boolean;
+  ssoEnforced?: boolean;
+  accounts?: ChannelAccountPublic[];
+  holdItemId?: number;
+  oauthToken?: string;
+  fbStatus?: 'ok' | 'error' | null;
+  onSavePolicy?: (next: boolean) => Promise<void>;
+  onExportAudit?: () => Promise<string>;
+  onDisconnect?: (id: number) => Promise<void>;
+  onApplyHold?: (input: { itemId: number; reason: string }) => Promise<void>;
+}) {
+  const [toast, setToast] = useState(() => facebookConnectStatusCopy(fbStatus));
+  const [enabled, setEnabled] = useState(directSocialPublish);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
+  const [holdItem, setHoldItem] = useState(holdItemId && holdItemId > 0 ? String(holdItemId) : '');
+  const [holding, setHolding] = useState(false);
+  const approval = context?.flags.approval_required;
+  const clientGate = context?.flags.client_gate;
+  const facebookPage = accounts.find((row) => row.channel === 'facebook_page') ?? accounts[0];
+  const health = facebookPageHealth(accounts);
+  const disconnectId = disconnectConnectorId(facebookPage);
+
+  useEffect(() => {
+    setEnabled(directSocialPublish);
+  }, [directSocialPublish]);
+
+  useEffect(() => {
+    if (holdItemId && holdItemId > 0) setHoldItem(String(holdItemId));
+  }, [holdItemId]);
+
+  useEffect(() => {
+    const copy = facebookConnectStatusCopy(fbStatus);
+    if (copy) setToast(copy);
+  }, [fbStatus]);
+
+  return (
+    <div className="cmkte-reqpage">
+      <div className="cmkte-head">
+        <div>
+          <h1>Governance Settings</h1>
+          <p>Flag, cap, approval template và publish gate — admin only.</p>
+        </div>
+        <div className="cmkte-actions">
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={exporting}
+            onClick={() => {
+              void (async () => {
+                if (!onExportAudit) {
+                  setToast(AUDIT_EXPORT_ERROR_TOAST);
+                  return;
+                }
+                setExporting(true);
+                try {
+                  const csv = await onExportAudit();
+                  if (isAuditExportEmpty(csv)) {
+                    setToast(AUDIT_EXPORT_EMPTY_TOAST);
+                    return;
+                  }
+                  downloadAuditCsv(csv);
+                  setToast(SETTINGS_EXPORT_OK_TOAST);
+                } catch {
+                  setToast(AUDIT_EXPORT_ERROR_TOAST);
+                } finally {
+                  setExporting(false);
+                }
+              })();
+            }}
+          >
+            Audit export
+          </button>
+          <button
+            type="button"
+            className="cmkte-btn cmkte-btn--blue"
+            disabled={saving}
+            onClick={() => {
+              void (async () => {
+                if (!onSavePolicy) {
+                  setToast(SETTINGS_SAVE_TOAST);
+                  return;
+                }
+                setSaving(true);
+                try {
+                  await onSavePolicy(enabled);
+                  setToast(SETTINGS_SAVE_TOAST);
+                } catch {
+                  setToast(SETTINGS_SAVE_ERROR_TOAST);
+                } finally {
+                  setSaving(false);
+                }
+              })();
+            }}
+          >
+            Save policy
+          </button>
+        </div>
+      </div>
+
+      <div className="cmkte-card">
+        <div className="cmkte-checkrow">
+          <label className="cmkte-checkrow__flag">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={enabled}
+              onChange={(event) => setEnabled(event.target.checked)}
+            />
+            <span>
+              Direct social publish connector ({enabled ? 'bật · enabled' : 'tắt · disabled'}).
+            </span>
+          </label>
+        </div>
+        <div className="cmkte-checkrow">
+          <label className="cmkte-checkrow__flag">
+            <input
+              type="checkbox"
+              name="sso_enforced"
+              role="switch"
+              {...ssoEnforcedControl(ssoEnforced)}
+            />
+            <span>{SSO_ENFORCED_LABEL}</span>
+          </label>
+        </div>
+        <div className="cmkte-checkrow">
+          <span>Approval required</span>
+          <b>{flagLabel(approval)}</b>
+        </div>
+        <div className="cmkte-checkrow">
+          <span>Client gate</span>
+          <b>{flagLabel(clientGate)}</b>
+        </div>
+        <div className="cmkte-checkrow">
+          <span>{AUDIT_RETENTION_COPY}</span>
+        </div>
+        <div className="cmkte-checkrow">
+          <div>
+            <b>{facebookPage?.display_name || 'Facebook Page'}</b>
+            <p className="cmkte-desc">OAuth server-side, token không ra browser.</p>
+          </div>
+          <span className="cmkte-tag">{health}</span>
+        </div>
+        <div className="cmkte-actions">
+          <button
+            type="button"
+            className="cmkte-btn cmkte-btn--blue"
+            onClick={() => {
+              if (!oauthToken) {
+                setToast(FB_CONNECT_ERROR_TOAST);
+                return;
+              }
+              void (async () => {
+                try {
+                  const { redirect } = await startFacebookOAuth(oauthToken);
+                  if (!isSafeFacebookDialogRedirect(redirect)) {
+                    setToast(FB_CONNECT_ERROR_TOAST);
+                    return;
+                  }
+                  window.location.assign(redirect);
+                } catch {
+                  setToast(FB_CONNECT_ERROR_TOAST);
+                }
+              })();
+            }}
+          >
+            Connect Page
+          </button>
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={disconnectId == null || !onDisconnect}
+            onClick={() => {
+              if (disconnectId == null || !onDisconnect) return;
+              void onDisconnect(disconnectId);
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
+        {!context ? <p className="cmkte-empty">Chưa chọn lifecycle — flags hiển thị —.</p> : null}
+      </div>
+
+      <div className="cmkte-card">
+        <h3>Retention & legal hold</h3>
+        <p className="cmkte-desc">Legal hold chặn xóa cứng — writer không có nút xóa item.</p>
+        <label className="cmkte-field">
+          <span>Item ID</span>
+          <input
+            value={holdItem}
+            onChange={(event) => setHoldItem(event.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+        <label className="cmkte-field">
+          <span>Lý do hold</span>
+          <input
+            id="hold-reason"
+            name="hold-reason"
+            value={holdReason}
+            onChange={(event) => setHoldReason(event.target.value)}
+            placeholder="Ví dụ: tranh chấp hợp đồng Q4"
+          />
+        </label>
+        <div className="cmkte-actions">
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={holding}
+            onClick={() => {
+              const itemId = Number(holdItem);
+              if (!(itemId > 0) || !onApplyHold) return;
+              setHolding(true);
+              void onApplyHold({ itemId, reason: holdReason })
+                .then(() => setToast(HOLD_OK_TOAST))
+                .catch((err) => setToast(holdErrorToast(err)))
+                .finally(() => setHolding(false));
+            }}
+          >
+            Áp dụng hold
+          </button>
+        </div>
+      </div>
+
+      {toast ? (
+        <div className="cmkte-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -1,0 +1,22 @@
+PROMPT-P13-UI v1.1 — ADDENDUM GIAO DIỆN CHO P13 (dán SAU PROMPT-P13-cursor.txt v1.1; đã chỉnh theo kết quả P13.0)
+
+Tài liệu (đã có trong repo):
+  docs/p13/uiux/UIUX-P13.md (v1.1)   đặc tả UI/UX — nguồn chuẩn cho bố cục, nhãn, trạng thái, xác nhận
+  docs/p13/uiux/*.html + assets/      mockup tĩnh S1–S8 (mở docs/p13/uiux/index.html) — CHỈ THAM CHIẾU BỐ CỤC
+  docs/p13/uiux/screens/*.png         ảnh tham chiếu 1440px
+
+Sự thật từ P13.0 (bắt buộc):
+- App dùng CSS CUSTOM của riêng app. KHÔNG thêm Tailwind/shadcn/Radix/AntD/MUI hay thư viện UI mới. Dùng lại class/component có sẵn; thiếu thì thêm class vào file CSS chung theo convention (tiền tố p13- cho phần riêng P13).
+- Brand #17692f (palette UIUX §5 dẫn xuất từ màu này). Font UI = system-ui như app. KHÔNG tải Google Fonts.
+- Báo giá = MỞ RỘNG /crm/proposals (Quote OS): S3 = list hiện có + cột/lọc "Nguồn giá P13|Legacy" + nút "Báo giá theo danh mục P13"; S4 = màn sửa proposal hiện khối P13 khi pricing_source='p13', form cũ y nguyên khi legacy; S5 = tab/bộ lọc duyệt (p13_approval_status=pending). Số hiển thị QT-PTT-YYYY-NNNNNN. Không tạo menu báo giá thứ hai.
+- PDF báo giá: pdfkit + font TTF nhúng trong repo (Be Vietnam Pro OFL + OFL.txt, hoặc font tiếng Việt khác theo D10). Preview S6 HTML chỉ minh họa.
+- Không có module HĐ P12: nút "Tạo HĐ nháp" disabled + tooltip; API 409 P12_MODULE_MISSING.
+
+Quy tắc khi dựng UI (S1 ở P13.a, S2 ở P13.b, S3–S5 ở P13.c, S6 ở P13.d, S7 ở P13.e, CTA HĐ ở P13.f, S8 ở P13.g):
+1. Bám UIUX-P13.md: menu (§1), luồng + map trạng thái (§2), bố cục/field/trạng thái/validation/xác nhận từng màn (§3), thông điệp lỗi (§4), token (§5), responsive (§6), accessibility (§7), mapping class (§8 — điền cột "class thật của app" trong báo cáo phase có UI đầu tiên).
+2. Mỗi màn đủ trạng thái: loading (skeleton), empty, error, không có quyền, tham số giá trống/thiếu, bản TEST; proposal legacy không bị đổi giao diện/hành vi.
+3. Field nhạy cảm (lương, BH, phúc lợi, rate, chi phí, biên LN) chỉ render khi API trả về. Tổng tiền luôn lấy từ server (PricingEngine Decimal).
+4. Chuỗi UI tiếng Việt có dấu; tiền 1.234.567; ngày dd/mm/yyyy.
+5. Số liệu mockup là DỮ LIỆU MẪU (tham số TEST) — không seed/hard-code vào app.
+6. Cuối mỗi phase có UI: chụp 1440px + 390px các màn đã làm vào docs/p13/ui-check/<phase>/, liệt kê khác biệt so với mockup (có lý do).
+Mâu thuẫn: SPEC v1.1 §00 thắng về nghiệp vụ/quyền/công thức/kiến trúc; UIUX thắng về bố cục/nhãn/trạng thái; CSS app thắng về màu/font/component. Ghi mâu thuẫn vào báo cáo, không tự đoán.

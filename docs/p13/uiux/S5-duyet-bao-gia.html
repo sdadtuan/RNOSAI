@@ -1,0 +1,50 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S5 · Duyệt báo giá — P13 mockup</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div class="app"><aside id="sb"></aside><div class="main"><header id="tb"></header><main class="content">
+<div class="page-head"><div><h1>Duyệt báo giá</h1><div class="sub">Hàng chờ CEO · proposal nháp có p13_approval_status = pending · 2 báo giá · SLA đề xuất 24 giờ làm việc</div></div></div>
+<div class="split" style="grid-template-columns:300px minmax(0,1fr)">
+<div class="card" style="padding:0">
+ <div class="list-item on"><div><b class="mono">QT-PTT-2026-000014</b> v2 <span class="chip q-pending">Chờ duyệt</span><div class="small">Mẫu An Phát · WEB TC + 2 tích hợp</div><div class="small muted">Mỹ Ngọc · gửi 2 giờ trước · CK 10%</div></div></div>
+ <div class="list-item"><div><b class="mono">QT-PTT-2026-000015</b> v1 <span class="chip q-pending">Chờ duyệt</span><div class="small">Mẫu Quang Huy · ADS NC</div><div class="small muted">Minh Quân · 26 giờ <span class="chip q-rejected">quá SLA</span></div></div></div>
+</div>
+<div>
+<div class="card"><div class="card-h">QT-PTT-2026-000014 · v1 → v2 <span class="r"><a class="btn sm" href="S6-xem-truoc-bao-gia.html">Xem PDF</a></span></div>
+<div class="card-b grid g4">
+ <div class="kpi"><div class="lbl">Tổng phí DV (gồm VAT)</div><div class="val">128.435.220</div><div class="d">v1: 137.032.560</div></div>
+ <div class="kpi"><div class="lbl">Chiết khấu</div><div class="val" style="color:var(--warn)">10%</div><div class="d">−13.213.500 · vượt ngưỡng (D1)</div></div>
+ <div class="kpi"><div class="lbl">Biên LN dự kiến</div><div class="val" style="color:var(--danger)">12,6%</div><div class="d">mục tiêu 25% · trước CK 21,4%</div></div>
+ <div class="kpi"><div class="lbl">Tham số giá</div><div class="val" style="font-size:18px">PV-2026-01</div><div class="d">snapshot 02/10 09:41</div></div>
+</div></div>
+<div class="alert warn"><span class="ic">⚠</span><div><b>Biên lợi nhuận sau chiết khấu 12,6% &lt; 15%</b> (ngưỡng cảnh báo mẫu). Lý do AM: “Khách ký cùng ADS trong Q4, cam kết 12 tháng.”</div></div>
+<div class="grid g2">
+<div class="card"><div class="card-h">Thay đổi so với v1</div><table class="t"><thead><tr><th>Dòng</th><th class="num">v1</th><th class="num">v2</th></tr></thead><tbody>
+<tr><td>WEB Tiêu chuẩn (gói)</td><td class="num">121.629.000</td><td class="num">121.629.000</td></tr>
+<tr class="diff-add"><td>WEB-04-08 Tích hợp form/CRM · SL</td><td class="num">1 · 5.253.000</td><td class="num">2 · 10.506.000</td></tr>
+<tr class="diff-add"><td>Chiết khấu</td><td class="num">0</td><td class="num">−13.213.500 (10%)</td></tr>
+<tr class="diff-del"><td>Ngân sách QC (chuyển tiếp)</td><td class="num">30.000.000/th</td><td class="num">— (bỏ)</td></tr>
+<tr><td><b>Tổng gồm VAT 8%</b></td><td class="num">137.032.560</td><td class="num"><b>128.435.220</b></td></tr></tbody></table></div>
+<div class="card"><div class="card-h">Phân tích biên (chỉ CEO/Tài chính)</div><div class="card-b">
+<div class="kv"><span>Giờ tính phí</span><b>422h</b></div>
+<div class="kv"><span>Chi phí trực tiếp (giờ × đơn giá giờ)</span><b>79.924.242</b></div>
+<div class="kv"><span>+ Overhead 30%</span><b>103.901.515</b></div>
+<div class="kv"><span>Doanh thu sau CK (chưa VAT)</span><b>118.921.500</b></div>
+<div class="kv grand"><span>Lợi nhuận gộp dự kiến</span><b>15.019.985 · 12,6%</b></div>
+<div class="bar-row" style="margin-top:12px"><span>Biên</span><div class="progress"><i style="width:50%;background:var(--danger)"></i></div><span class="small">12,6 / 25%</span></div>
+</div></div></div>
+<div class="card"><div class="card-h">Lịch sử</div><div class="card-b small">
+• 02/10 09:41 — Mỹ Ngọc gửi duyệt v2 (CK 10%).<br>• 01/10 16:10 — CEO <b>từ chối</b> v1: “Bỏ ngân sách QC khỏi BG website, tách BG ADS riêng.”<br>• 01/10 10:02 — Mỹ Ngọc tạo v1.</div></div>
+<div class="card card-b" style="display:flex;gap:8px;justify-content:flex-end">
+<button class="btn" onclick="openEl('m-rej')">Từ chối / Yêu cầu sửa…</button><button class="btn primary" onclick="openEl('m-ok')">Duyệt…</button></div>
+</div></div>
+<div class="foot-note">Dữ liệu mẫu · tham số TEST.</div>
+</main></div></div>
+<div class="modal-bg" id="m-ok"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Duyệt QT-PTT-2026-000014 v2?</div><div class="mb">
+<div class="small">Sau khi duyệt, AM có thể gửi khách. Mọi chỉnh sửa sau đó sẽ tạo v3 và cần duyệt lại.</div>
+<label class="small"><input type="checkbox"> Tôi chấp nhận biên 12,6% thấp hơn mục tiêu</label>
+<div class="field"><label>Nhận xét (tùy chọn)</label><textarea class="input" rows="2"></textarea></div></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-ok')">Hủy</button><button class="btn primary" onclick="closeEl('m-ok')">Duyệt</button></div></div></div>
+<div class="modal-bg" id="m-rej"><div class="modal" role="dialog" aria-modal="true"><div class="mh">Từ chối / yêu cầu sửa</div><div class="mb">
+<div class="field"><label>Lý do <span class="req">*</span></label><textarea class="input err" rows="3" placeholder="Bắt buộc ≥ 10 ký tự"></textarea><span class="help err">Vui lòng nhập lý do</span></div>
+<div class="small muted">Báo giá quay về “Nháp”, AM nhận thông báo kèm lý do.</div></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-rej')">Hủy</button><button class="btn danger" onclick="closeEl('m-rej')">Từ chối</button></div></div></div>
+<script src="assets/app.js"></script><script>shell('s5','Bán hàng &amp; CRM / Báo giá / <b>Duyệt</b>','CEO','CEO');</script></body></html>

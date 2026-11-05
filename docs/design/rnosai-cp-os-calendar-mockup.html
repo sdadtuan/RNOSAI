@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · CP OS · calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--navy:#0f2747;--accent:#2563eb;--ok:#16a34a;--warn:#d97706;--hot:#dc2626;--info:#0891b2;--bg:#f4f6f8;--surface:#fff;--border:#e5e7eb;--ink:#111827;--mute:#6b7280;--sidebar:248px}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}
+body{font-family:"Be Vietnam Pro",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+.app{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+.logo{font-weight:800;color:var(--navy)}
+.search-btn{flex:1;max-width:520px;height:36px;margin:0 auto;border:1px solid var(--border);border-radius:10px;background:#f9fafb;color:var(--mute);display:flex;justify-content:space-between;align-items:center;padding:0 12px}
+.kbd{border:1px solid var(--border);border-radius:5px;padding:1px 6px;background:#fff;font-size:11px}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.icon-btn{width:36px;height:36px;border:0;background:none;position:relative}
+.dot{position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--hot);border-radius:99px}
+.ava{width:32px;height:32px;border-radius:99px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.catalog{background:#fff;border-bottom:1px solid var(--border);padding:7px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.catalog b{font-size:11px;color:var(--mute)}
+.sc{border:1px solid var(--border);background:#fff;border-radius:999px;padding:3px 8px;font-size:11px}
+.sc.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ops{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.scope{height:30px;border:1px solid var(--border);border-radius:8px;padding:0 8px;background:#f9fafb;font-size:12px;font-weight:600}
+.fresh{font-size:11px;color:var(--mute)}
+.demo-more{font-size:12px}.demo-more summary{cursor:pointer;color:var(--mute);font-weight:600}
+.demo-more[open]{width:100%}.demo-more[open] .sc{margin:3px 3px 0 0}
+.shell{display:flex;flex:1;min-height:0}
+.sidebar{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column}
+.nav{padding:10px 8px;display:grid;gap:2px;flex:1}
+.grp{font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;padding:10px 10px 4px}
+.nav-btn{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:#e2e8f0;border-radius:10px;padding:8px 10px;text-align:left;font-size:13px}
+.nav-btn.is-on{background:var(--accent);color:#fff;font-weight:600}
+.sb-foot{padding:10px;border-top:1px solid #16355c;font-size:11px;color:#94a3b8}.sb-foot b{color:#e2e8f0;display:block}
+.main{flex:1;min-width:0;padding:18px 22px 40px}
+.page{display:none}.page.is-on{display:block}
+.subpage{display:none}.subpage.is-on{display:block}
+.crumb{font-size:12px;color:var(--mute);margin-bottom:6px}
+.head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:12px}
+h1{margin:0;font-size:22px;letter-spacing:-.03em}h2,h3{margin:0 0 8px;font-size:14px}
+.sub{margin:4px 0 0;color:var(--mute);font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--border);background:#fff;font-weight:600}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.tile{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left}
+.tile span{display:block;font-size:12px;color:var(--mute)}
+.tile strong{display:block;margin:4px 0 2px;font-size:20px}
+.tile em{font-style:normal;font-size:12px;font-weight:700}
+.up{color:var(--ok)}.dn{color:var(--hot)}
+.grid2{display:grid;grid-template-columns:1.3fr .9fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0;margin-bottom:12px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.linkish{border:0;background:none;color:var(--accent);font-weight:600;padding:0}
+.muted{color:var(--mute);font-size:12px}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;color:var(--mute);padding:8px;border-bottom:1px solid var(--border);background:#f8fafc}
+td{padding:8px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.pill{display:inline-flex;border-radius:99px;padding:2px 8px;font-size:12px;font-weight:700}
+.s-ok{background:#dcfce7;color:#166534}.s-warn{background:#fef3c7;color:#92400e}.s-bad{background:#fee2e2;color:#991b1b}.s-info{background:#e0f2fe;color:#075985}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 11px;font-size:12px}
+.tab.is-on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--border);background:#fff;border-radius:99px;padding:4px 10px;font-size:12px}
+.chip.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.alert{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.tl{border-left:2px solid var(--border);margin-left:8px;padding-left:14px}.tl .ev{margin:0 0 14px}
+.form{display:grid;gap:8px}.form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.inp{height:34px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:#fff}
+textarea.inp{height:auto;min-height:88px;padding:8px 10px}
+.form-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.studio{display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:12px}
+.thumb{background:linear-gradient(135deg,#d6e3f0,#94a3b8);border-radius:10px;min-height:160px;display:grid;place-items:center;color:#fff;font-weight:700}
+.media-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.media-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;padding:0;text-align:left}
+.media-card .ph{height:88px;background:#cbd5e1}
+.media-card b{display:block;padding:6px 8px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.cal .wd{padding:8px;background:#f8fafc;font-size:11px;color:var(--mute);font-weight:700;text-align:center}
+.cal .day{min-height:88px;padding:6px;border-top:1px solid var(--border);border-right:1px solid var(--border)}
+.cal .ev{display:block;margin-top:4px;padding:2px 5px;border-left:2px solid var(--info);background:#ecfeff;border-radius:4px;font-size:10px}
+.note{font-size:11px;color:#9ca3af;margin-top:8px}
+.bars{display:flex;align-items:end;gap:8px;height:80px}
+.bars i{flex:1;background:var(--accent);border-radius:4px 4px 0 0;display:block}
+.track{display:flex;align-items:center;gap:8px;margin:8px 0}
+.track b{width:56px;font-size:11px;color:var(--mute)}
+.track i{height:18px;background:var(--accent);border-radius:4px;display:inline-block}
+.stepper{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.stepper span{border:1px solid var(--border);border-radius:99px;padding:4px 10px;background:#fff;font-size:12px}
+.stepper span.is-on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--border);vertical-align:middle}
+.notify{display:none;position:absolute;right:14px;top:56px;width:360px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;z-index:50;box-shadow:0 8px 24px #0002}
+.notify.is-on{display:block}
+code{font-size:11px;background:#f3f4f6;padding:1px 4px;border-radius:4px}
+@media(max-width:1100px){.grid2,.grid3,.studio{grid-template-columns:1fr}.media-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · CP OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm project, video, asset, job…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="Nguyễn Minh">NM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>Render job_4412 failed · timeout</p>
+      <p>Client review Peak 16:9 +24h</p>
+      <p>Credit The Peak 80%</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Vận hành</b>
+    <select class="scope"><option>Vai trò: Producer — Lan</option><option>AM — Minh</option><option>Brand — Mai</option><option>Finance</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="cal-01">CAL-01 Calendar</option><option value="cal-02">CAL-02 Composer</option><option value="cal-03">CAL-03 Gate</option><option value="cal-04">CAL-04 Monitor</option><option value="cal-05">CAL-05 Bulk</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="cal-01" onclick="show('cal-01')">CAL-01 Calendar</button><button class="sc" type="button" data-page="cal-02" onclick="show('cal-02')">CAL-02 Composer</button><button class="sc" type="button" data-page="cal-03" onclick="show('cal-03')">CAL-03 Gate</button><button class="sc" type="button" data-page="cal-04" onclick="show('cal-04')">CAL-04 Monitor</button><button class="sc" type="button" data-page="cal-05" onclick="show('cal-05')">CAL-05 Bulk</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav"><div class="grp">SẢN XUẤT SÁNG TẠO</div><button class="nav-btn" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button><button class="nav-btn" type="button" data-page="prj-01" onclick="show('prj-01')">Dự án</button><button class="nav-btn" type="button" data-page="vid-01" onclick="show('vid-01')">Video AI</button><button class="nav-btn" type="button" data-page="med-01" onclick="show('med-01')">Thư viện</button><button class="nav-btn" type="button" data-page="brk-01" onclick="show('brk-01')">Brand Kit</button><button class="nav-btn is-on" type="button" data-page="cal-01" onclick="show('cal-01')">Lịch xuất bản</button><button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button><button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button></div>
+      <div class="sb-foot">Credit PTT<br><b>1.160 / 5.000</b>storage — nếu chưa đo</div>
+    </aside>
+    <main class="main" id="page-title-wrap"><section class="page is-on" id="cal-01" data-title="Lịch xuất bản">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Lịch xuất bản — Tháng 9</div>
+<div class="head"><div><h1>Lịch xuất bản — Tháng 9</h1><p class="sub">CAL-01 · TZ Asia/Ho_Chi_Minh · month/week/list</p></div><div class="actions"><button class="btn-primary btn" type="button" onclick="show('cal-02')">Composer</button></div></div>
+<div class="tabs"><button class="tab is-on" type="button" onclick="show('cal-01')">Calendar</button><button class="tab" type="button" onclick="show('cal-02')">Composer</button><button class="tab" type="button" onclick="show('cal-03')">Gate</button><button class="tab" type="button" onclick="show('cal-04')">Monitor</button><button class="tab" type="button" onclick="show('cal-05')">Bulk</button></div>
+<div class="filters"><button class="chip is-on">Tháng</button><button class="chip">Tuần</button><button class="chip">List</button>
+  <select class="scope"><option>Kênh: tất cả</option><option>TikTok</option><option>Reels</option></select></div>
+<div class="cal"><div class="wd">T2</div><div class="wd">T3</div><div class="wd">T4</div><div class="wd">T5</div><div class="wd">T6</div><div class="wd">T7</div><div class="wd">CN</div><div class="day"><b>1</b></div><div class="day"><b>2</b></div><div class="day"><b>3</b></div><div class="day"><b>4</b></div><div class="day"><b>5</b></div><div class="day"><b>6</b></div><div class="day"><b>7</b></div><div class="day"><b>8</b></div><div class="day"><b>9</b><span class="ev">Peak 16:9 · Hub</span></div><div class="day"><b>10</b><span class="ev">Batch 46</span></div><div class="day"><b>11</b></div><div class="day"><b>12</b></div><div class="day"><b>13</b></div><div class="day"><b>14</b></div><div class="day"><b>15</b><span class="ev">Reels 09:00</span></div><div class="day"><b>16</b></div><div class="day"><b>17</b></div><div class="day"><b>18</b></div><div class="day"><b>19</b></div><div class="day"><b>20</b></div><div class="day"><b>21</b></div><div class="day"><b>22</b></div><div class="day"><b>23</b></div><div class="day"><b>24</b></div><div class="day"><b>25</b></div><div class="day"><b>26</b></div><div class="day"><b>27</b></div><div class="day"><b>28</b></div><div class="day"><b>29</b></div><div class="day"><b>30</b></div></div>
+</section><section class="page" id="cal-02" data-title="Composer">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Publish Composer</div>
+<div class="head"><div><h1>Publish Composer</h1><p class="sub">CAL-02 · FR-CAL-002 · chỉ version eligible</p></div><div class="actions"><button class="btn-primary btn" type="button">Lên lịch</button></div></div>
+<div class="grid2">
+  <div class="card form">
+    <label>VideoVersion *<select class="inp"><option>Peak 16:9 v3 — client_review (chưa eligible)</option><option>Peak Reels v2 — Final Approved</option></select></label>
+    <label>Kênh / profile<select class="inp"><option>TikTok · @thepeak</option><option>Meta Reels · Campaign Write</option></select></label>
+    <label>Schedule + TZ<div class="form-2"><input class="inp" type="datetime-local" value="2026-09-15T09:00"/><input class="inp" value="Asia/Ho_Chi_Minh"/></div></label>
+    <label>Caption + hashtag<textarea class="inp">Sống trên mây. #ThePeak</textarea></label>
+    <label>CTA / UTM<input class="inp" value="utm_source=tiktok&utm_campaign=peak_q3"/></label>
+    <label>Thumbnail DAM<select class="inp"><option>thumb-v3.jpg</option></select></label>
+  </div>
+  <div class="card"><b>Channel profile validate</b>
+    <p>TikTok: 9:16 · 15–60s · &lt;287MB · caption ≤2200</p>
+    <p class="pill s-bad">v3 chưa Final Approved → không schedule</p>
+    <p class="muted">QC Blocked / rights expired / thiếu disclaimer → khóa.</p>
+  </div>
+</div>
+</section><section class="page" id="cal-03" data-title="Gate">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Approval Gate</div>
+<div class="head"><div><h1>Approval Gate</h1><p class="sub">CAL-03 · checklist trước unlock schedule</p></div><div class="actions"></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Hạng mục</th><th>Kết quả</th><th>Lock</th></tr></thead><tbody><tr><td>QC</td><td>Warning (caption)</td><td>Không lock</td></tr><tr><td>Brand</td><td>Approved</td><td>—</td></tr><tr><td>Client Hub</td><td>Pending +24h</td><td><span class="pill s-bad">Lock publish</span></td></tr><tr><td>Legal</td><td>N/A (no claim)</td><td>—</td></tr><tr><td>Rights</td><td>VO-12 còn 5 ngày</td><td>Warn</td></tr><tr><td>Channel profile</td><td>Peak Reels v2 OK</td><td>—</td></tr></tbody></table></div>
+</section><section class="page" id="cal-04" data-title="Monitor">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Distribution Monitor</div>
+<div class="head"><div><h1>Distribution Monitor</h1><p class="sub">CAL-04 · status · retry · history</p></div><div class="actions"><button class="btn" type="button">Retry failed</button></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Kênh</th><th>Schedule</th><th>Status</th><th>Ref / lỗi</th></tr></thead><tbody><tr><td>pub_991</td><td>TikTok</td><td>15/09 09:00</td><td><span class="pill s-info">Scheduled</span></td><td>—</td></tr><tr><td>pub_988</td><td>Reels</td><td>08/09 09:00</td><td><span class="pill s-ok">Published</span></td><td>cw_2201</td></tr><tr><td>pub_980</td><td>TikTok</td><td>07/09 09:00</td><td><span class="pill s-bad">Failed</span></td><td>token expired · retry</td></tr></tbody></table></div>
+<p class="note">W1: file export + Campaign Write. Native API khi <code>CP_PUBLISH_NATIVE</code>.</p>
+</section><section class="page" id="cal-05" data-title="Bulk">
+<div class="crumb">Vận hành / Sản xuất sáng tạo / Bulk schedule</div>
+<div class="head"><div><h1>Bulk schedule</h1><p class="sub">CAL-05 · FR-CAL-006 · n post/ngày · exclude invalid</p></div><div class="actions"><button class="btn-primary btn" type="button">Tạo 12 PublishItem</button></div></div>
+<div class="card form">
+  <label>Nguồn<select class="inp"><option>Batch job_b12 · 46 version Final</option></select></label>
+  <label>Quy tắc<input class="inp" value="2 post/ngày · 09:00 và 18:00 · T2–T6"/></label>
+  <label>Kênh<select class="inp"><option>TikTok + Reels</option></select></label>
+</div>
+<p class="muted">12 item hợp lệ · 2 hàng lỗi loại khỏi lịch · mỗi item audit riêng.</p>
+</section></main>
+  </div>
+</div>
+<script>
+const HUB_MSG='POST /creatives — không mint portal';
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  const t=document.getElementById('page-title');
+  if(t && el) t.textContent=el.dataset.title||id;
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP={
+  'ovr-02':'ovr-01','ovr-03':'ovr-01','ovr-04':'ovr-01',
+  'prj-02':'prj-01','prj-03':'prj-01','prj-04':'prj-01',
+  'vid-02':'vid-01','vid-03':'vid-01','vid-04':'vid-01','vid-05':'vid-01','vid-06':'vid-01','vid-07':'vid-01','vid-08':'vid-01',
+  'med-02':'med-01','med-03':'med-01','med-04':'med-01','med-05':'med-01','med-06':'med-01',
+  'brk-02':'brk-01','brk-03':'brk-01','brk-04':'brk-01','brk-05':'brk-01',
+  'cal-02':'cal-01','cal-03':'cal-01','cal-04':'cal-01','cal-05':'cal-01',
+  'rpt-02':'rpt-01','rpt-03':'rpt-01','rpt-04':'rpt-01','rpt-05':'rpt-01',
+  'set-02':'set-01','set-03':'set-01','set-04':'set-01','set-05':'set-01','set-06':'set-01','set-07':'set-01','set-08':'set-01'
+};
+</script>
+</body>
+</html>

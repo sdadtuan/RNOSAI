@@ -1,0 +1,14 @@
+# AM renewal at 06:00 ICT.
+# Timezone is encoded in OnCalendar so the host TZ does not matter.
+# Do not also enable a UTC 23:00 timer.
+
+[Unit]
+Description=AM renewal at 06:00 ICT
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Asia/Ho_Chi_Minh
+Persistent=true
+Unit=ptt-crm-am-renewal.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,267 @@
+import { describe, expect, it } from 'vitest';
+import { canAccessPath, hasAnyCap, resolvePathCapRequirements } from '@/lib/rbac-routes';
+import { canViewImageSop, hasCap, type StoredStaffUser } from '@/lib/auth';
+
+function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
+  return {
+    id: '1',
+    email: 'u@pttads.vn',
+    display_name: 'Test',
+    position_id: 2,
+    caps,
+  };
+}
+
+const userWith = user;
+
+describe('hasCap (fail-closed R1-S2)', () => {
+  it('returns false when user is null', () => {
+    expect(hasCap(null, 'crm_leads', 'view')).toBe(false);
+  });
+
+  it('returns false when caps array is empty', () => {
+    expect(hasCap(user([]), 'crm_leads', 'view')).toBe(false);
+  });
+
+  it('returns false when caps is missing', () => {
+    expect(hasCap({ id: '1', email: 'a', display_name: 'A', position_id: 1 }, 'crm_leads', 'view')).toBe(
+      false,
+    );
+  });
+
+  it('returns true when cap exists', () => {
+    expect(hasCap(user([{ section: 'crm_leads', action: 'view' }]), 'crm_leads', 'view')).toBe(true);
+  });
+
+  it('returns false for wrong action (KD-01 presales view only)', () => {
+    const kd = user([{ section: 'crm_presales_solution', action: 'view' }]);
+    expect(hasCap(kd, 'crm_presales_solution', 'view')).toBe(true);
+    expect(hasCap(kd, 'crm_presales_solution', 'claim')).toBe(false);
+  });
+});
+
+describe('rbac-routes', () => {
+  it('KD-01 can open leads but not solution claim route without cap', () => {
+    const kd = user([
+      { section: 'crm_leads', action: 'view' },
+      { section: 'crm_presales_solution', action: 'view' },
+    ]);
+    expect(canAccessPath('/crm/b2b/leads', kd, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/solution/queue', kd, 'crm')).toBe(true);
+    expect(hasCap(kd, 'crm_presales_solution', 'claim')).toBe(false);
+  });
+
+  it('MKT-01 can access solution queue', () => {
+    const mkt = user([
+      { section: 'crm_presales_solution', action: 'view' },
+      { section: 'crm_presales_solution', action: 'claim' },
+    ]);
+    expect(canAccessPath('/crm/solution/queue', mkt, 'crm')).toBe(true);
+  });
+
+  it('empty caps cannot access /crm', () => {
+    expect(canAccessPath('/crm/leads', user([]), 'crm')).toBe(false);
+  });
+
+  it('/crm/revenue-ops requires crm_revops cap', () => {
+    expect(canAccessPath('/crm/revenue-ops', user([{ section: 'crm_revops', action: 'view' }]), 'crm')).toBe(
+      true,
+    );
+    expect(
+      canAccessPath('/crm/revenue-ops/pipeline', user([{ section: 'crm_revops', action: 'view_team' }]), 'crm'),
+    ).toBe(true);
+    expect(canAccessPath('/crm/revenue-ops', user([{ section: 'crm_leads', action: 'view' }]), 'crm')).toBe(
+      false,
+    );
+  });
+
+  it('seo zone requires seo or agency view', () => {
+    expect(canAccessPath('/seo/hub', user([{ section: 'crm_seo_aeo', action: 'view' }]), 'seo')).toBe(
+      true,
+    );
+    expect(canAccessPath('/seo/hub', user([{ section: 'crm_leads', action: 'view' }]), 'seo')).toBe(
+      false,
+    );
+  });
+
+  it('email zone requires email or agency view', () => {
+    expect(
+      canAccessPath('/email/hub', user([{ section: 'crm_email_mkt', action: 'view' }]), 'email'),
+    ).toBe(true);
+  });
+
+  it('resolvePathCapRequirements prefers longer prefix', () => {
+    const reqs = resolvePathCapRequirements('/crm/solution/queue', 'crm');
+    expect(reqs.some((r) => r.section === 'crm_presales_solution')).toBe(true);
+  });
+
+  it('delivery projects are not opened by a plain leads view', () => {
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    const delivery = user([{ section: 'crm_delivery_projects', action: 'view' }]);
+    expect(canAccessPath('/crm/delivery-projects/abc', leadsOnly, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/delivery-projects/abc', delivery, 'crm')).toBe(true);
+  });
+
+  it('/crm/content-os requires crm_content view', () => {
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/content-os', content, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/content-os', leadsOnly, 'crm')).toBe(false);
+    expect(resolvePathCapRequirements('/crm/content-os', 'crm')).toEqual([
+      { section: 'crm_content', action: 'view' },
+      { section: 'crm_content', action: 'write' },
+      { section: 'crm_content', action: 'generate' },
+    ]);
+  });
+
+  it('/crm/content-os/approvals uses the same caps as /crm/content-os', () => {
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/content-os/approvals', content, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/content-os/approvals', leadsOnly, 'crm')).toBe(false);
+    expect(resolvePathCapRequirements('/crm/content-os/approvals', 'crm')).toEqual(
+      resolvePathCapRequirements('/crm/content-os', 'crm'),
+    );
+  });
+
+  it('/crm/content-os/w/21 uses same crm_content caps', () => {
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    expect(canAccessPath('/crm/content-os/w/21', content, 'crm')).toBe(true);
+  });
+
+  it('/crm/video requires crm_vd.project or crm_content view', () => {
+    const vd = user([{ section: 'crm_vd.project', action: 'view' }]);
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/video', vd, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/video/7', content, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/video', leadsOnly, 'crm')).toBe(false);
+    const reqs = resolvePathCapRequirements('/crm/video/7', 'crm');
+    expect(reqs).toEqual([
+      { section: 'crm_vd.project', action: 'view' },
+      { section: 'crm_content', action: 'view' },
+    ]);
+  });
+
+  it('/crm/admin/mkt-ai requires mkt_ai view, approve, or ai_admin view', () => {
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'approve' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'ai_admin', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'generate' }]), 'crm'),
+    ).toBe(false);
+  });
+
+  it('/crm/admin/lead-sla-settings allows GĐKD or AM view', () => {
+    expect(
+      canAccessPath(
+        '/crm/admin/lead-sla-settings',
+        user([{ section: 'crm_gdkd', action: 'view_all_leads' }]),
+        'crm',
+      ),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/lead-sla-settings', user([{ section: 'crm_leads', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/lead-sla-settings', user([{ section: 'crm_quote', action: 'view' }]), 'crm'),
+    ).toBe(false);
+  });
+
+  it('hasAnyCap aggregates requirements', () => {
+    expect(
+      hasAnyCap(user([{ section: 'crm_agency', action: 'view' }]), [
+        { section: 'crm_email_mkt', action: 'view' },
+        { section: 'crm_agency', action: 'view' },
+      ]),
+    ).toBe(true);
+  });
+
+  it('/crm/ceo requires CEO tower view caps (not crm_leads alone)', () => {
+    const am = user([{ section: 'crm_leads', action: 'view' }, { section: 'crm_leads', action: 'edit' }]);
+    const gdkd = user([{ section: 'crm_business_dashboard', action: 'view' }]);
+    const ownerWeekly = user([{ section: 'crm_owner_weekly_dashboard', action: 'view' }]);
+    const ceo = user([{ section: 'ceo_command', action: 'view' }]);
+    expect(canAccessPath('/crm/ceo', am, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/ceo/board-pack', am, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/ceo', gdkd, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/ceo', ownerWeekly, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/ceo', ceo, 'crm')).toBe(true);
+  });
+
+  it('AM path requires crm_am.view or view_all — agency-only is 403', () => {
+    const agency = user([{ section: 'crm_agency', action: 'view' }]);
+    expect(canAccessPath('/crm/account-management', agency, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/account-management/clients', agency, 'crm')).toBe(false);
+  });
+
+  it('crm_am.view can open AM routes', () => {
+    const am = user([{ section: 'crm_am', action: 'view' }]);
+    expect(canAccessPath('/crm/account-management', am, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/account-management/renewals/x', am, 'crm')).toBe(true);
+  });
+
+  it('crm_am.view_all can open AM routes', () => {
+    const dir = user([{ section: 'crm_am', action: 'view_all' }]);
+    expect(canAccessPath('/crm/account-management', dir, 'crm')).toBe(true);
+  });
+
+  it('/crm/proposals is true with crm_quote.view and false with an unrelated cap', () => {
+    const quote = user([{ section: 'crm_quote', action: 'view' }]);
+    const unrelated = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/proposals', quote, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/proposals/list', quote, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/proposals', unrelated, 'crm')).toBe(false);
+  });
+
+  it('Creative OS path requires crm_cp.view — agency-only is 403', () => {
+    const cpView = userWith([{ section: 'crm_cp', action: 'view' }]);
+    const agency = userWith([{ section: 'crm_board', action: 'view' }]);
+    expect(canAccessPath('/crm/creative-os', agency, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/creative-os/projects', cpView, 'crm')).toBe(true);
+  });
+
+  it('Creative OS image requires crm_img.view — crm_cp.view alone is 403', () => {
+    const cpView = userWith([{ section: 'crm_cp', action: 'view' }]);
+    const imgView = userWith([{ section: 'crm_img', action: 'view' }]);
+    expect(canAccessPath('/crm/creative-os/image', cpView, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/creative-os/image', imgView, 'crm')).toBe(true);
+  });
+
+  it('canViewImageSop accepts view_all and edit on crm_img', () => {
+    expect(canViewImageSop(userWith([{ section: 'crm_img', action: 'view_all' }]))).toBe(true);
+    expect(canViewImageSop(userWith([{ section: 'crm_img', action: 'edit' }]))).toBe(true);
+    expect(canViewImageSop(userWith([{ section: 'crm_cp', action: 'view' }]))).toBe(false);
+  });
+
+  it('/crm/health admits original CS caps plus crm_am.view without widening /crm', () => {
+    const amOnly = user([{ section: 'crm_am', action: 'view' }]);
+    const agency = user([{ section: 'crm_agency', action: 'view' }]);
+    const board = user([{ section: 'crm_board', action: 'view' }]);
+    const leads = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/health', amOnly, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', agency, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', board, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', leads, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/leads', amOnly, 'crm')).toBe(false);
+    expect(canAccessPath('/crm', amOnly, 'crm')).toBe(false);
+    const reqs = resolvePathCapRequirements('/crm/health', 'crm');
+    expect(reqs).toEqual(
+      expect.arrayContaining([
+        { section: 'crm_am', action: 'view' },
+        { section: 'crm_agency', action: 'view' },
+        { section: 'crm_board', action: 'view' },
+        { section: 'ai_admin', action: 'view' },
+      ]),
+    );
+    expect(resolvePathCapRequirements('/crm/leads', 'crm').some((r) => r.section === 'crm_am')).toBe(
+      false,
+    );
+  });
+});

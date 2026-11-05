@@ -1,0 +1,70 @@
+# RNOSAI — Hướng dẫn sử dụng theo domain
+
+> **Phiên bản:** 1.7 · **Cập nhật:** 2026-09-13  
+> **Đối tượng:** Nhân viên PTT (ops-web) và khách hàng (portal-web)  
+> **URL staff:** https://rs.pttads.vn · **URL portal:** https://portal.pttads.vn
+
+Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain — gồm bước thao tác, vai trò, điều kiện và xử lý lỗi thường gặp.
+
+## Mục lục
+
+| # | Domain | File | Đối tượng chính |
+|---|--------|------|-----------------|
+| — | Bắt đầu | [00-tong-quan.md](./00-tong-quan.md) | Tất cả |
+| 1 | Nền tảng & phân quyền | [01-nen-tang-platform.md](./01-nen-tang-platform.md) | Admin, HR |
+| 2 | CRM Core | [02-crm-core.md](./02-crm-core.md) | CSKH, Sales, AM, GDKD |
+| 3 | Agency & Triển khai DV | [03-agency-service-delivery.md](./03-agency-service-delivery.md) | AM, SP, Creative |
+| 4 | Ops DV OS | [04-ops-dv.md](./04-ops-dv.md) | AM, Team Lead, SP, Exec |
+| 5 | Meta / Facebook Ads | [05-meta-ads.md](./05-meta-ads.md) | Buyer, Tracking, AM |
+| 5b | **Meta setup (tài khoản, App, Form, Token)** | [../huong-dan-meta-setup-tai-khoan-app-form-token.md](../huong-dan-meta-setup-tai-khoan-app-form-token.md) | IT, Tracking, AM |
+| 5c | **Meta setup bằng câu lệnh (Graph API)** | [35-meta-setup-bang-cau-lenh.md](./35-meta-setup-bang-cau-lenh.md) | IT, Tracking, Buyer |
+| 6 | Zalo Ads | [06-zalo-ads.md](./06-zalo-ads.md) | Buyer, CSKH |
+| 7 | Google Ads | [07-google-ads.md](./07-google-ads.md) | Buyer, AM |
+| 8 | SEO / AEO | [08-seo-aeo.md](./08-seo-aeo.md) | SEO Strategist, Writer |
+| 9 | Email Marketing | [09-email-marketing.md](./09-email-marketing.md) | Email Strategist, AM |
+| 10 | Content Marketing OS (tóm tắt) | [10-content-marketing.md](./10-content-marketing.md) | SP Content, QA |
+| 18 | **Content Marketing OS (đầy đủ — kênh, ảnh, video)** | [18-content-marketing-os.md](./18-content-marketing-os.md) | SP Content, QA, IT |
+| 19 | **Video SOP Studio (Module 7 — tóm tắt S4)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
+| 20 | **Video SOP Studio (đầy đủ — env, image/video, UI từng bước + wireframe)** | [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) | AM, Copy, Art, Motion, Editor, IT |
+| 34 | **Creative Production OS (Sản xuất sáng tạo — project, video AI, Brand Kit, lịch, credit)** | [34-creative-production-os.md](./34-creative-production-os.md) | AM, Creative, Brand, Legal, Motion, Admin |
+| 35 | **Quotation OS (Báo giá — 7 mục: Tổng quan, list, tạo, catalog, phê duyệt, báo cáo, cấu hình)** | [35-quotation-os.md](./35-quotation-os.md) | AM, Sales, Finance, GDKD |
+| 36 | **PTT Facebook Lead Video (pack 9:16, QC, Instant Form, Ads Ops)** | [36-ptt-fb-lead-video.md](./36-ptt-fb-lead-video.md) | Editor, AM, Buyer, Tracking |
+| 37 | **TVC ngắn — Dual module Creative OS + Video SOP** | [37-cp-tvc-sop-handoff.md](./37-cp-tvc-sop-handoff.md) | AM, Motion, Editor, Legal |
+| 38 | **Figma Weave — SOP Image-to-Video (Import, Prompt, Generative Video, Export)** | [38-figma-weave-i2v-sop.md](./38-figma-weave-i2v-sop.md) | Designer, Producer, Motion |
+| 39 | **Magnific Spaces — SOP Image-to-Video (Upload, Text, Video Generator, Download)** | [39-magnific-i2v-sop.md](./39-magnific-i2v-sop.md) | Designer, Producer, Motion |
+| 40 | **Image SOP Studio (ImageOS) — 11 màn · Intent→Recipe · UAT v2.2** | [40-image-sop-studio.md](./40-image-sop-studio.md) · [SPEC §14](../superpowers/specs/2026-09-13-cp-image-sop-srs.md) · [Mockup](../design/rnosai-cp-os-image-sop-mockup.html) | Art Director, AI Artist, Brand, AM |
+| 41 | **Quy trình Lead → KH → Marketing → Triển khai → KPI (catalog màn + từng bước)** | [41-quy-trinh-lead-den-kpi.md](./41-quy-trinh-lead-den-kpi.md) | Admin, MKT, AM/AE, Solution, SP, GDKD, HR |
+| 42 | **Quản lý Lead trên CRM (nhận, gọi, B2, tra soát)** | [42-huong-dan-quan-ly-lead.md](./42-huong-dan-quan-ly-lead.md) | AE, CSKH, trưởng nhóm, GDKD |
+| 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
+| 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
+| 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |
+| 27 | **Lifecycle B2B — UI từng bước** | [27-lifecycle-ui-huong-dan-day-du.md](./27-lifecycle-ui-huong-dan-day-du.md) | AM, Solution, GDKD |
+| 28 | **CEO Command chatbox** | [28-ceo-command-chatbox.md](./28-ceo-command-chatbox.md) | GDKD, CEO |
+| 29 | **Marketing AI Planner — thực chiến (env, chức năng, triển khai GA)** | [29-marketing-ai-planner-thuc-chien.md](./29-marketing-ai-planner-thuc-chien.md) | SP, MKT Lead, IT, PO |
+| 31 | **Nhóm KPI — cấu hình phân loại chỉ tiêu** | [31-kpi-nhom-kpi.md](./31-kpi-nhom-kpi.md) | Admin, HR, MKT Lead, GDKD |
+| 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
+| 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
+| 17 | **HR Employee File OS (P1–P8)** | [17-hr-employee-file-os.md](./17-hr-employee-file-os.md) | HR, NV, IT |
+| 22 | **HR — Sơ đồ luồng & khung bàn giao KH** | [22-hr-handover-flow-and-guides.md](./22-hr-handover-flow-and-guides.md) · **[Slide PPTX](./HR_Ban_Giao_Luu_Do.pptx)** | HR, IT, Kế toán, Khách hàng |
+| 23 | **Leads — Sơ đồ luồng & khung bàn giao KH** | [23-leads-handover-flow-and-guides.md](./23-leads-handover-flow-and-guides.md) · **[Slide PPTX](./Leads_Ban_Giao_Luu_Do.pptx)** | AM, CSKH, GDKD, Marketing, Khách hàng |
+| 24 | **B2B E2E — Hướng dẫn UI từng bước (DA PTT → Lead → Agency → MKT Plan)** | [24-b2b-e2e-handover-ui-guide.md](./24-b2b-e2e-handover-ui-guide.md) | GDKD, AM, Solution, Marketing, Khách hàng |
+| 25 | **Lead Meeting Prep (LMP) — Sales Cockpit UI từng bước** | [25-lead-meeting-prep-ui-guide.md](./25-lead-meeting-prep-ui-guide.md) | AM, Sales, Solution, GDKD, CSKH |
+| 14 | Client Portal | [14-client-portal.md](./14-client-portal.md) | Khách hàng |
+| 15 | Mobile (PWA / App) | [15-mobile.md](./15-mobile.md) | Khách hàng, AM |
+| 16 | **SOP chốt deal Sales/Solution** | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) | Sales, AM, Solution, GDKD |
+
+## Tài liệu liên quan
+
+| Loại | Đường dẫn |
+|------|-----------|
+| Danh mục tính năng | [`docs/tong-ket-tinh-nang/`](../tong-ket-tinh-nang/README.md) |
+| Use case chi tiết | [`docs/use-cases/`](../use-cases/README.md) |
+| Bàn giao khách hàng | [`docs/handover/`](../handover/README.md) |
+| Hướng dẫn ops chuyên sâu | [`huong-dan-meta-enterprise-ops.md`](../huong-dan-meta-enterprise-ops.md), SEO, Email, Zalo |
+
+## Quy ước trong tài liệu
+
+- **Route** = đường dẫn trên ops-web hoặc portal-web sau domain.
+- **Cap** = quyền RBAC (section.action), ví dụ `crm_leads.view`.
+- **Gate** = điều kiện bắt buộc trước khi thao tác tiếp theo.
+- Menu ẩn nếu không có cap — **không phải lỗi hệ thống**.

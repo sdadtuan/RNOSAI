@@ -1,0 +1,44 @@
+{
+  "note": "Tham số TEST từ spec §17.2 và Phụ lục A. Không phải giá thật.",
+  "roles": {
+    "monthly_salary": "20000000",
+    "insurance_pct": "0.20",
+    "monthly_benefits": "1000000",
+    "productive_hours": "132"
+  },
+  "settings": {
+    "overhead_pct": "0.30",
+    "margin_pct": "0.25",
+    "vat_pct": "0.08",
+    "rounding_unit": "1000",
+    "discount_basic_pct": "0",
+    "discount_standard_pct": "0.05",
+    "discount_advanced_pct": "0.10"
+  },
+  "rate_display": "189394",
+  "matrix": [
+    { "code": "BI", "hours": ["358.00", "384.00", "394.00"], "prices": ["117526000", "119758000", "116410000"], "inversion": true, "scope_identical": false },
+    { "code": "CS", "hours": ["270.00", "290.00", "302.00"], "prices": ["88637000", "90442000", "89228000"], "inversion": true, "scope_identical": false },
+    { "code": "WEB", "hours": ["364.00", "390.00", "398.00"], "prices": ["119495000", "121629000", "117591000"], "inversion": true, "scope_identical": false },
+    { "code": "ADS", "hours": ["267.00", "315.00", "327.00"], "prices": ["87652000", "98239000", "96614000"], "inversion": true, "scope_identical": false },
+    { "code": "SEO", "hours": ["258.00", "286.00", "286.00"], "prices": ["84697000", "89195000", "84500000"], "inversion": true, "scope_identical": true },
+    { "code": "BOT", "hours": ["273.00", "301.00", "309.00"], "prices": ["89622000", "93873000", "91296000"], "inversion": true, "scope_identical": false },
+    { "code": "CRM", "hours": ["283.00", "321.00", "321.00"], "prices": ["92905000", "100110000", "94841000"], "inversion": true, "scope_identical": true },
+    { "code": "NUR", "hours": ["220.00", "268.00", "276.00"], "prices": ["72223000", "83581000", "81546000"], "inversion": true, "scope_identical": false },
+    { "code": "RET", "hours": ["239.00", "271.00", "299.00"], "prices": ["78460000", "84517000", "88341000"], "inversion": false, "scope_identical": false },
+    { "code": "MAU", "hours": ["227.00", "291.00", "291.00"], "prices": ["74521000", "90754000", "85978000"], "inversion": true, "scope_identical": true },
+    { "code": "MKT", "hours": ["198.00", "276.00", "286.00"], "prices": ["65000000", "86076000", "84500000"], "inversion": true, "scope_identical": false },
+    { "code": "DSH", "hours": ["236.00", "284.00", "284.00"], "prices": ["77475000", "88571000", "83910000"], "inversion": true, "scope_identical": true },
+    { "code": "MED", "hours": ["219.00", "245.00", "253.00"], "prices": ["71894000", "76408000", "74750000"], "inversion": true, "scope_identical": false },
+    { "code": "PR", "hours": ["224.00", "238.00", "241.00"], "prices": ["73536000", "74225000", "71205000"], "inversion": true, "scope_identical": false },
+    { "code": "KOL", "hours": ["206.00", "220.00", "224.00"], "prices": ["67627000", "68612000", "66182000"], "inversion": true, "scope_identical": false },
+    { "code": "VID", "hours": ["382.00", "420.00", "420.00"], "prices": ["125405000", "130985000", "124091000"], "inversion": true, "scope_identical": true }
+  ],
+  "quotes": {
+    "f6": { "fee_subtotal": "132135000", "fee_vat": "10570800", "fee_total": "142705800" },
+    "f9_web_basic": "119494949",
+    "f11_web_standard": "126307000",
+    "f12_vid_basic": "164798000",
+    "f13": { "extra_discount": "13213500", "fee_after_discount": "118921500", "fee_vat": "9513720", "fee_total": "128435220" }
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S8 · Dashboard — P13 mockup</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div class="app"><aside id="sb"></aside><div class="main"><header id="tb"></header><main class="content">
+<div class="page-head"><div><h1>Tổng quan Dịch vụ &amp; Báo giá</h1><div class="sub">Quý 4/2026 · cập nhật 11:50 · số liệu theo quyền: AM chỉ thấy của mình, CEO/GĐKD thấy toàn bộ</div></div>
+<div class="actions"><select class="input" style="width:auto" aria-label="Kỳ"><option>Quý này</option><option>Tháng này</option><option>30 ngày</option></select><select class="input" style="width:auto" aria-label="AM"><option>Tất cả AM</option></select></div></div>
+<div class="grid g4">
+ <div class="card kpi"><div class="lbl">Pipeline báo giá đang mở</div><div class="val">9</div><div class="d">1.084.296.800 gồm VAT</div></div>
+ <div class="card kpi"><div class="lbl">Tỷ lệ thắng (theo số BG)</div><div class="val" style="color:var(--g-700)">42%</div><div class="d">5 chấp nhận / 12 đã chốt · ▲ 6 điểm</div></div>
+ <div class="card kpi"><div class="lbl">Hạng mục quá hạn</div><div class="val" style="color:var(--danger)">11</div><div class="d">trên 4 dự án</div></div>
+ <div class="card kpi"><div class="lbl">Gate chờ khách duyệt</div><div class="val" style="color:var(--warn)">7</div><div class="d">3 chờ &gt; 48 giờ</div></div>
+</div>
+<div class="grid" style="grid-template-columns:1fr 1fr">
+<div class="card"><div class="card-h">Phễu báo giá (quý này)</div><div class="card-b funnel">
+ <div class="step"><div class="b" style="width:100%;background:var(--n-500)">Nháp · 14</div></div>
+ <div class="step"><div class="b" style="width:82%;background:var(--warn)">Chờ duyệt nội bộ · 11</div></div>
+ <div class="step"><div class="b" style="width:70%;background:#00838F">Đã duyệt · 10</div></div>
+ <div class="step"><div class="b" style="width:58%;background:#1565C0">Đã gửi khách · 9</div></div>
+ <div class="step"><div class="b" style="width:30%;background:var(--g-700)">Khách chấp nhận · 5</div></div>
+ <div class="small muted" style="margin-top:8px">Từ chối 4 · Hết hạn 3 · thời gian duyệt nội bộ TB 9,5 giờ</div></div></div>
+<div class="card"><div class="card-h">Giá trị chấp nhận theo dịch vụ</div><div class="card-b">
+ <div class="bar-row"><span class="lb">VID · Video &amp; TVC</span><span class="bar"><i style="width:100%;background:var(--g-700)"></i></span><span class="v">135.437.400</span></div>
+ <div class="bar-row"><span class="lb">WEB · Website</span><span class="bar"><i style="width:95%;background:var(--g-600)"></i></span><span class="v">128.435.220</span></div>
+ <div class="bar-row"><span class="lb">ADS · Quảng cáo</span><span class="bar"><i style="width:78%;background:var(--g-500)"></i></span><span class="v">106.098.120</span></div>
+ <div class="bar-row"><span class="lb">KOL · KOL/KOC</span><span class="bar"><i style="width:54%;background:var(--g-300)"></i></span><span class="v">73.037.160</span></div>
+ <div class="bar-row"><span class="lb">SEO · SEO &amp; AEO</span><span class="bar"><i style="width:0%"></i></span><span class="v">—</span></div></div></div>
+</div>
+<div class="grid" style="grid-template-columns:1.3fr 1fr">
+<div class="card"><div class="card-h">Tiến độ checklist theo dự án <a class="r small" href="S7-checklist-du-an.html">Xem tất cả →</a></div><table class="t"><thead><tr><th>Dự án</th><th>Giai đoạn hiện tại</th><th style="width:30%">Tiến độ</th><th class="num">Quá hạn</th><th class="num">Gate chờ</th></tr></thead><tbody>
+<tr><td><a href="S7-checklist-du-an.html"><b>DP-0031</b></a> Mẫu Hồng Hạc · WEB TC</td><td>S · Sản xuất/Thiết lập</td><td><div class="bar-row"><div class="progress"><i style="width:24%"></i></div><span class="small">24%</span></div></td><td class="num" style="color:var(--danger)">2</td><td class="num">4</td></tr>
+<tr><td><b>DP-0029</b> Mẫu Đông Á · CRM TC</td><td>T · Triển khai/Go-live</td><td><div class="bar-row"><div class="progress"><i style="width:64%"></i></div><span class="small">64%</span></div></td><td class="num" style="color:var(--danger)">5</td><td class="num">1</td></tr>
+<tr><td><b>DP-0027</b> Mẫu Gia Phúc · BI TC</td><td>B · Nghiệm thu/Bàn giao</td><td><div class="bar-row"><div class="progress"><i style="width:88%"></i></div><span class="small">88%</span></div></td><td class="num">0</td><td class="num">2</td></tr>
+<tr><td><b>DP-0026</b> Mẫu Lam Sơn · ADS CB</td><td>D · Đo lường &amp; Tối ưu</td><td><div class="bar-row"><div class="progress"><i style="width:72%"></i></div><span class="small">72%</span></div></td><td class="num" style="color:var(--danger)">4</td><td class="num">0</td></tr>
+</tbody></table></div>
+<div class="card"><div class="card-h">Gate chờ khách duyệt</div><div class="card-b" style="padding:0">
+ <div class="list-item"><span class="chip gate">⛳</span><div><b>WEB-03-04</b> Duyệt sitemap &amp; wireframe<div class="small muted">DP-0031 · gửi 30/09 · 2 ngày</div></div><span class="cnt"><button class="btn sm">Nhắc</button></span></div>
+ <div class="list-item"><span class="chip gate">⛳</span><div><b>CRM-05-02</b> UAT pipeline bán hàng<div class="small muted">DP-0029 · gửi 26/09 · <span style="color:var(--danger)">6 ngày</span></div></div><span class="cnt"><button class="btn sm">Nhắc</button></span></div>
+ <div class="list-item"><span class="chip gate">⛳</span><div><b>BI-07-03</b> Nghiệm thu bộ nhận diện<div class="small muted">DP-0027 · gửi 01/10 · 1 ngày</div></div><span class="cnt"><button class="btn sm">Nhắc</button></span></div></div>
+ <div class="card-h" style="border-top:1px solid var(--n-200)">Hạng mục quá hạn (top)</div><div class="card-b" style="padding:0">
+ <div class="list-item"><span class="chip doing">Đang làm</span><div><b>CRM-04-06</b> Đồng bộ dữ liệu khách cũ<div class="small muted">Gia Bảo · hạn 25/09</div></div></div>
+ <div class="list-item"><span class="chip todo">Chưa làm</span><div><b>ADS-06-02</b> Báo cáo tối ưu tuần 3<div class="small muted">Minh Quân · hạn 29/09</div></div></div></div></div>
+</div>
+<div class="foot-note">Toàn bộ là DỮ LIỆU MẪU; số tiền lấy từ bộ số sanity (tham số TEST).</div>
+</main></div></div>
+<script src="assets/app.js"></script><script>shell('dash','<b>Tổng quan</b>','CEO','CEO');</script></body></html>

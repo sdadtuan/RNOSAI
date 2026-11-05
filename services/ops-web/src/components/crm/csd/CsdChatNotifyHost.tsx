@@ -1,0 +1,235 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
+import { fetchCsdChatMe, fetchCsdConversations } from '@/lib/crm/csd-api';
+import {
+  csdChatNotifyChannel,
+  nextCsdChatIncoming,
+  type CsdChatIncoming,
+} from '@/lib/crm/csd-chat-notify';
+import {
+  dispatchCsdChatOpen,
+  notificationPermission,
+  readCsdChatNotified,
+  readCsdChatViewing,
+  showCsdChatDesktopNotify,
+  writeCsdChatNotified,
+} from '@/lib/crm/csd-chat-notify-persist';
+import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
+import { playCsdChatMessageTone } from '@/lib/crm/csd-chat-notify-sound.util';
+import { dispatchCsdNeedNotifyPermission } from '@/lib/crm/csd-chat-notify-permission.util';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatNotifyPermissionPrompt } from '@/components/crm/csd/CsdChatNotifyPermissionPrompt';
+
+const POLL_MS = 8_000;
+const POLL_MS_HIDDEN = 5_000;
+
+type CsdChatNotifyHostProps = {
+  user: StoredStaffUser | null;
+};
+
+export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const token = getAccessToken() ?? '';
+  const canView = hasCap(user, 'csd', 'view');
+  const [enabled, setEnabled] = useState(false);
+  const [toasts, setToasts] = useState<CsdChatIncoming[]>([]);
+  const [visTick, setVisTick] = useState(0);
+  const notifiedRef = useRef<Set<string> | null>(readCsdChatNotified());
+
+  const openConversation = useCallback(
+    (conversationId: string) => {
+      setToasts((prev) => prev.filter((t) => t.conversationId !== conversationId));
+      readRnosDesktop()?.focus();
+      if (pathname === '/crm/csd/chat') {
+        const shell = new URLSearchParams(window.location.search).get('shell');
+        const q = new URLSearchParams();
+        if (shell === 'desktop' || shell === 'pwa') q.set('shell', shell);
+        q.set('c', conversationId);
+        router.push(`/crm/csd/chat?${q.toString()}`);
+        return;
+      }
+      dispatchCsdChatOpen(conversationId);
+    },
+    [pathname, router],
+  );
+
+  const queueToasts = useCallback((incoming: CsdChatIncoming[]) => {
+    setToasts((prev) => {
+      const incomingIds = new Set(incoming.map((row) => row.conversationId));
+      const rest = prev.filter((t) => !incomingIds.has(t.conversationId));
+      return [...incoming, ...rest].slice(0, 3);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user || !canView || !token) {
+      setEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    void staffTokenForBackground().then((ready) => {
+      if (cancelled || !ready) {
+        if (!cancelled) setEnabled(false);
+        return;
+      }
+      void fetchCsdChatMe(ready)
+        .then((me) => {
+          if (!cancelled) setEnabled(me.enabled === true);
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) noteBackgroundUnauthorized(ready);
+          if (!cancelled) setEnabled(false);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, canView, token]);
+
+  useEffect(() => {
+    if (!enabled || !token) return;
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const schedule = () => {
+      if (timer != null) window.clearInterval(timer);
+      const ms =
+        typeof document !== 'undefined' && document.visibilityState === 'hidden'
+          ? POLL_MS_HIDDEN
+          : POLL_MS;
+      timer = window.setInterval(load, ms);
+    };
+
+    const load = () => {
+      if (cancelled) return;
+      void staffTokenForBackground().then((ready) => {
+        if (cancelled || !ready) return;
+        void fetchCsdConversations(ready, { filter: 'unread' })
+        .then((out) => {
+          if (cancelled) return;
+          const tabHidden =
+            typeof document !== 'undefined' && document.visibilityState === 'hidden';
+          const viewingId = readCsdChatViewing();
+          const next = nextCsdChatIncoming({
+            previousNotified: notifiedRef.current,
+            items: out.items ?? [],
+            viewingId,
+            tabHidden,
+          });
+          if (!next.incoming.length) {
+            notifiedRef.current = next.notified;
+            writeCsdChatNotified(next.notified);
+            return;
+          }
+          const channel = csdChatNotifyChannel(
+            tabHidden ? 'hidden' : 'visible',
+            notificationPermission(),
+          );
+          // Do not mark delivered when we cannot show/play — retry next poll.
+          if (channel === 'none') {
+            dispatchCsdNeedNotifyPermission();
+            return;
+          }
+
+          playCsdChatMessageTone();
+          // Always queue in-app toast — desktop/OS notify can fail silently (Focus, PWA, option support).
+          queueToasts(next.incoming);
+          if (notificationPermission() !== 'granted') {
+            dispatchCsdNeedNotifyPermission();
+          }
+
+          notifiedRef.current = next.notified;
+          writeCsdChatNotified(next.notified);
+
+          const wantDesktop =
+            channel === 'desktop' || notificationPermission() === 'granted';
+          if (wantDesktop) {
+            void (async () => {
+              for (const row of next.incoming) {
+                await showCsdChatDesktopNotify({
+                  title: row.title,
+                  preview: row.preview,
+                  conversationId: row.conversationId,
+                  lastMessageAt: row.lastMessageAt,
+                  kind: 'message',
+                  onOpen: openConversation,
+                });
+              }
+            })();
+          }
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) {
+            noteBackgroundUnauthorized(ready);
+            cancelled = true;
+            if (timer != null) window.clearInterval(timer);
+          }
+        });
+      });
+    };
+
+    load();
+    schedule();
+    const onVis = () => {
+      setVisTick((n) => n + 1);
+      if (document.visibilityState === 'visible') load();
+      schedule();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [enabled, token, openConversation, queueToasts]);
+
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    // Keep toast while CRM tab is backgrounded so user still sees it on return.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const timer = window.setTimeout(() => {
+      setToasts((prev) => prev.slice(0, -1));
+    }, 10_000);
+    return () => window.clearTimeout(timer);
+  }, [toasts, visTick]);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <CsdChatNotifyPermissionPrompt enabled={enabled} />
+      {toasts.length > 0 ? (
+        <div className="csd-chat-notify" data-testid="csd-chat-notify" aria-live="polite">
+          {toasts.map((row) => (
+            <button
+              key={`${row.conversationId}:${row.lastMessageAt ?? ''}`}
+              type="button"
+              className="csd-chat-notify__toast"
+              data-testid="csd-chat-notify-toast"
+              onClick={() => openConversation(row.conversationId)}
+            >
+              <CsdChatAvatar
+                token={token}
+                name={row.title}
+                seed={row.avatarStaffId ?? row.conversationId}
+                staffId={row.avatarStaffId ?? null}
+                hasAvatar={row.avatarHasPhoto}
+                avatarUpdatedAt={row.avatarUpdatedAt}
+                className="csd-chat-notify__avatar csd-chat-avatar"
+              />
+              <span className="csd-chat-notify__copy">
+                <strong>{row.title}</strong>
+                <span>{row.preview}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
