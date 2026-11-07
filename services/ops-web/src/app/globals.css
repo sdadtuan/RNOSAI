@@ -4345,6 +4345,140 @@ html.ops-shell-bitrix .win-home__scope {
   align-items: center;
 }
 
+.quote-case-timer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: #e7f5eb;
+  color: #0f4a20;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-case-timer--late {
+  background: #fde8e8;
+  color: #8f2d2d;
+}
+
+.quote-case-timer--soon {
+  background: #fff4d6;
+  color: #7a4b00;
+}
+
+.quote-sheet__commercial {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.quote-sheet__commercial label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.quote-sheet__commercial input {
+  width: 7rem;
+}
+
+.quote-sheet {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--surface-border, #d9e2dc);
+  border-radius: 12px;
+  background: #fff;
+  container-type: inline-size;
+  container-name: quote-sheet;
+}
+
+.quote-sheet__head p {
+  margin: 0;
+}
+
+.quote-sheet__services {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 1rem;
+  align-items: start;
+}
+
+.quote-sheet__services label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.4rem;
+  align-items: start;
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.quote-sheet__services input[type='checkbox'] {
+  margin: 0.15rem 0 0;
+}
+
+@container quote-sheet (min-width: 960px) {
+  .quote-sheet__services {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.quote-sheet__group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.quote-sheet__scroll {
+  overflow: auto;
+}
+
+.quote-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  table-layout: fixed;
+}
+
+.quote-sheet__col-check {
+  width: 3.4rem;
+}
+
+.quote-sheet__col-task {
+  width: 22%;
+}
+
+.quote-sheet__col-staff {
+  width: 14rem;
+}
+
+.quote-sheet__col-amount {
+  width: 8.75rem;
+}
+
+.quote-sheet th,
+.quote-sheet td {
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid #e4ece6;
+  vertical-align: top;
+  text-align: left;
+}
+
+.quote-sheet td .muted,
+.quote-sheet td span.muted {
+  display: block;
+}
+
+.quote-sheet select,
+.quote-sheet input[type='number'] {
+  width: 100%;
+  min-width: 7rem;
+  font: inherit;
+}
+
 .solution-pack {
   display: grid;
   gap: 0.45rem;

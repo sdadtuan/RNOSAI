@@ -70,6 +70,10 @@ export class LeadStatusGateService implements OnModuleDestroy {
       hasOutreachActivity: state.hasOutreachActivity,
       needsCleanup: state.needsCleanup,
       gateEnabled: this.isEnabled(),
+      solutionReady: state.solutionReady,
+      quoteSentToSale: state.quoteSentToSale,
+      quoteApproved: state.quoteApproved,
+      hasContract: state.hasContract,
     });
 
     return {
@@ -128,6 +132,10 @@ export class LeadStatusGateService implements OnModuleDestroy {
       nextCallAt: body.next_call_at ?? null,
       hasQuote: state.hasQuote || isQuoteLink(body.quote_url),
       quoteApproved: state.quoteApproved,
+      quoteCaseOpen: state.quoteCaseOpen,
+      quoteSentToSale: state.quoteSentToSale,
+      solutionReady: state.solutionReady,
+      hasContract: state.hasContract,
       quoteValue: quoteValue(body.expected_value, state.quoteValue),
       lostReasons: state.lostReasons,
     };
@@ -142,19 +150,25 @@ export class LeadStatusGateService implements OnModuleDestroy {
     hasCallLog: boolean;
     hasQuote: boolean;
     quoteApproved: boolean;
+    quoteCaseOpen: boolean;
+    quoteSentToSale: boolean;
+    solutionReady: boolean;
+    hasContract: boolean;
     quoteValue: number | null;
     lostReasons: KanbanLostReason[];
   } | null> {
     const row = await this.fetchLeadRow(leadId);
     if (!row) return null;
 
-    const [hasContactOkReport, hasOutreachActivity, hasPresales, quote, lostReasons, quoteApproved] = await Promise.all([
+    const [hasContactOkReport, hasOutreachActivity, hasPresales, quote, lostReasons, quoteFlags, hasContract] =
+      await Promise.all([
       this.hasContactOkReport(leadId),
       this.hasOutreachActivity(leadId),
       this.hasPresales(leadId),
       this.loadQuote(leadId, row.meta_json),
       this.loadLostReasons(),
-      this.loadQuoteApproved(leadId),
+      this.loadQuoteFlags(leadId),
+      this.hasContractRow(leadId),
     ]);
 
     const b2Complete = computeB2Complete({
@@ -182,7 +196,11 @@ export class LeadStatusGateService implements OnModuleDestroy {
       needsCleanup,
       hasCallLog: Boolean(row.last_call_at),
       hasQuote: quote.hasQuote,
-      quoteApproved,
+      quoteApproved: quoteFlags.quoteApproved,
+      quoteCaseOpen: quoteFlags.quoteCaseOpen,
+      quoteSentToSale: quoteFlags.quoteSentToSale,
+      solutionReady: quoteFlags.solutionReady,
+      hasContract,
       quoteValue: quote.quoteValue,
       lostReasons,
     };
@@ -262,13 +280,75 @@ export class LeadStatusGateService implements OnModuleDestroy {
     }
   }
 
-  private async loadQuoteApproved(leadId: number): Promise<boolean> {
+  private async loadQuoteFlags(leadId: number): Promise<{
+    quoteApproved: boolean;
+    quoteCaseOpen: boolean;
+    quoteSentToSale: boolean;
+    solutionReady: boolean;
+  }> {
+    const empty = { quoteApproved: false, quoteCaseOpen: false, quoteSentToSale: false, solutionReady: false };
     try {
       const result = await this.db.query(
-        `SELECT quote_approved_at FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
+        `SELECT quote_approved_at,
+                quote_sent_back_at,
+                solution_approved_at,
+                quote_accepted_at,
+                handoff_status,
+                quote_change_note,
+                CASE
+                  WHEN jsonb_typeof(quote_sheet->'lines') = 'array'
+                  THEN jsonb_array_length(quote_sheet->'lines') > 0
+                  ELSE FALSE
+                END AS quote_sheet_saved
+         FROM crm_lead_presales
+         WHERE lead_id = $1
+           AND COALESCE(status, '') = 'active'
+         ORDER BY id DESC
+         LIMIT 1`,
         [leadId],
       );
-      return Boolean(result.rows[0]?.quote_approved_at);
+      const row = result.rows[0] as
+        | {
+            quote_approved_at?: string | null;
+            quote_sent_back_at?: string | null;
+            solution_approved_at?: string | null;
+            quote_accepted_at?: string | null;
+            handoff_status?: string | null;
+            quote_change_note?: string | null;
+            quote_sheet_saved?: boolean | null;
+          }
+        | undefined;
+      if (!row) return empty;
+      const sheet = Boolean(row.quote_sheet_saved);
+      const sent = Boolean(row.quote_sent_back_at);
+      const approved = Boolean(row.quote_approved_at);
+      const released = String(row.handoff_status ?? '') === 'released';
+      const solutionApproved = Boolean(row.solution_approved_at);
+      return {
+        quoteApproved: approved,
+        quoteSentToSale: sent,
+        solutionReady: released || solutionApproved || Boolean(row.quote_accepted_at) || sent || approved || sheet,
+        quoteCaseOpen:
+          released ||
+          solutionApproved ||
+          Boolean(row.quote_accepted_at) ||
+          sent ||
+          approved ||
+          String(row.quote_change_note ?? '').trim().length > 0 ||
+          sheet,
+      };
+    } catch {
+      return empty;
+    }
+  }
+
+  private async hasContractRow(leadId: number): Promise<boolean> {
+    try {
+      const result = await this.db.query(
+        `SELECT 1 FROM crm_contracts WHERE lead_id = $1 LIMIT 1`,
+        [leadId],
+      );
+      return (result.rowCount ?? 0) > 0;
     } catch {
       return false;
     }

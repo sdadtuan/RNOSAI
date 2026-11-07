@@ -5,7 +5,9 @@ import {
   bucketLeadsFromSolution,
   B2B_KANBAN_COLUMNS,
   isBaoGiaKanbanColumn,
+  kanbanColumnIdForLead,
   kanbanColumnsFromSolution,
+  leadStatusAtOrAfterConsult,
   leadStatusLabel,
   leadListFilterOptions,
   leadStatusSearchCallResults,
@@ -25,6 +27,29 @@ describe('normalizeLeadStatus', () => {
   it('passes through known CRM statuses', () => {
     expect(normalizeLeadStatus('da_lien_he')).toBe('da_lien_he');
     expect(normalizeLeadStatus('proposal')).toBe('proposal');
+  });
+});
+
+describe('leadStatusAtOrAfterConsult', () => {
+  it('keeps the receive SLA on a new or just-contacted lead', () => {
+    expect(leadStatusAtOrAfterConsult('moi')).toBe(false);
+    expect(leadStatusAtOrAfterConsult('new')).toBe(false);
+    expect(leadStatusAtOrAfterConsult('da_lien_he')).toBe(false);
+    expect(leadStatusAtOrAfterConsult('qualified')).toBe(false);
+    expect(leadStatusAtOrAfterConsult(null)).toBe(false);
+  });
+
+  it('closes the receive SLA at Tư vấn and every later stage', () => {
+    expect(leadStatusAtOrAfterConsult('dang_tu_van')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('nurturing')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('consult')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('hen_gap')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('bao_gia')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('proposal')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('negotiation')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('trien_khai')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('won')).toBe(true);
+    expect(leadStatusAtOrAfterConsult('post_sale')).toBe(true);
   });
 });
 
@@ -161,5 +186,32 @@ describe('kanbanColumnsFromSolution', () => {
     expect(byColumn.trien_khai.map((row) => row.id)).toEqual([7]);
     expect(byColumn.moi).toBeUndefined();
     expect(byColumn.dang_tu_van).toBeUndefined();
+  });
+
+  it('keeps Báo giá only when Solution was submitted, and parks the rest on the previous step', () => {
+    const bySale = bucketLeadsByKanbanColumns(
+      [
+        { id: 920685, status: 'dam_phan', solution_handoff: 'with_solution', has_quote: false },
+        { id: 920505, status: 'proposal', solution_handoff: 'pending' },
+        { id: 11, status: 'bao_gia', solution_handoff: 'released', quote_sheet_saved: false },
+        { id: 12, status: 'trien_khai', solution_handoff: 'released', quote_approved: false },
+        { id: 13, status: 'trien_khai', solution_handoff: 'released', quote_approved: true },
+        { id: 14, status: 'won', quote_approved: false, has_contract: false, solution_handoff: '' },
+        { id: 15, status: 'won', quote_approved: true, has_contract: true },
+      ],
+      B2B_KANBAN_COLUMNS,
+    );
+    expect(bySale.dang_tu_van.map((row) => row.id)).toEqual([920685, 920505, 14]);
+    expect(bySale.bao_gia.map((row) => row.id)).toEqual([11, 12]);
+    expect(bySale.trien_khai.map((row) => row.id)).toEqual([13]);
+    expect(bySale.won.map((row) => row.id)).toEqual([15]);
+
+    const bySolution = bucketLeadsFromSolution([
+      { id: 920685, status: 'dam_phan', solution_handoff: 'with_solution' },
+      { id: 11, status: 'bao_gia', solution_handoff: 'released' },
+    ]);
+    expect(bySolution.solution.map((row) => row.id)).toEqual([920685]);
+    expect(bySolution.bao_gia.map((row) => row.id)).toEqual([11]);
+    expect(kanbanColumnIdForLead({ status: 'negotiation', solution_handoff: 'pending' })).toBe('dang_tu_van');
   });
 });

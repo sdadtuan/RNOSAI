@@ -7,6 +7,7 @@ import {
   type LeadFrSlaState,
 } from '@/lib/api';
 import { resolveNewLeadClock, type NewLeadClock } from '@/lib/crm/new-lead-clock';
+import { leadStatusAtOrAfterConsult } from '@/lib/crm/lead-status';
 import {
   defaultTeamSlaDocument,
   normalizeTeamSlaDocument,
@@ -164,12 +165,15 @@ export function LeadFrSlaPanel({
   leadId,
   canWrite = true,
   variant = 'full',
+  status = null,
 }: {
   token: string;
   leadId: number;
   canWrite?: boolean;
   /** embedded = nằm trong bước B2, bỏ khung/tiêu đề trùng. */
   variant?: 'full' | 'embedded';
+  /** CRM status. Receive-SLA controls hide once this is Tư vấn or later. */
+  status?: string | null;
 }) {
   const [sla, setSla] = useState<LeadFrSlaState | null>(null);
   const [error, setError] = useState('');
@@ -300,6 +304,9 @@ export function LeadFrSlaPanel({
   const badge = clockBadge(leadClock);
   const claimMinutes = saleProfile?.sale.claim_in_hours_minutes ?? 15;
   const updateHours = saleProfile?.sale.update_after_claim_hours ?? 1;
+  const pastConsult = leadStatusAtOrAfterConsult(status);
+  const showClockBadge = !(pastConsult && leadClock.phase === 'claim' && leadClock.overdue);
+  const showClaimButton = leadClock.phase === 'claim' && canWrite && !pastConsult;
 
   return (
     <section
@@ -330,8 +337,10 @@ export function LeadFrSlaPanel({
           >
             {guideOpen ? 'Ẩn hướng dẫn' : 'Hướng dẫn SLA'}
           </button>
-          <span className={`lead-fr-sla__badge lead-fr-sla__badge--${badge.tone}`}>{badge.text}</span>
-          {leadClock.phase === 'claim' && canWrite ? (
+          {showClockBadge ? (
+            <span className={`lead-fr-sla__badge lead-fr-sla__badge--${badge.tone}`}>{badge.text}</span>
+          ) : null}
+          {showClaimButton ? (
             <button type="button" className="btn btn-primary" onClick={onClaim}>
               Nhận lead
             </button>

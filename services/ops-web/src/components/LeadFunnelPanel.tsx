@@ -65,6 +65,8 @@ interface Props {
   activeStepState?: FunnelStepState;
   intakeSummary?: IntakeStepSummary | null;
   onStepChange?: (key: PresalesFunnelStepKey) => void;
+  /** CRM lead status. Hides receive-SLA controls once the lead is at Tư vấn. */
+  leadStatus?: string | null;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -113,6 +115,7 @@ export function LeadFunnelPanel({
   activeStepState = 'current',
   intakeSummary = null,
   onStepChange,
+  leadStatus = null,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -511,6 +514,7 @@ export function LeadFunnelPanel({
       canWriteFr={canEdit}
       embedFrSla={layout === 'pipeline'}
       statusChip={layout === 'pipeline' ? prepChip : null}
+      leadStatus={leadStatus}
     />
   );
 

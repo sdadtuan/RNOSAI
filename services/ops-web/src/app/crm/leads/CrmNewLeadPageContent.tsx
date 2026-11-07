@@ -9,6 +9,7 @@ import {
   createLead,
   fetchAgencyClients,
   fetchCrmStaffList,
+  fetchLeadB2bProjectOptions,
   fetchLeadLookupOptions,
   staffMe,
   staffRefresh,
@@ -31,7 +32,6 @@ import {
   type CrmLeadsFlowScope,
 } from '@/lib/crm/lead-flow-routes';
 import { leadStatusSearchOptions } from '@/lib/crm/lead-status';
-import { fetchDeliveryProjects } from '@/lib/delivery-projects-api';
 
 const SPA_STATUS_OPTIONS = [
   { value: 'moi', label: 'Mới' },
@@ -200,24 +200,11 @@ export function CrmNewLeadPageContent({
       }
       if (isB2bFlow) {
         try {
-          const { items } = await fetchDeliveryProjects(currentToken, {
-            capability: 'lead_ingest',
-            status: 'active',
-          });
-          const projects = items
-            .filter((row) => Boolean(row.b2b_project_id))
-            .map((row) => ({
-              id: String(row.b2b_project_id),
-              code: row.code || row.ingest_code || '',
-              name: row.name,
-              status: row.status,
-            }));
+          const projects = await fetchLeadB2bProjectOptions(currentToken, 'active', 'create');
           setB2bProjects(projects);
           setB2bProjectsHint(
             projects.length === 0
-              ? assignAny
-                ? 'Chưa có dự án PTT active — tạo tại /crm/delivery-projects?capability=lead_ingest.'
-                : 'Chưa có dự án PTT bạn đang tham gia — nhờ admin thêm bạn vào staff dự án tại /crm/delivery-projects?capability=lead_ingest.'
+              ? 'Chưa có dự án PTT nhận lead. Tạo tại mục Dự án PTT, bật Nhận lead, rồi lưu.'
               : '',
           );
           if (projects.length === 1) setB2bProjectId(projects[0].id);

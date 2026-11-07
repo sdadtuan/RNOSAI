@@ -43,6 +43,7 @@ export function LeadSalesPipelineTab({
   slaCountdown,
   slaState,
   slaDetail,
+  leadStatus = null,
 }: {
   token: string;
   leadId: number;
@@ -71,6 +72,8 @@ export function LeadSalesPipelineTab({
   slaCountdown?: string | null;
   slaState?: 'ok' | 'warning' | 'breach';
   slaDetail?: string | null;
+  /** CRM lead status. Hides receive-SLA controls once the lead is at Tư vấn. */
+  leadStatus?: string | null;
 }) {
   const router = useRouter();
   const stepperVm = useMemo(() => resolveFunnelStepper(stepperInput), [stepperInput]);
@@ -156,6 +159,7 @@ export function LeadSalesPipelineTab({
         activeStepState={activeState}
         intakeSummary={stepperInput.intakeSummary}
         onStepChange={onStepChange}
+        leadStatus={leadStatus}
       />
       <LeadPipelineDoneAccordion steps={stepperVm.steps} onReview={onStepChange} />
     </div>

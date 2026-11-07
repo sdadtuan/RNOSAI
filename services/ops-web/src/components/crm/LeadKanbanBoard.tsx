@@ -12,7 +12,7 @@ import {
 } from '@/lib/crm/kanban-card-cta';
 import {
   B2B_KANBAN_COLUMNS,
-  kanbanColumnIdForStatus,
+  kanbanColumnIdForLead,
   bucketLeadsByKanbanColumns,
   bucketLeadsByKanbanStage,
   bucketLeadsFromSolution,
@@ -118,6 +118,13 @@ function ActionButton({
   const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${action.kind}${
     action.primary ? ' is-primary' : ''
   }`;
+  if (action.blockedReason) {
+    return (
+      <button type="button" className={`${ctaClass} is-blocked`} disabled>
+        {action.label}
+      </button>
+    );
+  }
   if (interceptBoard && (action.kind === 'call' || action.kind === 'care')) {
     return (
       <button type="button" className={ctaClass} disabled={busy} onClick={() => onAction(action)}>
@@ -217,6 +224,7 @@ export function LeadKanbanBoard({
   const [careLead, setCareLead] = useState<LeadRow | null>(null);
   const [columnLimit, setColumnLimit] = useState<Record<string, number>>({});
   const [followupFilter, setFollowupFilter] = useState<LeadFollowupKind | ''>('');
+  const [cardNote, setCardNote] = useState<{ leadId: number; text: string } | null>(null);
 
   const earlySpa = new Set(['moi', 'da_lien_he', 'dang_tu_van', 'hen_gap', 'new', 'intake']);
   const visibleStageKeys = fromSolution ? stageKeys.filter((stage) => !earlySpa.has(stage)) : stageKeys;
@@ -301,7 +309,7 @@ export function LeadKanbanBoard({
     const leadId = Number(event.dataTransfer.getData('text/plain'));
     const lead = rows.find((row) => row.id === leadId);
     if (!lead) return;
-    const fromId = kanbanColumnIdForStatus(lead.status);
+    const fromId = kanbanColumnIdForLead(lead);
     if (!fromId || fromId === target) return;
     if (target === 'bao_gia') {
       void moveLead(lead, 'bao_gia', { audit_note: 'Chuyển sang Báo giá' });
@@ -357,19 +365,34 @@ export function LeadKanbanBoard({
   }
 
   async function runStatusAction(leadId: number, action: KanbanCardAction) {
-    if (!token || !action.nextStatus) return;
+    if (action.blockedReason) {
+      setCardNote({ leadId, text: action.blockedReason });
+      setErr(action.blockedReason);
+      return;
+    }
+    if (!token || !action.nextStatus) {
+      const message = 'Không chuyển được trạng thái.';
+      setCardNote({ leadId, text: message });
+      setErr(message);
+      return;
+    }
     setBusyId(leadId);
     setErr('');
     setMsg('');
+    setCardNote(null);
     try {
       await patchLead(token, leadId, {
         status: action.nextStatus,
         audit_note: action.auditNote ?? action.label,
       });
+      const done = action.kind === 'advance_proposal' ? 'Đã chuyển sang Proposal.' : `Lead #${leadId}: ${action.label}`;
+      setCardNote({ leadId, text: done });
       setMsg(`Lead #${leadId}: ${action.label}`);
       onLeadUpdated?.();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Cập nhật trạng thái thất bại');
+      const message = e instanceof Error ? e.message : 'Cập nhật trạng thái thất bại';
+      setCardNote({ leadId, text: message });
+      setErr(message);
     } finally {
       setBusyId(null);
     }
@@ -611,6 +634,9 @@ export function LeadKanbanBoard({
                         ))}
                       </div>
                       )}
+                      {cardNote?.leadId === lead.id ? (
+                        <p className="crm-kanban-card__note" role="status">{cardNote.text}</p>
+                      ) : null}
                       <div className="crm-kanban-card__footer">
                         <div className="crm-kanban-card__footer-row">
                           <span>{formatLeadArrived(lead)}</span>

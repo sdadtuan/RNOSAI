@@ -16,6 +16,9 @@ Get-NetTCPConnection -LocalPort 3200 -State Listen -ErrorAction SilentlyContinue
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 
 $env:PATH = "$NodeDir;" + $env:PATH
+# Shell kế thừa URL production sau lần deploy. Local luôn gọi API máy này.
+$env:NEXT_PUBLIC_PTT_API_URL = 'http://127.0.0.1:3000'
+$env:PTT_LOCAL_API_PROXY_TARGET = 'http://127.0.0.1:3000'
 $lanIp = (
   Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -notlike '127.*' -and $_.PrefixOrigin -ne 'WellKnown' } |

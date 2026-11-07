@@ -155,18 +155,21 @@ export class LeadsController {
     return this.crmConfig.listLeadLookups(normalizedKind, true);
   }
 
-  /** Active PTT projects for B2B lead create — same rows as menu Dự án PTT
+  /** PTT projects for B2B lead create — same rows as menu Dự án PTT
    * (crm_delivery_projects, capability lead_ingest). crm_leads.view.
-   * Non–view-all staff only see projects they belong to on crm_b2b_project_staff. */
+   * for=create: anyone who can view leads sees active and draft ingest projects.
+   * Otherwise non–view-all staff only see projects they belong to. */
   @Get('b2b-project-options')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async listB2bProjectOptions(
     @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('status') status?: string,
+    @Query('for') purpose?: string,
   ) {
-    const statusFilter = status?.trim() || 'active';
+    const forCreate = purpose?.trim() === 'create';
+    const statusFilter = forCreate ? undefined : status?.trim() || 'active';
     let staffId: number | undefined;
-    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+    if (!forCreate && req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
       const seeAll =
         this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
@@ -178,7 +181,9 @@ export class LeadsController {
         staffId = resolved;
       }
     }
-    return { projects: await this.b2bProjects.listLeadIngestOptions(statusFilter, staffId) };
+    return {
+      projects: await this.b2bProjects.listLeadIngestOptions(statusFilter, staffId, { forCreate }),
+    };
   }
 
   @Get('import/template.xlsx')

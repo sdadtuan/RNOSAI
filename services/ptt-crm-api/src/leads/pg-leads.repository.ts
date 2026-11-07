@@ -36,7 +36,41 @@ const STAGE_RECORD_SQL = `
               ) AS has_quote,
               EXISTS (
                 SELECT 1 FROM crm_contracts qc WHERE qc.lead_id = l.sqlite_lead_id
-              ) AS has_contract`;
+              ) AS has_contract,
+              COALESCE(quote_state.quote_sheet_saved, FALSE) AS quote_sheet_saved,
+              COALESCE(quote_state.quote_sent_to_sale, FALSE) AS quote_sent_to_sale,
+              COALESCE(quote_state.quote_approved, FALSE) AS quote_approved,
+              COALESCE(quote_state.quote_case_open, FALSE) AS quote_case_open`;
+
+/** Active presales quote case. Sheet lines are the saved quote; sent/approved are the Sale steps. */
+const QUOTE_STATE_JOIN_SQL = `
+       LEFT JOIN LATERAL (
+         SELECT
+           CASE
+             WHEN jsonb_typeof(psq.quote_sheet->'lines') = 'array'
+             THEN jsonb_array_length(psq.quote_sheet->'lines') > 0
+             ELSE FALSE
+           END AS quote_sheet_saved,
+           (psq.quote_sent_back_at IS NOT NULL) AS quote_sent_to_sale,
+           (psq.quote_approved_at IS NOT NULL) AS quote_approved,
+           (
+             psq.handoff_status = 'released'
+             OR psq.solution_approved_at IS NOT NULL
+             OR psq.quote_accepted_at IS NOT NULL
+             OR psq.quote_sent_back_at IS NOT NULL
+             OR psq.quote_approved_at IS NOT NULL
+             OR length(trim(COALESCE(psq.quote_change_note, ''))) > 0
+             OR (
+               jsonb_typeof(psq.quote_sheet->'lines') = 'array'
+               AND jsonb_array_length(psq.quote_sheet->'lines') > 0
+             )
+           ) AS quote_case_open
+         FROM crm_lead_presales psq
+         WHERE psq.lead_id = l.sqlite_lead_id
+           AND COALESCE(psq.status, '') = 'active'
+         ORDER BY psq.id DESC
+         LIMIT 1
+       ) quote_state ON TRUE`;
 
 export interface LeadListSignals {
   hot: number;
@@ -148,6 +182,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at${b2bList ? b2bListEnrichmentSql() : ''}
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id${b2bList ? b2bListJoinSql() : ''}
+       ${QUOTE_STATE_JOIN_SQL}
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -241,6 +276,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id
+       ${QUOTE_STATE_JOIN_SQL}
        WHERE l.sqlite_lead_id = $1`,
       [leadId],
     );

@@ -17,19 +17,31 @@ import type {
   TrackingHealthResponse,
 } from './types';
 
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function isPrivateLanHost(host: string): boolean {
+  return (
+    host.startsWith('192.168.') ||
+    host.startsWith('10.') ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+  );
+}
+
 function apiBase(): string {
   const configured = (process.env.NEXT_PUBLIC_PTT_API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
-  if (typeof window === 'undefined') return configured;
-  const host = window.location.hostname;
-  if (host !== '127.0.0.1' && host !== 'localhost') return configured;
-  try {
-    const url = new URL(configured);
-    if (url.hostname === host) return configured;
-    url.hostname = host;
-    return url.toString().replace(/\/$/, '');
-  } catch {
+  if (typeof window === 'undefined') {
+    if (process.env.NODE_ENV !== 'production') return 'http://127.0.0.1:3000';
     return configured;
   }
+  const host = window.location.hostname;
+  if (isLoopbackHost(host)) {
+    const name = host === '::1' ? '127.0.0.1' : host;
+    return `http://${name}:3000`;
+  }
+  if (isPrivateLanHost(host)) return '';
+  return configured;
 }
 
 const API_BASE = apiBase();

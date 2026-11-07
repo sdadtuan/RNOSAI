@@ -119,6 +119,41 @@ function bantScoreText(key: BantKey, score: number): string {
   return chosen?.label || `${score}/5`;
 }
 
+function SolutionClock({
+  label,
+  dueAt,
+  overdue,
+  soon,
+}: {
+  label: string;
+  dueAt: string;
+  overdue: boolean;
+  soon: boolean;
+}) {
+  const dueMs = Date.parse(dueAt);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!Number.isFinite(dueMs)) return undefined;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [dueMs]);
+  if (!label || !Number.isFinite(dueMs)) return null;
+  const remain = dueMs - now;
+  const late = overdue || remain < 0;
+  const abs = Math.abs(remain);
+  const totalSeconds = Math.floor(abs / 1000);
+  const clock = [Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60), totalSeconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+  const tone = late ? 'quote-case-timer quote-case-timer--late' : soon ? 'quote-case-timer quote-case-timer--soon' : 'quote-case-timer';
+  return (
+    <p className={tone} aria-live="polite">
+      <span>{label}</span>
+      <strong>{remain < 0 ? `Quá hạn ${clock}` : `Còn ${clock}`}</strong>
+    </p>
+  );
+}
+
 export function SolutionCaseDesk({
   token,
   lead,
@@ -149,6 +184,7 @@ export function SolutionCaseDesk({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const handoff = funnel?.presales?.handoff?.status ?? '';
+  const solution = funnel?.presales?.solution_case;
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
 
   const load = useCallback(async () => {
@@ -359,13 +395,38 @@ export function SolutionCaseDesk({
       <header className="solution-desk__head">
         <p className="solution-desk__kicker">Hồ sơ Sales đã giao</p>
         <p className="muted">
-          {handoff === 'pending'
-            ? 'Nhận case, rồi đóng gói file gửi khách.'
-            : handoff === 'with_solution'
-              ? 'Đóng gói Solution.html, rồi nộp cho Sale.'
-              : 'Đã nộp cho Sales.'}
+          {solution?.phase === 'cho_nhan'
+            ? `${solution.assignee_name || 'Marketing Leader'} bấm nhận case Solutions trong 15 phút.`
+            : solution?.phase === 'chinh_sua'
+              ? 'Chỉnh theo yêu cầu, rồi bấm Trả Sales trong 2 giờ.'
+              : handoff === 'with_solution'
+                ? 'Đóng gói Solution.html, rồi Trả Sales trong hạn làm việc.'
+                : 'Đã nộp cho Sales.'}
         </p>
       </header>
+      {solution ? (
+        <SolutionClock
+          label={solution.timer_label}
+          dueAt={solution.timer_due_at}
+          overdue={solution.timer_overdue}
+          soon={solution.timer_warning}
+        />
+      ) : null}
+      {solution?.revision_note ? (
+        <p>
+          <strong>Khách cần chỉnh:</strong> {solution.revision_note}
+        </p>
+      ) : null}
+      {solution?.warning_note ? (
+        <div className="lead-alert" role="status">
+          {solution.warning_note}
+        </div>
+      ) : null}
+      {solution?.sla_note ? (
+        <div className="lead-alert lead-alert--error" role="alert">
+          {solution.sla_note}
+        </div>
+      ) : null}
 
       <div className="solution-desk__cols">
       <div className="solution-desk__col">
@@ -573,11 +634,11 @@ export function SolutionCaseDesk({
                   void run(async () => {
                     const out = await releaseLeadToSales(token, lead.id);
                     onFunnelChange(out.funnel);
-                    onMessage?.('Đã nộp Solution cho Sales');
+                    onMessage?.('Đã trả Sales. Khách có 8 giờ để phản hồi.');
                   })
                 }
               >
-                Nộp Solution
+                Trả Sales
               </button>
             </>
           ) : null}

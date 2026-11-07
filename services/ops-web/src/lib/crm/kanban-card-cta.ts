@@ -1,6 +1,6 @@
 import type { LeadRow } from '@/lib/api';
 import { WORK_SIGNALS } from './work-signals';
-import { normalizeLeadStatus } from './lead-status';
+import { leadHasSubmittedSolution, normalizeLeadStatus } from './lead-status';
 
 export type KanbanCardActionKind =
   | 'call'
@@ -23,6 +23,8 @@ export type KanbanCardAction = {
   nextStatus?: string;
   auditNote?: string;
   primary?: boolean;
+  /** Shown instead of a status move. The control is not an action. */
+  blockedReason?: string;
 };
 
 /** @deprecated Prefer kanbanCardActions — kept for older call sites. */
@@ -66,8 +68,134 @@ function missingRecord(flag: boolean | null | undefined): boolean {
   return flag === false;
 }
 
+type QuoteProgressLead = Pick<
+  LeadRow,
+  | 'has_quote'
+  | 'quote_sheet_saved'
+  | 'quote_sent_to_sale'
+  | 'quote_approved'
+  | 'quote_case_open'
+  | 'solution_handoff'
+  | 'has_contract'
+>;
+
+/**
+ * Quote-sheet / quote-case state. crm_proposals (`has_quote`) is only the legacy file.
+ * No sheet → Chưa có báo giá. Saved → Đã có báo giá. Sent → Đã gửi Sale. Approved → Triển Khai.
+ * Null means the caller has no quote-case fields and should keep the legacy label.
+ */
+export function quoteProgressLabel(lead: QuoteProgressLead): string | null {
+  if (lead.quote_approved) return 'Triển Khai';
+  if (lead.quote_sent_to_sale) return 'Đã gửi Sale';
+  if (lead.quote_sheet_saved) return 'Đã có báo giá';
+  if (lead.has_quote === false) return 'Chưa có báo giá';
+  return null;
+}
+
+function quoteLeadAction(lead: QuoteProgressLead, careHref: string, legacy: KanbanCardAction): KanbanCardAction {
+  const label = quoteProgressLabel(lead);
+  if (!label) return legacy;
+  if (label === 'Chưa có báo giá') {
+    return { href: careHref, label, kind: 'lead', primary: true };
+  }
+  return { href: careHref, label, kind: 'view_quote', primary: true };
+}
+
+function quoteSignalsKnown(lead: QuoteProgressLead): boolean {
+  return (
+    lead.solution_handoff !== undefined ||
+    lead.quote_sheet_saved !== undefined ||
+    lead.quote_sent_to_sale !== undefined ||
+    lead.quote_approved !== undefined ||
+    lead.has_quote !== undefined
+  );
+}
+
+/** Proposal / đàm phán stays in this column. It is blocked until Sale has the quote. */
+function advanceProposalAction(lead: QuoteProgressLead): KanbanCardAction {
+  if (quoteSignalsKnown(lead) && !leadHasSubmittedSolution(lead)) {
+    return {
+      label: 'Chưa có Solution',
+      kind: 'advance_proposal',
+      blockedReason: 'Chưa có Solution đã nộp.',
+    };
+  }
+  const waitingOnSale =
+    lead.quote_case_open === true && lead.quote_sent_to_sale !== true && lead.quote_approved !== true;
+  if (waitingOnSale) {
+    return {
+      label: 'Sale chưa nhận báo giá',
+      kind: 'advance_proposal',
+      blockedReason: 'Sale chưa nhận báo giá.',
+    };
+  }
+  return {
+    label: '→ Proposal',
+    kind: 'advance_proposal',
+    nextStatus: 'proposal',
+    auditNote: 'AE xác nhận báo giá OK — chuyển sang Proposal.',
+  };
+}
+
+/** Tạo HĐ needs a submitted Solution and a quote Sale has approved. */
+function advanceContractAction(lead: QuoteProgressLead): KanbanCardAction {
+  if (quoteSignalsKnown(lead) && !leadHasSubmittedSolution(lead)) {
+    return {
+      label: 'Chưa có Solution',
+      kind: 'advance_contract',
+      blockedReason: 'Chưa có Solution đã nộp.',
+    };
+  }
+  const quoteKnown =
+    lead.quote_sheet_saved !== undefined ||
+    lead.quote_sent_to_sale !== undefined ||
+    lead.quote_approved !== undefined ||
+    lead.has_quote !== undefined;
+  if (
+    quoteKnown &&
+    !lead.quote_sheet_saved &&
+    !lead.quote_sent_to_sale &&
+    !lead.quote_approved &&
+    lead.has_quote !== true
+  ) {
+    return {
+      label: 'Chưa có báo giá',
+      kind: 'advance_contract',
+      blockedReason: 'Chưa có báo giá.',
+    };
+  }
+  if (quoteKnown && lead.quote_approved !== true) {
+    return {
+      label: 'Sale chưa duyệt báo giá',
+      kind: 'advance_contract',
+      blockedReason: 'Sale chưa duyệt báo giá.',
+    };
+  }
+  return {
+    label: '→ Tạo HĐ',
+    kind: 'advance_contract',
+    nextStatus: 'won',
+    auditNote: 'AE xác nhận Proposal OK — chuyển sang tạo HĐ.',
+  };
+}
+
 export function kanbanCardActions(
-  lead: Pick<LeadRow, 'id' | 'phone' | 'status' | 'ai_band' | 'sla_state' | 'has_quote' | 'has_contract'>,
+  lead: Pick<
+    LeadRow,
+    | 'id'
+    | 'phone'
+    | 'status'
+    | 'ai_band'
+    | 'sla_state'
+    | 'has_quote'
+    | 'has_contract'
+    | 'quote_sheet_saved'
+    | 'quote_sent_to_sale'
+    | 'quote_approved'
+    | 'quote_case_open'
+    | 'solution_handoff'
+    | 'has_contract'
+  >,
 ): KanbanCardAction[] {
   const status = normalizeLeadStatus(lead.status);
   const phone = digitsPhone(lead.phone);
@@ -93,41 +221,37 @@ export function kanbanCardActions(
 
   if (QUOTE.has(status)) {
     return [
-      missingRecord(lead.has_quote)
-        ? { href: careHref, label: 'Chưa có báo giá', kind: 'lead', primary: true }
-        : { href: careHref, label: 'Xem báo giá', kind: 'view_quote', primary: true },
+      quoteLeadAction(lead, careHref, {
+        href: careHref,
+        label: 'Xem báo giá',
+        kind: 'view_quote',
+        primary: true,
+      }),
       {
         label: 'Trả lại AM',
         kind: 'return_am',
         nextStatus: 'dang_tu_van',
         auditNote: 'AE trả lại báo giá cho Account Manager để chỉnh sửa.',
       },
-      {
-        label: '→ Proposal',
-        kind: 'advance_proposal',
-        nextStatus: 'proposal',
-        auditNote: 'AE xác nhận báo giá OK — chuyển sang Proposal.',
-      },
+      advanceProposalAction(lead),
     ];
   }
 
   if (PROPOSAL.has(status)) {
     return [
-      missingRecord(lead.has_quote)
-        ? { href: careHref, label: 'Chưa có báo giá', kind: 'lead', primary: true }
-        : { href: dealHref, label: 'Xem Proposal', kind: 'view_proposal', primary: true },
+      quoteLeadAction(lead, careHref, {
+        href: dealHref,
+        label: 'Xem Proposal',
+        kind: 'view_proposal',
+        primary: true,
+      }),
       {
         label: 'Trả lại AM/CEO',
         kind: 'return_am',
         nextStatus: 'bao_gia',
         auditNote: 'AE trả lại Proposal cho AM/CEO/GĐKD để chỉnh sửa.',
       },
-      {
-        label: '→ Tạo HĐ',
-        kind: 'advance_contract',
-        nextStatus: 'won',
-        auditNote: 'AE xác nhận Proposal OK — chuyển sang tạo HĐ.',
-      },
+      advanceContractAction(lead),
     ];
   }
 
@@ -146,12 +270,18 @@ export function kanbanCardActions(
         nextStatus: 'proposal',
         auditNote: 'AE trả lại HĐ cho AM/CEO/GĐKD để chỉnh sửa.',
       },
-      {
-        label: 'Đã ký HĐ',
-        kind: 'mark_signed',
-        nextStatus: 'chot',
-        auditNote: 'AE xác nhận khách đã ký HĐ.',
-      },
+      lead.has_contract === false
+        ? {
+            label: 'Chưa có HĐ',
+            kind: 'mark_signed',
+            blockedReason: 'Chưa có hợp đồng để xác nhận đã ký.',
+          }
+        : {
+            label: 'Đã ký HĐ',
+            kind: 'mark_signed',
+            nextStatus: 'chot',
+            auditNote: 'AE xác nhận khách đã ký HĐ.',
+          },
     ];
   }
 

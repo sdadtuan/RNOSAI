@@ -1233,6 +1233,19 @@ html.ops-shell-bitrix .crm-kanban-card__cta--mark_signed {
   border-color: var(--won);
   color: #fff;
 }
+html.ops-shell-bitrix .crm-kanban-card__cta.is-blocked {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+  cursor: not-allowed;
+  white-space: normal;
+}
+.crm-kanban-card__note {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #9a3412;
+}
 html.ops-shell-bitrix .crm-kanban-card__cta--view_contract {
   background: var(--won);
   border-color: var(--won);

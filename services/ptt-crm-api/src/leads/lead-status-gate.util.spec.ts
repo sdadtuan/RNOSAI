@@ -148,7 +148,35 @@ describe('lead-status-gate.util', () => {
     ).not.toThrow();
   });
 
-  it('blocks Báo giá without a quote and a value', () => {
+  it('blocks Báo giá → Proposal until Sale has the quote', () => {
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'bao_gia',
+        newStatus: 'proposal',
+        quoteCaseOpen: true,
+        quoteSentToSale: false,
+        quoteApproved: false,
+      }),
+    ).toThrow(/Sale chưa nhận báo giá/);
+  });
+
+  it('allows Báo giá → Proposal once Sale has the quote, without a legacy file', () => {
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'bao_gia',
+        newStatus: 'proposal',
+        hasQuote: false,
+        quoteValue: null,
+        quoteCaseOpen: true,
+        quoteSentToSale: true,
+        quoteApproved: false,
+      }),
+    ).not.toThrow();
+  });
+
+  it('blocks Báo giá when Solution has not been submitted', () => {
     expect(() =>
       validateLeadStatusChange({
         ...b2b,
@@ -156,8 +184,65 @@ describe('lead-status-gate.util', () => {
         newStatus: 'bao_gia',
         hasQuote: false,
         quoteValue: 0,
+        solutionReady: false,
       }),
-    ).toThrow(/báo giá/i);
+    ).toThrow(/Solution đã nộp/);
+  });
+
+  it('lets Báo giá open after Solution is submitted, before a quote sheet exists', () => {
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'dang_tu_van',
+        newStatus: 'bao_gia',
+        hasQuote: false,
+        quoteValue: null,
+        solutionReady: true,
+        quoteSentToSale: false,
+        quoteApproved: false,
+      }),
+    ).not.toThrow();
+  });
+
+  it('blocks đàm phán and Tạo HĐ until the previous artifact exists', () => {
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'dang_tu_van',
+        newStatus: 'dam_phan',
+        solutionReady: true,
+        quoteSentToSale: false,
+        quoteApproved: false,
+      }),
+    ).toThrow(/Sale chưa nhận báo giá/);
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'proposal',
+        newStatus: 'won',
+        solutionReady: true,
+        quoteSentToSale: true,
+        quoteApproved: false,
+        hasContract: false,
+      }),
+    ).toThrow(/chưa được tạo HĐ/);
+    expect(() =>
+      validateLeadStatusChange({
+        ...baseCtx,
+        oldStatus: 'hen_gap',
+        newStatus: 'chot',
+        hasContract: false,
+      }),
+    ).toThrow(/hợp đồng/);
+    expect(() =>
+      validateLeadStatusChange({
+        ...b2b,
+        oldStatus: 'bao_gia',
+        newStatus: 'trien_khai',
+        solutionReady: true,
+        quoteApproved: false,
+      }),
+    ).toThrow(/Approve/);
   });
 
   it('requires a catalog lost reason, and a note when the reason is other', () => {

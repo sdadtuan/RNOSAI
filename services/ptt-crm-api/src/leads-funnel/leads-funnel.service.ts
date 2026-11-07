@@ -30,6 +30,8 @@ import {
   BatchUpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
+import { parseQuoteServiceCodes } from './quote-sheet.util';
+import { isCeoPosition } from './quote-case.util';
 import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack } from './presales-marketing-plan.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
@@ -635,6 +637,16 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
+  async requestSolutionEdits(leadId: number, staffId: number | null, note: string) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.requestSolutionEdits(leadId, staffId, note);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
   async acceptQuoteCase(leadId: number, staffId: number | null) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
@@ -673,6 +685,57 @@ export class LeadsFunnelService {
       this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async transferQuoteCase(
+    leadId: number,
+    staffId: number | null,
+    targetStaffId: number,
+    positionCode: string | null | undefined,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    if (!isCeoPosition(positionCode)) {
+      throw new ForbiddenException({ error: 'Chỉ CEO được chuyển case báo giá.' });
+    }
+    if (!Number.isInteger(targetStaffId) || targetStaffId <= 0) {
+      throw new BadRequestException({ error: 'Chọn Marketing Leader để chuyển.' });
+    }
+    try {
+      await this.pgRepo.transferQuoteCase(leadId, staffId, targetStaffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async getQuoteSheet(leadId: number, services: string | undefined) {
+    try {
+      const codes = services === undefined ? null : parseQuoteServiceCodes(services);
+      return await this.pgRepo.getQuoteSheet(leadId, codes);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async quoteSheetPdf(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    try {
+      return await this.pgRepo.quoteSheetPdf(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async saveQuoteSheet(
+    leadId: number,
+    staffId: number | null,
+    body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      return await this.pgRepo.saveQuoteSheet(leadId, staffId, body);
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   async staffHasAssignCap(staffUser: StaffJwtPayload): Promise<boolean> {

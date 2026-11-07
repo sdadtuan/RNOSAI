@@ -110,12 +110,18 @@ describe('pgRowToV1', () => {
       company_address: '',
       logo_asset_id: null,
       hold_until: null,
+      last_call_at: null,
+      updated_at: null,
       b2_complete: false,
       b2_assigned_at: null,
       last_call_result: '',
       solution_handoff: '',
       has_quote: false,
       has_contract: false,
+      quote_sheet_saved: false,
+      quote_sent_to_sale: false,
+      quote_approved: false,
+      quote_case_open: false,
     });
   });
 

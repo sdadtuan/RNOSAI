@@ -6,6 +6,7 @@ const localApiProxy = (process.env.PTT_LOCAL_API_PROXY_TARGET ?? '').trim().repl
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.1.90', '10.201.124.71'],
   transpilePackages: ['@rnosai/ui'],
   ...(stagingBasePath ? { basePath: stagingBasePath, assetPrefix: stagingBasePath } : {}),
   async headers() {

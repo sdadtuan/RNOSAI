@@ -21,6 +21,7 @@ export function LeadPipelineB2Panel({
   canWriteFr = true,
   embedFrSla = false,
   statusChip,
+  leadStatus = null,
 }: {
   funnel: LeadFunnelSnapshot;
   canEdit: boolean;
@@ -35,6 +36,8 @@ export function LeadPipelineB2Panel({
   /** Gộp SLA phản hồi đầu vào bước B2 (pipeline) — tránh panel trùng phía trên. */
   embedFrSla?: boolean;
   statusChip?: string | null;
+  /** CRM status, forwarded so receive-SLA controls hide from Tư vấn onward. */
+  leadStatus?: string | null;
 }) {
   const b2Stage = funnel.care_pipeline.stages[0];
   const negativeReportCount = funnel.care_pipeline.b2_negative_report_count ?? 0;
@@ -127,6 +130,7 @@ export function LeadPipelineB2Panel({
               leadId={leadId!}
               canWrite={canWriteFr && !inReview}
               variant="embedded"
+              status={leadStatus}
             />
           </div>
 

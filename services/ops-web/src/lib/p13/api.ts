@@ -54,6 +54,7 @@ export type P13Item = {
   gate_approver: string | null;
   min_level: string;
   est_hours: string;
+  planned_hours: string | null;
   est_hours_is_assumption: boolean;
   est_hours_source: string;
   unit: string;

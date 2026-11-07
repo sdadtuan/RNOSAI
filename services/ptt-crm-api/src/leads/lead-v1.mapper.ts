@@ -195,6 +195,10 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     solution_handoff: row.solution_handoff ? String(row.solution_handoff) : '',
     has_quote: Boolean(row.has_quote),
     has_contract: Boolean(row.has_contract),
+    quote_sheet_saved: Boolean(row.quote_sheet_saved),
+    quote_sent_to_sale: Boolean(row.quote_sent_to_sale),
+    quote_approved: Boolean(row.quote_approved),
+    quote_case_open: Boolean(row.quote_case_open),
   };
 }
 

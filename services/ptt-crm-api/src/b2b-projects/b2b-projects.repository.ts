@@ -94,6 +94,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
   async listLeadIngestOptions(
     status?: string,
     staffId?: number,
+    opts?: { forCreate?: boolean },
   ): Promise<Array<{ id: string; code: string; name: string; status: string }>> {
     const params: unknown[] = [];
     const clauses = [
@@ -101,7 +102,9 @@ export class B2bProjectsRepository implements OnModuleDestroy {
       `'lead_ingest' = ANY(d.capabilities)`,
       'd.b2b_project_id IS NOT NULL',
     ];
-    if (status?.trim()) {
+    if (opts?.forCreate) {
+      clauses.push(`d.status IN ('active', 'draft', 'approved', 'pending_approval')`);
+    } else if (status?.trim()) {
       params.push(status.trim());
       clauses.push(`d.status = $${params.length}`);
     }

@@ -24,10 +24,12 @@ import { summarizeLeadIntake } from '@/lib/crm/funnel-stepper.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
+import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
 import { isBaoGiaKanbanColumn, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { isAccountExecutive, isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
@@ -264,7 +266,9 @@ export default function CrmLeadDetailPage() {
   const quoteStage = normalizeLeadStatus(lead?.status);
   // Báo giá column includes Đàm phán / proposal, not only status bao_gia.
   const inBaoGiaColumn = isBaoGiaKanbanColumn(lead?.status);
-  const quoteWithSale = funnelSnap?.presales?.quote_case?.phase === 'sale_review';
+  const quoteCasePhase = funnelSnap?.presales?.quote_case?.phase ?? '';
+  const quoteWithSale = quoteCasePhase === 'sale_review';
+  const showLeadQuoteSheet = quoteCasePhase === 'bao_gia' || quoteCasePhase === 'sale_review';
   const hourQuoteEdit = inBaoGiaColumn && !quoteWithSale;
   const hourQuoteView =
     quoteWithSale ||
@@ -1419,7 +1423,6 @@ export default function CrmLeadDetailPage() {
             <LeadStageRecords
               leadId={leadId}
               status={lead.status || status}
-              activities={activities}
               intakeSummary={intakeSummary}
               serviceSlug={presetServiceSlug}
             />
@@ -1453,6 +1456,7 @@ export default function CrmLeadDetailPage() {
               token={accessToken}
               leadId={leadId}
               canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'create')}
+              status={lead?.status || status}
             />
           ) : null}
 
@@ -1531,12 +1535,24 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 funnel={funnelSnap}
+                viewerIsCeo={isCeoPosition(user)}
                 onFunnelChange={setFunnelSnap}
                 onLeadReload={async () => {
                   const row = await fetchLead(accessToken, leadId);
                   setLead(row);
                   setStatus(row.status || 'moi');
                 }}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {accessToken && lead && showLeadQuoteSheet ? (
+              <LeadQuoteSheet
+                token={accessToken}
+                leadId={leadId}
+                phase={quoteCasePhase}
+                onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}
               />
@@ -1682,6 +1698,7 @@ export default function CrmLeadDetailPage() {
                     : 'ok'
                 }
                 slaDetail={copilotContext?.sla.banner.message ?? null}
+                leadStatus={lead?.status || status}
               />
               </div>
             ) : null}
@@ -1710,6 +1727,7 @@ export default function CrmLeadDetailPage() {
                 hideM1Card={showLmpTab}
                 showPresalesBlock={stageVis.showPresalesBlock}
                 highlightAfterCall={b2CallJustPlaced}
+                leadStatus={lead?.status || status}
               />
             ) : null}
 

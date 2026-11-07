@@ -41,8 +41,6 @@ const B2B_KANBAN_MOVE_STATUSES = new Set([
   'nurture',
 ]);
 
-const QUOTED_STATUSES = new Set(['bao_gia', 'proposal', 'dam_phan']);
-
 export const KANBAN_LOST_REASON_SEED: ReadonlyArray<{
   id: string;
   label: string;
@@ -127,6 +125,11 @@ export interface LeadStatusOptionsContext {
   hasOutreachActivity: boolean;
   needsCleanup: boolean;
   gateEnabled: boolean;
+  /** False when Solution has not been nộp. Omitted = caller has no presales snapshot. */
+  solutionReady?: boolean;
+  quoteSentToSale?: boolean;
+  quoteApproved?: boolean;
+  hasContract?: boolean;
 }
 
 export function isCandidateStatusSelectable(
@@ -167,6 +170,10 @@ export function isCandidateStatusSelectable(
     return false;
   }
 
+  if (ctx.flowKind === 'b2b_prospect' && b2bForwardArtifactBlock(current, next, ctx)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -194,6 +201,10 @@ export function collectStatusOptionHints(ctx: LeadStatusOptionsContext): string[
       (TERMINAL_WON_STATUSES as readonly string[]).includes(s) &&
       !isCandidateStatusSelectable(ctx, s),
   );
+  if (ctx.flowKind === 'b2b_prospect' && ctx.solutionReady === false) {
+    hints.push('Nộp Solution trước khi sang Báo giá.');
+  }
+
   if (blockedTerminal) {
     if (!ctx.b2Complete) {
       hints.push('Hoàn thành B2 (Liên hệ OK) trên Funnel trước khi chốt / won.');
@@ -282,6 +293,13 @@ export interface LeadStatusGateContext {
   nextCallAt?: string | null;
   hasQuote?: boolean;
   quoteApproved?: boolean;
+  /** Quote case is open (solution released or quote work started). */
+  quoteCaseOpen?: boolean;
+  /** Marketing Leader already submitted the quote to Sale. */
+  quoteSentToSale?: boolean;
+  /** Solution file was nộp (released) or Sale already approved it. */
+  solutionReady?: boolean;
+  hasContract?: boolean;
   quoteValue?: number | null;
   lostReasons?: readonly KanbanLostReason[];
 }
@@ -294,6 +312,62 @@ export class LeadStatusGateError extends Error {
     this.name = 'LeadStatusGateError';
     this.code = code;
   }
+}
+
+/** Later B2B statuses, in funnel order. Side exits (lost, nurture) are not ranked. */
+const B2B_STAGE_RANK: Record<string, number> = {
+  moi: 1,
+  da_lien_he: 2,
+  dang_tu_van: 3,
+  hen_gap: 3,
+  bao_gia: 4,
+  proposal: 5,
+  dam_phan: 5,
+  trien_khai: 6,
+  won: 7,
+  chot: 8,
+  post_sale: 9,
+};
+
+export function b2bForwardArtifactBlock(
+  oldStatus: string,
+  newStatus: string,
+  flags: {
+    solutionReady?: boolean;
+    quoteSentToSale?: boolean;
+    quoteApproved?: boolean;
+    hasContract?: boolean;
+  },
+): { code: string; message: string } | null {
+  const supplied =
+    flags.solutionReady !== undefined ||
+    flags.quoteSentToSale !== undefined ||
+    flags.quoteApproved !== undefined ||
+    flags.hasContract !== undefined;
+  if (!supplied) return null;
+
+  const old = normalizeLeadStatus(oldStatus);
+  const next = normalizeLeadStatus(newStatus);
+  const oldRank = B2B_STAGE_RANK[old];
+  const nextRank = B2B_STAGE_RANK[next];
+  if (oldRank == null || nextRank == null || nextRank <= oldRank) return null;
+
+  if (nextRank >= B2B_STAGE_RANK.bao_gia && flags.solutionReady === false && flags.hasContract !== true) {
+    return {
+      code: 'solution_required',
+      message: 'Chưa có Solution đã nộp. Nộp Solution trước khi sang bước sau.',
+    };
+  }
+  if ((next === 'proposal' || next === 'dam_phan') && flags.quoteSentToSale !== true && flags.quoteApproved !== true) {
+    return { code: 'quote_not_with_sale', message: 'Sale chưa nhận báo giá.' };
+  }
+  if ((next === 'won' || next === 'chot' || next === 'post_sale') && flags.quoteApproved !== true && flags.hasContract !== true) {
+    return { code: 'quote_not_approved', message: 'Sale chưa duyệt báo giá — chưa được tạo HĐ.' };
+  }
+  if ((next === 'chot' || next === 'post_sale') && flags.hasContract === false) {
+    return { code: 'contract_required', message: 'Chưa có hợp đồng để xác nhận đã ký.' };
+  }
+  return null;
 }
 
 export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
@@ -399,14 +473,18 @@ export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
     );
   }
 
-  if (ctx.flowKind === 'b2b_prospect' && QUOTED_STATUSES.has(next)) {
-    const value = Number(ctx.quoteValue);
-    if (!ctx.hasQuote || !Number.isFinite(value) || value <= 0) {
-      throw new LeadStatusGateError(
-        'quote_required',
-        'Sang Báo giá cần đính kèm báo giá (file hoặc link) và giá trị.',
-      );
+  if (ctx.flowKind === 'b2b_prospect') {
+    const artifactBlock = b2bForwardArtifactBlock(old, next, ctx);
+    if (artifactBlock) {
+      throw new LeadStatusGateError(artifactBlock.code, artifactBlock.message);
     }
+  }
+
+  if ((next === 'chot' || next === 'post_sale') && ctx.hasContract === false) {
+    throw new LeadStatusGateError(
+      'contract_required',
+      'Chưa có hợp đồng để xác nhận đã ký.',
+    );
   }
 
   if (ctx.flowKind === 'b2b_prospect' && next === 'lost') {

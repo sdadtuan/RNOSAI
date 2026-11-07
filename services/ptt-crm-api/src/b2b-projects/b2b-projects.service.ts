@@ -24,9 +24,9 @@ export class B2bProjectsService {
   }
 
   /** Delivery projects that can receive a lead (menu Dự án PTT, capability lead_ingest). */
-  async listLeadIngestOptions(status?: string, staffId?: number) {
-    await this.repo.ensureLeadIngestFacets(status);
-    return this.repo.listLeadIngestOptions(status, staffId);
+  async listLeadIngestOptions(status?: string, staffId?: number, opts?: { forCreate?: boolean }) {
+    await this.repo.ensureLeadIngestFacets(opts?.forCreate ? undefined : status);
+    return this.repo.listLeadIngestOptions(status, opts?.forCreate ? undefined : staffId, opts);
   }
 
   async get(id: string): Promise<B2bProjectRow> {

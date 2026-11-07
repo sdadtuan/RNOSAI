@@ -13,6 +13,18 @@ export type IngestStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 const CAPS: DeliveryCapability[] = ['lead_ingest', 'delivery'];
 
+export function slugFromProjectName(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
 export function normalizeCapabilities(raw: unknown): DeliveryCapability[] {
   const list = Array.isArray(raw) ? raw : [];
   const seen = new Set<DeliveryCapability>();

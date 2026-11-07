@@ -6,10 +6,12 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  StreamableFile,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -393,6 +395,21 @@ export class LeadsFunnelController {
     }
   }
 
+  @Post(':id/presales/request-solution-edits')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async requestSolutionEdits(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.requestSolutionEdits(id, await this.userId(req), String(body?.note ?? ''));
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Post(':id/presales/accept-quote-case')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
@@ -445,6 +462,69 @@ export class LeadsFunnelController {
   ) {
     try {
       return await this.funnel.requestQuoteEdits(id, await this.userId(req), String(body?.note ?? ''));
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/transfer-quote-case')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async transferQuoteCase(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { staff_id?: number },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      if (!req.staffUser) {
+        throw new ForbiddenException({ error: 'Chỉ CEO được chuyển case báo giá.' });
+      }
+      const me = await this.staffAuth.me(req.staffUser);
+      return await this.funnel.transferQuoteCase(
+        id,
+        await this.userId(req),
+        Number(body?.staff_id),
+        me.position_code,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/quote-sheet')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async getQuoteSheet(@Param('id', ParseIntPipe) id: number, @Query('services') services?: string) {
+    try {
+      return await this.funnel.getQuoteSheet(id, services);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/quote-sheet/pdf')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async quoteSheetPdf(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+    try {
+      const out = await this.funnel.quoteSheetPdf(id);
+      return new StreamableFile(out.buffer, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        disposition: `attachment; filename="${out.filename}"`,
+        length: out.buffer.length,
+      });
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Put(':id/presales/quote-sheet')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async saveQuoteSheet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.saveQuoteSheet(id, await this.userId(req), body ?? {});
     } catch (err) {
       this.badRequest(err);
     }
