@@ -170,6 +170,8 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     owner_name: row.owner_name ? String(row.owner_name).trim() || null : null,
     created_at: formatLeadTs(row.created_at),
     received_at: formatLeadTs(row.received_at),
+    updated_at: row.updated_at ? formatLeadTs(row.updated_at) : null,
+    last_call_at: row.last_call_at ? formatLeadTs(row.last_call_at) : null,
     is_duplicate: Boolean(row.is_duplicate),
     b2b_project_id: row.b2b_project_id ? String(row.b2b_project_id) : null,
     owner_company_id: row.owner_company_id ? String(row.owner_company_id) : null,
@@ -191,6 +193,12 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     b2_assigned_at: row.b2_assigned_at ? formatLeadTs(row.b2_assigned_at) : null,
     last_call_result: row.last_call_result ? String(row.last_call_result) : '',
     solution_handoff: row.solution_handoff ? String(row.solution_handoff) : '',
+    has_quote: Boolean(row.has_quote),
+    has_contract: Boolean(row.has_contract),
+    quote_sheet_saved: Boolean(row.quote_sheet_saved),
+    quote_sent_to_sale: Boolean(row.quote_sent_to_sale),
+    quote_approved: Boolean(row.quote_approved),
+    quote_case_open: Boolean(row.quote_case_open),
   };
 }
 

@@ -12,13 +12,15 @@ import {
 } from '@/lib/crm/kanban-card-cta';
 import {
   B2B_KANBAN_COLUMNS,
-  kanbanColumnIdForStatus,
+  kanbanColumnIdForLead,
   bucketLeadsByKanbanColumns,
   bucketLeadsByKanbanStage,
+  bucketLeadsFromSolution,
+  kanbanColumnsFromSolution,
   leadStatusLabel,
   leadStatusTone,
 } from '@/lib/crm/lead-status';
-import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
+import { KANBAN_COLUMN_PAGE, sortKanbanLeadsForColumn } from '@/lib/crm/kanban-column.util';
 import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
 import { formatLeadArrived } from '@/lib/crm/lead-arrived';
 import { leadListSituation } from '@/lib/crm/lead-list-situation';
@@ -116,6 +118,13 @@ function ActionButton({
   const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${action.kind}${
     action.primary ? ' is-primary' : ''
   }`;
+  if (action.blockedReason) {
+    return (
+      <button type="button" className={`${ctaClass} is-blocked`} disabled>
+        {action.label}
+      </button>
+    );
+  }
   if (interceptBoard && (action.kind === 'call' || action.kind === 'care')) {
     return (
       <button type="button" className={ctaClass} disabled={busy} onClick={() => onAction(action)}>
@@ -156,6 +165,7 @@ export function LeadKanbanBoard({
   canChangeOwner = false,
   onLeadUpdated,
   readOnly = false,
+  fromSolution = false,
 }: {
   rows: LeadRow[];
   flowKind?: LeadFlowKind;
@@ -163,11 +173,16 @@ export function LeadKanbanBoard({
   canChangeOwner?: boolean;
   onLeadUpdated?: () => void;
   readOnly?: boolean;
+  /** Marketing Leader: hide Sale columns before Đợi Solution. */
+  fromSolution?: boolean;
 }) {
   const b2b = flowKind === 'b2b_prospect';
   const stages = statusOptionsForFlowKind(flowKind);
   const { stageKeys, byStage } = bucketLeadsByKanbanStage(rows, stages);
-  const byColumn = bucketLeadsByKanbanColumns(rows, B2B_KANBAN_COLUMNS);
+  const columnDefs = fromSolution ? kanbanColumnsFromSolution() : B2B_KANBAN_COLUMNS;
+  const byColumn = fromSolution
+    ? bucketLeadsFromSolution(rows)
+    : bucketLeadsByKanbanColumns(rows, B2B_KANBAN_COLUMNS);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -182,7 +197,7 @@ export function LeadKanbanBoard({
     setCollapsed((current) => {
       const next = { ...current };
       let changed = false;
-      for (const column of B2B_KANBAN_COLUMNS) {
+      for (const column of columnDefs) {
         if (!column.collapsible || collapsedByUser.current.has(column.id)) continue;
         if ((byColumn[column.id] ?? []).length > 0 && next[column.id]) {
           next[column.id] = false;
@@ -191,7 +206,7 @@ export function LeadKanbanBoard({
       }
       return changed ? next : current;
     });
-  }, [b2b, rows, byColumn]);
+  }, [b2b, rows, byColumn, columnDefs]);
   const [dragOver, setDragOver] = useState('');
   const [modal, setModal] = useState<MoveModal | null>(null);
   const [lostReasons, setLostReasons] = useState<LostReason[]>(LOST_REASON_SEED);
@@ -209,17 +224,20 @@ export function LeadKanbanBoard({
   const [careLead, setCareLead] = useState<LeadRow | null>(null);
   const [columnLimit, setColumnLimit] = useState<Record<string, number>>({});
   const [followupFilter, setFollowupFilter] = useState<LeadFollowupKind | ''>('');
+  const [cardNote, setCardNote] = useState<{ leadId: number; text: string } | null>(null);
 
+  const earlySpa = new Set(['moi', 'da_lien_he', 'dang_tu_van', 'hen_gap', 'new', 'intake']);
+  const visibleStageKeys = fromSolution ? stageKeys.filter((stage) => !earlySpa.has(stage)) : stageKeys;
   const columns = b2b
-    ? B2B_KANBAN_COLUMNS.map((column) => ({
+    ? columnDefs.map((column) => ({
         key: column.id,
         title: column.label,
         items: byColumn[column.id] ?? [],
-        accent: column.id,
+        accent: column.id === 'solution' ? 'dang_tu_van' : column.id,
         sum: column.sumValue,
         collapsible: column.collapsible,
       }))
-    : stageKeys.map((stage) => ({
+    : visibleStageKeys.map((stage) => ({
         key: stage,
         title: leadStatusLabel(stage),
         items: byStage[stage] ?? [],
@@ -291,7 +309,7 @@ export function LeadKanbanBoard({
     const leadId = Number(event.dataTransfer.getData('text/plain'));
     const lead = rows.find((row) => row.id === leadId);
     if (!lead) return;
-    const fromId = kanbanColumnIdForStatus(lead.status);
+    const fromId = kanbanColumnIdForLead(lead);
     if (!fromId || fromId === target) return;
     if (target === 'bao_gia') {
       void moveLead(lead, 'bao_gia', { audit_note: 'Chuyển sang Báo giá' });
@@ -347,19 +365,34 @@ export function LeadKanbanBoard({
   }
 
   async function runStatusAction(leadId: number, action: KanbanCardAction) {
-    if (!token || !action.nextStatus) return;
+    if (action.blockedReason) {
+      setCardNote({ leadId, text: action.blockedReason });
+      setErr(action.blockedReason);
+      return;
+    }
+    if (!token || !action.nextStatus) {
+      const message = 'Không chuyển được trạng thái.';
+      setCardNote({ leadId, text: message });
+      setErr(message);
+      return;
+    }
     setBusyId(leadId);
     setErr('');
     setMsg('');
+    setCardNote(null);
     try {
       await patchLead(token, leadId, {
         status: action.nextStatus,
         audit_note: action.auditNote ?? action.label,
       });
+      const done = action.kind === 'advance_proposal' ? 'Đã chuyển sang Proposal.' : `Lead #${leadId}: ${action.label}`;
+      setCardNote({ leadId, text: done });
       setMsg(`Lead #${leadId}: ${action.label}`);
       onLeadUpdated?.();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Cập nhật trạng thái thất bại');
+      const message = e instanceof Error ? e.message : 'Cập nhật trạng thái thất bại';
+      setCardNote({ leadId, text: message });
+      setErr(message);
     } finally {
       setBusyId(null);
     }
@@ -432,7 +465,7 @@ export function LeadKanbanBoard({
 
   return (
     <div className="crm-kanban-wrap">
-      {followupCounts ? (
+      {followupCounts && !fromSolution ? (
         <div className="crm-kanban-followup" role="group" aria-label="Lead cần gọi lại">
           {(
             [
@@ -469,7 +502,7 @@ export function LeadKanbanBoard({
         const items = followupFilter
           ? column.items.filter((lead) => leadFollowup(lead)?.kind === followupFilter)
           : column.items;
-        const sortedItems = b2b ? sortKanbanLeads(items) : items;
+        const sortedItems = b2b ? sortKanbanLeadsForColumn(column.key, items) : items;
         const visibleLimit = b2b ? columnLimit[column.key] ?? KANBAN_COLUMN_PAGE : sortedItems.length;
         const shownItems = sortedItems.slice(0, visibleLimit);
         const isCollapsed = column.collapsible && collapsed[column.key];
@@ -500,6 +533,7 @@ export function LeadKanbanBoard({
                     collapsedByUser.current.add(column.key);
                     setCollapsed((current) => ({ ...current, [column.key]: !current[column.key] }));
                   }}
+                  aria-label={isCollapsed ? `Mở cột ${column.title}` : `Thu gọn cột ${column.title}`}
                 >
                   {isCollapsed ? 'Mở' : 'Gọn'}
                 </button>
@@ -600,6 +634,9 @@ export function LeadKanbanBoard({
                         ))}
                       </div>
                       )}
+                      {cardNote?.leadId === lead.id ? (
+                        <p className="crm-kanban-card__note" role="status">{cardNote.text}</p>
+                      ) : null}
                       <div className="crm-kanban-card__footer">
                         <div className="crm-kanban-card__footer-row">
                           <span>{formatLeadArrived(lead)}</span>

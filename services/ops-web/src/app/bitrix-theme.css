@@ -454,6 +454,10 @@ html.ops-shell-bitrix .lead-signal-kpis {
   margin: 0 0 10px;
 }
 html.ops-shell-bitrix .lead-signal-kpi {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 4.25rem;
   background: var(--paper);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -463,12 +467,15 @@ html.ops-shell-bitrix .lead-signal-kpi {
 html.ops-shell-bitrix .lead-signal-kpi b {
   font-size: 1.25rem;
   font-weight: 700;
+  line-height: 1.1;
   color: var(--text-strong);
 }
 html.ops-shell-bitrix .lead-signal-kpi span {
   display: block;
+  min-height: 2.2em;
   font-size: 0.6875rem;
   font-weight: 600;
+  line-height: 1.2;
   color: var(--muted);
 }
 html.ops-shell-bitrix .lead-signal-kpi--hot { border-top-color: var(--hot); }
@@ -829,14 +836,49 @@ html.ops-shell-bitrix .badge {
 }
 
 .crm-kanban-column.is-collapsed {
-  flex-basis: 56px;
-  max-width: 56px;
+  flex: 0 0 188px;
+  max-width: 188px;
+  min-width: 188px;
+  align-self: flex-start;
 }
 
 .crm-kanban-column.is-collapsed .crm-kanban-column__body,
-.crm-kanban-column.is-collapsed .crm-kanban-column__sum,
-.crm-kanban-column.is-collapsed .crm-kanban-column__title {
+.crm-kanban-column.is-collapsed .crm-kanban-column__sum {
   display: none;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0.55rem 0.65rem;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__title {
+  display: block;
+  writing-mode: horizontal-tb;
+  transform: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__toggle {
+  border: 1px solid var(--border, #d7e0da);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .crm-kanban-column.is-drop {
@@ -1191,6 +1233,19 @@ html.ops-shell-bitrix .crm-kanban-card__cta--mark_signed {
   border-color: var(--won);
   color: #fff;
 }
+html.ops-shell-bitrix .crm-kanban-card__cta.is-blocked {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+  cursor: not-allowed;
+  white-space: normal;
+}
+.crm-kanban-card__note {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #9a3412;
+}
 html.ops-shell-bitrix .crm-kanban-card__cta--view_contract {
   background: var(--won);
   border-color: var(--won);
@@ -1376,24 +1431,53 @@ html.ops-shell-bitrix .lead-detail-hero {
   background: var(--paper);
 }
 
-/* P4 — lead record: main column + property rail */
-html.ops-shell-bitrix .lead-detail-grid--record {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+html.ops-shell-bitrix .lead-detail-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  width: 100%;
 }
 
+html.ops-shell-bitrix .lead-detail-top > .lead-detail-identity,
+html.ops-shell-bitrix .lead-detail-top > .lead-party-card {
+  height: 100%;
+  margin: 0;
+  width: auto;
+  max-width: none;
+}
+
+html.ops-shell-bitrix .lead-detail-identity .lead-detail-hero,
+html.ops-shell-bitrix .lead-property-rail--identity {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  max-height: none;
+  position: static;
+  overflow: visible;
+}
+
+@media (max-width: 720px) {
+  html.ops-shell-bitrix .lead-detail-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* P4 — lead record: main column + property rail */
+html.ops-shell-bitrix .lead-detail-grid--record,
 html.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px) minmax(280px, 0.62fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 html.ops-shell-bitrix .lead-property-rail {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  position: sticky;
-  top: 0.75rem;
-  max-height: calc(100vh - var(--topbar-height) - 2rem);
-  overflow-y: auto;
-  padding: 0.85rem 0.9rem 1rem;
+  position: static;
+  top: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0.9rem 1rem 1rem;
   background: var(--paper);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1569,7 +1653,7 @@ html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper__track {
 }
 
 html.ops-shell-bitrix .lead-funnel-panel {
-  overflow: hidden;
+  overflow: visible;
 }
 
 html.ops-shell-bitrix .lead-funnel-panel textarea,
@@ -1653,12 +1737,9 @@ html.ops-shell-bitrix .lead-b2-outcome__done {
   font-size: 0.9rem;
 }
 
-html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record {
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px);
-}
-
+html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record,
 html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px) minmax(0, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 html.ops-shell-expanded.ops-shell-bitrix .lead-funnel-panel {
@@ -1952,6 +2033,13 @@ html.ops-shell-bitrix .lead-detail-hero__actions {
   gap: 0.5rem;
   align-items: center;
   margin-top: 0.65rem;
+}
+html.ops-shell-bitrix .lead-detail-hero__trailing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
 }
 html.ops-shell-bitrix .lead-detail-hero__nba {
   display: inline-flex;

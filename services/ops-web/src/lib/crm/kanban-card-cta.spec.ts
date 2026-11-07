@@ -31,7 +31,7 @@ describe('kanbanCardActions', () => {
   it('quote stage: view + return AM + advance proposal', () => {
     const actions = kanbanCardActions({ id: 5, phone: '0900', status: 'bao_gia' });
     expect(actions.map((a) => a.kind)).toEqual(['view_quote', 'return_am', 'advance_proposal']);
-    expect(actions[0].href).toBe('/crm/leads/5/deal-room');
+    expect(actions[0].href).toBe('/crm/leads/5');
     expect(actions[1].nextStatus).toBe('dang_tu_van');
     expect(actions[2].nextStatus).toBe('proposal');
   });
@@ -55,6 +55,105 @@ describe('kanbanCardActions', () => {
   it('signed contract stage: view only', () => {
     const actions = kanbanCardActions({ id: 8, phone: '', status: 'chot' });
     expect(actions.map((a) => a.kind)).toEqual(['view_contract']);
+    expect(actions[0].href).toBe('/crm/leads/8?tab=contract#lead-contract');
+  });
+
+  it('does not offer Xem báo giá when the quote row is absent', () => {
+    const actions = kanbanCardActions({ id: 5, phone: '0900', status: 'bao_gia', has_quote: false });
+    expect(actions[0]).toMatchObject({ kind: 'lead', label: 'Chưa có báo giá' });
+  });
+
+  it('labels a saved sheet, a sheet sent to Sale, and an approved quote', () => {
+    const saved = kanbanCardActions({
+      id: 5,
+      phone: '0900',
+      status: 'bao_gia',
+      has_quote: false,
+      quote_case_open: true,
+      quote_sheet_saved: true,
+    });
+    expect(saved[0]).toMatchObject({ kind: 'view_quote', label: 'Đã có báo giá' });
+    expect(saved[2]).toMatchObject({
+      label: 'Sale chưa nhận báo giá',
+      blockedReason: 'Sale chưa nhận báo giá.',
+    });
+    expect(saved[2].nextStatus).toBeUndefined();
+
+    const sent = kanbanCardActions({
+      id: 5,
+      phone: '0900',
+      status: 'bao_gia',
+      has_quote: false,
+      quote_case_open: true,
+      quote_sheet_saved: true,
+      quote_sent_to_sale: true,
+    });
+    expect(sent[0]).toMatchObject({ label: 'Đã gửi Sale', href: '/crm/leads/5' });
+    expect(sent[2]).toMatchObject({ label: '→ Proposal', nextStatus: 'proposal' });
+
+    const approved = kanbanCardActions({
+      id: 5,
+      phone: '0900',
+      status: 'bao_gia',
+      has_quote: false,
+      quote_approved: true,
+      quote_sent_to_sale: true,
+      quote_case_open: true,
+    });
+    expect(approved[0].label).toBe('Triển Khai');
+    expect(approved[2].nextStatus).toBe('proposal');
+  });
+
+  it('blocks Tạo HĐ and Proposal when Solution or the quote is missing', () => {
+    const handedOff = kanbanCardActions({
+      id: 920685,
+      phone: '0900000685',
+      status: 'dam_phan',
+      solution_handoff: 'with_solution',
+      has_quote: false,
+      quote_sheet_saved: false,
+      quote_sent_to_sale: false,
+      quote_approved: false,
+    });
+    expect(handedOff.map((action) => action.label)).toContain('Chưa có báo giá');
+    expect(handedOff.find((action) => action.kind === 'advance_contract')).toMatchObject({
+      blockedReason: 'Chưa có Solution đã nộp.',
+    });
+    expect(handedOff.find((action) => action.kind === 'advance_contract')?.nextStatus).toBeUndefined();
+
+    const quoted = kanbanCardActions({
+      id: 5,
+      phone: '0900',
+      status: 'proposal',
+      solution_handoff: 'released',
+      quote_sheet_saved: true,
+      quote_sent_to_sale: true,
+      quote_approved: false,
+    });
+    expect(quoted.find((action) => action.kind === 'advance_contract')).toMatchObject({
+      label: 'Sale chưa duyệt báo giá',
+      blockedReason: 'Sale chưa duyệt báo giá.',
+    });
+
+    const approved = kanbanCardActions({
+      id: 5,
+      phone: '0900',
+      status: 'proposal',
+      solution_handoff: 'released',
+      quote_sent_to_sale: true,
+      quote_approved: true,
+    });
+    expect(approved.find((action) => action.kind === 'advance_contract')?.nextStatus).toBe('won');
+  });
+
+  it('does not offer Xem HĐ when the contract row is absent', () => {
+    const actions = kanbanCardActions({ id: 8, phone: '', status: 'won', has_contract: false });
+    expect(actions[0]).toMatchObject({ kind: 'lead', label: 'Chưa có HĐ', href: '/crm/leads/8' });
+    expect(actions.map((a) => a.label)).not.toContain('Xem HĐ');
+    expect(actions.find((action) => action.kind === 'mark_signed')).toMatchObject({
+      blockedReason: 'Chưa có hợp đồng để xác nhận đã ký.',
+    });
+    expect(actions.find((action) => action.kind === 'mark_signed')?.nextStatus).toBeUndefined();
   });
 });
 

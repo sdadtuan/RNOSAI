@@ -68,6 +68,8 @@ export interface LeadFunnelRow {
 }
 
 import type { LeadFlowKind } from './lead-flow-kind.util';
+import type { QuoteCaseView, QuoteLateEvent } from './quote-case.util';
+import type { SolutionCaseView } from './solution-case.util';
 
 export interface LeadFunnelSnapshot {
   lead_id: number;
@@ -194,6 +196,24 @@ export interface PresalesRow {
   solution_owner_staff_id: number | null;
   solution_claimed_at: string;
   solution_released_at: string;
+  solution_accept_due_at: string;
+  solution_due_at: string;
+  solution_customer_due_at: string;
+  solution_revision_note: string;
+  solution_revision_due_at: string;
+  solution_approved_at: string;
+  quote_offered_at: string;
+  quote_accept_due_at: string;
+  quote_accepted_at: string;
+  quote_due_at: string;
+  quote_sent_back_at: string;
+  quote_change_note: string;
+  quote_approved_at: string;
+  quote_ceo_escalated_at: string;
+  quote_late_events: QuoteLateEvent[];
+  quote_assignee_staff_id: number | null;
+  quote_reassign_note: string;
+  implementation_status: string;
 }
 
 export interface SolutionQueueRow {
@@ -215,6 +235,8 @@ export interface SolutionQueueRow {
 export interface PresalesSnapshot {
   presales: PresalesRow;
   handoff: PresalesHandoffView;
+  solution_case: SolutionCaseView | null;
+  quote_case: QuoteCaseView | null;
   l2_docs: PresalesL2DocsView;
   consult_proposal_sla: PresalesConsultProposalSla;
   tasks: Record<string, PresalesTaskRow[]>;
@@ -262,6 +284,10 @@ export interface AdvancePresalesBody {
 export interface HandoffSolutionBody {
   confirm?: boolean;
   override_reason?: string;
+}
+
+export interface ReturnSolutionBody {
+  reason?: string;
 }
 
 export interface PatchPresalesTaskBody {

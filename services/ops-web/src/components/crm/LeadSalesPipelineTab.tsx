@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
+import { bantDetailHref, LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadPipelineDoneAccordion } from '@/components/crm/LeadPipelineDoneAccordion';
 import { LeadPipelineSlaStrip } from '@/components/crm/LeadPipelineSlaStrip';
@@ -41,6 +43,7 @@ export function LeadSalesPipelineTab({
   slaCountdown,
   slaState,
   slaDetail,
+  leadStatus = null,
 }: {
   token: string;
   leadId: number;
@@ -60,6 +63,7 @@ export function LeadSalesPipelineTab({
   onError?: (msg: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onFunnelUpdated?: () => void;
+  onIntakeSaved?: () => void;
   hideM1Card?: boolean;
   showPresalesBlock?: boolean;
   highlightAfterCall?: boolean;
@@ -68,7 +72,10 @@ export function LeadSalesPipelineTab({
   slaCountdown?: string | null;
   slaState?: 'ok' | 'warning' | 'breach';
   slaDetail?: string | null;
+  /** CRM lead status. Hides receive-SLA controls once the lead is at Tư vấn. */
+  leadStatus?: string | null;
 }) {
+  const router = useRouter();
   const stepperVm = useMemo(() => resolveFunnelStepper(stepperInput), [stepperInput]);
   const activeState = stepperVm.steps.find((s) => s.key === activeStepKey)?.state ?? 'current';
   const viewModel = {
@@ -93,19 +100,41 @@ export function LeadSalesPipelineTab({
 
   return (
     <div className="lead-pipeline-tab" role="tabpanel" id="lead-pipeline-panel">
-      <LeadPipelineSlaStrip
-        worstLabel={onB2 ? 'SLA phản hồi đầu → bước Liên hệ' : slaLabel ?? 'SLA'}
-        countdown={slaCountdown ?? null}
-        state={slaState ?? 'ok'}
-        detail={slaDetailNode}
-      />
+      {onB2 ? null : (
+        <LeadPipelineSlaStrip
+          worstLabel={slaLabel ?? 'SLA'}
+          countdown={slaCountdown ?? null}
+          state={slaState ?? 'ok'}
+          detail={slaDetailNode}
+        />
+      )}
       <div className="lead-pipeline-tab__head">
+        <span className="lead-zone__kicker">Bước pipeline</span>
         <CrmFunnelStepper
           {...stepperInput}
           viewModel={viewModel}
           showTitle={false}
           actionBusy={actionBusy}
           onPrimaryAction={readOnly ? undefined : onFunnelPrimaryAction}
+          onEditBant={
+            readOnly
+              ? undefined
+              : () => {
+                  const summary = stepperInput.intakeSummary;
+                  const sessionId = summary?.preview?.id ?? summary?.latest_completed?.id;
+                  router.push(bantDetailHref(leadId, sessionId, serviceSlug));
+                }
+          }
+          beforeAction={
+            activeStepKey === 'intake_bant' &&
+            (stepperInput.intakeSummary?.preview || stepperInput.intakeSummary?.latest_completed) ? (
+              <LeadPipelineIntakePanel
+                leadId={leadId}
+                serviceSlug={serviceSlug}
+                intakeSummary={stepperInput.intakeSummary}
+              />
+            ) : null
+          }
         />
       </div>
       <LeadFunnelPanel
@@ -130,6 +159,7 @@ export function LeadSalesPipelineTab({
         activeStepState={activeState}
         intakeSummary={stepperInput.intakeSummary}
         onStepChange={onStepChange}
+        leadStatus={leadStatus}
       />
       <LeadPipelineDoneAccordion steps={stepperVm.steps} onReview={onStepChange} />
     </div>

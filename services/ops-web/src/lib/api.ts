@@ -1,7 +1,34 @@
 import type { StaffSectionCap, StoredStaffUser } from './auth';
 
-export const API_BASE =
-  (process.env.NEXT_PUBLIC_PTT_API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function isPrivateLanHost(host: string): boolean {
+  return (
+    host.startsWith('192.168.') ||
+    host.startsWith('10.') ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+  );
+}
+
+function apiBase(): string {
+  const configured = (process.env.NEXT_PUBLIC_PTT_API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
+  if (typeof window === 'undefined') {
+    if (process.env.NODE_ENV !== 'production') return 'http://127.0.0.1:3000';
+    return configured;
+  }
+  const host = window.location.hostname;
+  if (isLoopbackHost(host)) {
+    const name = host === '::1' ? '127.0.0.1' : host;
+    return `http://${name}:3000`;
+  }
+  // LAN page stays on this origin. Next proxies /api to the local API.
+  if (isPrivateLanHost(host)) return '';
+  return configured;
+}
+
+export const API_BASE = apiBase();
 
 export interface StaffLoginResponse {
   access_token: string;
@@ -42,6 +69,8 @@ export interface LeadRow {
   owner_name?: string | null;
   created_at: string;
   received_at: string;
+  updated_at?: string | null;
+  last_call_at?: string | null;
   is_duplicate: boolean;
   b2b_project_id?: string | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect' | string | null;
@@ -60,6 +89,18 @@ export interface LeadRow {
   b2_complete?: boolean;
   b2_assigned_at?: string | null;
   solution_handoff?: string | null;
+  /** True when a crm_proposals row exists. False hides “Xem báo giá”. */
+  has_quote?: boolean;
+  /** Saved quote-sheet lines on the active presales row. */
+  quote_sheet_saved?: boolean;
+  /** Marketing Leader has submitted the sheet to Sale. */
+  quote_sent_to_sale?: boolean;
+  /** Sale approved the quote (Triển Khai). */
+  quote_approved?: boolean;
+  /** Quote case exists (solution released or quote work started). */
+  quote_case_open?: boolean;
+  /** True when a crm_contracts row exists. False hides “Xem HĐ”. */
+  has_contract?: boolean;
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;
@@ -78,6 +119,7 @@ export interface LeadsListResponse {
   total: number;
   limit: number;
   offset: number;
+  signals?: { hot: number; consult: number; ai: number; won: number };
 }
 
 export class ApiError extends Error {
@@ -511,8 +553,12 @@ export async function createLead(token: string, body: CreateLeadBody): Promise<L
 export async function fetchLeadB2bProjectOptions(
   token: string,
   status = 'active',
+  purpose?: 'create',
 ): Promise<Array<{ id: string; code: string; name: string; status: string }>> {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const params = new URLSearchParams();
+  if (purpose === 'create') params.set('for', 'create');
+  else if (status) params.set('status', status);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   const out = await crmFetch<{
     projects: Array<{ id: string; code: string; name: string; status: string }>;
   }>(token, `/api/v1/leads/b2b-project-options${qs}`);
@@ -1539,6 +1585,7 @@ export type LeadFrSlaState = {
   lead_id: number;
   settings_version: number;
   fr1_hours: number;
+  assigned_at?: string | null;
   fr1_due_at: string | null;
   first_call_at: string | null;
   fr1_breached: boolean;
@@ -1888,6 +1935,56 @@ export interface LeadFunnelSnapshot {
       solution_owner_staff_id: number | null;
       solution_owner_name: string;
     };
+    solution_case?: {
+      phase: 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_phan_hoi';
+      step_label: string;
+      expected_role: 'Marketing Leader' | 'Sale';
+      assignee_staff_id: number | null;
+      assignee_name: string;
+      revision_note: string;
+      timer_label: string;
+      timer_due_at: string;
+      timer_overdue: boolean;
+      timer_warning: boolean;
+      timer_stopped: boolean;
+      warning_note: string;
+      sla_note: string;
+    } | null;
+    quote_case?: {
+      phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'sale_review' | 'trien_khai';
+      step_label: string;
+      expected_role: 'Sale' | 'Marketing Leader' | '';
+      accept_due_at: string;
+      quote_due_at: string;
+      change_note: string;
+      assignee_staff_id: number | null;
+      assignee_name: string;
+      reassign_note: string;
+      timer_label: string;
+      timer_due_at: string;
+      timer_overdue: boolean;
+      timer_warning?: boolean;
+      timer_stopped: boolean;
+      warning_note?: string;
+      sla_note: string;
+      ceo_escalation?: {
+        staff_id: number | null;
+        staff_name: string;
+        timer: 'accept' | 'finish';
+        timer_label: string;
+        since: string;
+        escalated_at: string;
+      } | null;
+      late_events?: Array<{
+        staff_id: number | null;
+        staff_name: string;
+        timer: 'accept' | 'finish';
+        timer_label: string;
+        due_at: string;
+        logged_at: string;
+      }>;
+      transfer_candidates?: Array<{ id: number; name: string }>;
+    } | null;
     l2_docs?: {
       service_slug: string;
       items: Array<{ key: string; label: string; checked: boolean }>;
@@ -2179,6 +2276,187 @@ export async function releaseLeadToSales(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/release-to-sales`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export async function approveLeadSolution(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/approve-solution`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function requestLeadSolutionEdits(
+  token: string,
+  leadId: number,
+  note: string,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/request-solution-edits`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function acceptLeadQuoteCase(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/accept-quote-case`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function sendLeadQuoteToSales(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/send-quote-to-sales`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function approveLeadQuote(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/approve-quote`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function requestLeadQuoteEdits(
+  token: string,
+  leadId: number,
+  note: string,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/request-quote-edits`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function transferLeadQuoteCase(
+  token: string,
+  leadId: number,
+  staffId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/transfer-quote-case`, {
+    method: 'POST',
+    body: JSON.stringify({ staff_id: staffId }),
+  });
+}
+
+export interface LeadQuoteSheetStaff {
+  id: number;
+  name: string;
+  position_code: string;
+  position_name: string;
+  monthly_salary_vnd: number;
+  hours_per_month: number;
+  hourly_vnd: number;
+}
+
+export interface LeadQuoteSheetRow {
+  item_code: string;
+  task: string;
+  subtask: string;
+  role_code: string;
+  role_label: string;
+  hours: number;
+  qty: number;
+  unit: string;
+  chargeable: boolean;
+  staff_id: number | null;
+  staff_name: string;
+  position_name: string;
+  monthly_salary_vnd: number;
+  hours_per_month: number;
+  hourly_vnd: number;
+  amount_vnd: number;
+  included: boolean;
+}
+
+export interface LeadQuoteSheet {
+  editable: boolean;
+  services: Array<{ code: string; name: string; item_count: number }>;
+  staff: LeadQuoteSheetStaff[];
+  selected_service_codes: string[];
+  groups: Array<{
+    service_code: string;
+    service_name: string;
+    phase_code: string;
+    phase_name: string;
+    rows: LeadQuoteSheetRow[];
+  }>;
+  included_count: number;
+  missing_staff_count: number;
+  total_vnd: number;
+  promo_percent: number;
+  vat_percent: number;
+  promo_vnd: number;
+  vat_vnd: number;
+  grand_total_vnd: number;
+}
+
+export async function fetchLeadQuoteSheet(
+  token: string,
+  leadId: number,
+  serviceCodes?: string[],
+): Promise<LeadQuoteSheet> {
+  const qs = serviceCodes ? `?services=${encodeURIComponent(serviceCodes.join(','))}` : '';
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/quote-sheet${qs}`, { method: 'GET' });
+}
+
+export async function saveLeadQuoteSheet(
+  token: string,
+  leadId: number,
+  body: {
+    service_codes: string[];
+    lines: Array<{ item_code: string; staff_id: number | null; hours: number; included: boolean }>;
+    vat_percent: number;
+    promo_percent: number;
+  },
+): Promise<LeadQuoteSheet> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/quote-sheet`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+const QUOTE_DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+export async function downloadLeadQuoteDocx(token: string, leadId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/quote-sheet/pdf`, {
+    headers: { ...authHeaders(token), Accept: QUOTE_DOCX_TYPE },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string | string[] }>(res);
+    throw new ApiError(nestApiErrorMessage(body) ?? 'Không tải được Word báo giá', res.status);
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: QUOTE_DOCX_TYPE });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), `bao-gia-${leadId}.docx`);
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function returnLeadToSales(
+  token: string,
+  leadId: number,
+  reason: string,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/return-to-sales`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
   });
 }
 

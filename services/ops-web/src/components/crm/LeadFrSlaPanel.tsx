@@ -6,6 +6,13 @@ import {
   logLeadCallAttempt,
   type LeadFrSlaState,
 } from '@/lib/api';
+import { resolveNewLeadClock, type NewLeadClock } from '@/lib/crm/new-lead-clock';
+import { leadStatusAtOrAfterConsult } from '@/lib/crm/lead-status';
+import {
+  defaultTeamSlaDocument,
+  normalizeTeamSlaDocument,
+  type TeamSlaDocument,
+} from '@/lib/crm/team-sla-profiles';
 
 const CALL_RESULTS: { value: string; label: string; hint: string }[] = [
   {
@@ -125,11 +132,32 @@ function channelLabel(code: string | null | undefined): string {
   return CHANNEL_VI[key] ?? code ?? '—';
 }
 
-function fr1Badge(sla: LeadFrSlaState | null): { tone: 'ok' | 'breach' | 'pending'; text: string } {
-  if (!sla) return { tone: 'pending', text: '—' };
-  if (sla.fr1_overdue) return { tone: 'breach', text: 'Quá hạn phản hồi đầu' };
-  if (sla.first_call_at) return { tone: 'ok', text: 'Đã phản hồi đúng hạn' };
-  return { tone: 'pending', text: fmtRemain(sla.fr1_remaining_ms) };
+const CLAIM_KEY = 'ptt_local_lead_claim_v1';
+
+function readClaim(leadId: number): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(CLAIM_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    const value = map[String(leadId)];
+    return typeof value === 'string' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeClaim(leadId: number, iso: string): void {
+  const raw = window.localStorage.getItem(CLAIM_KEY);
+  const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  map[String(leadId)] = iso;
+  window.localStorage.setItem(CLAIM_KEY, JSON.stringify(map));
+}
+
+function clockBadge(clock: NewLeadClock | null): { tone: 'ok' | 'breach' | 'pending'; text: string } {
+  if (!clock) return { tone: 'pending', text: '—' };
+  if (clock.phase === 'done') return { tone: 'ok', text: 'Đã cập nhật' };
+  if (clock.overdue) return { tone: 'breach', text: clock.phase === 'claim' ? 'Quá hạn nhận lead' : 'Quá hạn cập nhật' };
+  return { tone: 'pending', text: fmtRemain(clock.remainingMs) };
 }
 
 export function LeadFrSlaPanel({
@@ -137,12 +165,15 @@ export function LeadFrSlaPanel({
   leadId,
   canWrite = true,
   variant = 'full',
+  status = null,
 }: {
   token: string;
   leadId: number;
   canWrite?: boolean;
   /** embedded = nằm trong bước B2, bỏ khung/tiêu đề trùng. */
   variant?: 'full' | 'embedded';
+  /** CRM status. Receive-SLA controls hide once this is Tư vấn or later. */
+  status?: string | null;
 }) {
   const [sla, setSla] = useState<LeadFrSlaState | null>(null);
   const [error, setError] = useState('');
@@ -155,6 +186,9 @@ export function LeadFrSlaPanel({
   const [callbackAt, setCallbackAt] = useState('');
   const [confirmWrong, setConfirmWrong] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [teamSla, setTeamSla] = useState<TeamSlaDocument | null>(null);
+  const [claimedAt, setClaimedAt] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
 
   const reload = useCallback(async () => {
     try {
@@ -169,6 +203,32 @@ export function LeadFrSlaPanel({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    setClaimedAt(readClaim(leadId));
+  }, [leadId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/local-team-sla', { cache: 'no-store' });
+        if (!res.ok) throw new Error('local sla');
+        const body = normalizeTeamSlaDocument((await res.json()) as unknown);
+        if (!cancelled) setTeamSla(body);
+      } catch {
+        if (!cancelled) setTeamSla(defaultTeamSlaDocument());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const selectedResult = useMemo(
     () => CALL_RESULTS.find((r) => r.value === callResult) ?? CALL_RESULTS[0],
@@ -209,6 +269,26 @@ export function LeadFrSlaPanel({
   };
 
   const embedded = variant === 'embedded';
+  const leadClock = useMemo(
+    () =>
+      resolveNewLeadClock({
+        document: teamSla,
+        assignedAt: sla?.assigned_at,
+        claimedAt,
+        firstCallAt: sla?.first_call_at,
+        now,
+      }),
+    [teamSla, sla?.assigned_at, sla?.first_call_at, claimedAt, now],
+  );
+  const saleProfile = teamSla?.profiles.find((row) => row.code === 'sale_service');
+
+  const onClaim = () => {
+    const iso = new Date().toISOString();
+    writeClaim(leadId, iso);
+    setClaimedAt(iso);
+    setNow(new Date());
+    setMsg('Đã nhận lead trên máy này. Đồng hồ cập nhật bắt đầu từ bây giờ.');
+  };
 
   if (!sla && !error) {
     return (
@@ -216,33 +296,37 @@ export function LeadFrSlaPanel({
         className={`lead-fr-sla lead-fr-sla--loading${embedded ? ' lead-fr-sla--embedded' : ''}`}
         aria-busy="true"
       >
-        <p className="muted">Đang tải SLA phản hồi đầu…</p>
+        <p className="muted">Đang tải hạn lead mới…</p>
       </section>
     );
   }
 
-  const badge = fr1Badge(sla);
-  const fr1Hours = sla?.fr1_hours ?? 0;
+  const badge = clockBadge(leadClock);
+  const claimMinutes = saleProfile?.sale.claim_in_hours_minutes ?? 15;
+  const updateHours = saleProfile?.sale.update_after_claim_hours ?? 1;
+  const pastConsult = leadStatusAtOrAfterConsult(status);
+  const showClockBadge = !(pastConsult && leadClock.phase === 'claim' && leadClock.overdue);
+  const showClaimButton = leadClock.phase === 'claim' && canWrite && !pastConsult;
 
   return (
     <section
       className={`lead-fr-sla${embedded ? ' lead-fr-sla--embedded' : ''}`}
-      aria-label="SLA phản hồi đầu"
+      aria-label="Hạn lead mới"
     >
       <header className="lead-fr-sla__head">
         <div className="lead-fr-sla__titles">
-          {embedded ? null : <h3>SLA phản hồi đầu</h3>}
-          {embedded ? null : (
-            <p className="lead-fr-sla__sub">
-              Theo dõi lần gọi điện thoại đầu tiên sau khi lead được giao.
-            </p>
-          )}
+          {embedded ? null : <h3>Hạn lead mới</h3>}
           {embedded ? (
             <p className="lead-fr-sla__sub">
-              Đồng hồ phản hồi đầu · hạn mặc định {fr1Hours || '—'} giờ làm việc · chỉ kênh điện
-              thoại.
+              Lead mới · nhận trong {claimMinutes} phút · sau khi nhận, cập nhật trong {updateHours}{' '}
+              giờ. Mốc Sale dịch vụ trên máy này.
             </p>
-          ) : null}
+          ) : (
+            <p className="lead-fr-sla__sub">
+              Nhận lead trong {claimMinutes} phút. Bấm Nhận lead rồi mới tính {updateHours} giờ cập
+              nhật. Mốc lấy từ admin trên máy này.
+            </p>
+          )}
         </div>
         <div className="lead-fr-sla__head-actions">
           <button
@@ -253,23 +337,31 @@ export function LeadFrSlaPanel({
           >
             {guideOpen ? 'Ẩn hướng dẫn' : 'Hướng dẫn SLA'}
           </button>
-          <span className={`lead-fr-sla__badge lead-fr-sla__badge--${badge.tone}`}>{badge.text}</span>
+          {showClockBadge ? (
+            <span className={`lead-fr-sla__badge lead-fr-sla__badge--${badge.tone}`}>{badge.text}</span>
+          ) : null}
+          {showClaimButton ? (
+            <button type="button" className="btn btn-primary" onClick={onClaim}>
+              Nhận lead
+            </button>
+          ) : null}
         </div>
       </header>
 
       {guideOpen ? (
         <div className="lead-fr-sla__guide" role="note">
           <p>
-            <strong>Phản hồi đầu</strong> là lần <em>gọi điện thoại</em> đầu tiên sau khi AE nhận
-            lead. Thời hạn mặc định: <strong>{fr1Hours || '—'} giờ làm việc</strong>.
+            <strong>Lead mới</strong> có hai mốc trên máy này. Trong ca, bấm{' '}
+            <strong>Nhận lead</strong> trong <strong>{claimMinutes} phút</strong> kể từ lúc gán.
+            Sau khi nhận, ghi cuộc gọi trong <strong>{updateHours} giờ</strong>.
           </p>
           <ul>
             <li>
-              Chỉ kênh <strong>Điện thoại</strong> được tính vào phản hồi đầu. Zalo / SMS / email
-              ghi nhận lịch sử nhưng không dừng đồng hồ phản hồi đầu.
+              Ngoài ca, hạn nhận là giờ trong admin (mặc định 9:00 sáng ngày làm việc kế tiếp). Bấm
+              Nhận lead rồi đồng hồ 1 giờ cập nhật mới chạy.
             </li>
             <li>
-              <strong>Hạn phản hồi:</strong> thời điểm phải hoàn thành lần gọi đầu.
+              Ghi cuộc gọi điện thoại thì đóng hạn cập nhật. Zalo, SMS, email không đóng hạn này.
             </li>
             <li>
               <strong>Giữ đến:</strong> thời điểm hệ thống còn giữ lead cho AE hiện tại (sau đổ
@@ -288,9 +380,10 @@ export function LeadFrSlaPanel({
 
       {sla ? (
         <div className="lead-fr-sla__metrics" role="list">
-          <div role="listitem" title="Thời điểm phải hoàn thành lần gọi điện thoại đầu tiên">
-            <span className="lead-fr-sla__metric-label">Hạn phản hồi đầu</span>
-            <strong>{fmtTs(sla.fr1_due_at)}</strong>
+          <div role="listitem" title={leadClock.detail}>
+            <span className="lead-fr-sla__metric-label">{leadClock.label}</span>
+            <strong>{leadClock.dueAt ? fmtTs(leadClock.dueAt) : '—'}</strong>
+            <span className="lead-fr-sla__hint">{leadClock.detail}</span>
           </div>
           <div
             role="listitem"
@@ -325,7 +418,7 @@ export function LeadFrSlaPanel({
       {canWrite ? (
         <form className="lead-fr-sla__form" onSubmit={(e) => void onSubmit(e)}>
           <div className="lead-fr-sla__form-head">
-            <h4>Ghi nhận cuộc gọi</h4>
+            <h4>Ghi cuộc gọi — phản hồi đầu</h4>
             <p className="lead-fr-sla__hint">{selectedResult.hint}</p>
           </div>
           <label>
@@ -392,7 +485,7 @@ export function LeadFrSlaPanel({
             className="btn btn-primary"
             disabled={busy || (callResult === 'callback_requested' && !callbackAt)}
           >
-            {busy ? 'Đang lưu…' : 'Ghi nhận cuộc gọi'}
+            {busy ? 'Đang lưu…' : 'Ghi cuộc gọi — phản hồi đầu'}
           </button>
         </form>
       ) : null}

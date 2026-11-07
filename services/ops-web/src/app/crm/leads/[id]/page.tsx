@@ -15,14 +15,21 @@ import {
   type LeadWorkspaceDesktopTab,
 } from '@/lib/crm/lead-pipeline-tab.util';
 import type {
+  ConsultGateState,
   FunnelPrimaryAction,
+  IntakeStepSummary,
   PresalesFunnelStepKey,
 } from '@/lib/crm/funnel-stepper.types';
+import { summarizeLeadIntake } from '@/lib/crm/funnel-stepper.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
+import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
+import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
+import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
+import { isBaoGiaKanbanColumn, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
-import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
-import { isAccountExecutive, leadAuditForViewer } from '@/lib/crm/lead-ae-visibility';
+import { isAccountExecutive, isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
@@ -30,14 +37,16 @@ import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
+import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
+import { LeadStageRecords } from '@/components/crm/LeadStageRecords';
 import { LeadPropertyRail } from '@/components/crm/LeadPropertyRail';
 import { getQtQuotes } from '@/lib/crm/qt-api';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
 import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
-import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
+import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import { mergeLeadCareHistory } from '@/lib/crm/lead-history';
 import {
   leadFlowKindLabel,
@@ -48,6 +57,10 @@ import {
   deriveS0IntakeGo,
   resolveLeadStageVisibility,
 } from '@/lib/crm/lead-stage-visibility';
+import {
+  canViewCrmLeadDetail,
+  resolvePresalesSolutionCaps,
+} from '@/lib/crm/presales-solution-caps';
 import {
   LEAD_CONSULT_TAB_HASH,
   showLeadConsultTab,
@@ -74,15 +87,15 @@ import type { LeadMeetingPrepResponse } from '@/app/crm/leads/meeting-prep/lead-
 import { LeadMeetingPrepPanel } from '@/app/crm/leads/meeting-prep/LeadMeetingPrepPanel';
 import { PostCallDebriefModal } from '@/app/crm/leads/meeting-prep/PostCallDebriefModal';
 import { ShortCallDebriefModal } from '@/app/crm/leads/meeting-prep/ShortCallDebriefModal';
-import { MentionComposer } from '@/components/staff/MentionComposer';
 import {
   assignLead,
-  createLeadActivity,
   fetchCatalogBundle,
   fetchCrmStaffList,
   fetchLead,
   fetchLeadContractReadiness,
+  fetchIntakeSessions,
   fetchLeadFunnel,
+  fetchLeadPresalesConsultGate,
   fetchLeadActivities,
   fetchLeadAttribution,
   fetchLeadAudit,
@@ -102,6 +115,7 @@ import {
   type LeadAttributionData,
   type LeadAuditBundle,
   type LeadCopilotContext,
+  type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
   type LeadStatusOptionsResponse,
@@ -118,18 +132,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-const ACTIVITY_TYPES = [
-  { value: 'note', label: 'Ghi chú' },
-  { value: 'call', label: 'Gọi điện' },
-  { value: 'email', label: 'Email' },
-  { value: 'message', label: 'Tin nhắn' },
-  { value: 'meeting', label: 'Họp' },
-  { value: 'proposal', label: 'Báo giá' },
-  { value: 'task', label: 'Công việc' },
-  { value: 'reminder', label: 'Nhắc việc' },
-];
-
-type LeadDetailTab = 'detail' | 'activity' | 'ai';
+type LeadDetailTab = 'detail' | 'history' | 'ai';
 type B2bOverviewTab = 'overview' | 'consult';
 
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
@@ -208,22 +211,23 @@ export default function CrmLeadDetailPage() {
   const [auditNote, setAuditNote] = useState('');
   const [assignToId, setAssignToId] = useState('');
   const [assignReason, setAssignReason] = useState('');
-  const [activityType, setActivityType] = useState('note');
-  const [activityContent, setActivityContent] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const [addingActivity, setAddingActivity] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
   const [b2bPane, setB2bPane] = useState<B2bOverviewTab>('overview');
   const [desktopTab, setDesktopTab] = useState<LeadWorkspaceDesktopTab>('pipeline');
+  const userPickedWorkspaceTab = useRef(false);
+  const workspaceTabLeadId = useRef<number | null>(null);
   const [pipelineStep, setPipelineStep] = useState<PresalesFunnelStepKey>('b2');
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
+  const [intakeSummary, setIntakeSummary] = useState<IntakeStepSummary | null>(null);
+  const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
   const [contractChecks, setContractChecks] = useState<Array<{ key: string; ok: boolean }>>([]);
   const [contractRefresh, setContractRefresh] = useState(0);
@@ -243,10 +247,12 @@ export default function CrmLeadDetailPage() {
   const [nbaBusy, setNbaBusy] = useState(false);
   const [b2CallJustPlaced, setB2CallJustPlaced] = useState(false);
   const [cockpitOpen, setCockpitOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
+  const solutionCaps = useMemo(() => resolvePresalesSolutionCaps(user), [user]);
 
   const leadFlowKind = useMemo(
     () =>
@@ -257,6 +263,17 @@ export default function CrmLeadDetailPage() {
   const statusDropdownOptions = statusOptionsApi?.allowed_next ?? [];
   const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
+  const quoteStage = normalizeLeadStatus(lead?.status);
+  // Báo giá column includes Đàm phán / proposal, not only status bao_gia.
+  const inBaoGiaColumn = isBaoGiaKanbanColumn(lead?.status);
+  const quoteCasePhase = funnelSnap?.presales?.quote_case?.phase ?? '';
+  const quoteWithSale = quoteCasePhase === 'sale_review';
+  const showLeadQuoteSheet = quoteCasePhase === 'bao_gia' || quoteCasePhase === 'sale_review';
+  const hourQuoteEdit = inBaoGiaColumn && !quoteWithSale;
+  const hourQuoteView =
+    quoteWithSale ||
+    (!inBaoGiaColumn && ['won', 'chot', 'post_sale', 'trien_khai'].includes(quoteStage));
+  const showDealQuoteEntry = hourQuoteEdit || hourQuoteView;
   const presalesStage = funnelPresalesStage(funnelSnap);
   const b2Complete = funnelB2Complete(funnelSnap);
   const intakeGo = deriveS0IntakeGo(presalesStage);
@@ -276,8 +293,9 @@ export default function CrmLeadDetailPage() {
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
   const pipelineTabOn = isLeadPipelineTabEnabled();
+  const marketingLeader = isMarketingLeader(user);
   const showPipelineTab =
-    pipelineTabOn && shouldShowPipelineTab(leadFlowKind) && hasCap(user, 'crm_leads', 'view');
+    pipelineTabOn && shouldShowPipelineTab(leadFlowKind) && canViewCrmLeadDetail(user);
   const prepDeepLink = searchParams.get('prep') === '1';
 
   const nba = useMemo(() => {
@@ -342,9 +360,39 @@ export default function CrmLeadDetailPage() {
     } catch {
       /* funnel optional until B2 complete */
     }
+    try {
+      const [sessions, gateOut] = await Promise.all([
+        fetchIntakeSessions(access, { lead_id: leadId }).catch(() => [] as IntakeSessionRow[]),
+        fetchLeadPresalesConsultGate(access, leadId).catch(() => null),
+      ]);
+      setIntakeSummary(summarizeLeadIntake(sessions));
+      setConsultGate(
+        gateOut?.gate ?? {
+          ok: false,
+          level: 'block',
+          messages: ['Chưa đọc được điều kiện giao Solution. Tải lại trang.'],
+          requires_confirm: false,
+          requires_override: false,
+        },
+      );
+    } catch {
+      setIntakeSummary(null);
+      setConsultGate(null);
+    }
   }, [leadId, showB2bFlow]);
 
+  const selectWorkspaceTab = useCallback((tab: LeadWorkspaceDesktopTab) => {
+    userPickedWorkspaceTab.current = true;
+    const y = typeof window !== 'undefined' ? window.scrollY : 0;
+    setDesktopTab(tab);
+    if (typeof window === 'undefined') return;
+    const hold = () => window.scrollTo(0, y);
+    requestAnimationFrame(hold);
+    window.setTimeout(hold, 0);
+  }, []);
+
   const openConsultTab = useCallback(() => {
+    userPickedWorkspaceTab.current = true;
     setB2bPane('consult');
     setDesktopTab('consult');
     setMobileTab('detail');
@@ -381,9 +429,11 @@ export default function CrmLeadDetailPage() {
   }, []);
 
   const openOverviewTab = useCallback(() => {
+    userPickedWorkspaceTab.current = true;
     setB2bPane('overview');
+    setDesktopTab(marketingLeader ? 'history' : 'pipeline');
     setMobileTab('detail');
-  }, []);
+  }, [marketingLeader]);
 
   const openR5EditOnOverview = useCallback(() => {
     openOverviewTab();
@@ -579,9 +629,11 @@ export default function CrmLeadDetailPage() {
         setTerminalDebriefOpen(true);
         break;
       case 'add_activity':
-        setMobileTab('activity');
+        userPickedWorkspaceTab.current = true;
+        setMobileTab('detail');
+        setDesktopTab('history');
         requestAnimationFrame(() => {
-          document.getElementById('lead-activity-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          document.getElementById('lead-activity-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         break;
       case 'create_contract': {
@@ -705,12 +757,13 @@ export default function CrmLeadDetailPage() {
     }
     const cached = getStoredUser();
     if (cached) setUser(cached);
+    if (cached && canViewCrmLeadDetail(cached)) return access;
     try {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
-      if (!hasCap(me, 'crm_leads', 'view')) {
-        setError('Không có quyền xem CRM leads');
+      if (!canViewCrmLeadDetail(me)) {
+        setError('Cần quyền xem lead (crm_leads.view hoặc crm_presales_solution.view)');
         return null;
       }
       return access;
@@ -727,6 +780,10 @@ export default function CrmLeadDetailPage() {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
+      if (!canViewCrmLeadDetail(me)) {
+        setError('Cần quyền xem lead (crm_leads.view hoặc crm_presales_solution.view)');
+        return null;
+      }
       return access;
     }
   }, [router]);
@@ -772,33 +829,44 @@ export default function CrmLeadDetailPage() {
     }
     void (async () => {
       const access = await ensureAuth();
-      if (!access) return;
+      if (!access) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
+      let row: Awaited<ReturnType<typeof fetchLead>>;
       try {
-        const [row, catalog, attr, staffOut] = await Promise.all([
-          fetchLead(access, leadId),
+        row = await fetchLead(access, leadId);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Tải lead thất bại');
+        setLoading(false);
+        return;
+      }
+      setLead(row);
+      setParty({
+        company_name: row.company_name ?? '',
+        company_address: row.company_address ?? '',
+        phone: row.phone ?? '',
+        email: row.email ?? '',
+        logo_asset_id: row.logo_asset_id ?? '',
+        full_name: row.full_name ?? '',
+      });
+      setStatus(row.status || 'moi');
+      setLoading(false);
+      void getQtQuotes(access, { q: `LD-${leadId}`, page_size: 1 })
+        .then((list) => {
+          const existing = list.items.find((item) => item.lead_code === `LD-${leadId}` || item.id);
+          setQuoteHref(existing ? `/crm/proposals/${existing.id}` : `/crm/proposals/new?lead_id=${leadId}`);
+        })
+        .catch(() => setQuoteHref(`/crm/proposals/new?lead_id=${leadId}`));
+      try {
+        const [catalog, attr, staffOut] = await Promise.all([
           fetchCatalogBundle(access).catch(() => null),
           fetchLeadAttribution(access, leadId).catch(() => null),
           fetchCrmStaffList(access).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
         ]);
-        setLead(row);
-        setParty({
-          company_name: row.company_name ?? '',
-          company_address: row.company_address ?? '',
-          phone: row.phone ?? '',
-          email: row.email ?? '',
-          logo_asset_id: row.logo_asset_id ?? '',
-          full_name: row.full_name ?? '',
-        });
         setAttribution(attr);
-        setStatus(row.status || 'moi');
-        void getQtQuotes(access, { q: `LD-${leadId}`, page_size: 1 })
-          .then((list) => {
-            const existing = list.items.find((item) => item.lead_code === `LD-${leadId}` || item.id);
-            setQuoteHref(existing ? `/crm/proposals/${existing.id}` : `/crm/proposals/new?lead_id=${leadId}`);
-          })
-          .catch(() => setQuoteHref(`/crm/proposals/new?lead_id=${leadId}`));
         const assignable = (staffOut.staff ?? []).filter(
           (s) => s.active !== 0 && s.can_receive_leads !== false,
         );
@@ -822,16 +890,16 @@ export default function CrmLeadDetailPage() {
         if (catalog?.services?.length) {
           setCatalogServices(catalog.services.filter((service) => service.active));
         }
-        await reloadTimeline(access);
-        await reloadStatusOptions(access);
-        await reloadCopilotContext(access);
-        if (showB2bSalesFlowBar(resolveLeadFlowKindFromLead(row, null))) {
-          await reloadFunnel(access);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải lead thất bại');
-      } finally {
-        setLoading(false);
+        await Promise.all([
+          reloadTimeline(access),
+          reloadStatusOptions(access),
+          reloadCopilotContext(access),
+          showB2bSalesFlowBar(resolveLeadFlowKindFromLead(row, null))
+            ? reloadFunnel(access)
+            : Promise.resolve(),
+        ]);
+      } catch {
+        /* Hồ sơ đã hiện. Phần phụ không chặn trang. */
       }
     })();
   }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
@@ -878,6 +946,17 @@ export default function CrmLeadDetailPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (!window.location.hash.startsWith('#lead-contract')) return;
+    if (desktopTab !== 'contract') return;
+    const targetId = window.location.hash.slice(1);
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [desktopTab, contractSummary]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     const syncHash = () => {
       if (window.location.hash === LEAD_CONSULT_TAB_HASH && showLeadConsultTab(funnelSnap)) {
         openConsultTab();
@@ -890,6 +969,15 @@ export default function CrmLeadDetailPage() {
 
   useEffect(() => {
     if (!showPipelineTab) return;
+    if (marketingLeader) {
+      setDesktopTab((current) => (current === 'pipeline' ? 'history' : current));
+      return;
+    }
+    if (workspaceTabLeadId.current !== leadId) {
+      userPickedWorkspaceTab.current = false;
+      workspaceTabLeadId.current = leadId;
+    }
+    if (userPickedWorkspaceTab.current) return;
     const hash = typeof window !== 'undefined' ? window.location.hash : '';
     const mapped = mapLegacyHashToPipeline(hash, funnelPresalesStage(funnelSnap));
     const tab = defaultLeadWorkspaceTab({
@@ -917,6 +1005,7 @@ export default function CrmLeadDetailPage() {
     showConsultTab,
     showLmpTab,
     leadFlowKind,
+    marketingLeader,
   ]);
 
   useEffect(() => {
@@ -1052,6 +1141,7 @@ export default function CrmLeadDetailPage() {
       setLead(updated);
       setAssignToId('');
       setAssignReason('');
+      setAssignOpen(false);
       setMessage('Đã phân lead');
       await reloadTimeline(access);
       await reloadCopilotContext(access);
@@ -1059,59 +1149,6 @@ export default function CrmLeadDetailPage() {
       setError(err instanceof Error ? err.message : 'Phân lead thất bại');
     } finally {
       setAssigning(false);
-    }
-  }
-
-  async function onAddActivity(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    if (!hasCap(user, 'crm_leads', 'edit')) {
-      setError('Không có quyền thêm hoạt động');
-      return;
-    }
-    const content = activityContent.trim();
-    if (!content) {
-      setError('Nội dung hoạt động không được trống');
-      return;
-    }
-    const access = getAccessToken();
-    if (!access) {
-      router.replace('/login');
-      return;
-    }
-
-    setAddingActivity(true);
-    setError('');
-    setMessage('');
-    try {
-      const activity = await createLeadActivity(access, leadId, {
-        activity_type: activityType,
-        content,
-      });
-      setActivityContent('');
-      setMessage('Đã thêm hoạt động');
-      await reloadTimeline(access);
-      await reloadCopilotContext(access);
-      if (['call', 'email', 'message', 'meeting'].includes(activityType)) {
-        await reloadStatusOptions(access);
-      }
-      if (
-        activityType === 'call' &&
-        leadMeetingPrepEnabled() &&
-        canViewLmp(user)
-      ) {
-        const leadStatus = String(lead?.status ?? status).trim().toLowerCase();
-        if (leadStatus === 'chot' || leadStatus === 'lost') {
-          setTerminalDebriefOpen(true);
-        } else {
-          setCallDebriefActivityId(activity.id);
-          setCallDebriefOpen(true);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Thêm hoạt động thất bại');
-    } finally {
-      setAddingActivity(false);
     }
   }
 
@@ -1129,7 +1166,6 @@ export default function CrmLeadDetailPage() {
   }, [lead?.owner_id, lead?.owner_name, staffOptions]);
 
   const aeViewer = isAccountExecutive(user);
-  const visibleAudit = useMemo(() => leadAuditForViewer(audit, user), [audit, user]);
   const careHistory = useMemo(
     () => mergeLeadCareHistory(activities, audit?.status_logs ?? []),
     [activities, audit],
@@ -1152,25 +1188,34 @@ export default function CrmLeadDetailPage() {
   const showSlaSciUnifiedPanel =
     Boolean(accessToken) && leadFlowKind === 'spa_operational';
   const useMobileTabs = layout.mobile;
-  const showCopilotInline =
-    copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
   const showCopilotSheet =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.mobile && mobileTab === 'ai';
   const showCopilotDrawer =
-    copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
-  const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
-  const hidePropertyRail = useMobileTabs && mobileTab !== 'detail';
+    copilotOn && !!lead && !loading && !!accessToken && !!user && !useMobileTabs && copilotDrawerOpen;
   const hideOverviewContent =
     (showConsultTab && b2bPane === 'consult') || (showPipelineTab && desktopTab === 'consult');
-  const showWorkPane = !useMobileTabs || mobileTab === 'detail';
+  const showWorkPane =
+    !useMobileTabs ||
+    mobileTab === 'detail' ||
+    (mobileTab === 'history' && showPipelineTab);
+  const showHistoryPane =
+    Boolean(accessToken) &&
+    ((showPipelineTab && desktopTab === 'history') ||
+      (!showPipelineTab && (!useMobileTabs || mobileTab === 'history')));
   const showOverviewMain = showWorkPane && !hideOverviewContent;
   const showConsultMain =
     showConsultTab &&
     showWorkPane &&
     (b2bPane === 'consult' || (showPipelineTab && desktopTab === 'consult'));
+  const handoffStatus = funnelSnap?.presales?.handoff?.status ?? '';
+  const solutionDesk =
+    showB2bFlow &&
+    (handoffStatus === 'pending' || handoffStatus === 'with_solution') &&
+    !solutionCaps.isAeTrackOnly &&
+    (solutionCaps.canClaim || solutionCaps.canEditConsult);
   const pipelineReadOnly =
     status === 'won' || Boolean(contractSummary?.hasContract);
-  const hideMainPane = useMobileTabs && mobileTab !== 'detail';
+  const hideMainPane = useMobileTabs && mobileTab === 'ai';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
     if (!online) {
@@ -1214,6 +1259,7 @@ export default function CrmLeadDetailPage() {
     void copyLeadContact(value, label, setMessage);
   }
 
+
   return (
     <StaffPageShell
       user={user}
@@ -1243,11 +1289,14 @@ export default function CrmLeadDetailPage() {
           <button
             type="button"
             role="tab"
-            aria-selected={mobileTab === 'activity'}
-            className={mobileTab === 'activity' ? 'is-active' : ''}
-            onClick={() => setMobileTab('activity')}
+            aria-selected={mobileTab === 'history'}
+            className={mobileTab === 'history' ? 'is-active' : ''}
+            onClick={() => {
+              setMobileTab('history');
+              if (showPipelineTab) selectWorkspaceTab('history');
+            }}
           >
-            Nhật ký
+            Lịch sử
           </button>
           {copilotOn ? (
             <button
@@ -1276,40 +1325,111 @@ export default function CrmLeadDetailPage() {
       ) : null}
       {copilotMessage ? <p className="lead-copilot-hint">{copilotMessage}</p> : null}
 
+      {lead && !loading && solutionCaps.canView && !solutionDesk ? (
+        <PresalesSolutionHandoffBanner funnel={funnelSnap} user={user} />
+      ) : null}
+
       {lead && !loading ? (
         <div className="lead-detail-layout">
-          <LeadDetailHero
-            lead={lead}
-            ownerLabel={ownerLabel}
-            flowKind={leadFlowKind}
-            flowLabel={leadFlowKindLabel(leadFlowKind)}
-            nbaTitle={showB2bFlow ? nba?.title_vi ?? null : null}
-            showCockpit={showLmpTab}
-            onOpenCockpit={openMeetingPrepTab}
-            contactActions={
-              lead.phone ? (
-                <LeadContactActions
-                  phone={lead.phone}
-                  leadId={lead.id}
-                  accessToken={accessToken}
-                  onCopy={onCopyContact}
-                  onCallPlaced={onSoftphonePlaced}
-                />
-              ) : null
-            }
-          />
+          <div className="lead-detail-top">
+            <div className="lead-detail-identity">
+            <LeadDetailHero
+              hideMeta
+              lead={lead}
+              ownerLabel={ownerLabel}
+              flowKind={leadFlowKind}
+              flowLabel={leadFlowKindLabel(leadFlowKind)}
+              nbaTitle={showB2bFlow && !solutionDesk ? nba?.title_vi ?? null : null}
+              showCockpit={showLmpTab}
+              onOpenCockpit={openMeetingPrepTab}
+              showAssign={!aeViewer}
+              onOpenAssign={() => setAssignOpen(true)}
+              contactActions={
+                lead.phone ? (
+                  <LeadContactActions
+                    phone={lead.phone}
+                    leadId={lead.id}
+                    accessToken={accessToken}
+                    onCopy={onCopyContact}
+                    onCallPlaced={onSoftphonePlaced}
+                  />
+                ) : null
+              }
+            />
+            <LeadPropertyRail
+              variant="identity"
+              lead={lead}
+              ownerLabel={ownerLabel}
+              includeContactFields={false}
+              omitKeys={['source', 'channel']}
+              contact={undefined}
+              assignForm={null}
+              extra={null}
+              statusForm={
+                <form className="lead-form" id="lead-status-form" onSubmit={(e) => void onSaveStatus(e)}>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Trạng thái</span>
+                    <select
+                      className="lead-select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      disabled={
+                        !hasCap(user, 'crm_leads', 'edit') ||
+                        saving ||
+                        statusOptionsLoading ||
+                        statusDropdownOptions.length <= 1
+                      }
+                    >
+                      {statusDropdownOptions.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Ghi chú</span>
+                    <input
+                      className="lead-input"
+                      value={auditNote}
+                      onChange={(e) => setAuditNote(e.target.value)}
+                      placeholder="Lý do đổi trạng thái"
+                      disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn btn-sm lead-form__submit"
+                    disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
+                  >
+                    {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
+                  </button>
+                </form>
+              }
+            />
+            </div>
+            <LeadPartyCard
+              layout="inline"
+              leadId={lead.id}
+              value={party}
+              onChange={setParty}
+              disabled={!hasCap(user, 'crm_leads', 'edit') || partySaving}
+              onSave={() => void onSaveParty()}
+              saving={partySaving}
+              quoteHref={quoteHref}
+            />
+          </div>
+          {accessToken && lead && !marketingLeader ? (
+            <LeadStageRecords
+              leadId={leadId}
+              status={lead.status || status}
+              intakeSummary={intakeSummary}
+              serviceSlug={presetServiceSlug}
+            />
+          ) : null}
 
-          <LeadPartyCard
-            leadId={lead.id}
-            value={party}
-            onChange={setParty}
-            disabled={!hasCap(user, 'crm_leads', 'edit') || partySaving}
-            onSave={() => void onSaveParty()}
-            saving={partySaving}
-            quoteHref={quoteHref}
-          />
 
-          {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab ? (
+          {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -1331,12 +1451,12 @@ export default function CrmLeadDetailPage() {
             </div>
           ) : null}
 
-          {accessToken &&
-          !(showPipelineTab && desktopTab === 'pipeline' && pipelineStep === 'b2') ? (
+          {accessToken && !showPipelineTab ? (
             <LeadFrSlaPanel
               token={accessToken}
               leadId={leadId}
               canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'create')}
+              status={lead?.status || status}
             />
           ) : null}
 
@@ -1370,7 +1490,7 @@ export default function CrmLeadDetailPage() {
           ) : null}
 
           <div
-            className={`lead-detail-grid lead-detail-grid--record${showCopilotInline ? ' lead-detail-grid--with-copilot' : ''}`}
+            className="lead-detail-grid lead-detail-grid--record"
           >
           <div className="lead-detail-main">
           <div className={hideMainPane ? 'lead-detail-pane--hidden' : ''}>
@@ -1385,7 +1505,7 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
-            {accessToken && stageVis.showDealRoomBanner ? (
+            {accessToken && stageVis.showDealRoomBanner && showDealQuoteEntry ? (
               <div className="deal-room-entry-banner">
                 <div>
                   <strong>Deal Room</strong>
@@ -1399,59 +1519,135 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {b2bPane === 'consult' && showWorkPane ? (
+            {handoffStatus === 'released' && accessToken && lead ? (
+              <SolutionCaseDesk
+                filesOnly
+                token={accessToken}
+                lead={lead}
+                party={party}
+                funnel={funnelSnap}
+                onFunnelChange={setFunnelSnap}
+              />
+            ) : null}
+
+            {accessToken && lead && funnelSnap?.presales?.quote_case ? (
+              <QuoteCasePanel
+                token={accessToken}
+                leadId={leadId}
+                funnel={funnelSnap}
+                viewerIsCeo={isCeoPosition(user)}
+                onFunnelChange={setFunnelSnap}
+                onLeadReload={async () => {
+                  const row = await fetchLead(accessToken, leadId);
+                  setLead(row);
+                  setStatus(row.status || 'moi');
+                }}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {accessToken && lead && showLeadQuoteSheet ? (
+              <LeadQuoteSheet
+                token={accessToken}
+                leadId={leadId}
+                phase={quoteCasePhase}
+                onFunnelChange={setFunnelSnap}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {solutionDesk && accessToken && lead ? (
+              <SolutionCaseDesk
+                token={accessToken}
+                lead={lead}
+                party={party}
+                funnel={funnelSnap}
+                onFunnelChange={setFunnelSnap}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {!solutionDesk && b2bPane === 'consult' && showWorkPane ? (
               <div className="lead-workspace-bar">
                 <button type="button" className="btn btn-ghost btn-sm" onClick={openOverviewTab}>
-                  ← Việc
+                  Về khu vực Pipeline
                 </button>
-                <span className="muted">Tư vấn</span>
+                <span className="muted">Đang ở màn tư vấn</span>
               </div>
             ) : null}
 
-            {showOverviewMain ? (
+            {!solutionDesk && showOverviewMain ? (
               <>
             {showPipelineTab ? (
-              <div className="lead-pipeline-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={desktopTab === 'pipeline'}
-                  onClick={() => setDesktopTab('pipeline')}
-                >
-                  Pipeline bán hàng
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={desktopTab === 'contract'}
-                  onClick={() => setDesktopTab('contract')}
-                >
-                  Hợp đồng & Chốt
-                </button>
-                {showConsultTab ? (
+              <div className="lead-zone">
+                <span className="lead-zone__kicker">Khu vực</span>
+                <div className="lead-pipeline-tabs" role="tablist" aria-label="Khu vực lead">
+                  {marketingLeader ? null : (
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={desktopTab === 'consult'}
-                    onClick={openConsultTab}
+                    aria-selected={desktopTab === 'pipeline'}
+                    onClick={() => selectWorkspaceTab('pipeline')}
                   >
-                    Tư vấn
+                    Pipeline bán hàng
                   </button>
-                ) : null}
-                {showLmpTab ? (
+                  )}
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={desktopTab === 'lmp'}
-                    onClick={openMeetingPrepTab}
+                    aria-selected={desktopTab === 'history'}
+                    onClick={() => selectWorkspaceTab('history')}
                   >
-                    Sales Cockpit
+                    Lịch sử
                   </button>
-                ) : null}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopTab === 'contract'}
+                    disabled={!stageVis.showContractPanel}
+                    title={
+                      stageVis.showContractPanel
+                        ? undefined
+                        : 'Mở khi lead sang Báo giá hoặc đã có hợp đồng'
+                    }
+                    onClick={() => {
+                      if (!stageVis.showContractPanel) return;
+                      selectWorkspaceTab('contract');
+                    }}
+                  >
+                    Hợp đồng và Chốt
+                  </button>
+                  {showConsultTab && !marketingLeader ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={desktopTab === 'consult'}
+                      onClick={openConsultTab}
+                    >
+                      Màn tư vấn
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
-            {accessToken && showPipelineTab && desktopTab === 'pipeline' ? (
+            {accessToken && showPipelineTab ? (
+              <div hidden={desktopTab !== 'history'}>
+              <LeadHistoryTab
+                token={accessToken}
+                leadId={leadId}
+                exchangeLines={careHistory}
+                selectedActivityId={selectedActivityId}
+                onSelectActivity={setSelectedActivityId}
+              />
+              </div>
+            ) : null}
+
+            {accessToken && showPipelineTab && !marketingLeader ? (
+              <div hidden={desktopTab !== 'pipeline'}>
               <LeadSalesPipelineTab
                 token={accessToken}
                 leadId={leadId}
@@ -1459,8 +1655,8 @@ export default function CrmLeadDetailPage() {
                 stepperInput={{
                   leadId,
                   funnel: funnelSnap,
-                  consultGate: null,
-                  intakeSummary: null,
+                  consultGate,
+                  intakeSummary,
                   contract: contractSummary,
                   context: 'lead_detail',
                   scope: 'full_b2b',
@@ -1485,6 +1681,10 @@ export default function CrmLeadDetailPage() {
                   const access = getAccessToken();
                   if (access) void reloadTimeline(access);
                 }}
+                onIntakeSaved={() => {
+                  const access = getAccessToken();
+                  if (access) void reloadFunnel(access);
+                }}
                 hideM1Card
                 showPresalesBlock={stageVis.showPresalesBlock}
                 highlightAfterCall={b2CallJustPlaced}
@@ -1498,7 +1698,9 @@ export default function CrmLeadDetailPage() {
                     : 'ok'
                 }
                 slaDetail={copilotContext?.sla.banner.message ?? null}
+                leadStatus={lead?.status || status}
               />
+              </div>
             ) : null}
 
             {accessToken && !showPipelineTab ? (
@@ -1525,43 +1727,55 @@ export default function CrmLeadDetailPage() {
                 hideM1Card={showLmpTab}
                 showPresalesBlock={stageVis.showPresalesBlock}
                 highlightAfterCall={b2CallJustPlaced}
+                leadStatus={lead?.status || status}
               />
             ) : null}
 
             {accessToken &&
-            stageVis.showContractPanel &&
-            (!showPipelineTab || desktopTab === 'contract') ? (
+            (showPipelineTab ? desktopTab === 'contract' : stageVis.showContractPanel) ? (
               <LeadContractTab>
-                {stageVis.showDealRoomBanner && showPipelineTab && desktopTab === 'contract' ? (
-                  <div className="deal-room-entry-banner">
-                    <div>
-                      <strong>Deal Room</strong>
-                      <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                        1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
-                      </p>
-                    </div>
-                    <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
-                      Mở Deal Room →
-                    </Link>
+                {stageVis.showContractPanel ? (
+                  <>
+                    {stageVis.showDealRoomBanner && showDealQuoteEntry && showPipelineTab && desktopTab === 'contract' ? (
+                      <div className="deal-room-entry-banner">
+                        <div>
+                          <strong>Deal Room</strong>
+                          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                            1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
+                          </p>
+                        </div>
+                        <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
+                          Mở Deal Room →
+                        </Link>
+                      </div>
+                    ) : null}
+                    <LeadContractPanel
+                      token={accessToken}
+                      leadId={leadId}
+                      user={user}
+                      refreshToken={contractRefresh}
+                      onMessage={setMessage}
+                      onLoaded={(summary, checks) => {
+                        setContractSummary(summary);
+                        setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
+                      }}
+                    />
+                  </>
+                ) : (
+                  <div className="lead-panel">
+                    <h3 className="lead-panel__title">Hợp đồng và Chốt</h3>
+                    <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+                      Chỗ lập hợp đồng, gửi duyệt và chốt giá trị. Mở khi lead đã sang Báo giá,
+                      hoặc khi đã có hợp đồng. Lead này chưa tới bước đó.
+                    </p>
                   </div>
-                ) : null}
-                <LeadContractPanel
-                  token={accessToken}
-                  leadId={leadId}
-                  user={user}
-                  refreshToken={contractRefresh}
-                  onMessage={setMessage}
-                  onLoaded={(summary, checks) => {
-                    setContractSummary(summary);
-                    setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
-                  }}
-                />
+                )}
               </LeadContractTab>
             ) : null}
               </>
             ) : null}
 
-            {showConsultMain && accessToken && funnelSnap ? (
+            {(solutionDesk || showConsultMain) && accessToken && funnelSnap ? (
               <LeadConsultWorkspace
                 token={accessToken}
                 leadId={leadId}
@@ -1576,220 +1790,21 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
+            {showHistoryPane && !showPipelineTab ? (
+              <LeadHistoryTab
+                token={accessToken!}
+                leadId={leadId}
+                exchangeLines={careHistory}
+                selectedActivityId={selectedActivityId}
+                onSelectActivity={setSelectedActivityId}
+              />
+            ) : null}
+
+          </div>
           </div>
 
-          <aside
-            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
-          >
-              <div className="lead-panel lead-panel--action">
-                <div className="lead-panel__head">
-                  <h3 className="lead-panel__title">Thêm hoạt động</h3>
-                </div>
-                <form className="lead-form" id="lead-activity-form" onSubmit={(e) => void onAddActivity(e)}>
-                  <label className="lead-field">
-                    <span className="lead-field__label">Loại</span>
-                    <select
-                      className="lead-select"
-                      value={activityType}
-                      onChange={(e) => setActivityType(e.target.value)}
-                      disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                    >
-                      {ACTIVITY_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="lead-field">
-                    <span className="lead-field__label">Nội dung</span>
-                    <MentionComposer
-                      token={getAccessToken()}
-                      value={activityContent}
-                      onChange={setActivityContent}
-                      disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                      rows={3}
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="btn btn-sm lead-form__submit"
-                    disabled={addingActivity || !hasCap(user, 'crm_leads', 'edit')}
-                  >
-                    {addingActivity ? 'Đang thêm…' : 'Thêm hoạt động'}
-                  </button>
-                </form>
-              </div>
-            <div className="lead-panel lead-panel--activity">
-              <div className="lead-panel__head">
-                <h3 className="lead-panel__title">Lịch sử trao đổi</h3>
-              </div>
-              {careHistory.length === 0 ? (
-                <p className="lead-empty-state">Chưa có lịch sử.</p>
-              ) : (
-                <ul className="lead-activity-list">
-                  {careHistory.map((line) => {
-                    const selectable = line.key.startsWith('activity-');
-                    return (
-                    <li
-                      key={line.key}
-                      className={`lead-activity-item ${selectable && selectedActivityId === line.id ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        if (selectable) setSelectedActivityId(line.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!selectable) return;
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setSelectedActivityId(line.id);
-                        }
-                      }}
-                      role={selectable ? 'button' : undefined}
-                      tabIndex={selectable ? 0 : undefined}
-                      aria-pressed={selectable ? selectedActivityId === line.id : undefined}
-                    >
-                      <div className="lead-activity-item__meta">
-                        <strong>{line.who}</strong>
-                        {line.when ? <time>{line.when}</time> : null}
-                      </div>
-                      <div className="lead-activity-item__content">{line.what}</div>
-                    </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-
-            {accessToken ? <LeadEntityTimelinePanel token={accessToken} leadId={leadId} /> : null}
-          </aside>
           </div>
 
-          <div className={hidePropertyRail ? 'lead-detail-pane--hidden' : ''}>
-            <LeadPropertyRail
-              lead={lead}
-              ownerLabel={ownerLabel}
-              contact={undefined}
-              statusForm={
-                <div className="lead-panel lead-panel--action">
-                  <div className="lead-panel__head">
-                    <h3 className="lead-panel__title">Trạng thái</h3>
-                  </div>
-                  <form className="lead-form" id="lead-status-form" onSubmit={(e) => void onSaveStatus(e)}>
-                    <label className="lead-field">
-                      <span className="lead-field__label">Trạng thái</span>
-                      <select
-                        className="lead-select"
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        disabled={
-                          !hasCap(user, 'crm_leads', 'edit') ||
-                          saving ||
-                          statusOptionsLoading ||
-                          statusDropdownOptions.length <= 1
-                        }
-                      >
-                        {statusDropdownOptions.map((row) => (
-                          <option key={row.id} value={row.id}>
-                            {row.label}
-                          </option>
-                        ))}
-                      </select>
-                      {statusOptionsLoading ? (
-                        <span className="muted" style={{ fontSize: '0.82rem' }}>
-                          Đang tải trạng thái được phép…
-                        </span>
-                      ) : null}
-                      {statusHints.length > 0 ? (
-                        <ul
-                          className="muted"
-                          style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem' }}
-                        >
-                          {statusHints.map((hint) => (
-                            <li key={hint}>{hint}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </label>
-                    <label className="lead-field">
-                      <span className="lead-field__label">
-                        Ghi chú audit
-                        {['chot', 'won', 'post_sale', 'lost'].includes(status)
-                          ? ' (bắt buộc ≥3 ký tự)'
-                          : ' (tùy chọn)'}
-                      </span>
-                      <input
-                        className="lead-input"
-                        value={auditNote}
-                        onChange={(e) => setAuditNote(e.target.value)}
-                        placeholder="Lý do đổi trạng thái"
-                        disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="btn btn-sm lead-form__submit"
-                      disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
-                    >
-                      {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
-                    </button>
-                  </form>
-                </div>
-              }
-              assignForm={aeViewer ? null : (
-                <div className="lead-panel lead-panel--action">
-                  <div className="lead-panel__head">
-                    <h3 className="lead-panel__title">Phân lead</h3>
-                  </div>
-                  <form className="lead-form" onSubmit={(e) => void onAssign(e)}>
-                    <label className="lead-field">
-                      <span className="lead-field__label">Nhân viên</span>
-                      <select
-                        className="lead-select"
-                        value={assignToId}
-                        onChange={(e) => setAssignToId(e.target.value)}
-                        disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                      >
-                        <option value="">— Chọn —</option>
-                        {staffOptions.map((s) => (
-                          <option key={s.id} value={String(s.id)}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="lead-field">
-                      <span className="lead-field__label">Lý do</span>
-                      <input
-                        className="lead-input"
-                        value={assignReason}
-                        onChange={(e) => setAssignReason(e.target.value)}
-                        placeholder="Bắt buộc (≥ 3 ký tự)"
-                        disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                        required
-                        minLength={3}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="btn btn-sm lead-form__submit"
-                      disabled={
-                        assigning ||
-                        !hasCap(user, 'crm_leads', 'assign') ||
-                        assignReason.trim().length < 3 ||
-                        !assignToId
-                      }
-                    >
-                      {assigning ? 'Đang phân…' : 'Phân lead'}
-                    </button>
-                  </form>
-                </div>
-              )}
-              extra={visibleAudit || !aeViewer ? <LeadAuditPanel audit={aeViewer ? visibleAudit : audit} /> : null}
-            />
-          </div>
-
-          {showCopilotInline ? renderCopilotPanel('column') : null}
-          </div>
         </div>
       ) : null}
 
@@ -1812,6 +1827,71 @@ export default function CrmLeadDetailPage() {
           />
           {renderCopilotPanel('sheet', () => setMobileTab('detail'))}
         </>
+      ) : null}
+
+      {assignOpen && !aeViewer ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => setAssignOpen(false)}
+        >
+          <div
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lead-assign-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="lead-assign-title">Phân công hồ sơ</h3>
+            <form className="lead-form" onSubmit={(e) => void onAssign(e)}>
+              <label className="lead-field">
+                <span className="lead-field__label">Nhân viên</span>
+                <select
+                  className="lead-select"
+                  value={assignToId}
+                  onChange={(e) => setAssignToId(e.target.value)}
+                  disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                >
+                  <option value="">— Chọn —</option>
+                  {staffOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="lead-field">
+                <span className="lead-field__label">Lý do</span>
+                <input
+                  className="lead-input"
+                  value={assignReason}
+                  onChange={(e) => setAssignReason(e.target.value)}
+                  placeholder="Bắt buộc (≥ 3 ký tự)"
+                  disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                  required
+                  minLength={3}
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-sm" onClick={() => setAssignOpen(false)}>
+                  Đóng
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-sm btn-primary"
+                  disabled={
+                    assigning ||
+                    !hasCap(user, 'crm_leads', 'assign') ||
+                    assignReason.trim().length < 3 ||
+                    !assignToId
+                  }
+                >
+                  {assigning ? 'Đang phân…' : 'Phân công hồ sơ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
 
       {showLmpTab && cockpitOpen && accessToken ? (
@@ -1842,14 +1922,14 @@ export default function CrmLeadDetailPage() {
         </>
       ) : null}
 
-      {layout.tablet && copilotOn && lead && !loading && !copilotDrawerOpen ? (
+      {!useMobileTabs && copilotOn && lead && !loading && !copilotDrawerOpen ? (
         <button
           type="button"
           className="lead-copilot-fab"
           onClick={() => setCopilotDrawerOpen(true)}
           aria-label="Mở AI Copilot"
         >
-          AI Copilot
+          Mở AI Copilot
         </button>
       ) : null}
       {accessToken && leadMeetingPrepEnabled() && canViewLmp(user) ? (

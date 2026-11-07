@@ -200,13 +200,11 @@ export function CrmNewLeadPageContent({
       }
       if (isB2bFlow) {
         try {
-          const projects = await fetchLeadB2bProjectOptions(currentToken, 'active');
+          const projects = await fetchLeadB2bProjectOptions(currentToken, 'active', 'create');
           setB2bProjects(projects);
           setB2bProjectsHint(
             projects.length === 0
-              ? assignAny
-                ? 'Chưa có dự án PTT active — tạo tại /crm/b2b-projects.'
-                : 'Chưa có dự án PTT bạn đang tham gia — nhờ admin thêm bạn vào staff dự án tại /crm/b2b-projects.'
+              ? 'Chưa có dự án PTT nhận lead. Tạo tại mục Dự án PTT, bật Nhận lead, rồi lưu.'
               : '',
           );
           if (projects.length === 1) setB2bProjectId(projects[0].id);

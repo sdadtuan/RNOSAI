@@ -296,12 +296,12 @@ export function ServiceCatalog() {
                     </div>
                     <table className="p13-table">
                       <thead>
-                        <tr><th>ID</th><th>Hạng mục</th><th>R</th><th>A</th><th>Đầu ra</th><th>Gate</th><th>Cấp</th><th>Giờ</th><th>Đơn vị</th><th>Tính phí</th></tr>
+                        <tr><th>ID</th><th>Hạng mục</th><th>R</th><th>A</th><th>Đầu ra</th><th>Gate</th><th>Cấp</th><th>Giờ</th><th>Giờ dự kiến</th><th>Đơn vị</th><th>Tính phí</th></tr>
                       </thead>
                       <tbody>
                         {detail.phases.filter((row) => visibleItems.some((item) => item.phase_code === row.code)).map((row) => (
                           <Fragment key={row.code}>
-                            <tr className="p13-phase"><td colSpan={10}>{row.code} · {row.name}</td></tr>
+                            <tr className="p13-phase"><td colSpan={11}>{row.code} · {row.name}</td></tr>
                             {visibleItems.filter((item) => item.phase_code === row.code).map((item) => (
                               <tr key={item.code} onClick={() => setDrawer(item)} style={{ cursor: 'pointer' }}>
                                 <td>{item.code}</td>
@@ -312,6 +312,7 @@ export function ServiceCatalog() {
                                 <td>{item.approval_gate ? 'Có' : '—'}</td>
                                 <td>{LEVELS.find((lv) => lv.code === item.min_level)?.name}</td>
                                 <td>{hoursLabel(item.est_hours)}{item.est_hours_is_assumption ? <span className="p13-badge">Giả định</span> : null}</td>
+                                <td>{hoursLabel(item.planned_hours ?? item.est_hours)}</td>
                                 <td>{UNIT[item.unit] || item.unit}</td>
                                 <td>{item.billable ? 'Có' : 'Không'}</td>
                               </tr>
@@ -342,8 +343,9 @@ export function ServiceCatalog() {
             <p><strong>C/I:</strong> {(drawer.raci?.C ?? []).join(', ') || '—'} / {(drawer.raci?.I ?? []).join(', ') || '—'}</p>
             <p><strong>Công cụ:</strong> {drawer.tool || '—'}</p>
             {manage ? (
-              <form onSubmit={(ev) => { ev.preventDefault(); const data = new FormData(ev.currentTarget); void saveItem(drawer, { est_hours: Number(data.get('hours')), min_level: String(data.get('level')), billable: data.get('billable') === 'on', confirm_hours: data.get('confirm') === 'on' }); }}>
+              <form onSubmit={(ev) => { ev.preventDefault(); const data = new FormData(ev.currentTarget); void saveItem(drawer, { est_hours: Number(data.get('hours')), planned_hours: Number(data.get('planned_hours')), min_level: String(data.get('level')), billable: data.get('billable') === 'on', confirm_hours: data.get('confirm') === 'on' }); }}>
                 <label>Giờ<input className="p13-field" name="hours" defaultValue={drawer.est_hours} /></label>
+                <label>Giờ dự kiến<input className="p13-field" name="planned_hours" defaultValue={drawer.planned_hours ?? drawer.est_hours} /></label>
                 <label>Cấp<select className="p13-field" name="level" defaultValue={drawer.min_level}>{LEVELS.map((row) => <option key={row.code} value={row.code}>{row.name}</option>)}</select></label>
                 <label><input name="billable" type="checkbox" defaultChecked={drawer.billable} /> Tính phí</label>
                 <label><input name="confirm" type="checkbox" /> Xác nhận giờ</label>

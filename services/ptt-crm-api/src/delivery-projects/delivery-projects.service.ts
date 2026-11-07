@@ -27,6 +27,7 @@ import {
   hasCircularMilestoneDeps,
   nextPrjCode,
   normalizeCapabilities,
+  slugFromProjectName,
 } from './delivery-projects.util';
 
 @Injectable()
@@ -67,14 +68,14 @@ export class DeliveryProjectsService {
       if (!canManageB2b) {
         throw new ForbiddenException({ error: 'missing_cap', section: 'crm_b2b_projects' });
       }
-      const code = body.b2b?.code?.trim().toLowerCase();
+      const code = slugFromProjectName(body.b2b?.code?.trim() || body.name);
       if (!code) {
         throw new BadRequestException({ error: 'b2b_code_required' });
       }
       const b2b = await this.b2bProjects.create({
         code,
         name: body.b2b?.name?.trim() || body.name.trim(),
-        status: body.b2b?.status,
+        status: body.b2b?.status ?? 'active',
         ai_call_enabled: body.b2b?.ai_call_enabled,
         manual_ingest_enabled: body.b2b?.manual_ingest_enabled,
       });

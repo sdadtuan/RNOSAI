@@ -4,7 +4,6 @@ import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { PresalesClientBriefCard } from '@/components/PresalesClientBriefCard';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
-import { PresalesPolicyBanner } from '@/components/presales/PresalesPolicyBanner';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -39,7 +38,6 @@ import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } fro
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
 import { M1FirstCallCard } from '@/app/crm/leads/meeting-prep/M1FirstCallCard';
-import { M2QualifyHandoffCard } from '@/app/crm/leads/meeting-prep/M2QualifyHandoffCard';
 import type { LeadMeetingPrepStatus } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
 
 interface Props {
@@ -67,6 +65,8 @@ interface Props {
   activeStepState?: FunnelStepState;
   intakeSummary?: IntakeStepSummary | null;
   onStepChange?: (key: PresalesFunnelStepKey) => void;
+  /** CRM lead status. Hides receive-SLA controls once the lead is at Tư vấn. */
+  leadStatus?: string | null;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -115,6 +115,7 @@ export function LeadFunnelPanel({
   activeStepState = 'current',
   intakeSummary = null,
   onStepChange,
+  leadStatus = null,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -288,9 +289,9 @@ export function LeadFunnelPanel({
       const out = await ensureLeadPresales(token, leadId, slug);
       setFunnel(out.funnel);
       onFunnelChange?.(out.funnel);
-      setPanelMessage('Đã xong B2 — đã sang Pre-sales.');
-      onMessage?.('Đã xong B2 — đã sang Pre-sales');
-      onStepChange?.('presales_lead');
+      setPanelMessage('Đã xong B2 — sang Pre Sale.');
+      onMessage?.('Đã xong B2 — sang Pre Sale');
+      onStepChange?.('intake_bant');
     });
     // Intentionally narrow deps: one-shot when funnel gate is ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-ensure once per lead
@@ -322,11 +323,11 @@ export function LeadFunnelPanel({
           spaDone
             ? 'Đã xong B2'
             : movedToPresales
-              ? 'Đã xong B2 — đã sang Pre-sales.'
+              ? 'Đã xong B2 — sang Pre Sale.'
               : 'Đã xong B2 — pre-sales đã mở.',
         );
-        onMessage?.(movedToPresales ? 'Đã xong B2 — đã sang Pre-sales' : 'Đã xong B2');
-        if (movedToPresales) onStepChange?.('presales_lead');
+        onMessage?.(movedToPresales ? 'Đã xong B2 — sang Pre Sale' : 'Đã xong B2');
+        if (movedToPresales) onStepChange?.('intake_bant');
         await reload();
         return;
       }
@@ -350,8 +351,6 @@ export function LeadFunnelPanel({
         ? `&service_slug=${encodeURIComponent(selectedServiceSlug)}`
         : ''
   }`;
-
-  const presalesStage = funnel?.presales?.presales.stage;
 
   function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
     applyMarketingPlanFields(plan, validationMessages);
@@ -501,13 +500,6 @@ export function LeadFunnelPanel({
   const b2Done = Boolean(funnel.care_pipeline.stages[0]?.done);
   const showM1Card =
     showPresales && !b2Done && leadMeetingPrepEnabled() && canViewLmp(user);
-  const showM2Card =
-    showPresales &&
-    b2Done &&
-    Boolean(funnel.presales) &&
-    (presalesStage === 'lead' || presalesStage === 'consult') &&
-    leadMeetingPrepEnabled() &&
-    canViewLmp(user);
   const b2Panel = (
     <LeadPipelineB2Panel
       funnel={funnel}
@@ -522,6 +514,7 @@ export function LeadFunnelPanel({
       canWriteFr={canEdit}
       embedFrSla={layout === 'pipeline'}
       statusChip={layout === 'pipeline' ? prepChip : null}
+      leadStatus={leadStatus}
     />
   );
 
@@ -556,20 +549,6 @@ export function LeadFunnelPanel({
           user={user}
           show={showM1Card}
           onOpenTalkTrack={onOpenMeetingPrepTab}
-          onMessage={onMessage}
-          onError={onError}
-        />
-      ) : null}
-
-      {showM2Card ? (
-        <M2QualifyHandoffCard
-          token={token}
-          leadId={leadId}
-          user={user}
-          show={showM2Card}
-          intakeHref={intakeHref}
-          onOpenMeetingPrep={onOpenMeetingPrepTab}
-          onOpenConsultTab={onOpenConsultTab}
           onMessage={onMessage}
           onError={onError}
         />
@@ -616,8 +595,6 @@ export function LeadFunnelPanel({
       )}
 
       <PresalesSolutionHandoffBanner funnel={funnel} user={user} />
-      <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="release" />
-      <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="claim" />
 
       {layout === 'pipeline' ? (
         <LeadPipelineStepPanel
@@ -655,11 +632,13 @@ export function LeadFunnelPanel({
             )
           }
           intake={
-            <LeadPipelineIntakePanel
-              leadId={leadId}
-              serviceSlug={funnel.presales?.presales.service_slug || selectedServiceSlug}
-              intakeSummary={intakeSummary}
-            />
+            intakeSummary?.preview || intakeSummary?.latest_completed ? null : (
+              <LeadPipelineIntakePanel
+                leadId={leadId}
+                serviceSlug={funnel.presales?.presales.service_slug || selectedServiceSlug}
+                intakeSummary={intakeSummary}
+              />
+            )
           }
           consult={
             <LeadPipelinePresalesPanel

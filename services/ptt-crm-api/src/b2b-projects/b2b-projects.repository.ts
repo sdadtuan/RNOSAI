@@ -2,6 +2,8 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { ChannelKeyRow } from './b2b-channel-unique.util';
+import { PTT_OPERATING_COMPANY_ID } from './b2b-projects.constants';
+import { buildFromSolutionOnwardClause } from '../leads-funnel/solution-onward.util';
 import type {
   B2bProjectChannelInput,
   B2bProjectPageInput,
@@ -36,6 +38,96 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Active (or status-filtered) delivery projects that can take a lead.
+   * Same source as menu Dự án PTT (`crm_delivery_projects` + capability lead_ingest).
+   * Option id is the linked crm_b2b_projects id because crm_leads.b2b_project_id FKs there.
+   */
+  async ensureLeadIngestFacets(status?: string): Promise<void> {
+    const statusFilter = status?.trim() || '';
+    const insertParams: unknown[] = [PTT_OPERATING_COMPANY_ID];
+    let insertStatusSql = '';
+    if (statusFilter) {
+      insertParams.push(statusFilter);
+      insertStatusSql = ` AND d.status = $${insertParams.length}`;
+    }
+    await this.db.query(
+      `WITH missing AS (
+         SELECT DISTINCT ON (lower(trim(d.code)))
+                lower(trim(d.code)) AS code,
+                left(d.name, 255) AS name
+         FROM crm_delivery_projects d
+         WHERE d.deleted_at IS NULL
+           AND 'lead_ingest' = ANY(d.capabilities)
+           AND d.b2b_project_id IS NULL
+           AND NULLIF(trim(d.code), '') IS NOT NULL
+           ${insertStatusSql}
+         ORDER BY lower(trim(d.code)), d.created_at DESC
+       )
+       INSERT INTO crm_b2b_projects (owner_company_id, code, name, status, manual_ingest_enabled)
+       SELECT $1::uuid, m.code, m.name, 'active', TRUE
+       FROM missing m
+       ON CONFLICT (code) DO NOTHING`,
+      insertParams,
+    );
+    const updateParams: unknown[] = [];
+    let updateStatusSql = '';
+    if (statusFilter) {
+      updateParams.push(statusFilter);
+      updateStatusSql = ` AND d.status = $${updateParams.length}`;
+    }
+    await this.db.query(
+      `UPDATE crm_delivery_projects d
+       SET b2b_project_id = b.id
+       FROM crm_b2b_projects b
+       WHERE d.b2b_project_id IS NULL
+         AND d.deleted_at IS NULL
+         AND 'lead_ingest' = ANY(d.capabilities)
+         AND lower(trim(d.code)) = b.code
+         ${updateStatusSql}`,
+      updateParams,
+    );
+  }
+
+  async listLeadIngestOptions(
+    status?: string,
+    staffId?: number,
+    opts?: { forCreate?: boolean },
+  ): Promise<Array<{ id: string; code: string; name: string; status: string }>> {
+    const params: unknown[] = [];
+    const clauses = [
+      'd.deleted_at IS NULL',
+      `'lead_ingest' = ANY(d.capabilities)`,
+      'd.b2b_project_id IS NOT NULL',
+    ];
+    if (opts?.forCreate) {
+      clauses.push(`d.status IN ('active', 'draft', 'approved', 'pending_approval')`);
+    } else if (status?.trim()) {
+      params.push(status.trim());
+      clauses.push(`d.status = $${params.length}`);
+    }
+    if (staffId != null && staffId > 0) {
+      params.push(staffId);
+      clauses.push(`EXISTS (
+        SELECT 1 FROM crm_b2b_project_staff ps
+        INNER JOIN crm_staff s ON s.id = ps.staff_id AND COALESCE(s.active, FALSE) IS TRUE
+        WHERE ps.project_id = d.b2b_project_id AND ps.staff_id = $${params.length}
+      )`);
+    }
+    const result = await this.db.query(
+      `SELECT d.b2b_project_id::text AS id,
+              COALESCE(NULLIF(trim(d.code), ''), b.code, '') AS code,
+              d.name,
+              d.status
+       FROM crm_delivery_projects d
+       LEFT JOIN crm_b2b_projects b ON b.id = d.b2b_project_id
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY COALESCE(NULLIF(trim(d.code), ''), d.name) ASC`,
+      params,
+    );
+    return result.rows as Array<{ id: string; code: string; name: string; status: string }>;
   }
 
   async listProjects(status?: string): Promise<B2bProjectRow[]> {
@@ -207,9 +299,11 @@ export class B2bProjectsRepository implements OnModuleDestroy {
       const kind =
         row.channel_type === 'zalo'
           ? 'oa_id'
-          : row.channel_type === 'webform'
-            ? 'webform_slug'
-            : 'api_key_hash';
+          : row.channel_type === 'tiktok'
+            ? 'tiktok_advertiser_id'
+            : row.channel_type === 'webform'
+              ? 'webform_slug'
+              : 'api_key_hash';
       rows.push({
         kind,
         value: String(row.external_key),
@@ -326,6 +420,19 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     return result.rows.length > 0;
   }
 
+  /** Waiting for Solution, submitted, or already on Báo giá / Triển Khai. */
+  async isLeadFromSolutionOnward(leadId: number): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+       FROM crm_leads l
+       WHERE l.sqlite_lead_id = $1
+         AND ${buildFromSolutionOnwardClause('l')}
+       LIMIT 1`,
+      [leadId],
+    );
+    return result.rows.length > 0;
+  }
+
   async findStaffActive(staffId: number): Promise<{ active: boolean | null }> {
     const result = await this.db.query(`SELECT active FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
     const raw = result.rows[0]?.active;
@@ -365,7 +472,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
         active: Boolean(row.active),
       })),
       accounts: accountsResult.rows.map((row) => ({
-        channel: String(row.channel_type) as 'zalo' | 'webform' | 'api',
+        channel: String(row.channel_type) as 'zalo' | 'webform' | 'api' | 'tiktok',
         externalKey: String(row.external_key),
         projectId: String(row.project_id),
         projectSlug: String(row.project_slug).toLowerCase(),
@@ -484,7 +591,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
 
   async attachChannelAccount(input: {
     projectId: string;
-    channelType: 'zalo' | 'webform' | 'api';
+    channelType: 'zalo' | 'webform' | 'api' | 'tiktok';
     externalKey: string;
     label?: string;
   }): Promise<void> {

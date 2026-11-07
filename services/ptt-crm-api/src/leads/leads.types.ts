@@ -14,6 +14,9 @@ export interface LeadV1 {
   owner_name?: string | null;
   created_at: string;
   received_at: string;
+  /** Last row touch (status, care, call, notes). Used for Kanban recency. */
+  updated_at?: string | null;
+  last_call_at?: string | null;
   is_duplicate: boolean;
   /** B2B Project OS */
   b2b_project_id?: string | null;
@@ -40,6 +43,18 @@ export interface LeadV1 {
   b2_assigned_at?: string | null;
   /** Latest active presales handoff: pending, with_solution, released, or empty. */
   solution_handoff?: string | null;
+  /** crm_proposals row exists for this lead. */
+  has_quote?: boolean;
+  /** Saved quote-sheet lines on the active presales row. */
+  quote_sheet_saved?: boolean;
+  /** Marketing Leader has submitted the sheet to Sale. */
+  quote_sent_to_sale?: boolean;
+  /** Sale approved the quote. */
+  quote_approved?: boolean;
+  /** Quote case exists (solution released or quote work started). */
+  quote_case_open?: boolean;
+  /** crm_contracts row exists for this lead. */
+  has_contract?: boolean;
   in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
@@ -116,6 +131,12 @@ export interface PgLeadRow {
   b2_complete?: boolean | null;
   b2_assigned_at?: Date | string | null;
   solution_handoff?: string | null;
+  has_quote?: boolean | null;
+  has_contract?: boolean | null;
+  quote_sheet_saved?: boolean | null;
+  quote_sent_to_sale?: boolean | null;
+  quote_approved?: boolean | null;
+  quote_case_open?: boolean | null;
   updated_at?: Date | string | null;
 }
 
@@ -159,6 +180,8 @@ export interface ListLeadsQuery {
     memberProjectPool?: boolean;
     seesAllB2b?: boolean;
   };
+  /** Marketing Leader: only leads already handed to Solution or past that step. */
+  from_solution_onward?: boolean;
 }
 
 export interface CreateLeadV1Body {

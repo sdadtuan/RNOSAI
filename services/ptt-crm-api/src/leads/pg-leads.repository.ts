@@ -6,9 +6,11 @@ import {
   buildB2bListScopeClause,
   buildLeadFlowKindListFilter,
 } from '../leads-funnel/lead-flow-list-filter.util';
+import { buildFromSolutionOnwardClause } from '../leads-funnel/solution-onward.util';
 import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 import {
+  computeKanbanPriority,
   defaultKanbanCardSettings,
   kanbanCardSettingsFromPayload,
   type KanbanCardSettings,
@@ -26,6 +28,56 @@ const SOLUTION_HANDOFF_EXPR = `(
               )`;
 
 const SOLUTION_HANDOFF_SQL = `${SOLUTION_HANDOFF_EXPR} AS solution_handoff`;
+
+/** Stage artifacts the kanban must not pretend exist. */
+const STAGE_RECORD_SQL = `
+              EXISTS (
+                SELECT 1 FROM crm_proposals qp WHERE qp.lead_id = l.sqlite_lead_id
+              ) AS has_quote,
+              EXISTS (
+                SELECT 1 FROM crm_contracts qc WHERE qc.lead_id = l.sqlite_lead_id
+              ) AS has_contract,
+              COALESCE(quote_state.quote_sheet_saved, FALSE) AS quote_sheet_saved,
+              COALESCE(quote_state.quote_sent_to_sale, FALSE) AS quote_sent_to_sale,
+              COALESCE(quote_state.quote_approved, FALSE) AS quote_approved,
+              COALESCE(quote_state.quote_case_open, FALSE) AS quote_case_open`;
+
+/** Active presales quote case. Sheet lines are the saved quote; sent/approved are the Sale steps. */
+const QUOTE_STATE_JOIN_SQL = `
+       LEFT JOIN LATERAL (
+         SELECT
+           CASE
+             WHEN jsonb_typeof(psq.quote_sheet->'lines') = 'array'
+             THEN jsonb_array_length(psq.quote_sheet->'lines') > 0
+             ELSE FALSE
+           END AS quote_sheet_saved,
+           (psq.quote_sent_back_at IS NOT NULL) AS quote_sent_to_sale,
+           (psq.quote_approved_at IS NOT NULL) AS quote_approved,
+           (
+             psq.handoff_status = 'released'
+             OR psq.solution_approved_at IS NOT NULL
+             OR psq.quote_accepted_at IS NOT NULL
+             OR psq.quote_sent_back_at IS NOT NULL
+             OR psq.quote_approved_at IS NOT NULL
+             OR length(trim(COALESCE(psq.quote_change_note, ''))) > 0
+             OR (
+               jsonb_typeof(psq.quote_sheet->'lines') = 'array'
+               AND jsonb_array_length(psq.quote_sheet->'lines') > 0
+             )
+           ) AS quote_case_open
+         FROM crm_lead_presales psq
+         WHERE psq.lead_id = l.sqlite_lead_id
+           AND COALESCE(psq.status, '') = 'active'
+         ORDER BY psq.id DESC
+         LIMIT 1
+       ) quote_state ON TRUE`;
+
+export interface LeadListSignals {
+  hot: number;
+  consult: number;
+  ai: number;
+  won: number;
+}
 
 interface PgWhereClause {
   sql: string;
@@ -88,7 +140,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
   async listLeads(
     query: ListLeadsQuery,
     classification?: LeadClassificationConfig | null,
-  ): Promise<{ leads: LeadV1[]; total: number }> {
+  ): Promise<{ leads: LeadV1[]; total: number; signals: LeadListSignals }> {
     const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const where = this.buildWhere(query);
@@ -121,6 +173,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
               ${SOLUTION_HANDOFF_SQL},
+              ${STAGE_RECORD_SQL},
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -129,6 +182,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at${b2bList ? b2bListEnrichmentSql() : ''}
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id${b2bList ? b2bListJoinSql() : ''}
+       ${QUOTE_STATE_JOIN_SQL}
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -136,12 +190,57 @@ export class PgLeadsRepository implements OnModuleDestroy {
     );
 
     const kanbanCard = b2bList ? await this.loadKanbanCardSettings() : null;
+    const signals = await this.countListSignals(where);
     return {
       leads: listResult.rows.map((row) =>
         pgRowToV1(row as PgLeadRow, { classification: classification ?? null, kanbanCard }),
       ),
       total,
+      signals,
     };
+  }
+
+  private async countListSignals(where: PgWhereClause): Promise<LeadListSignals> {
+    const settings = await this.loadKanbanCardSettings();
+    const result = await this.db.query(
+      `SELECT lower(COALESCE(l.status, '')) AS status,
+              COALESCE(l.source, '') AS source,
+              COALESCE(l.channel, '') AS channel,
+              COALESCE(l.need, '') AS need,
+              l.received_at,
+              l.created_at
+       FROM crm_leads l${where.sql}`,
+      where.params,
+    );
+    const now = new Date();
+    const weekStart = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+    const consult = new Set(['dang_tu_van', 'hen_gap']);
+    const quote = new Set(['bao_gia', 'proposal', 'dam_phan']);
+    const won = new Set(['won', 'chot']);
+    const signals = { hot: 0, consult: 0, ai: 0, won: 0 };
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+      const status = String(row.status ?? '');
+      if (consult.has(status)) signals.consult += 1;
+      if (quote.has(status)) signals.ai += 1;
+      const received = row.received_at ? new Date(String(row.received_at)) : null;
+      const created = row.created_at ? new Date(String(row.created_at)) : null;
+      const receivedAt = received && !Number.isNaN(received.getTime()) ? received : null;
+      const when = receivedAt ?? (created && !Number.isNaN(created.getTime()) ? created : null);
+      if (won.has(status) && when && when.getTime() >= weekStart) signals.won += 1;
+      if (
+        computeKanbanPriority({
+          source: String(row.source ?? ''),
+          channel: String(row.channel ?? ''),
+          need: String(row.need ?? ''),
+          receivedAt,
+          now,
+          settings,
+        }) === 'hot'
+      ) {
+        signals.hot += 1;
+      }
+    }
+    return signals;
   }
 
   async getLeadById(
@@ -168,6 +267,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
               ${SOLUTION_HANDOFF_SQL},
+              ${STAGE_RECORD_SQL},
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -176,6 +276,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id
+       ${QUOTE_STATE_JOIN_SQL}
        WHERE l.sqlite_lead_id = $1`,
       [leadId],
     );
@@ -309,6 +410,9 @@ export class PgLeadsRepository implements OnModuleDestroy {
         clauses.push(scopeClause);
         params.push(query.b2b_list_scope.staffId);
       }
+    }
+    if (query.from_solution_onward) {
+      clauses.push(buildFromSolutionOnwardClause('l'));
     }
     if (query.review_queue_filter === 'only') {
       const ids = query.review_queue_ids ?? [];

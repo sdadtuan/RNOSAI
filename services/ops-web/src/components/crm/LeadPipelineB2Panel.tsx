@@ -21,6 +21,7 @@ export function LeadPipelineB2Panel({
   canWriteFr = true,
   embedFrSla = false,
   statusChip,
+  leadStatus = null,
 }: {
   funnel: LeadFunnelSnapshot;
   canEdit: boolean;
@@ -35,6 +36,8 @@ export function LeadPipelineB2Panel({
   /** Gộp SLA phản hồi đầu vào bước B2 (pipeline) — tránh panel trùng phía trên. */
   embedFrSla?: boolean;
   statusChip?: string | null;
+  /** CRM status, forwarded so receive-SLA controls hide from Tư vấn onward. */
+  leadStatus?: string | null;
 }) {
   const b2Stage = funnel.care_pipeline.stages[0];
   const negativeReportCount = funnel.care_pipeline.b2_negative_report_count ?? 0;
@@ -59,7 +62,7 @@ export function LeadPipelineB2Panel({
           onError={onError}
         />
       ) : null}
-      {b2Done ? <p className="lead-b2-outcome__done">B2 đã xong — đã sang Pre-sales Lead.</p> : null}
+      {b2Done ? <p className="lead-b2-outcome__done">B2 đã xong — sang Pre Sale.</p> : null}
       {!b2Done && !showOutcome ? (
         <p className="muted">Không thể cập nhật kết quả B2 ở trạng thái hiện tại.</p>
       ) : null}
@@ -74,9 +77,9 @@ export function LeadPipelineB2Panel({
           <p className="lead-b2-workspace__sub">
             {showFr
               ? tab === 'fr'
-                ? 'Đang mở phản hồi đầu. Sang tab Kết quả B2 khi đã nói chuyện với khách.'
-                : 'Cửa sang Pre-sales. Không nghe máy và sai số vẫn ghi ở tab Phản hồi đầu.'
-              : 'Xác nhận đã nói chuyện để hoàn thành B2 và sang Pre-sales.'}
+                ? 'Đang ở phần ghi phản hồi đầu. Sang Chốt kết quả B2 khi đã nói chuyện với khách.'
+                : 'Cửa sang Pre Sale. Không nghe máy và sai số vẫn ghi ở phần Ghi phản hồi đầu.'
+              : 'Xác nhận đã nói chuyện để hoàn thành B2 và sang Pre Sale.'}
           </p>
         </div>
         {statusChip ? <span className="lead-b2-workspace__chip">{statusChip}</span> : null}
@@ -84,7 +87,8 @@ export function LeadPipelineB2Panel({
 
       {showFr ? (
         <>
-          <div className="lead-b2-tabs" role="tablist" aria-label="Liên hệ lần đầu">
+          <span className="lead-zone__kicker">Trong bước Liên hệ lần đầu</span>
+          <div className="lead-b2-tabs" role="tablist" aria-label="Trong bước Liên hệ lần đầu">
             <button
               type="button"
               role="tab"
@@ -94,7 +98,7 @@ export function LeadPipelineB2Panel({
               onClick={() => setTab('fr')}
             >
               <span className="lead-b2-tabs__no">1</span>
-              <span className="lead-b2-tabs__label">Phản hồi đầu</span>
+              <span className="lead-b2-tabs__label">Ghi phản hồi đầu</span>
               <span className="lead-b2-tabs__meta">Ghi cuộc gọi</span>
             </button>
             <button
@@ -106,8 +110,8 @@ export function LeadPipelineB2Panel({
               onClick={() => setTab('outcome')}
             >
               <span className="lead-b2-tabs__no">2</span>
-              <span className="lead-b2-tabs__label">Kết quả B2</span>
-              <span className="lead-b2-tabs__meta">{b2Done ? 'Đã xong' : 'Sang Pre-sales'}</span>
+              <span className="lead-b2-tabs__label">Chốt kết quả B2</span>
+              <span className="lead-b2-tabs__meta">{b2Done ? 'Đã xong' : 'Sang Pre Sale'}</span>
             </button>
           </div>
 
@@ -126,6 +130,7 @@ export function LeadPipelineB2Panel({
               leadId={leadId!}
               canWrite={canWriteFr && !inReview}
               variant="embedded"
+              status={leadStatus}
             />
           </div>
 
@@ -137,10 +142,10 @@ export function LeadPipelineB2Panel({
             className="lead-b2-workspace__panel"
           >
             <h4 id="lead-b2-outcome-heading" className="sr-only">
-              Kết quả bước B2 — cửa sang Pre-sales
+              Kết quả bước B2 — cửa sang Pre Sale
             </h4>
             <p className="lead-b2-workspace__panel-note">
-              Chỉ xác nhận khi đã nói chuyện. Không nghe máy và sai số ghi ở tab Phản hồi đầu.
+              Chỉ xác nhận khi đã nói chuyện. Không nghe máy và sai số ghi ở phần Ghi phản hồi đầu.
             </p>
             {outcomeBody}
           </div>
@@ -150,7 +155,7 @@ export function LeadPipelineB2Panel({
           <div className="lead-b2-workspace__phase-head">
             <span className="lead-b2-workspace__step">1</span>
             <div>
-              <h4 id="lead-b2-outcome-heading">Kết quả bước B2 — cửa sang Pre-sales</h4>
+              <h4 id="lead-b2-outcome-heading">Kết quả bước B2 — cửa sang Pre Sale</h4>
               <p>Xác nhận đã nói chuyện để hoàn thành B2. Không nghe máy và sai số nằm ở phản hồi đầu.</p>
             </div>
           </div>

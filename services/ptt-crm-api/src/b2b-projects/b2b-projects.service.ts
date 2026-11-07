@@ -23,6 +23,12 @@ export class B2bProjectsService {
     return this.repo.listProjectsForStaff(staffId, status);
   }
 
+  /** Delivery projects that can receive a lead (menu Dự án PTT, capability lead_ingest). */
+  async listLeadIngestOptions(status?: string, staffId?: number, opts?: { forCreate?: boolean }) {
+    await this.repo.ensureLeadIngestFacets(opts?.forCreate ? undefined : status);
+    return this.repo.listLeadIngestOptions(status, opts?.forCreate ? undefined : staffId, opts);
+  }
+
   async get(id: string): Promise<B2bProjectRow> {
     const row = await this.repo.getProject(id);
     if (!row) throw new NotFoundException({ error: 'not_found' });
@@ -138,9 +144,11 @@ export class B2bProjectsService {
       kind:
         ch.channel_type === 'zalo'
           ? 'oa_id'
-          : ch.channel_type === 'webform'
-            ? 'webform_slug'
-            : 'api_key_hash',
+          : ch.channel_type === 'tiktok'
+            ? 'tiktok_advertiser_id'
+            : ch.channel_type === 'webform'
+              ? 'webform_slug'
+              : 'api_key_hash',
       value: ch.external_key.trim(),
       projectId,
       active: ch.active !== false,

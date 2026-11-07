@@ -56,6 +56,7 @@ import {
   defaultStrategyJson,
   parsePresalesJsonRecord,
   planContentFromRow,
+  solutionSubmitGaps,
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
 import {
@@ -66,6 +67,38 @@ import {
   resolveLeadNiche,
 } from './client-plan-brief.util';
 import { SOLUTION_HANDOFF_ACTIVITY_TYPES } from './presales-solution-handoff-activity.util';
+import {
+  QUOTE_ACCEPT_MINUTES,
+  QUOTE_FINISH_HOURS,
+  buildQuoteCaseView,
+  isBaoGiaColumnStatus,
+  preferredMarketingLeaderId,
+  quoteDeadlineIso,
+  quoteLateEventKey,
+  quoteTimerLabel,
+  quoteWasAutoReassigned,
+  readQuoteLateEvents,
+  type QuoteLateEvent,
+  type QuoteLateTimer,
+} from './quote-case.util';
+import {
+  SOLUTION_ACCEPT_MINUTES,
+  SOLUTION_CUSTOMER_HOURS,
+  SOLUTION_REVISION_HOURS,
+  buildSolutionCaseView,
+  solutionWorkDueAt,
+} from './solution-case.util';
+import { renderLeadQuoteDocx } from './lead-quote-docx';
+import {
+  QUOTE_SHEET_MAX_SERVICES,
+  assembleQuoteSheet,
+  hourlyFromPosition,
+  readStoredQuoteSheet,
+  type QuoteSheetItem,
+  type QuoteSheetService,
+  type QuoteSheetStaff,
+  type QuoteSheetView,
+} from './quote-sheet.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import {
   buildPresalesWorkflowUpgradePlan,
@@ -138,11 +171,30 @@ type PgPresalesRow = {
   solution_owner_staff_id?: string | null;
   solution_claimed_at?: Date | string | null;
   solution_released_at?: Date | string | null;
+  solution_accept_due_at?: Date | string | null;
+  solution_due_at?: Date | string | null;
+  solution_customer_due_at?: Date | string | null;
+  solution_revision_note?: string | null;
+  solution_revision_due_at?: Date | string | null;
+  solution_approved_at?: Date | string | null;
+  quote_offered_at?: Date | string | null;
+  quote_accept_due_at?: Date | string | null;
+  quote_accepted_at?: Date | string | null;
+  quote_due_at?: Date | string | null;
+  quote_sent_back_at?: Date | string | null;
+  quote_change_note?: string | null;
+  quote_approved_at?: Date | string | null;
+  quote_ceo_escalated_at?: Date | string | null;
+  quote_late_events?: unknown;
+  quote_assignee_staff_id?: string | number | null;
+  quote_reassign_note?: string | null;
+  implementation_status?: string | null;
 };
 
 @Injectable()
 export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
+  private quoteCaseReady: Promise<void> | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -202,7 +254,81 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
       solution_claimed_at: row.solution_claimed_at ? String(row.solution_claimed_at) : '',
       solution_released_at: row.solution_released_at ? String(row.solution_released_at) : '',
+      solution_accept_due_at: row.solution_accept_due_at ? String(row.solution_accept_due_at) : '',
+      solution_due_at: row.solution_due_at ? String(row.solution_due_at) : '',
+      solution_customer_due_at: row.solution_customer_due_at ? String(row.solution_customer_due_at) : '',
+      solution_revision_note: String(row.solution_revision_note ?? ''),
+      solution_revision_due_at: row.solution_revision_due_at ? String(row.solution_revision_due_at) : '',
+      solution_approved_at: row.solution_approved_at ? String(row.solution_approved_at) : '',
+      quote_offered_at: row.quote_offered_at ? String(row.quote_offered_at) : '',
+      quote_accept_due_at: row.quote_accept_due_at ? String(row.quote_accept_due_at) : '',
+      quote_accepted_at: row.quote_accepted_at ? String(row.quote_accepted_at) : '',
+      quote_due_at: row.quote_due_at ? String(row.quote_due_at) : '',
+      quote_sent_back_at: row.quote_sent_back_at ? String(row.quote_sent_back_at) : '',
+      quote_change_note: String(row.quote_change_note ?? ''),
+      quote_approved_at: row.quote_approved_at ? String(row.quote_approved_at) : '',
+      quote_ceo_escalated_at: row.quote_ceo_escalated_at ? String(row.quote_ceo_escalated_at) : '',
+      quote_late_events: readQuoteLateEvents(row.quote_late_events),
+      quote_assignee_staff_id:
+        row.quote_assignee_staff_id != null && Number(row.quote_assignee_staff_id) > 0
+          ? Number(row.quote_assignee_staff_id)
+          : null,
+      quote_reassign_note: String(row.quote_reassign_note ?? ''),
+      implementation_status: String(row.implementation_status ?? ''),
     };
+  }
+
+  private ensureQuoteCaseColumns(): Promise<void> {
+    if (!this.quoteCaseReady) {
+      this.quoteCaseReady = this.db
+        .query(
+          `ALTER TABLE crm_lead_presales
+             ADD COLUMN IF NOT EXISTS solution_approved_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_offered_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_accept_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_accepted_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_sent_back_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_change_note TEXT,
+             ADD COLUMN IF NOT EXISTS quote_approved_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_ceo_escalated_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS quote_late_events JSONB NOT NULL DEFAULT '[]'::jsonb,
+             ADD COLUMN IF NOT EXISTS quote_assignee_staff_id BIGINT,
+             ADD COLUMN IF NOT EXISTS quote_reassign_note TEXT,
+             ADD COLUMN IF NOT EXISTS quote_sheet JSONB,
+             ADD COLUMN IF NOT EXISTS implementation_status TEXT,
+             ADD COLUMN IF NOT EXISTS solution_accept_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS solution_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS solution_customer_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS solution_revision_note TEXT,
+             ADD COLUMN IF NOT EXISTS solution_revision_due_at TIMESTAMPTZ`,
+        )
+        .then(() => undefined)
+        .catch((err) => {
+          this.quoteCaseReady = null;
+          throw err;
+        });
+    }
+    return this.quoteCaseReady;
+  }
+
+  private async noteLeadStep(leadId: number, staffId: number, status: string, note: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       ) VALUES ($1, 'system', $2, '', '', NOW(), $3, $4)`,
+      [leadId, note, `staff:${staffId}`.slice(0, 120), status],
+    );
+  }
+
+  private async setLeadStatus(leadId: number, status: string, staffId: number, note: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+       SET status = $2, updated_at = NOW(), updated_by = $3
+       WHERE sqlite_lead_id = $1`,
+      [leadId, status, `staff:${staffId}`.slice(0, 120)],
+    );
+    await this.noteLeadStep(leadId, staffId, status, note);
   }
 
   private async staffNameById(staffId: number | null): Promise<string> {
@@ -906,6 +1032,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   }
 
   async getPresalesSnapshot(leadId: number): Promise<PresalesSnapshot | null> {
+    await this.ensureQuoteCaseColumns();
     const psResult = await this.db.query(`SELECT * FROM crm_lead_presales WHERE lead_id = $1`, [leadId]);
     const psRow = psResult.rows[0] as PgPresalesRow | undefined;
     if (!psRow) return null;
@@ -998,9 +1125,39 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       canAdvance = true;
     }
 
+    await this.syncQuoteWithSolutionOwner(ps);
+    const assigneeName = await this.quoteAssigneeName(ps.quote_assignee_staff_id);
+    const now = new Date();
+    let quoteCase = buildQuoteCaseView(
+      {
+        ...ps,
+        quote_assignee_name: assigneeName,
+      },
+      now,
+    );
+    if (quoteCase && (quoteCase.phase === 'chuyen_bao_gia' || quoteCase.phase === 'bao_gia')) {
+      const leaders = await this.marketingLeaders();
+      quoteCase = {
+        ...quoteCase,
+        transfer_candidates: leaders
+          .filter((leader) => leader.id !== quoteCase?.assignee_staff_id)
+          .map((leader) => ({ id: leader.id, name: leader.name })),
+      };
+    }
+    const handoff = await this.buildHandoffView(ps);
+    const solutionCase = buildSolutionCaseView(
+      {
+        ...ps,
+        solution_owner_name: handoff.solution_owner_name,
+      },
+      now,
+    );
+
     return {
       presales: ps,
-      handoff: await this.buildHandoffView(ps),
+      handoff,
+      solution_case: solutionCase,
+      quote_case: quoteCase,
       l2_docs: buildPresalesL2DocsView(ps.service_slug, ps.l2_docs_json),
       consult_proposal_sla: buildPresalesConsultProposalSla({
         presalesStage: ps.stage,
@@ -1641,11 +1798,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const missing = clientBriefMissing(brief, {
       company_name: companyName,
       niche,
-      need: facts.need,
+      need: facts.need || (await this.getLeadNeed(leadId)),
     });
     if (missing[0]) return missing[0];
     if (!brief.saved_after_ai) return 'Solution chưa lưu sau bản AI.';
     return '';
+  }
+
+  async getLeadNeed(leadId: number): Promise<string> {
+    const result = await this.db.query(
+      `SELECT COALESCE(need, '') AS need FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    return String(result.rows[0]?.need ?? '').trim();
   }
 
   async getLeadIndustryName(leadId: number): Promise<string> {
@@ -1778,6 +1943,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
 
+    const leaders = await this.marketingLeaders();
+    const assigneeId = preferredMarketingLeaderId(
+      leaders.map((row) => row.id),
+      null,
+    );
+    const assigneeName = leaders.find((row) => row.id === assigneeId)?.name ?? '';
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET stage = 'consult',
@@ -1789,13 +1960,29 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            END,
            handoff_status = 'pending',
            handed_off_at = NOW(),
-           handed_off_by_staff_id = $2
+           handed_off_by_staff_id = $2,
+           solution_owner_staff_id = $3,
+           solution_accept_due_at = NOW() + ($4::int * INTERVAL '1 minute'),
+           solution_claimed_at = NULL,
+           solution_due_at = NULL,
+           solution_released_at = NULL,
+           solution_customer_due_at = NULL,
+           solution_revision_note = '',
+           solution_revision_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId],
+      [snap.presales.id, staffId, assigneeId, SOLUTION_ACCEPT_MINUTES],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
+    const status = await this.currentLeadStatus(leadId);
+    const who = assigneeName ? ` Đã giao ${assigneeName}.` : '';
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      `Lead chờ Solutions.${who} Hạn nhận case ${SOLUTION_ACCEPT_MINUTES} phút.`,
+    );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
 
@@ -1834,15 +2021,62 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.handoff_status !== 'pending') {
       throw new Error('Lead không ở trạng thái chờ Solution nhận case.');
     }
+    if (snap.presales.solution_owner_staff_id && snap.presales.solution_owner_staff_id !== staffId) {
+      throw new Error('Case Solutions đang giao cho Marketing Leader khác.');
+    }
+    const due = solutionWorkDueAt(new Date());
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET handoff_status = 'with_solution',
            solution_owner_staff_id = $2,
            solution_claimed_at = NOW(),
+           solution_due_at = $3,
+           solution_revision_note = '',
+           solution_revision_due_at = NULL,
            updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId],
+      [snap.presales.id, staffId, due.toISOString()],
+    );
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(leadId, staffId, status, 'Đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.');
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async returnToSalesForMissingInfo(leadId: number, staffId: number, reason: string): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const handoff = snap.presales.handoff_status;
+    if (handoff !== 'pending' && handoff !== 'with_solution') {
+      throw new Error('Lead không đang ở Solution.');
+    }
+    if (
+      handoff === 'with_solution' &&
+      snap.presales.solution_owner_staff_id &&
+      snap.presales.solution_owner_staff_id !== staffId
+    ) {
+      throw new Error('Chỉ Solution owner được trả lại Sales.');
+    }
+    const note = reason.trim().slice(0, 500);
+    if (note.length < 5) {
+      throw new Error('Nhập lý do thông tin chưa đủ (ít nhất 5 ký tự).');
+    }
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+       SET stage = 'lead',
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           handoff_status = '',
+           solution_owner_staff_id = NULL,
+           solution_accept_due_at = NULL,
+           solution_due_at = NULL,
+           solution_customer_due_at = NULL,
+           solution_revision_note = '',
+           solution_revision_due_at = NULL,
+           notes = TRIM(BOTH FROM COALESCE(notes, '') || E'\\n' || $2)
+       WHERE id = $1
+       RETURNING *`,
+      [snap.presales.id, `MKT trả lại Sales — thông tin chưa đủ: ${note}`],
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -1850,11 +2084,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   async releaseToSales(leadId: number, staffId: number): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    if (snap.presales.stage !== 'consult') {
-      throw new Error('Chỉ release khi đang ở giai đoạn Tư vấn.');
+    if (snap.presales.handoff_status === 'released') {
+      throw new Error('Solution đã nộp cho Sales.');
     }
     if (snap.presales.handoff_status !== 'with_solution') {
-      throw new Error('Solution cần nhận case trước khi trả Sales.');
+      throw new Error('Nhận case trước khi nộp Solution.');
     }
     if (
       snap.presales.solution_owner_staff_id &&
@@ -1862,15 +2096,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     ) {
       throw new Error('Chỉ Solution owner được trả Sales.');
     }
-    const curProg = snap.progress.consult || { total: 0, done: 0 };
-    const consultComplete = curProg.total === 0 || curProg.done >= curProg.total;
-    if (!consultComplete) {
-      throw new Error('Hoàn thành task Consult trước khi trả Sales.');
-    }
     const plan = await this.getPreliminaryPlan(snap.presales.id);
-    const val = validatePreliminaryPlan(plan);
-    if (!val.ok) {
-      throw new Error(val.messages[0] || 'KH MKT sơ bộ chưa đủ');
+    const gaps = solutionSubmitGaps(plan);
+    if (gaps.length) {
+      throw new Error(gaps.join('\n'));
     }
 
     const updated = await this.db.query(
@@ -1881,6 +2110,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            proposal_entered_at = NOW(),
            handoff_status = 'released',
            solution_released_at = NOW(),
+           solution_due_at = NULL,
+           solution_customer_due_at = NOW() + ($2::int * INTERVAL '1 hour'),
+           solution_revision_note = '',
+           solution_revision_due_at = NULL,
            consult_entered_at = CASE
              WHEN consult_entered_at IS NULL
              THEN COALESCE(stage_entered_at, NOW())
@@ -1888,9 +2121,567 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            END
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id],
+      [snap.presales.id, SOLUTION_CUSTOMER_HOURS],
+    );
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      `Đã trả Sales. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi Solutions.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async requestSolutionEdits(leadId: number, staffId: number, note: string): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.handoff_status !== 'released') {
+      throw new Error('Trả Sales trước khi yêu cầu chỉnh Solutions.');
+    }
+    if (snap.presales.solution_approved_at) {
+      throw new Error('Solution đã được duyệt.');
+    }
+    const text = note.trim().slice(0, 500);
+    if (text.length < 5) {
+      throw new Error('Nhập nội dung cần chỉnh, ít nhất 5 ký tự.');
+    }
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET stage = 'consult',
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           handoff_status = 'with_solution',
+           solution_revision_note = $2,
+           solution_revision_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+           solution_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+           solution_customer_due_at = NULL
+       WHERE id = $1`,
+      [snap.presales.id, text, SOLUTION_REVISION_HOURS],
+    );
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      `Sale yêu cầu chỉnh Solutions: ${text}. Hạn trả lại ${SOLUTION_REVISION_HOURS} giờ.`,
+    );
+  }
+
+  private async marketingLeaders(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT s.id, s.name
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) IN ('mkl', 'mkt-01', 'mkt01')
+        ORDER BY s.id`,
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? '').trim(),
+    }));
+  }
+
+  private async quoteAssigneeName(staffId: number | null): Promise<string> {
+    if (staffId == null || staffId <= 0) return '';
+    const leaders = await this.marketingLeaders();
+    return leaders.find((row) => row.id === staffId)?.name || (await this.staffNameById(staffId));
+  }
+
+  /** A missed quote timer stays with the Solution Marketing Leader and is logged for the CEO. */
+  private async syncQuoteWithSolutionOwner(ps: PresalesRow): Promise<void> {
+    const forcedAccept = await this.restoreQuoteToSolutionOwner(ps);
+    await this.recordQuoteLateness(ps, forcedAccept);
+  }
+
+  private async restoreQuoteToSolutionOwner(ps: PresalesRow): Promise<boolean> {
+    if (ps.quote_accepted_at || ps.quote_approved_at || ps.quote_sent_back_at) return false;
+    if (!ps.solution_approved_at) return false;
+    const owner = ps.solution_owner_staff_id;
+    if (owner == null || owner <= 0 || ps.quote_assignee_staff_id === owner) return false;
+    if (String(ps.quote_reassign_note ?? '').trim().startsWith('CEO chuyển')) return false;
+    const stolen = quoteWasAutoReassigned(ps.quote_reassign_note);
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+          SET quote_assignee_staff_id = $2,
+              quote_reassign_note = '',
+              updated_at = NOW()
+        WHERE id = $1
+          AND quote_accepted_at IS NULL
+          AND quote_approved_at IS NULL
+          AND quote_sent_back_at IS NULL
+          AND solution_owner_staff_id = $2
+          AND quote_assignee_staff_id IS DISTINCT FROM $2
+          AND COALESCE(quote_reassign_note, '') NOT LIKE 'CEO chuyển%'
+        RETURNING quote_assignee_staff_id`,
+      [ps.id, owner],
+    );
+    if (!updated.rowCount) return false;
+    ps.quote_assignee_staff_id = owner;
+    ps.quote_reassign_note = '';
+    return stolen;
+  }
+
+  private async recordQuoteLateness(ps: PresalesRow, forcedAccept = false): Promise<void> {
+    if (ps.quote_approved_at || ps.quote_sent_back_at) return;
+    const acceptDue = Date.parse(ps.quote_accept_due_at);
+    const finishDue = Date.parse(ps.quote_due_at);
+    const acceptLate =
+      forcedAccept ||
+      (Boolean(ps.solution_approved_at) &&
+        !ps.quote_accepted_at &&
+        Number.isFinite(acceptDue) &&
+        Date.now() > acceptDue);
+    const finishLate =
+      Boolean(ps.quote_accepted_at) && Number.isFinite(finishDue) && Date.now() > finishDue;
+    if (!acceptLate && !finishLate) return;
+
+    const timer: QuoteLateTimer = acceptLate ? 'accept' : 'finish';
+    const dueRaw = acceptLate ? ps.quote_accept_due_at : ps.quote_due_at;
+    const dueAt = quoteDeadlineIso(dueRaw) || new Date().toISOString();
+    const staffName = await this.quoteAssigneeName(ps.quote_assignee_staff_id);
+    const event: QuoteLateEvent = {
+      staff_id: ps.quote_assignee_staff_id,
+      staff_name: staffName,
+      timer,
+      timer_label: quoteTimerLabel(timer),
+      due_at: dueAt,
+      logged_at: new Date().toISOString(),
+    };
+    const existing = readQuoteLateEvents(ps.quote_late_events);
+    const already = existing.some((row) => quoteLateEventKey(row) === quoteLateEventKey(event));
+    if (already && ps.quote_ceo_escalated_at) return;
+    const events = already ? existing : [...existing, event];
+    const who = staffName || 'Marketing Leader';
+    const note = acceptLate
+      ? `Quá ${QUOTE_ACCEPT_MINUTES} phút chưa bấm Nhận Case Báo Giá — ${who} trễ, đã báo CEO. Giữ nguyên người phụ trách.`
+      : `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá — ${who} trễ, đã báo CEO. Giữ nguyên người phụ trách.`;
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+          SET quote_late_events = $2::jsonb,
+              quote_ceo_escalated_at = COALESCE(quote_ceo_escalated_at, NOW()),
+              updated_at = NOW()
+        WHERE id = $1
+          AND quote_approved_at IS NULL
+          AND quote_sent_back_at IS NULL
+          AND quote_assignee_staff_id IS NOT DISTINCT FROM $3
+        RETURNING quote_ceo_escalated_at, quote_late_events, quote_assignee_staff_id`,
+      [ps.id, JSON.stringify(events), ps.quote_assignee_staff_id],
+    );
+    if (!updated.rowCount) return;
+    const row = updated.rows[0] as {
+      quote_ceo_escalated_at?: Date | string | null;
+      quote_late_events?: unknown;
+    };
+    ps.quote_ceo_escalated_at = row.quote_ceo_escalated_at ? String(row.quote_ceo_escalated_at) : '';
+    ps.quote_late_events = readQuoteLateEvents(row.quote_late_events);
+    if (!already) {
+      const status = await this.currentLeadStatus(ps.lead_id);
+      await this.noteLeadStep(ps.lead_id, ps.quote_assignee_staff_id ?? 0, status, note.slice(0, 500));
+    }
+  }
+
+  async transferQuoteCase(leadId: number, actorStaffId: number, targetStaffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const ps = snap.presales;
+    if (!ps.solution_approved_at) throw new Error('Chưa có case báo giá để chuyển.');
+    if (ps.quote_approved_at) throw new Error('Báo giá đã sang Triển Khai.');
+    if (ps.quote_sent_back_at) throw new Error('Báo giá đang chờ Sale.');
+    const leaders = await this.marketingLeaders();
+    const target = leaders.find((row) => row.id === targetStaffId);
+    if (!target) throw new Error('Chỉ chuyển cho Marketing Leader đang hoạt động.');
+    if (ps.quote_assignee_staff_id === targetStaffId) {
+      throw new Error('Case đang giao cho Marketing Leader này.');
+    }
+    const accepted = Boolean(ps.quote_accepted_at);
+    const note = accepted
+      ? `CEO chuyển case báo giá cho ${target.name}. Hạn nộp ${QUOTE_FINISH_HOURS} giờ.`
+      : `CEO chuyển case báo giá cho ${target.name}. Hạn nhận case ${QUOTE_ACCEPT_MINUTES} phút.`;
+    const updated = accepted
+      ? await this.db.query(
+          `UPDATE crm_lead_presales
+              SET quote_assignee_staff_id = $2,
+                  quote_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+                  quote_ceo_escalated_at = NULL,
+                  quote_reassign_note = $4,
+                  updated_at = NOW()
+            WHERE id = $1
+              AND quote_accepted_at IS NOT NULL
+              AND quote_sent_back_at IS NULL
+              AND quote_approved_at IS NULL
+            RETURNING id`,
+          [ps.id, targetStaffId, QUOTE_FINISH_HOURS, note.slice(0, 500)],
+        )
+      : await this.db.query(
+          `UPDATE crm_lead_presales
+              SET quote_assignee_staff_id = $2,
+                  quote_accept_due_at = NOW() + ($3::int * INTERVAL '1 minute'),
+                  quote_ceo_escalated_at = NULL,
+                  quote_reassign_note = $4,
+                  updated_at = NOW()
+            WHERE id = $1
+              AND quote_accepted_at IS NULL
+              AND quote_approved_at IS NULL
+            RETURNING id`,
+          [ps.id, targetStaffId, QUOTE_ACCEPT_MINUTES, note.slice(0, 500)],
+        );
+    if (!updated.rowCount) throw new Error('Không chuyển được case báo giá.');
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(leadId, actorStaffId, status, note.slice(0, 500));
+  }
+
+  private assertQuoteAssignee(ps: PresalesRow, staffId: number): void {
+    if (ps.quote_assignee_staff_id && ps.quote_assignee_staff_id !== staffId) {
+      throw new Error('Case báo giá đang giao cho Marketing Leader khác.');
+    }
+  }
+
+  private async storedQuoteSheet(presalesId: number) {
+    const result = await this.db.query(`SELECT quote_sheet FROM crm_lead_presales WHERE id = $1`, [presalesId]);
+    return readStoredQuoteSheet(result.rows[0]?.quote_sheet);
+  }
+
+  private async loadQuoteCatalog(selectedCodes: string[]): Promise<{
+    services: QuoteSheetService[];
+    staff: QuoteSheetStaff[];
+    items: QuoteSheetItem[];
+    selected: string[];
+  }> {
+    const serviceResult = await this.db.query(
+      `SELECT s.code, s.name, COUNT(i.id)::int AS item_count
+         FROM crm_services s
+         LEFT JOIN crm_service_items i ON i.service_id = s.id AND i.is_active
+        WHERE s.is_active
+        GROUP BY s.id
+        ORDER BY s.sort_order, s.code`,
+    );
+    const services: QuoteSheetService[] = serviceResult.rows.map((row) => ({
+      code: String(row.code ?? '').trim().toUpperCase(),
+      name: String(row.name ?? ''),
+      item_count: Number(row.item_count) || 0,
+    }));
+    const known = new Set(services.map((service) => service.code));
+    const selected = selectedCodes.filter((code) => known.has(code)).slice(0, QUOTE_SHEET_MAX_SERVICES);
+    const staffResult = await this.db.query(
+      `SELECT s.id, s.name, upper(p.code) AS position_code, p.name AS position_name,
+              r.monthly_salary_vnd, r.hours_per_month
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+         LEFT JOIN crm_position_rates r ON r.position_id = p.id
+        WHERE s.active IS TRUE
+          AND upper(p.code) IN ('AE', 'GDKD', 'MKL')
+        ORDER BY upper(p.code), s.name, s.id`,
+    );
+    const staff: QuoteSheetStaff[] = staffResult.rows.map((row) => {
+      const monthly = Number(row.monthly_salary_vnd) || 0;
+      const hours = Number(row.hours_per_month) || 0;
+      return {
+        id: Number(row.id),
+        name: String(row.name ?? '').trim(),
+        position_code: String(row.position_code ?? ''),
+        position_name: String(row.position_name ?? ''),
+        monthly_salary_vnd: monthly,
+        hours_per_month: hours,
+        hourly_vnd: hourlyFromPosition(monthly, hours),
+      };
+    });
+    let items: QuoteSheetItem[] = [];
+    if (selected.length) {
+      const itemResult = await this.db.query(
+        `SELECT i.code, s.code AS service_code, s.name AS service_name,
+                i.phase_code, COALESCE(ph.name, i.phase_code) AS phase_name,
+                i.task, COALESCE(i.subtask, '') AS subtask,
+                COALESCE(i.main_role_code, '') AS role_code,
+                COALESCE(i.planned_hours, i.est_hours) AS est_hours, i.default_qty, COALESCE(i.unit, '') AS unit,
+                i.billable, i.client_only
+           FROM crm_service_items i
+           JOIN crm_services s ON s.id = i.service_id
+           LEFT JOIN crm_service_phases ph ON ph.code = i.phase_code
+          WHERE i.is_active AND s.is_active AND s.code = ANY($1::text[])
+          ORDER BY s.sort_order, i.sort_order, i.code`,
+        [selected],
+      );
+      items = itemResult.rows.map((row) => ({
+        code: String(row.code ?? ''),
+        service_code: String(row.service_code ?? '').trim().toUpperCase(),
+        service_name: String(row.service_name ?? ''),
+        phase_code: String(row.phase_code ?? ''),
+        phase_name: String(row.phase_name ?? ''),
+        task: String(row.task ?? ''),
+        subtask: String(row.subtask ?? ''),
+        role_code: String(row.role_code ?? ''),
+        est_hours: Number(row.est_hours) || 0,
+        qty: Number(row.default_qty) || 0,
+        unit: String(row.unit ?? ''),
+        billable: Boolean(row.billable),
+        client_only: Boolean(row.client_only),
+      }));
+    }
+    return { services, staff, items, selected };
+  }
+
+  private async assembledQuoteSheet(presalesId: number, editable: boolean): Promise<QuoteSheetView> {
+    const stored = await this.storedQuoteSheet(presalesId);
+    const catalog = await this.loadQuoteCatalog(stored.service_codes);
+    return assembleQuoteSheet({
+      editable,
+      services: catalog.services,
+      staff: catalog.staff,
+      items: catalog.items,
+      selectedServiceCodes: catalog.selected,
+      overrides: stored.lines,
+      vatPercent: stored.vat_percent,
+      promoPercent: stored.promo_percent,
+    });
+  }
+
+  private async assertQuoteSheetReady(presalesId: number): Promise<void> {
+    const view = await this.assembledQuoteSheet(presalesId, false);
+    if (view.included_count < 1) {
+      throw new Error('Chọn dịch vụ và giữ ít nhất một việc được tính tiền.');
+    }
+    if (view.missing_staff_count > 0) {
+      throw new Error('Gán nhân sự cho từng việc được tính tiền.');
+    }
+  }
+
+  private async assertBaoGiaSheet(leadId: number, snap: PresalesSnapshot): Promise<void> {
+    if (!snap.presales.solution_approved_at && !snap.presales.quote_accepted_at) {
+      throw new Error('Sale chưa Approve Solution.');
+    }
+    const status = await this.currentLeadStatus(leadId);
+    const phase = snap.quote_case?.phase;
+    if (!isBaoGiaColumnStatus(status) && phase !== 'bao_gia' && phase !== 'sale_review') {
+      throw new Error('Bảng báo giá chỉ mở ở giai đoạn Báo giá.');
+    }
+  }
+
+  async getQuoteSheet(leadId: number, requestedCodes: string[] | null): Promise<QuoteSheetView> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    await this.assertBaoGiaSheet(leadId, snap);
+    const stored = await this.storedQuoteSheet(snap.presales.id);
+    const catalog = await this.loadQuoteCatalog(requestedCodes ?? stored.service_codes);
+    return assembleQuoteSheet({
+      editable: snap.quote_case?.phase === 'bao_gia',
+      services: catalog.services,
+      staff: catalog.staff,
+      items: catalog.items,
+      selectedServiceCodes: catalog.selected,
+      overrides: stored.lines,
+      vatPercent: stored.vat_percent,
+      promoPercent: stored.promo_percent,
+    });
+  }
+
+  async saveQuoteSheet(
+    leadId: number,
+    staffId: number,
+    body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+  ): Promise<QuoteSheetView> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    await this.assertBaoGiaSheet(leadId, snap);
+    if (snap.quote_case?.phase !== 'bao_gia') throw new Error('Bảng báo giá đang khóa.');
+    this.assertQuoteAssignee(snap.presales, staffId);
+    const parsed = readStoredQuoteSheet({
+      service_codes: body.service_codes,
+      lines: body.lines,
+      vat_percent: body.vat_percent,
+      promo_percent: body.promo_percent,
+    });
+    const catalog = await this.loadQuoteCatalog(parsed.service_codes);
+    const allowed = new Set(catalog.staff.map((person) => person.id));
+    for (const line of parsed.lines) {
+      if (line.staff_id != null && !allowed.has(line.staff_id)) {
+        throw new Error('Nhân sự không thuộc AE, GDKD hoặc Marketing Leader.');
+      }
+    }
+    const payload = {
+      service_codes: catalog.selected,
+      lines: parsed.lines,
+      vat_percent: parsed.vat_percent,
+      promo_percent: parsed.promo_percent,
+    };
+    await this.db.query(
+      `UPDATE crm_lead_presales SET quote_sheet = $2::jsonb, updated_at = NOW() WHERE id = $1`,
+      [snap.presales.id, JSON.stringify(payload)],
+    );
+    return assembleQuoteSheet({
+      editable: true,
+      services: catalog.services,
+      staff: catalog.staff,
+      items: catalog.items,
+      selectedServiceCodes: catalog.selected,
+      overrides: parsed.lines,
+      vatPercent: parsed.vat_percent,
+      promoPercent: parsed.promo_percent,
+    });
+  }
+
+  async quoteSheetPdf(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    const view = await this.getQuoteSheet(leadId, null);
+    if (view.included_count < 1) throw new Error('Chưa có việc được tính tiền để tải báo giá.');
+    const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
+    const label = String(name.rows[0]?.full_name ?? '').trim() || `Lead ${leadId}`;
+    const buffer = await renderLeadQuoteDocx(view, label);
+    return { filename: `bao-gia-${leadId}.docx`, buffer };
+  }
+
+  async approveSubmittedSolution(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.handoff_status !== 'released') {
+      throw new Error('Nộp Solution trước khi Sale Approve.');
+    }
+    if (snap.presales.solution_approved_at) {
+      throw new Error('Solution đã được Approve.');
+    }
+    const leaders = await this.marketingLeaders();
+    const ownerId = snap.presales.solution_owner_staff_id;
+    const assigneeId =
+      ownerId != null && ownerId > 0
+        ? ownerId
+        : preferredMarketingLeaderId(
+            leaders.map((row) => row.id),
+            null,
+          );
+    const assigneeName =
+      leaders.find((row) => row.id === assigneeId)?.name || (await this.staffNameById(assigneeId));
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET solution_approved_at = NOW(),
+           solution_customer_due_at = NULL,
+           quote_offered_at = NOW(),
+           quote_accept_due_at = NOW() + ($3::int * INTERVAL '1 minute'),
+           quote_assignee_staff_id = $2,
+           quote_reassign_note = '',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id, assigneeId, QUOTE_ACCEPT_MINUTES],
+    );
+    const status = await this.currentLeadStatus(leadId);
+    const who = assigneeName ? ` ${assigneeName} có ${QUOTE_ACCEPT_MINUTES} phút để nhận case.` : '';
+    await this.noteLeadStep(leadId, staffId, status, `Sale Approve Solution — sang bước Chuyển Báo Giá.${who}`);
+  }
+
+  async acceptQuoteCase(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.solution_approved_at) {
+      throw new Error('Sale chưa Approve Solution.');
+    }
+    if (snap.presales.quote_accepted_at) {
+      throw new Error('Case đã được nhận lên báo giá.');
+    }
+    const leaders = await this.marketingLeaders();
+    const isLeader = leaders.some((row) => row.id === staffId);
+    const isAssignee = snap.presales.quote_assignee_staff_id === staffId;
+    const isSolutionOwner = snap.presales.solution_owner_staff_id === staffId;
+    if (!isLeader && !isAssignee && !isSolutionOwner) {
+      throw new Error('Chỉ Marketing Leader được nhận case báo giá.');
+    }
+    this.assertQuoteAssignee(snap.presales, staffId);
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET quote_accepted_at = NOW(),
+           quote_assignee_staff_id = $2,
+           quote_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+           quote_reassign_note = '',
+           quote_ceo_escalated_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id, staffId, QUOTE_FINISH_HOURS],
+    );
+    await this.setLeadStatus(leadId, 'bao_gia', staffId, 'Marketing Leader nhận case báo giá.');
+  }
+
+  async sendQuoteToSales(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.quote_approved_at) {
+      throw new Error('Báo giá đã được Approve.');
+    }
+    const status = await this.currentLeadStatus(leadId);
+    if (!snap.presales.quote_accepted_at && !isBaoGiaColumnStatus(status)) {
+      throw new Error('Nhận case báo giá trước khi gửi Sale.');
+    }
+    if (snap.quote_case?.phase !== 'bao_gia') {
+      throw new Error('Báo giá không còn ở bước Marketing Leader.');
+    }
+    this.assertQuoteAssignee(snap.presales, staffId);
+    await this.assertQuoteSheetReady(snap.presales.id);
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET quote_sent_back_at = NOW(),
+           quote_change_note = '',
+           quote_accepted_at = COALESCE(quote_accepted_at, NOW()),
+           quote_due_at = NULL,
+           quote_ceo_escalated_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id],
+    );
+    await this.noteLeadStep(leadId, staffId, status, 'Marketing Leader nộp báo giá cho Sale.');
+  }
+
+  async approveQuote(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.quote_sent_back_at) {
+      throw new Error('Marketing Leader chưa nộp báo giá.');
+    }
+    if (snap.presales.quote_approved_at) {
+      throw new Error('Báo giá đã được Approve.');
+    }
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET quote_approved_at = NOW(),
+           implementation_status = 'trien_khai',
+           quote_accept_due_at = NULL,
+           quote_due_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id],
+    );
+    await this.setLeadStatus(leadId, 'trien_khai', staffId, 'Sale Approve báo giá — sang Triển Khai.');
+  }
+
+  async requestQuoteEdits(leadId: number, staffId: number, note: string): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.quote_sent_back_at) {
+      throw new Error('Chưa có báo giá để yêu cầu chỉnh.');
+    }
+    if (snap.presales.quote_approved_at) {
+      throw new Error('Báo giá đã Approve.');
+    }
+    const text = note.trim().slice(0, 500);
+    if (text.length < 5) {
+      throw new Error('Nhập nội dung cần chỉnh, ít nhất 5 ký tự.');
+    }
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET quote_change_note = $2,
+           quote_sent_back_at = NULL,
+           quote_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+           quote_ceo_escalated_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id, text, QUOTE_FINISH_HOURS],
+    );
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(leadId, staffId, status, `Sale yêu cầu chỉnh báo giá: ${text}`);
+  }
+
+  private async currentLeadStatus(leadId: number): Promise<string> {
+    const result = await this.db.query(
+      `SELECT lower(status) AS status FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    return String(result.rows[0]?.status ?? '');
   }
 
   async hasSolutionHandoffActivity(leadId: number, handedOffAt?: string): Promise<boolean> {

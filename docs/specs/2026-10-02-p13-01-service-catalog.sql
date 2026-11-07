@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS crm_service_items (
     gate_approver            TEXT,
     min_level                TEXT NOT NULL,
     est_hours                NUMERIC(8,2) NOT NULL,
+    planned_hours            NUMERIC(8,2),
     est_hours_is_assumption  BOOLEAN NOT NULL DEFAULT TRUE,
     est_hours_source         TEXT NOT NULL DEFAULT 'seed',
     unit                     TEXT NOT NULL,

@@ -33,7 +33,12 @@ import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.
 import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.service';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { AppConfigService } from '../config/app-config.service';
-import { isAccountManagerPosition, isB2bDirectorPosition } from '../b2b-projects/b2b-director.util';
+import {
+  isAccountManagerPosition,
+  isB2bDirectorPosition,
+  isMarketingLeaderPosition,
+} from '../b2b-projects/b2b-director.util';
+import { leadIsFromSolutionOnward } from '../leads-funnel/solution-onward.util';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
 import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls.types';
@@ -150,35 +155,34 @@ export class LeadsController {
     return this.crmConfig.listLeadLookups(normalizedKind, true);
   }
 
-  /** Active PTT projects for B2B lead create — crm_leads.view (not crm_b2b_projects.view).
-   * Non–view-all staff only see projects they belong to on crm_b2b_project_staff. */
+  /** PTT projects for B2B lead create — same rows as menu Dự án PTT
+   * (crm_delivery_projects, capability lead_ingest). crm_leads.view.
+   * for=create: anyone who can view leads sees active and draft ingest projects.
+   * Otherwise non–view-all staff only see projects they belong to. */
   @Get('b2b-project-options')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async listB2bProjectOptions(
     @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('status') status?: string,
+    @Query('for') purpose?: string,
   ) {
-    if (!this.appConfig.b2bProjectOs) {
-      return { projects: [] as Array<{ id: string; code: string; name: string; status: string }> };
-    }
-    const statusFilter = status?.trim() || 'active';
-    let rows = await this.b2bProjects.list(statusFilter);
-    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+    const forCreate = purpose?.trim() === 'create';
+    const statusFilter = forCreate ? undefined : status?.trim() || 'active';
+    let staffId: number | undefined;
+    if (!forCreate && req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
       const seeAll =
         this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
       if (!seeAll) {
-        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
-        rows = staffId != null ? await this.b2bProjects.listForStaff(staffId, statusFilter) : [];
+        const resolved = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (resolved == null || resolved <= 0) {
+          return { projects: [] as Array<{ id: string; code: string; name: string; status: string }> };
+        }
+        staffId = resolved;
       }
     }
     return {
-      projects: rows.map((p) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name,
-        status: p.status,
-      })),
+      projects: await this.b2bProjects.listLeadIngestOptions(statusFilter, staffId, { forCreate }),
     };
   }
 
@@ -221,20 +225,24 @@ export class LeadsController {
 
     let b2bListScope: ListLeadsQuery['b2b_list_scope'];
     let b2bExportActor: LeadExportQuery['b2b_export_actor'];
-    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+    let fromSolutionOnward = false;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
-      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
-      if (staffId != null) {
-        b2bListScope = this.b2bLeadScope.buildListScope({
-          staffId,
-          caps: me.caps,
-          positionCode: me.position_code,
-        });
-        b2bExportActor = {
-          staffId,
-          caps: me.caps,
-          positionCode: me.position_code,
-        };
+      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
+      if (this.appConfig.b2bProjectOs && !fromSolutionOnward) {
+        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (staffId != null) {
+          b2bListScope = this.b2bLeadScope.buildListScope({
+            staffId,
+            caps: me.caps,
+            positionCode: me.position_code,
+          });
+          b2bExportActor = {
+            staffId,
+            caps: me.caps,
+            positionCode: me.position_code,
+          };
+        }
       }
     }
 
@@ -251,6 +259,7 @@ export class LeadsController {
         allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
         b2b_list_scope: b2bListScope,
         b2b_export_actor: b2bExportActor,
+        from_solution_onward: fromSolutionOnward || undefined,
       },
       caps,
       (c, s, a) => this.staffAuth.hasCap(c, s, a),
@@ -442,8 +451,10 @@ export class LeadsController {
 
     let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
     let b2bListScope: ListLeadsQuery['b2b_list_scope'];
+    let fromSolutionOnward = false;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
+      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
       const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
       if (this.appConfig.b2bProjectOs && flowKind === 'b2b_prospect' && staffId != null) {
         b2bListScope = this.b2bLeadScope.buildListScope({
@@ -454,10 +465,14 @@ export class LeadsController {
         if (!this.mayFilterLeadsByOwner(me)) {
           resolvedOwnerId = undefined;
         }
-      } else if (!hasGdkdViewAllLeads(me.caps)) {
+      } else if (!hasGdkdViewAllLeads(me.caps) && !fromSolutionOnward) {
         if (staffId != null && resolvedOwnerId == null && !truthy(unassignedOnly)) {
           resolvedOwnerId = staffId;
         }
+      }
+      if (fromSolutionOnward) {
+        resolvedOwnerId = undefined;
+        b2bListScope = undefined;
       }
     }
 
@@ -493,9 +508,12 @@ export class LeadsController {
       lead_flow_kind: flowKind,
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       b2b_list_scope: b2bListScope,
+      from_solution_onward: fromSolutionOnward || undefined,
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
-      const caps = await this.resolveCaps(req);
+      const caps = (await this.staffAuth.isSuperAdminUser(req.staffUser))
+        ? this.staffAuth.superAdminCaps()
+        : await this.resolveCaps(req);
       const leads = serializeLeadsForCaps(result.leads, caps, (c, s, a) =>
         this.staffAuth.hasCap(c, s, a),
       ).map((lead) => this.maskForeignAmContact(lead, b2bListScope));
@@ -1041,6 +1059,12 @@ export class LeadsController {
     }
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertLeadAccessible(scope, lead.client_id);
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const viewer = await this.staffAuth.me(req.staffUser);
+      if (isMarketingLeaderPosition(viewer.position_code) && !leadIsFromSolutionOnward(lead)) {
+        throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+      }
+    }
     let listScope: ListLeadsQuery['b2b_list_scope'];
     if (this.appConfig.b2bProjectOs && req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);

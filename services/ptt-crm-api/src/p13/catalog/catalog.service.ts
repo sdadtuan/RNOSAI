@@ -96,7 +96,8 @@ export class P13CatalogService {
     const [items, inputs, deliverables, kpis, risks, scope, phases] = await Promise.all([
       this.db().query(`SELECT code, phase_code, seq_in_phase, sort_order, task, subtask, standard, raci,
                               main_role_code, tool, deliverable, approval_gate, gate_approver, min_level,
-                              est_hours::text AS est_hours, est_hours_is_assumption, est_hours_source, unit,
+                              est_hours::text AS est_hours, planned_hours::text AS planned_hours,
+                              est_hours_is_assumption, est_hours_source, unit,
                               default_qty::text AS default_qty, billable, client_only, is_common
                          FROM crm_service_items WHERE service_id = (SELECT id FROM crm_services WHERE code = $1) AND is_active
                          ORDER BY sort_order, code`, [code]),
@@ -148,7 +149,8 @@ export class P13CatalogService {
 
   async patchItem(code: string, body: ItemPatchBody, actor: string): Promise<Record<string, unknown>> {
     const rows = await this.db().query<Record<string, unknown>>(
-      `SELECT code, est_hours::text AS est_hours, est_hours_is_assumption, est_hours_source, min_level,
+      `SELECT code, est_hours::text AS est_hours, planned_hours::text AS planned_hours,
+              est_hours_is_assumption, est_hours_source, min_level,
               billable, default_qty::text AS default_qty
          FROM crm_service_items WHERE code = $1`,
       [code],
@@ -166,10 +168,10 @@ export class P13CatalogService {
     }
     await this.db().query(
       `UPDATE crm_service_items
-          SET est_hours = $2, min_level = $3, billable = $4, default_qty = $5,
-              est_hours_source = $6, est_hours_is_assumption = $7, updated_at = NOW(), updated_by = $8
+          SET est_hours = $2, planned_hours = $3, min_level = $4, billable = $5, default_qty = $6,
+              est_hours_source = $7, est_hours_is_assumption = $8, updated_at = NOW(), updated_by = $9
         WHERE code = $1`,
-      [code, next.est_hours, next.min_level, next.billable, next.default_qty, next.est_hours_source, next.est_hours_is_assumption, actor],
+      [code, next.est_hours, next.planned_hours, next.min_level, next.billable, next.default_qty, next.est_hours_source, next.est_hours_is_assumption, actor],
     );
     await this.audit.logSyntheticEvent({
       event_type: 'p13_catalog',

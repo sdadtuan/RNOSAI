@@ -30,7 +30,9 @@ import {
   BatchUpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
-import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS } from './presales-marketing-plan.util';
+import { parseQuoteServiceCodes } from './quote-sheet.util';
+import { isCeoPosition } from './quote-case.util';
+import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack } from './presales-marketing-plan.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
   buildPresalesAiPromptContext,
@@ -166,6 +168,7 @@ export class LeadsFunnelService {
     const consultComplete = curProg.total === 0 || curProg.done >= curProg.total;
     const plan = await this.pgRepo.getPreliminaryPlan(snap.presales.id);
     const planVal = validatePreliminaryPlan(plan);
+    const packDone = hasCompletedSolutionPack(plan);
     const hasHandoff = await this.pgRepo.hasSolutionHandoffActivity(leadId, snap.presales.handed_off_at);
     return {
       action,
@@ -174,8 +177,8 @@ export class LeadsFunnelService {
       permission_sets: staffCtx.permission_sets,
       handoff_status: snap.presales.handoff_status,
       has_handoff_activity: hasHandoff,
-      consult_complete: consultComplete,
-      preliminary_plan_ok: planVal.ok,
+      consult_complete: consultComplete || packDone,
+      preliminary_plan_ok: planVal.ok || packDone,
     };
   }
 
@@ -499,6 +502,7 @@ export class LeadsFunnelService {
     actor: string,
     staffId: number | null,
     staffUser?: StaffJwtPayload,
+    returnReason?: string,
   ): Promise<void> {
     const snap = await this.pgRepo.getPresalesSnapshot(leadId);
     if (!snap) return;
@@ -515,6 +519,7 @@ export class LeadsFunnelService {
       serviceSlug: snap.presales.service_slug,
       actorName: await this.resolveStaffDisplayName(staffUser, actor, staffId),
       amOwnerName,
+      returnReason,
     });
     await this.legacyLeads.createActivity(leadId, payload, actor, staffId);
   }
@@ -575,6 +580,30 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
+  async returnToSalesForMissingInfo(
+    leadId: number,
+    staffId: number | null,
+    reason: string,
+    actor: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.returnToSalesForMissingInfo(leadId, staffId, reason);
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.returned,
+        actor,
+        staffId,
+        staffUser,
+        reason,
+      );
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
   async releaseToSales(
     leadId: number,
     staffId: number | null,
@@ -596,6 +625,117 @@ export class LeadsFunnelService {
       this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async approveSubmittedSolution(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.approveSubmittedSolution(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async requestSolutionEdits(leadId: number, staffId: number | null, note: string) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.requestSolutionEdits(leadId, staffId, note);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async acceptQuoteCase(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.acceptQuoteCase(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async sendQuoteToSales(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.sendQuoteToSales(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async approveQuote(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.approveQuote(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async requestQuoteEdits(leadId: number, staffId: number | null, note: string) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.requestQuoteEdits(leadId, staffId, note);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async transferQuoteCase(
+    leadId: number,
+    staffId: number | null,
+    targetStaffId: number,
+    positionCode: string | null | undefined,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    if (!isCeoPosition(positionCode)) {
+      throw new ForbiddenException({ error: 'Chỉ CEO được chuyển case báo giá.' });
+    }
+    if (!Number.isInteger(targetStaffId) || targetStaffId <= 0) {
+      throw new BadRequestException({ error: 'Chọn Marketing Leader để chuyển.' });
+    }
+    try {
+      await this.pgRepo.transferQuoteCase(leadId, staffId, targetStaffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async getQuoteSheet(leadId: number, services: string | undefined) {
+    try {
+      const codes = services === undefined ? null : parseQuoteServiceCodes(services);
+      return await this.pgRepo.getQuoteSheet(leadId, codes);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async quoteSheetPdf(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    try {
+      return await this.pgRepo.quoteSheetPdf(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async saveQuoteSheet(
+    leadId: number,
+    staffId: number | null,
+    body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      return await this.pgRepo.saveQuoteSheet(leadId, staffId, body);
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   async staffHasAssignCap(staffUser: StaffJwtPayload): Promise<boolean> {
@@ -1102,7 +1242,8 @@ export class LeadsFunnelService {
     const facts = leadQualifyFacts(snap.tasks.lead ?? []);
     const niche = resolveLeadNiche(facts.niche, await this.pgRepo.getLeadIndustryName(leadId));
     const brief = prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks);
-    return { snap, plan, tasks, brief, company_name, niche, need: facts.need };
+    const need = facts.need || (await this.pgRepo.getLeadNeed(leadId));
+    return { snap, plan, tasks, brief, company_name, niche, need };
   }
 
   private async clientLeaveFacts(
@@ -1115,7 +1256,7 @@ export class LeadsFunnelService {
     return {
       company_name: await this.pgRepo.getLeadCompanyName(leadId),
       niche: resolveLeadNiche(facts.niche, await this.pgRepo.getLeadIndustryName(leadId)),
-      need: facts.need,
+      need: facts.need || (await this.pgRepo.getLeadNeed(leadId)),
       brief: prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks),
     };
   }

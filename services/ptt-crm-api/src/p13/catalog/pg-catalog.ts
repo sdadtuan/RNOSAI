@@ -269,10 +269,10 @@ const PUT: Record<CatalogTable, (db: Queryable, code: string, row: CatalogRow) =
     await db.query(
       `INSERT INTO crm_service_items
          (code, service_id, phase_code, seq_in_phase, sort_order, task, subtask, standard, raci,
-          main_role_code, tool, deliverable, approval_gate, gate_approver, min_level, est_hours,
+          main_role_code, tool, deliverable, approval_gate, gate_approver, min_level, est_hours, planned_hours,
           est_hours_is_assumption, est_hours_source, unit, default_qty, billable, client_only, is_common, is_active)
-       SELECT $1, s.id, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16,
-              $17, $18, $19, $20, $21, $22, $23, $24
+       SELECT $1, s.id, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17,
+              $18, $19, $20, $21, $22, $23, $24, $25
          FROM crm_services s WHERE s.code = $2
        ON CONFLICT (code) DO UPDATE SET
          service_id = EXCLUDED.service_id, phase_code = EXCLUDED.phase_code, seq_in_phase = EXCLUDED.seq_in_phase,
@@ -280,6 +280,7 @@ const PUT: Record<CatalogTable, (db: Queryable, code: string, row: CatalogRow) =
          raci = EXCLUDED.raci, main_role_code = EXCLUDED.main_role_code, tool = EXCLUDED.tool,
          deliverable = EXCLUDED.deliverable, approval_gate = EXCLUDED.approval_gate, gate_approver = EXCLUDED.gate_approver,
          min_level = EXCLUDED.min_level, est_hours = EXCLUDED.est_hours,
+         planned_hours = COALESCE(crm_service_items.planned_hours, EXCLUDED.planned_hours),
          est_hours_is_assumption = EXCLUDED.est_hours_is_assumption, est_hours_source = EXCLUDED.est_hours_source,
          unit = EXCLUDED.unit, default_qty = EXCLUDED.default_qty, billable = EXCLUDED.billable,
          client_only = EXCLUDED.client_only, is_common = EXCLUDED.is_common, is_active = EXCLUDED.is_active,
@@ -301,6 +302,7 @@ const PUT: Record<CatalogTable, (db: Queryable, code: string, row: CatalogRow) =
         row.gate_approver,
         row.min_level,
         row.est_hours,
+        row.planned_hours ?? row.est_hours,
         row.est_hours_is_assumption !== false,
         row.est_hours_source ?? 'seed',
         row.unit,

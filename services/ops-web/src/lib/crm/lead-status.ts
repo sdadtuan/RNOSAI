@@ -4,6 +4,7 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   dang_tu_van: 'Đang tư vấn',
   hen_gap: 'Hẹn gặp',
   bao_gia: 'Báo giá',
+  trien_khai: 'Triển Khai',
   dam_phan: 'Đàm phán',
   chot: 'Chốt',
   post_sale: 'Sau bán',
@@ -36,6 +37,27 @@ export function normalizeLeadStatus(status: string | null | undefined): string {
   return STATUS_ALIASES[raw] ?? raw;
 }
 
+/**
+ * Receive SLA (Nhận lead / Quá hạn nhận lead) applies only before Tư vấn.
+ * `nurturing` and `negotiation` fold in through normalizeLeadStatus.
+ */
+const CONSULT_OR_LATER_STATUSES = new Set([
+  'dang_tu_van',
+  'hen_gap',
+  'consult',
+  'bao_gia',
+  'proposal',
+  'trien_khai',
+  'dam_phan',
+  'chot',
+  'won',
+  'post_sale',
+]);
+
+export function leadStatusAtOrAfterConsult(status: string | null | undefined): boolean {
+  return CONSULT_OR_LATER_STATUSES.has(normalizeLeadStatus(status));
+}
+
 export function leadStatusLabel(status: string | null | undefined): string {
   if (!status) return '—';
   const key = normalizeLeadStatus(status);
@@ -50,7 +72,7 @@ export function leadStatusTone(status: string | null | undefined): LeadStatusTon
   if (st === 'moi') return 'new';
   if (st === 'chot' || st === 'post_sale' || st === 'won') return 'won';
   if (st === 'lost' || st === 'pending_cleanup') return 'lost';
-  if (['da_lien_he', 'dang_tu_van', 'hen_gap', 'bao_gia', 'dam_phan', 'proposal'].includes(st)) return 'active';
+  if (['da_lien_he', 'dang_tu_van', 'hen_gap', 'bao_gia', 'trien_khai', 'dam_phan', 'proposal'].includes(st)) return 'active';
   return 'neutral';
 }
 
@@ -104,8 +126,9 @@ export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
     label: 'Báo giá',
     statuses: ['bao_gia', 'proposal', 'dam_phan', 'negotiation'],
     collapsible: false,
-    sumValue: true,
+    sumValue: false,
   },
+  { id: 'trien_khai', label: 'Triển Khai', statuses: ['trien_khai'], collapsible: false, sumValue: false },
   { id: 'won', label: 'Chốt', statuses: ['won', 'chot'], collapsible: true, sumValue: false },
   { id: 'lost', label: 'Thất bại', statuses: ['lost'], collapsible: true, sumValue: false },
   { id: 'nurture', label: 'Chăm sóc lại', statuses: ['nurture'], collapsible: true, sumValue: false },
@@ -257,15 +280,117 @@ export function kanbanColumnIdForStatus(
   return columns.find((column) => column.statuses.includes(normalized))?.id ?? null;
 }
 
-export function bucketLeadsByKanbanColumns<T extends { status?: string | null }>(
+/** Fields the board already loads. Missing fields mean the caller only has a status. */
+export type LeadStageSignals = {
+  status?: string | null;
+  solution_handoff?: string | null;
+  quote_sheet_saved?: boolean | null;
+  quote_sent_to_sale?: boolean | null;
+  quote_approved?: boolean | null;
+  has_contract?: boolean | null;
+};
+
+export function leadStageSignalsPresent(lead: LeadStageSignals): boolean {
+  return (
+    lead.solution_handoff !== undefined ||
+    lead.quote_sheet_saved !== undefined ||
+    lead.quote_sent_to_sale !== undefined ||
+    lead.quote_approved !== undefined ||
+    lead.has_contract !== undefined
+  );
+}
+
+/** Solution was nộp (released) or the quote flow already started from that Solution. */
+export function leadHasSubmittedSolution(lead: LeadStageSignals): boolean {
+  const handoff = String(lead.solution_handoff ?? '').trim().toLowerCase();
+  if (handoff === 'released') return true;
+  return Boolean(lead.quote_sheet_saved || lead.quote_sent_to_sale || lead.quote_approved);
+}
+
+/**
+ * Column of the last step that already has its artifact.
+ * A stored Báo giá / Triển Khai / Chốt status without that artifact does not stay there.
+ * No signals → the stored status column (older callers).
+ */
+export function kanbanColumnIdForLead(
+  lead: LeadStageSignals,
+  columns: readonly KanbanColumnDef[] = B2B_KANBAN_COLUMNS,
+): string | null {
+  const stored = kanbanColumnIdForStatus(lead.status, columns);
+  if (!stored || !leadStageSignalsPresent(lead)) return stored;
+  const solution = leadHasSubmittedSolution(lead);
+  const quoteApproved = lead.quote_approved === true;
+  const hasContract = lead.has_contract === true;
+  if (stored === 'won') {
+    if (quoteApproved || hasContract) return 'won';
+    if (solution) return 'bao_gia';
+    return 'dang_tu_van';
+  }
+  if (stored === 'trien_khai') {
+    if (quoteApproved) return 'trien_khai';
+    if (hasContract) return 'won';
+    if (solution) return 'bao_gia';
+    return 'dang_tu_van';
+  }
+  if (stored === 'bao_gia') {
+    if (solution) return 'bao_gia';
+    return 'dang_tu_van';
+  }
+  return stored;
+}
+
+/** Lead sits on the Báo giá board column, including Đàm phán / proposal. */
+export function isBaoGiaKanbanColumn(status: string | null | undefined): boolean {
+  return kanbanColumnIdForStatus(status) === 'bao_gia';
+}
+
+export function bucketLeadsByKanbanColumns<T extends LeadStageSignals>(
   rows: T[],
   columns: readonly KanbanColumnDef[],
 ): Record<string, T[]> {
   const byColumn: Record<string, T[]> = {};
   for (const column of columns) byColumn[column.id] = [];
   for (const row of rows) {
-    const columnId = kanbanColumnIdForStatus(row.status, columns);
-    if (columnId) byColumn[columnId].push(row);
+    const columnId = kanbanColumnIdForLead(row, columns);
+    if (columnId && byColumn[columnId]) byColumn[columnId].push(row);
+  }
+  return byColumn;
+}
+
+/** Sale columns that sit before Solution. Marketing Leader does not render these. */
+export const EARLY_SALE_KANBAN_IDS = ['moi', 'da_lien_he', 'dang_tu_van'] as const;
+
+export const SOLUTION_WAIT_COLUMN: KanbanColumnDef = {
+  id: 'solution',
+  label: 'Đợi Solution',
+  statuses: [],
+  collapsible: false,
+  sumValue: false,
+};
+
+const EARLY_SALE_KANBAN_ID_SET = new Set<string>(EARLY_SALE_KANBAN_IDS);
+
+export function kanbanColumnsFromSolution(): readonly KanbanColumnDef[] {
+  return [
+    SOLUTION_WAIT_COLUMN,
+    ...B2B_KANBAN_COLUMNS.filter((column) => !EARLY_SALE_KANBAN_ID_SET.has(column.id)),
+  ];
+}
+
+/** Leads still stored on an early Sale status but already handed to Solution land on Đợi Solution. */
+export function bucketLeadsFromSolution<T extends LeadStageSignals>(
+  rows: T[],
+): Record<string, T[]> {
+  const columns = kanbanColumnsFromSolution();
+  const byColumn: Record<string, T[]> = {};
+  for (const column of columns) byColumn[column.id] = [];
+  for (const row of rows) {
+    const columnId = kanbanColumnIdForLead(row, B2B_KANBAN_COLUMNS);
+    if (columnId && byColumn[columnId] && !EARLY_SALE_KANBAN_ID_SET.has(columnId)) {
+      byColumn[columnId].push(row);
+      continue;
+    }
+    byColumn.solution.push(row);
   }
   return byColumn;
 }

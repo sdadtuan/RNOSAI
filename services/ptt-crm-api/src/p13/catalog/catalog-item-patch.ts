@@ -13,6 +13,7 @@ export class CatalogPatchError extends Error {
 
 export type ItemPatchBody = {
   est_hours?: number;
+  planned_hours?: number;
   min_level?: string;
   billable?: boolean;
   default_qty?: number;
@@ -27,6 +28,11 @@ export function applyItemPatch(existing: CatalogRow, body: ItemPatchBody): Catal
   if (body.est_hours !== undefined) {
     if (!hoursStepOk(body.est_hours)) throw new CatalogPatchError('Giờ ước tính phải ≥ 0 và bước 0,5');
     next.est_hours = decimalText(body.est_hours);
+    edited = true;
+  }
+  if (body.planned_hours !== undefined) {
+    if (!hoursStepOk(body.planned_hours)) throw new CatalogPatchError('Giờ dự kiến phải ≥ 0 và bước 0,5');
+    next.planned_hours = decimalText(body.planned_hours);
     edited = true;
   }
   if (body.min_level !== undefined) {
