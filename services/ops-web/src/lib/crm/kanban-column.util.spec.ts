@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isB2bLeadP1, kanbanPulse, showKanbanLeaderPulse, sortKanbanLeads } from './kanban-column.util';
+import {
+  interactionMs,
+  isB2bLeadP1,
+  kanbanPulse,
+  showKanbanLeaderPulse,
+  sortKanbanLeads,
+  sortKanbanLeadsForColumn,
+} from './kanban-column.util';
 import type { LeadRow } from '@/lib/api';
 
 function lead(partial: Partial<LeadRow> & Pick<LeadRow, 'id'>): LeadRow {
@@ -20,7 +27,49 @@ function lead(partial: Partial<LeadRow> & Pick<LeadRow, 'id'>): LeadRow {
 }
 
 describe('kanban column order', () => {
-  it('puts late before almost-late, then hot, warm, cold, newest first', () => {
+  it('Đã liên hệ: recency beats hot vs warm', () => {
+    const rows = [
+      lead({
+        id: 1,
+        ai_band: 'hot',
+        sla_state: 'ok',
+        received_at: '2026-10-13T09:20:00.000Z',
+        updated_at: '2026-10-13T09:20:00.000Z',
+      }),
+      lead({
+        id: 2,
+        ai_band: 'warm',
+        sla_state: 'ok',
+        received_at: '2026-10-13T09:00:00.000Z',
+        updated_at: '2026-10-13T09:40:00.000Z',
+      }),
+    ];
+    expect(sortKanbanLeadsForColumn('da_lien_he', rows).map((row) => row.id)).toEqual([2, 1]);
+    expect(sortKanbanLeads(rows).map((row) => row.id)).toEqual([1, 2]);
+  });
+
+  it('other columns: same priority sorts by received_at, not updated_at', () => {
+    const rows = [
+      lead({
+        id: 1,
+        ai_band: 'hot',
+        sla_state: 'ok',
+        received_at: '2026-10-13T00:00:00.000Z',
+        updated_at: '2026-10-13T00:00:00.000Z',
+      }),
+      lead({
+        id: 2,
+        ai_band: 'hot',
+        sla_state: 'ok',
+        received_at: '2026-10-10T00:00:00.000Z',
+        updated_at: '2026-10-14T08:00:00.000Z',
+      }),
+    ];
+    expect(sortKanbanLeadsForColumn('moi', rows).map((row) => row.id)).toEqual([1, 2]);
+    expect(sortKanbanLeadsForColumn('da_lien_he', rows).map((row) => row.id)).toEqual([2, 1]);
+  });
+
+  it('puts late before almost-late, then hot, warm, cold, newest received first', () => {
     const rows = [
       lead({ id: 1, ai_band: 'cold', sla_state: 'ok', received_at: '2026-10-12T00:00:00.000Z' }),
       lead({ id: 2, ai_band: 'hot', sla_state: 'ok', received_at: '2026-10-10T00:00:00.000Z' }),

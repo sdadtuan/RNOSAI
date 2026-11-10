@@ -1,6 +1,5 @@
 'use client';
 
-import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeAiSummaryPanel } from '@/components/crm/intake/IntakeAiSummaryPanel';
 import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
 import { IntakeStakeholderMatrix } from '@/components/crm/intake/IntakeStakeholderMatrix';
@@ -62,18 +61,9 @@ export function IntakeHandoffTab({
   aiBusy,
   canGenerateAi,
   l2Docs,
-  leadId,
-  funnelCollapsed,
-  funnel,
-  consultGate,
-  intakeSummary,
-  gateLoading,
-  actionBusy,
   onStakeholderChange,
   onCommitmentChange,
   onAiGenerate,
-  onRefreshGate,
-  onPrimaryAction,
 }: IntakeHandoffTabProps) {
   const l2Items = parseL2Docs(l2Docs);
 
@@ -119,22 +109,6 @@ export function IntakeHandoffTab({
         onGenerate={onAiGenerate}
       />
 
-      {leadId > 0 && funnelCollapsed ? (
-        <details className="intake-handoff-stepper">
-          <summary>Funnel stepper</summary>
-          <CrmFunnelStepper
-            leadId={leadId}
-            funnel={funnel}
-            consultGate={consultGate}
-            intakeSummary={intakeSummary}
-            context="intake"
-            gateLoading={gateLoading}
-            actionBusy={actionBusy}
-            onRefreshGate={onRefreshGate}
-            onPrimaryAction={onPrimaryAction}
-          />
-        </details>
-      ) : null}
     </>
   );
 }

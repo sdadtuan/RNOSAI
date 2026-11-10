@@ -12,7 +12,13 @@ export class LeadsService {
     private readonly crmConfig: CrmConfigService,
   ) {}
 
-  async listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number; limit: number; offset: number }> {
+  async listLeads(query: ListLeadsQuery): Promise<{
+    leads: LeadV1[];
+    total: number;
+    limit: number;
+    offset: number;
+    signals: { hot: number; consult: number; ai: number; won: number };
+  }> {
     const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const reviewQueueFilter = this.resolveReviewQueueFilter(query);

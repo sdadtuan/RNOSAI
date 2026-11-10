@@ -5,6 +5,7 @@ import {
   acceptLeadQuoteCase,
   approveLeadQuote,
   approveLeadSolution,
+  downloadLeadContractDocx,
   fetchLeadFunnel,
   requestLeadQuoteEdits,
   requestLeadSolutionEdits,
@@ -135,7 +136,9 @@ export function QuoteCasePanel({
         <p className="muted">
           {quote.phase === 'trien_khai'
             ? 'Đồng hồ báo giá đã dừng. Lead đang ở Triển Khai.'
-            : 'Đồng hồ báo giá đã dừng. Đang chờ Sale.'}
+            : quote.phase === 'hop_dong'
+              ? 'Đồng hồ báo giá đã dừng. Hợp đồng phải chốt và GĐKD duyệt rồi lead mới sang Triển Khai.'
+              : 'Đồng hồ báo giá đã dừng. Đang chờ Sale.'}
         </p>
       ) : (
         <QuoteDeadline
@@ -251,7 +254,12 @@ export function QuoteCasePanel({
               type="button"
               className="btn btn-primary"
               disabled={busy}
-              onClick={() => void run(() => approveLeadQuote(token, leadId), 'Đã Approve báo giá. Sang Triển Khai.')}
+              onClick={() =>
+                void run(
+                  () => approveLeadQuote(token, leadId),
+                  'Đã Approve báo giá. Lập hợp đồng, GĐKD duyệt xong thì sang Triển Khai.',
+                )
+              }
             >
               Approve
             </button>
@@ -280,22 +288,45 @@ export function QuoteCasePanel({
             </button>
           </>
         ) : null}
-        {quote.phase === 'trien_khai' ? <p>Báo giá đã Approve. Lead đang ở Triển Khai.</p> : null}
-        {viewerIsCeo &&
-        (quote.phase === 'chuyen_bao_gia' || quote.phase === 'bao_gia') &&
-        (quote.transfer_candidates?.length ?? 0) > 0 ? (
+        {quote.phase === 'hop_dong' ? (
+          <>
+            <p>Báo giá đã khóa. File hợp đồng là Word lập từ báo giá đã chốt. Gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Duyệt xong lead sang Triển Khai.</p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                setLocalError('');
+                void downloadLeadContractDocx(token, leadId)
+                  .catch((err: unknown) => {
+                    const message = err instanceof Error ? err.message : 'Không tải được file hợp đồng';
+                    setLocalError(message);
+                    onError?.(message);
+                  })
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Tải file hợp đồng
+            </button>
+          </>
+        ) : null}
+        {quote.phase === 'trien_khai' ? (
+          <p>GĐKD đã duyệt hợp đồng. Lead đang ở Triển Khai.</p>
+        ) : null}
+        {viewerIsCeo && quote.expected_role && (quote.transfer_candidates?.length ?? 0) > 0 ? (
           <>
             <label>
-              Chuyển Marketing Leader
+              {`Giao ${quote.expected_role}`}
               <select
-                aria-label="Chọn Marketing Leader nhận case báo giá"
+                aria-label={`Chọn ${quote.expected_role} nhận bước này`}
                 value={targetId}
                 onChange={(event) => setTargetId(event.target.value)}
               >
-                <option value="">Chọn người nhận</option>
+                <option value="">{`Chọn ${quote.expected_role}`}</option>
                 {(quote.transfer_candidates ?? []).map((person) => (
                   <option key={person.id} value={String(person.id)}>
-                    {person.name || `Marketing Leader ${person.id}`}
+                    {person.title ? `${person.name} · ${person.title}` : person.name}
                   </option>
                 ))}
               </select>
@@ -307,11 +338,11 @@ export function QuoteCasePanel({
               onClick={() =>
                 void run(
                   () => transferLeadQuoteCase(token, leadId, Number(targetId)),
-                  'CEO đã chuyển case báo giá.',
+                  `Đã giao ${quote.expected_role}.`,
                 )
               }
             >
-              Chuyển case
+              Giao người nhận
             </button>
           </>
         ) : null}

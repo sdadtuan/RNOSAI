@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  approveContractApproval,
   createLeadContract,
+  downloadLeadContractDocx,
   fetchLeadContractReadiness,
   patchLeadContract,
+  rejectContractApproval,
   submitLeadContract,
   type ContractApprovalRow,
   type ContractReadinessCheck,
@@ -17,6 +20,7 @@ import {
   readinessCheckHref,
 } from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isGdkdContractDesk, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { normalizeAgencyClientId } from '@/lib/crm/funnel-snapshot.util';
 
@@ -28,6 +32,8 @@ interface Props {
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
   onLoaded?: (summary: LeadContractFlowSummary, checks: ContractReadinessCheck[]) => void;
+  onDecided?: () => void;
+  readOnly?: boolean;
 }
 
 export function LeadContractPanel({
@@ -38,6 +44,8 @@ export function LeadContractPanel({
   onMessage,
   onError,
   onLoaded,
+  onDecided,
+  readOnly = false,
 }: Props) {
   const [checks, setChecks] = useState<ContractReadinessCheck[]>([]);
   const [contract, setContract] = useState<LeadContractRow | null>(null);
@@ -45,19 +53,35 @@ export function LeadContractPanel({
   const [lifecycleId, setLifecycleId] = useState<number | null>(null);
   const [amount, setAmount] = useState('');
   const [submitNotes, setSubmitNotes] = useState('');
+  const [rejectNotes, setRejectNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [panelError, setPanelError] = useState('');
+  const onLoadedRef = useRef(onLoaded);
+  const loadedRef = useRef(false);
+  const seenLeadRef = useRef(leadId);
+  onLoadedRef.current = onLoaded;
+  if (seenLeadRef.current !== leadId) {
+    seenLeadRef.current = leadId;
+    loadedRef.current = false;
+  }
 
   const canEdit =
-    hasCap(user, 'crm_hub_contracts', 'edit') ||
-    hasCap(user, 'crm_hub_contracts', 'create') ||
-    hasCap(user, 'crm_am', 'edit') ||
-    hasCap(user, 'crm_gdkd', 'view_all_leads') ||
-    hasCap(user, 'ceo_command', 'act');
+    !readOnly &&
+    (hasCap(user, 'crm_hub_contracts', 'edit') ||
+      hasCap(user, 'crm_hub_contracts', 'create') ||
+      hasCap(user, 'crm_am', 'edit') ||
+      hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+      hasCap(user, 'ceo_command', 'act'));
+  const canDecide =
+    isGdkdContractDesk(user) ||
+    isSuperAdmin(user) ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_gdkd', 'review_queue') ||
+    hasCap(user, 'crm_leads', 'assign');
 
   const reload = useCallback(async () => {
-    setLoading(true);
+    if (!loadedRef.current) setLoading(true);
     setPanelError('');
     try {
       const data = await fetchLeadContractReadiness(token, leadId);
@@ -68,7 +92,8 @@ export function LeadContractPanel({
         data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null;
       setLifecycleId(lifecycle);
       if (data.contract?.amount_vnd) setAmount(String(data.contract.amount_vnd));
-      onLoaded?.(
+      loadedRef.current = true;
+      onLoadedRef.current?.(
         {
           hasContract: Boolean(data.contract),
           contractStatus: data.contract?.status ?? null,
@@ -85,7 +110,7 @@ export function LeadContractPanel({
     } finally {
       setLoading(false);
     }
-  }, [token, leadId, onLoaded]);
+  }, [token, leadId]);
 
   useEffect(() => {
     void reload();
@@ -122,6 +147,37 @@ export function LeadContractPanel({
     }
   }
 
+  async function onApprove() {
+    if (!canDecide || !approval) return;
+    setBusy(true);
+    try {
+      const out = await approveContractApproval(token, approval.id);
+      onMessage?.(`Đã duyệt và ký Active. Lifecycle #${out.lifecycle_id}. Lead sang Triển Khai.`);
+      onDecided?.();
+      await reload();
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Duyệt hợp đồng thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onReject() {
+    if (!canDecide || !approval) return;
+    setBusy(true);
+    try {
+      await rejectContractApproval(token, approval.id, { decision_notes: rejectNotes.trim() });
+      onMessage?.('Đã từ chối hợp đồng');
+      setRejectNotes('');
+      onDecided?.();
+      await reload();
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Từ chối hợp đồng thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onSaveAmount() {
     if (!canEdit || !contract) return;
     setBusy(true);
@@ -139,7 +195,7 @@ export function LeadContractPanel({
     }
   }
 
-  if (loading) return <p className="muted">Đang tải hợp đồng…</p>;
+  if (loading && !loadedRef.current) return <p className="muted">Đang tải hợp đồng…</p>;
 
   const submitReady = contractSubmitReady(checks);
   const createReady = contractCreateReady(checks);
@@ -165,7 +221,7 @@ export function LeadContractPanel({
       <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
         AM tạo draft → submit → GDKD duyệt → lifecycle Onboard (2 bước phê duyệt)
       </p>
-      {!canEdit ? (
+      {!canEdit && !readOnly ? (
         <p className="muted" style={{ fontSize: '0.85rem' }} data-testid="lead-contract-view-only">
           Bạn chỉ xem HĐ / xuất PDF / gửi khách. Nếu cần sửa, trả lại Account Manager, CEO hoặc GĐKD.
         </p>
@@ -190,15 +246,34 @@ export function LeadContractPanel({
         })}
       </ul>
 
-      {contract ? (
-        <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-          <strong>{contract.title}</strong>
-          <div className="muted">
-            #{contract.id} · {contract.status}
-            {approval ? ` · approval: ${approval.status}` : ''}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+        {contract ? (
+          <div style={{ fontSize: '0.9rem' }}>
+            <strong>{contract.title}</strong>
+            <div className="muted">
+              #{contract.id} · {contract.status}
+              {approval ? ` · approval: ${approval.status}` : ''}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+            File hợp đồng lập từ báo giá đã chốt. GĐKD duyệt trên file này.
+          </p>
+        )}
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void downloadLeadContractDocx(token, leadId)
+              .catch((err: unknown) => onError?.(err instanceof Error ? err.message : 'Không tải được file hợp đồng'))
+              .finally(() => setBusy(false));
+          }}
+        >
+          Tải file hợp đồng
+        </button>
+      </div>
 
       {canEdit && !contract && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'end' }}>
@@ -260,12 +335,45 @@ export function LeadContractPanel({
       )}
 
       {pending ? (
-        <p className="muted" style={{ marginTop: '0.5rem' }}>
-          Đang chờ GDKD duyệt (approval #{approval?.id}).{' '}
-          <Link href="/crm/hub" className="nav-link">
-            Hub · HĐ chờ duyệt →
-          </Link>
-        </p>
+        <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <p className="muted" style={{ margin: 0 }}>
+            Đang chờ GDKD duyệt (approval #{approval?.id}).{' '}
+            <Link href="/crm/hub?hub_tab=contracts" className="nav-link">
+              Hub · HĐ chờ duyệt →
+            </Link>
+          </p>
+          {canDecide ? (
+            <>
+              <label style={{ display: 'grid', gap: '0.25rem' }}>
+                <span className="muted">Lý do từ chối</span>
+                <textarea
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  rows={2}
+                  style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid var(--border)' }}
+                />
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={busy}
+                  onClick={() => void onApprove()}
+                >
+                  Duyệt & ký Active
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={busy}
+                  onClick={() => void onReject()}
+                >
+                  Từ chối
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       {contract?.status === 'active' ? (

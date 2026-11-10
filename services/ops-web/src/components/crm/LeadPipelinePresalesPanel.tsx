@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { LeadFunnelSnapshot } from '@/lib/api';
-import { consultOverviewShowsPlanForm } from '@/lib/crm/consult-plan-placement';
 
 export function LeadPipelinePresalesPanel({
   funnel,
@@ -17,6 +16,7 @@ export function LeadPipelinePresalesPanel({
   onOpenConsultTab,
   tasks,
   r5Form,
+  showPlan = false,
   stage,
 }: {
   funnel: LeadFunnelSnapshot;
@@ -30,6 +30,7 @@ export function LeadPipelinePresalesPanel({
   onOpenConsultTab?: () => void;
   tasks: ReactNode;
   r5Form: ReactNode;
+  showPlan?: boolean;
   stage?: 'lead' | 'consult' | 'proposal';
 }) {
   const current = funnel.presales?.presales.stage;
@@ -77,22 +78,12 @@ export function LeadPipelinePresalesPanel({
           </p>
           {showConsultBlock ? (
             <div className="banner banner-info stack-gap" style={{ marginTop: '0.5rem' }}>
-              {consultOverviewShowsPlanForm(viewStage) ? (
-                <p style={{ margin: 0 }}>
-                  Workspace <strong>Tư vấn / Báo giá</strong> nằm trên tab <strong>Tư vấn</strong>. Chỉnh
-                  sửa R5 (gate G4) tại form bên dưới.
-                </p>
-              ) : null}
               {onOpenConsultTab ? (
                 <button type="button" className="btn btn-sm btn-primary" onClick={onOpenConsultTab}>
-                  {viewStage === 'consult' ? 'Mở tab Tư vấn' : 'Mở tab Tư vấn →'}
+                  {viewStage === 'consult' ? 'Mở màn tư vấn' : 'Mở màn tư vấn →'}
                 </button>
               ) : null}
-              {consultOverviewShowsPlanForm(viewStage) ? (
-                r5Form
-              ) : (
-                <p className="muted">Kế hoạch gửi khách nằm trên tab Tư vấn.</p>
-              )}
+              {showPlan ? r5Form : null}
             </div>
           ) : showLeadIntake ? (
             <p style={{ margin: '0.5rem 0' }}>

@@ -72,7 +72,7 @@ describe('readinessCheckHref', () => {
     expect(readinessCheckHref('presales_proposal', 5)).toBe('/crm/leads/5/deal-room');
     expect(readinessCheckHref('marketing_plan', 5)).toBe('/crm/leads/5/deal-room');
     expect(readinessCheckHref('contract_draft', 5)).toBe('#lead-contract-amount');
-    expect(readinessCheckHref('no_pending_approval', 5)).toBe('/crm/hub');
+    expect(readinessCheckHref('no_pending_approval', 5)).toBe('/crm/hub?hub_tab=contracts');
     expect(readinessCheckHref('unknown_key', 5)).toBeNull();
   });
 

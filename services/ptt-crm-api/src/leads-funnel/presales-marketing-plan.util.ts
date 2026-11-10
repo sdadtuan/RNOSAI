@@ -41,6 +41,42 @@ export function parsePresalesJsonRecord(raw: unknown): Record<string, string> {
   return {};
 }
 
+export function preliminaryPlanHasSolutionFile(plan: Record<string, unknown> | null): boolean {
+  if (!plan) return false;
+  const framework = parsePresalesJsonRecord(plan.strategy_framework_json ?? plan.strategy_framework);
+  return frameworkHasNamedFile(framework.mkt_files);
+}
+
+function frameworkHasNamedFile(packed: string | undefined, name?: string): boolean {
+  const raw = String(packed ?? '').trim();
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return (
+      Array.isArray(parsed) &&
+      parsed.some((row) => {
+        if (!row || typeof row !== 'object') return false;
+        const fileName = String((row as { name?: string }).name ?? '').trim();
+        if (!fileName) return false;
+        return name ? fileName === name : true;
+      })
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Nộp Solution chỉ cần một file đã tải. Việc sẽ làm, kết quả, và Solution.html không chặn nộp. */
+export function solutionSubmitGaps(plan: Record<string, unknown> | null): string[] {
+  const framework = parsePresalesJsonRecord(plan?.strategy_framework_json ?? plan?.strategy_framework);
+  if (frameworkHasNamedFile(framework.mkt_files)) return [];
+  return ['Tải file Solution trước khi nộp.'];
+}
+
+export function hasCompletedSolutionPack(plan: Record<string, unknown> | null): boolean {
+  return solutionSubmitGaps(plan).length === 0;
+}
+
 export function validatePreliminaryPlan(plan: {
   name?: string | null;
   north_star?: string | null;

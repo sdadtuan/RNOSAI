@@ -165,11 +165,11 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
 
       <button
         type="button"
-        className="btn btn-sm"
+        className="btn btn-sm btn-secondary"
         onClick={() => void onGenerate()}
         disabled={generating || approving || dismissing}
       >
-        {generating ? 'Đang soạn…' : 'Soạn nháp'}
+        {generating ? 'Đang soạn…' : 'AI · Soạn nháp'}
       </button>
 
       {generating ? <div className="ai-skeleton ai-skeleton--summary" aria-hidden="true" /> : null}
@@ -200,11 +200,11 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
           <div className="ai-followup-actions">
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-sm btn-secondary"
               onClick={() => void onApprove()}
               disabled={approving || dismissing}
             >
-              {approving ? 'Đang duyệt…' : 'Duyệt'}
+              {approving ? 'Đang duyệt…' : 'AI · Duyệt nháp'}
             </button>
             <button
               type="button"
@@ -212,10 +212,10 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
               onClick={onDismissClick}
               disabled={approving || dismissing}
             >
-              {dismissing ? 'Đang bỏ…' : 'Bỏ'}
+              {dismissing ? 'Đang bỏ…' : 'AI · Bỏ nháp'}
             </button>
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCopy()}>
-              Copy
+              AI · Copy nháp
             </button>
           </div>
         </div>

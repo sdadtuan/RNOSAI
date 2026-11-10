@@ -25,6 +25,7 @@ import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { shouldRequestImageFlags } from '@/lib/crm/cp-image-sop.flags';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
+import { isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
 import { winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import {
   ensureActiveParentOpen,
@@ -443,7 +444,7 @@ export function OpsNav({
       }),
     [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread, imageSopEnabled],
   );
-  const nextAction = nextActionFor(pathname);
+  const nextAction = nextActionFor(pathname, { hideSaleEarly: isMarketingLeader(sidebarUser) });
 
   useEffect(() => {
     if (navReady) return;

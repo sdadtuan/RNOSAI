@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { CrmFunnelStepGateStrip } from '@/components/crm/funnel-stepper/CrmFunnelStepGateStrip';
 import { CrmFunnelStepPrimaryAction } from '@/components/crm/funnel-stepper/CrmFunnelStepPrimaryAction';
 import { CrmFunnelStepTrack } from '@/components/crm/funnel-stepper/CrmFunnelStepTrack';
@@ -22,6 +22,8 @@ export interface CrmFunnelStepperProps extends FunnelStepperInput {
   viewModel?: FunnelStepperViewModel;
   className?: string;
   showTitle?: boolean;
+  beforeAction?: ReactNode;
+  onEditBant?: () => void;
 }
 
 export function CrmFunnelStepper({
@@ -42,6 +44,8 @@ export function CrmFunnelStepper({
   viewModel: viewModelProp,
   className,
   showTitle = true,
+  beforeAction,
+  onEditBant,
 }: CrmFunnelStepperProps) {
   const viewModel = useMemo(
     () =>
@@ -90,7 +94,7 @@ export function CrmFunnelStepper({
         <div className="crm-funnel-stepper__head">
           <h3 className="crm-funnel-stepper__title">Tiến trình Pre-sales</h3>
           <p className="crm-funnel-stepper__desc">
-            B2 → Lead → Khảo sát BANT → Tư vấn → Báo giá
+            B2 → Pre Sale → Tư vấn → Báo giá
           </p>
         </div>
       ) : null}
@@ -110,9 +114,11 @@ export function CrmFunnelStepper({
           gateStrip={viewModel.gateStrip}
           loading={gateLoading}
           onRefresh={onRefreshGate}
+          onEdit={viewModel.gateStrip.gateKind === 'consult' ? onEditBant : undefined}
         />
       ) : null}
 
+      {beforeAction}
       {!viewModel.inReview ? (
         <CrmFunnelStepPrimaryAction
           action={viewModel.primaryAction}

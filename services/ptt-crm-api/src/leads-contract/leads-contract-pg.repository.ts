@@ -117,6 +117,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       marketingPlan: presalesCtx?.marketingPlan ?? null,
       contract,
       pendingApproval: approval,
+      quoteApproved: Boolean(presalesCtx?.row?.quote_approved_at),
     });
 
     const lifecycleId = presalesCtx?.lifecycleId ?? null;
@@ -224,9 +225,11 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     );
     const lead = leadResult.rows[0] as Record<string, unknown> | undefined;
     if (!lead) throw new Error('Không tìm thấy lead');
-    assertPresalesCareGate(String(lead.care_stage_current), String(lead.care_stages_done_json));
 
     const presalesCtx = await this.resolvePresalesContext(leadId);
+    if (!presalesCtx?.row?.quote_approved_at) {
+      assertPresalesCareGate(String(lead.care_stage_current), String(lead.care_stages_done_json));
+    }
     if (!presalesCtx) throw new Error('Chưa có pre-sales');
     if (presalesCtx.presales.status !== 'active') throw new Error('Pre-sales không còn active');
 
@@ -461,7 +464,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         const ctx = await this.resolvePresalesContext(leadId);
         if (!ctx) throw new Error('Lead chưa có pre-sales');
         const plan = ctx.marketingPlan;
-        if (!plan) throw new Error('Thiếu Kế hoạch MKT sơ bộ');
+        const quoteApproved = Boolean(ctx.row.quote_approved_at);
+        if (!plan && !quoteApproved) throw new Error('Thiếu Kế hoạch MKT sơ bộ');
         const tasks = await this.funnelPg.getPresalesTasksForPromote(Number(ctx.row.id));
         presalesSource = {
           presalesId: Number(ctx.row.id),
@@ -469,7 +473,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
           serviceSlug: String(ctx.row.service_slug ?? ''),
           assignedAm: ctx.row.assigned_am != null ? Number(ctx.row.assigned_am) : null,
           tasks,
-          plan,
+          plan: plan ?? {},
+          quoteApproved,
           alreadyConverted:
             ctx.presales.status === 'converted' && ctx.lifecycleId
               ? { lifecycle_id: ctx.lifecycleId }

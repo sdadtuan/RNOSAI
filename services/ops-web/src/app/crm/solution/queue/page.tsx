@@ -10,6 +10,7 @@ import {
   fetchKpiSolution,
   fetchSolutionQueue,
   releaseLeadToSales,
+  returnLeadToSales,
   staffMe,
   staffRefresh,
   type KpiSolutionDashboard,
@@ -28,7 +29,7 @@ import {
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 
 function statusLabel(row: SolutionQueueRow): string {
-  if (row.queue_kind === 'am_rework') return 'AM trả lại — cần chỉnh';
+  if (row.queue_kind === 'am_rework') return 'Trả lại — cần chỉnh';
   if (row.handoff_status === 'pending') return 'Chờ nhận';
   if (row.solution_owner_name) return `Solution: ${row.solution_owner_name}`;
   return 'Đang xử lý';
@@ -131,6 +132,29 @@ export default function CrmSolutionQueuePage() {
       await loadQueue();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nhận case thất bại');
+    } finally {
+      setBusyLeadId(null);
+    }
+  }
+
+  async function onReturn(leadId: number) {
+    const token = getAccessToken();
+    if (!token) return;
+    const reason = window.prompt('Thông tin còn thiếu? MKT trả lead này về Sales.');
+    if (reason == null) return;
+    if (reason.trim().length < 5) {
+      setError('Nhập lý do, ít nhất 5 ký tự');
+      return;
+    }
+    setBusyLeadId(leadId);
+    setMessage('');
+    setError('');
+    try {
+      await returnLeadToSales(token, leadId, reason.trim());
+      setMessage(`Đã trả lại Sales Lead #${leadId}`);
+      await loadQueue();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Trả lại Sales thất bại');
     } finally {
       setBusyLeadId(null);
     }
@@ -254,6 +278,19 @@ export default function CrmSolutionQueuePage() {
                     >
                       {row.queue_kind === 'am_rework' ? 'Chỉnh lại' : 'Mở'}
                     </Link>
+                    {!aeTrackOnly &&
+                    row.queue_kind !== 'am_rework' &&
+                    (row.handoff_status === 'pending' || row.handoff_status === 'with_solution') &&
+                    (solutionCaps.canClaim || solutionCaps.canEditConsult) ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={busyLeadId === row.lead_id}
+                        onClick={() => void onReturn(row.lead_id)}
+                      >
+                        Trả lại — thiếu thông tin
+                      </button>
+                    ) : null}
                     {!aeTrackOnly && row.queue_kind !== 'am_rework' && row.handoff_status === 'pending' ? (
                       solutionCaps.canClaim ? (
                         <button

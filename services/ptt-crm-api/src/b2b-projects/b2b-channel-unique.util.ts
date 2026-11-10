@@ -1,4 +1,10 @@
-export type ChannelKeyKind = 'page_id' | 'form_id' | 'oa_id' | 'webform_slug' | 'api_key_hash';
+export type ChannelKeyKind =
+  | 'page_id'
+  | 'form_id'
+  | 'oa_id'
+  | 'webform_slug'
+  | 'api_key_hash'
+  | 'tiktok_advertiser_id';
 
 export interface ChannelKeyRow {
   kind: ChannelKeyKind;

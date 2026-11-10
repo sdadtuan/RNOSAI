@@ -25,10 +25,11 @@ import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
+import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { isBaoGiaKanbanColumn, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
-import { isAccountExecutive, isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { isAccountExecutive, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
@@ -231,6 +232,35 @@ export default function CrmLeadDetailPage() {
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
   const [contractChecks, setContractChecks] = useState<Array<{ key: string; ok: boolean }>>([]);
   const [contractRefresh, setContractRefresh] = useState(0);
+  const onContractLoaded = useCallback(
+    (summary: LeadContractFlowSummary, checks: Array<{ key: string; ok: boolean }>) => {
+      setContractSummary((prev) => {
+        if (
+          prev &&
+          prev.hasContract === summary.hasContract &&
+          prev.contractStatus === summary.contractStatus &&
+          prev.pendingApproval === summary.pendingApproval &&
+          prev.lifecycleId === summary.lifecycleId &&
+          (prev.lifecycleStage ?? null) === (summary.lifecycleStage ?? null) &&
+          (prev.agencyClientId ?? null) === (summary.agencyClientId ?? null)
+        ) {
+          return prev;
+        }
+        return summary;
+      });
+      const nextChecks = checks.map((c) => ({ key: c.key, ok: c.ok }));
+      setContractChecks((prev) => {
+        if (
+          prev.length === nextChecks.length &&
+          prev.every((row, index) => row.key === nextChecks[index]?.key && row.ok === nextChecks[index]?.ok)
+        ) {
+          return prev;
+        }
+        return nextChecks;
+      });
+    },
+    [],
+  );
   const [statusOptionsApi, setStatusOptionsApi] = useState<LeadStatusOptionsResponse | null>(null);
   const [statusOptionsLoading, setStatusOptionsLoading] = useState(false);
   const [copilotContext, setCopilotContext] = useState<LeadCopilotContext | null>(null);
@@ -267,8 +297,14 @@ export default function CrmLeadDetailPage() {
   // Báo giá column includes Đàm phán / proposal, not only status bao_gia.
   const inBaoGiaColumn = isBaoGiaKanbanColumn(lead?.status);
   const quoteCasePhase = funnelSnap?.presales?.quote_case?.phase ?? '';
+  const superAdmin = isSuperAdmin(user);
   const quoteWithSale = quoteCasePhase === 'sale_review';
-  const showLeadQuoteSheet = quoteCasePhase === 'bao_gia' || quoteCasePhase === 'sale_review';
+  const showLeadQuoteSheet =
+    quoteCasePhase === 'bao_gia' ||
+    quoteCasePhase === 'sale_review' ||
+    quoteCasePhase === 'hop_dong' ||
+    quoteCasePhase === 'trien_khai' ||
+    (superAdmin && inBaoGiaColumn);
   const hourQuoteEdit = inBaoGiaColumn && !quoteWithSale;
   const hourQuoteView =
     quoteWithSale ||
@@ -287,8 +323,9 @@ export default function CrmLeadDetailPage() {
         hasContract: Boolean(contractSummary?.hasContract),
         contractStatus: contractSummary?.contractStatus ?? null,
         dealRoomEnabled: dealRoomEnabled(),
+        quoteApproved: quoteCasePhase === 'hop_dong' || quoteCasePhase === 'trien_khai' || superAdmin,
       }),
-    [leadFlowKind, b2Complete, intakeGo, presalesStage, contractSummary],
+    [leadFlowKind, b2Complete, intakeGo, presalesStage, contractSummary, quoteCasePhase, superAdmin],
   );
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
@@ -434,13 +471,6 @@ export default function CrmLeadDetailPage() {
     setDesktopTab(marketingLeader ? 'history' : 'pipeline');
     setMobileTab('detail');
   }, [marketingLeader]);
-
-  const openR5EditOnOverview = useCallback(() => {
-    openOverviewTab();
-    requestAnimationFrame(() => {
-      document.getElementById('funnel-presales-r5')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }, [openOverviewTab]);
 
   const onNbaSelectEntity = useCallback(async (entityId: string) => {
     const token = getAccessToken();
@@ -649,7 +679,7 @@ export default function CrmLeadDetailPage() {
       case 'wait_contract_approval':
         break;
       case 'open_contract_hub':
-        router.push('/crm/hub');
+        router.push('/crm/hub?hub_tab=contracts');
         break;
       default:
         break;
@@ -918,31 +948,35 @@ export default function CrmLeadDetailPage() {
     void fetchLeadContractReadiness(accessToken, leadId)
       .then((data) => {
         if (cancelled) return;
-        setContractSummary({
-          hasContract: Boolean(data.contract),
-          contractStatus: data.contract?.status ?? null,
-          pendingApproval: data.approval?.status === 'pending',
-          lifecycleId:
-            data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
-          lifecycleStage: data.lifecycle_stage ?? null,
-          agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
-        });
-        setContractChecks(data.checks ?? []);
+        onContractLoaded(
+          {
+            hasContract: Boolean(data.contract),
+            contractStatus: data.contract?.status ?? null,
+            pendingApproval: data.approval?.status === 'pending',
+            lifecycleId:
+              data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
+            lifecycleStage: data.lifecycle_stage ?? null,
+            agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
+          },
+          data.checks ?? [],
+        );
       })
       .catch(() => {
         if (cancelled) return;
-        setContractSummary({
-          hasContract: false,
-          contractStatus: null,
-          pendingApproval: false,
-          lifecycleId: null,
-        });
-        setContractChecks([]);
+        onContractLoaded(
+          {
+            hasContract: false,
+            contractStatus: null,
+            pendingApproval: false,
+            lifecycleId: null,
+          },
+          [],
+        );
       });
     return () => {
       cancelled = true;
     };
-  }, [leadId, showB2bFlow, contractRefresh, accessToken]);
+  }, [leadId, showB2bFlow, contractRefresh, accessToken, onContractLoaded]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1260,6 +1294,65 @@ export default function CrmLeadDetailPage() {
   }
 
 
+  if (isGdkdContractDesk(user)) {
+    return (
+      <StaffPageShell
+        user={user}
+        onLogout={logout}
+        width="full"
+        breadcrumb={[
+          { label: 'Hub hợp đồng', href: '/crm/hub?hub_tab=contracts' },
+          { label: lead?.full_name || `#${leadId}` },
+        ]}
+      >
+        {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
+        {error ? (
+          <div className="lead-alert lead-alert--error" role="alert">
+            {error}
+          </div>
+        ) : null}
+        {lead && !loading && accessToken ? (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <h1 style={{ margin: 0, fontSize: '1.25rem' }}>
+              {lead.full_name || `Lead #${leadId}`}
+            </h1>
+            <LeadQuoteSheet
+              token={accessToken}
+              leadId={leadId}
+              phase={quoteCasePhase || 'trien_khai'}
+              onFunnelChange={setFunnelSnap}
+              onMessage={setMessage}
+              onError={setError}
+            />
+            <SolutionCaseDesk
+              filesOnly
+              token={accessToken}
+              lead={lead}
+              party={party}
+              funnel={funnelSnap}
+              onFunnelChange={setFunnelSnap}
+            />
+            <LeadContractPanel
+              token={accessToken}
+              leadId={leadId}
+              user={user}
+              readOnly
+              onMessage={setMessage}
+              onError={setError}
+              onDecided={() => {
+                void fetchLead(accessToken, leadId).then((row) => {
+                  setLead(row);
+                  setStatus(row.status || 'moi');
+                });
+                void reloadFunnel(accessToken);
+              }}
+            />
+          </div>
+        ) : null}
+      </StaffPageShell>
+    );
+  }
+
   return (
     <StaffPageShell
       user={user}
@@ -1535,7 +1628,7 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 funnel={funnelSnap}
-                viewerIsCeo={isCeoPosition(user)}
+                viewerIsCeo={isCeoPosition(user) || superAdmin}
                 onFunnelChange={setFunnelSnap}
                 onLeadReload={async () => {
                   const row = await fetchLead(accessToken, leadId);
@@ -1551,11 +1644,15 @@ export default function CrmLeadDetailPage() {
               <LeadQuoteSheet
                 token={accessToken}
                 leadId={leadId}
-                phase={quoteCasePhase}
+                phase={superAdmin && !quoteCasePhase ? 'bao_gia' : quoteCasePhase}
                 onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}
               />
+            ) : null}
+
+            {accessToken && lead && quoteCasePhase === 'trien_khai' ? (
+              <LeadDeliveryKpi token={accessToken} leadId={leadId} />
             ) : null}
 
             {solutionDesk && accessToken && lead ? (
@@ -1634,8 +1731,7 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {accessToken && showPipelineTab ? (
-              <div hidden={desktopTab !== 'history'}>
+            {accessToken && showPipelineTab && desktopTab === 'history' ? (
               <LeadHistoryTab
                 token={accessToken}
                 leadId={leadId}
@@ -1643,7 +1739,6 @@ export default function CrmLeadDetailPage() {
                 selectedActivityId={selectedActivityId}
                 onSelectActivity={setSelectedActivityId}
               />
-              </div>
             ) : null}
 
             {accessToken && showPipelineTab && !marketingLeader ? (
@@ -1755,9 +1850,16 @@ export default function CrmLeadDetailPage() {
                       user={user}
                       refreshToken={contractRefresh}
                       onMessage={setMessage}
-                      onLoaded={(summary, checks) => {
-                        setContractSummary(summary);
-                        setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
+                      onError={setError}
+                      onLoaded={onContractLoaded}
+                      onDecided={() => {
+                        const access = getAccessToken();
+                        if (!access) return;
+                        void fetchLead(access, leadId).then((row) => {
+                          setLead(row);
+                          setStatus(row.status || 'moi');
+                        });
+                        void reloadFunnel(access);
                       }}
                     />
                   </>
@@ -1786,7 +1888,6 @@ export default function CrmLeadDetailPage() {
                 onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}
-                onEditR5={openR5EditOnOverview}
               />
             ) : null}
 

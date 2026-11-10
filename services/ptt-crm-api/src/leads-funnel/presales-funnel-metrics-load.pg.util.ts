@@ -81,7 +81,7 @@ export async function loadPresalesFunnelMetricsPg(
   const goResult = await db.query(
     `SELECT s.completed_at AS intake_go_completed_at, ps.consult_entered_at
      FROM crm_lead_presales ps
-     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
      INNER JOIN LATERAL (
        SELECT completed_at FROM crm_lead_intake_sessions i
        WHERE i.lead_id = ps.lead_id
@@ -107,7 +107,7 @@ export async function loadPresalesFunnelMetricsPg(
   const handoffResult = await db.query(
     `SELECT s.completed_at AS intake_go_completed_at, ps.handed_off_at
      FROM crm_lead_presales ps
-     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
      INNER JOIN LATERAL (
        SELECT completed_at FROM crm_lead_intake_sessions i
        WHERE i.lead_id = ps.lead_id
@@ -133,7 +133,7 @@ export async function loadPresalesFunnelMetricsPg(
   const releaseResult = await db.query(
     `SELECT ps.handed_off_at, ps.solution_released_at
      FROM crm_lead_presales ps
-     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
      WHERE ps.handed_off_at IS NOT NULL
        AND ps.handed_off_at::text != ''
        AND ps.solution_released_at IS NOT NULL
@@ -151,7 +151,7 @@ export async function loadPresalesFunnelMetricsPg(
   const cpResult = await db.query(
     `SELECT ps.consult_entered_at, ps.proposal_entered_at
      FROM crm_lead_presales ps
-     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
      WHERE ps.consult_entered_at IS NOT NULL
        AND ps.consult_entered_at::text != ''
        AND ps.proposal_entered_at IS NOT NULL
@@ -165,7 +165,7 @@ export async function loadPresalesFunnelMetricsPg(
     `SELECT t.form_fields, t.form_data, t.is_done
      FROM crm_lead_presales_tasks t
      INNER JOIN crm_lead_presales ps ON ps.id = t.presales_id
-     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
      WHERE t.stage = 'consult'
        AND t.is_custom = FALSE${amFilter}${taskPeriod}`,
     taskParams,

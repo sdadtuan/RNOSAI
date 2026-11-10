@@ -16,6 +16,11 @@ export interface CskhBoardQuery {
   sla_filter?: 'all' | 'breach' | 'warning' | 'open';
   sla_tier?: CskhSlaTier | 'all';
   spa_meta_only?: boolean;
+  /** SQL LIMIT is the page size. Skips the 8× scan used to fill a page after in-memory SLA filtering. */
+  exact_limit?: boolean;
+  /** Open leads, plus anything received in the last 48 hours. */
+  within_sla_window?: boolean;
+  skip_count?: boolean;
   limit?: number;
   offset?: number;
 }

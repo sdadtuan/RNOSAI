@@ -216,6 +216,26 @@ describe('buildNavTree IA', () => {
     expect(labels.slice(0, 2)).toEqual(['Lead B2B', 'Đội AE']);
   });
 
+  it('GDKD contract desk only sees Hub hợp đồng', () => {
+    const gdkd: StoredStaffUser = {
+      id: 'gdkd-1',
+      email: 'gdkd@pttads.vn',
+      display_name: 'GDKD',
+      position_id: 3,
+      position_code: 'GDKD',
+      caps: [
+        cap('crm_leads', 'view'),
+        cap('crm_leads', 'assign'),
+        cap('crm_gdkd', 'assign'),
+        cap('crm_agency', 'view'),
+        cap('crm_hub_contracts', 'edit'),
+      ],
+    };
+    const tree = buildNavTree(gdkd, {});
+    expect(tree.map((item) => item.kind === 'leaf' ? item.label : item.id)).toEqual(['Hub hợp đồng']);
+    expect(collectHrefs(tree)).toEqual(['/crm/hub?hub_tab=contracts']);
+  });
+
   it('Graphic Designer sees production work, not sales, HR, finance, or admin', () => {
     const gd: StoredStaffUser = {
       id: 'gd-1',

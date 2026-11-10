@@ -75,7 +75,7 @@ function validatePresalesConsultAdvancePhase1(input: ConsultAdvanceGateInput): C
 
   const hasAnyIntake = input.sessions.some((s) => String(s.status || '') === 'completed');
   if (!hasAnyIntake) {
-    messages.push('Hoàn thành Lead Intake trước khi chuyển Tư vấn');
+    messages.push('Hoàn thành khảo sát BANT trước khi giao Solution');
     return block(messages, decision, bantTotal);
   }
 

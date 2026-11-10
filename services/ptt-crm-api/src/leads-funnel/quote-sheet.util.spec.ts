@@ -2,6 +2,7 @@ import {
   assembleQuoteSheet,
   defaultStaffId,
   hourlyFromPosition,
+  implementationPlanFromSheet,
   parseQuoteServiceCodes,
   quoteCommercial,
   quoteLineAmount,
@@ -120,5 +121,20 @@ describe('quote sheet money', () => {
     });
     expect(view.groups[0]?.rows[0]?.included).toBe(false);
     expect(view.total_vnd).toBe(0);
+  });
+
+  it('builds the implementation plan from included quote lines only', () => {
+    const view = assembleQuoteSheet({
+      editable: false,
+      services: [],
+      staff,
+      items: [item(), item({ code: 'WEB-01-02', task: 'Khách duyệt', client_only: true, role_code: 'client' })],
+      selectedServiceCodes: ['WEB'],
+      overrides: [],
+    });
+    const plan = implementationPlanFromSheet(view);
+    expect(plan).toHaveLength(1);
+    expect(plan[0]?.lines.map((line) => line.task)).toEqual(['Tiếp nhận handover']);
+    expect(plan[0]?.lines[0]).not.toHaveProperty('staff_name');
   });
 });

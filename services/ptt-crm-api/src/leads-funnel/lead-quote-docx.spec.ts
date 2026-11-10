@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { hourlyFromPosition, assembleQuoteSheet, type QuoteSheetItem, type QuoteSheetStaff } from './quote-sheet.util';
-import { renderLeadQuoteDocx } from './lead-quote-docx';
+import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
 
 async function documentXml(buffer: Buffer): Promise<string> {
   const zip = await JSZip.loadAsync(buffer);
@@ -89,5 +89,35 @@ describe('lead quote docx', () => {
     expect(xml).toContain('Tổng thanh toán');
     expect(xml).toContain(`${new Intl.NumberFormat('vi-VN').format(0)} đ`);
     expect(xml).not.toContain('An');
+  });
+
+  it('keeps the locked quote inside the contract file', async () => {
+    const view = assembleQuoteSheet({
+      editable: false,
+      services: [],
+      staff,
+      items: [item],
+      selectedServiceCodes: ['WEB'],
+      overrides: [{ item_code: item.code, staff_id: 7, hours: 2, included: true }],
+      promoPercent: 0,
+      vatPercent: 0,
+    });
+    const docx = await renderLeadContractDocx(view, {
+      client: 'Công ty Lan',
+      statusLabel: 'Đã ký',
+      createdLabel: '09/11/2026',
+      signedLabel: '09/11/2026',
+      amountVnd: view.grand_total_vnd,
+    });
+    const xml = await documentXml(docx);
+    expect(xml).toContain('HỢP ĐỒNG CUNG CẤP DỊCH VỤ');
+    expect(xml).toContain('Điều 1. Các bên');
+    expect(xml).toContain('ĐẠI DIỆN BÊN A');
+    expect(xml).toContain('ĐẠI DIỆN BÊN B');
+    expect(xml).toContain('Điều 2. Phạm vi công việc');
+    expect(xml).toContain('Đã ký');
+    expect(xml).toContain('Tiếp nhận handover');
+    expect(xml).not.toContain('An');
+    expect(xml).not.toContain('Account Executive');
   });
 });

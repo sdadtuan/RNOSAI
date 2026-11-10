@@ -21,10 +21,12 @@ export class StaffLeadsGdkdGuard implements CanActivate {
     >();
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
-    if (!hasGdkdAssign(me.caps) && !hasGdkdReviewQueue(me.caps)) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_gdkd', action: 'review_queue' });
+    const position = String(me.position_code ?? '').trim().toLowerCase();
+    if (position === 'gdkd' || hasGdkdAssign(me.caps) || hasGdkdReviewQueue(me.caps)) {
+      return true;
     }
-    return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'crm_gdkd', action: 'review_queue' });
   }
 }

@@ -83,11 +83,24 @@ export class LeadCreateEnrichmentService {
       b2bProjectId: b2bProjectId ?? undefined,
       createdAfter,
     });
-    const isDuplicate = dupMatches.length > 0;
-    const duplicateOfId = isDuplicate ? dupMatches[0].lead_id : null;
+    let isDuplicate = dupMatches.length > 0;
+    let duplicateOfId = isDuplicate ? dupMatches[0].lead_id : null;
     if (duplicateOfId) {
       meta.duplicate_of_id = duplicateOfId;
       meta.dedup_matches = dupMatches.slice(0, 3).map((row) => row.lead_id);
+    } else if (phone || email) {
+      const lostMatches = await this.dedup.findLostContact({
+        phone,
+        email,
+        b2bProjectId: b2bProjectId ?? undefined,
+      });
+      if (lostMatches.length > 0) {
+        isDuplicate = true;
+        duplicateOfId = lostMatches[0].lead_id;
+        meta.duplicate_of_id = duplicateOfId;
+        meta.dedup_matches = lostMatches.slice(0, 3).map((row) => row.lead_id);
+        meta.dedup_reason = 'lost_contact';
+      }
     }
 
     let ownerId = body.owner_id ?? null;

@@ -13,6 +13,7 @@ export interface PresalesPromoteSource {
   assignedAm: number | null;
   tasks: Array<Record<string, unknown>>;
   plan: Record<string, unknown>;
+  quoteApproved?: boolean;
   alreadyConverted?: { lifecycle_id: number };
   skipSqlitePresalesUpdate?: boolean;
 }
@@ -96,7 +97,8 @@ export class ContractPromotePgUtil {
         return withClient;
       }
 
-      if (presalesSource) {
+      const quoteApproved = Boolean(ps.quote_approved_at) || presalesSource?.quoteApproved === true;
+      if (!quoteApproved && presalesSource) {
         for (const stage of PRESALES_STAGES) {
           const pending = presalesSource.tasks.filter(
             (task) =>
@@ -108,7 +110,7 @@ export class ContractPromotePgUtil {
         }
         const planGate = validatePreliminaryPlan(presalesSource.plan);
         if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
-      } else {
+      } else if (!quoteApproved) {
         for (const stage of PRESALES_STAGES) {
           const pending = await client.query(
             `SELECT COUNT(*)::int AS c FROM crm_lead_presales_tasks
@@ -164,9 +166,15 @@ export class ContractPromotePgUtil {
       });
 
       await client.query(
-        `UPDATE crm_leads SET status = 'won', updated_at = $2::timestamptz, updated_by = $3
+        `UPDATE crm_leads SET status = 'trien_khai', updated_at = $2::timestamptz, updated_by = $3
          WHERE sqlite_lead_id = $1`,
         [leadId, ts, actor.slice(0, 120)],
+      );
+      await client.query(
+        `UPDATE crm_lead_presales
+            SET implementation_status = 'trien_khai', updated_at = $2::timestamptz
+          WHERE lead_id = $1`,
+        [leadId, ts],
       );
 
       const placeholderId = Number(contract.customer_id);
@@ -431,10 +439,19 @@ export class ContractPromotePgUtil {
     }
 
     await seedPostOnboardLifecycleTasks(client, lifecycleId, serviceSlug, ts);
-    if (presalesSource?.plan) {
-      await this.clonePreliminaryToOfficialFromPlan(client, presalesSource.plan, lifecycleId, leadId, presalesId, ts);
+    const skipPlanGate = presalesSource?.quoteApproved === true;
+    if (presalesSource?.plan && Object.keys(presalesSource.plan).length > 0) {
+      await this.clonePreliminaryToOfficialFromPlan(
+        client,
+        presalesSource.plan,
+        lifecycleId,
+        leadId,
+        presalesId,
+        ts,
+        skipPlanGate,
+      );
     } else {
-      await this.clonePreliminaryToOfficial(client, presalesId, lifecycleId, leadId, ts);
+      await this.clonePreliminaryToOfficial(client, presalesId, lifecycleId, leadId, ts, skipPlanGate);
     }
     await this.linkPresalesExpensesToLifecycle(client, presalesId, lifecycleId, ts);
 
@@ -460,9 +477,12 @@ export class ContractPromotePgUtil {
     leadId: number,
     presalesId: number,
     ts: string,
+    skipGate = false,
   ): Promise<void> {
-    const gate = validatePreliminaryPlan(draft);
-    if (!gate.ok) throw new Error(gate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+    if (!skipGate) {
+      const gate = validatePreliminaryPlan(draft);
+      if (!gate.ok) throw new Error(gate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+    }
     let name = String(draft.name ?? '').trim();
     if (!name.endsWith('(chính thức)')) name = `${name} (chính thức)`.slice(0, 200);
     const insert = await client.query(
@@ -502,6 +522,7 @@ export class ContractPromotePgUtil {
     lifecycleId: number,
     leadId: number,
     ts: string,
+    skipGate = false,
   ): Promise<void> {
     const draftResult = await client.query(
       `SELECT * FROM crm_marketing_plans
@@ -510,9 +531,14 @@ export class ContractPromotePgUtil {
       [presalesId],
     );
     const draft = draftResult.rows[0] as Record<string, unknown> | undefined;
-    if (!draft) throw new Error('Thiếu Kế hoạch MKT sơ bộ');
-    const gate = validatePreliminaryPlan(draft);
-    if (!gate.ok) throw new Error(gate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+    if (!draft) {
+      if (skipGate) return;
+      throw new Error('Thiếu Kế hoạch MKT sơ bộ');
+    }
+    if (!skipGate) {
+      const gate = validatePreliminaryPlan(draft);
+      if (!gate.ok) throw new Error(gate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+    }
     let name = String(draft.name ?? '').trim();
     if (!name.endsWith('(chính thức)')) name = `${name} (chính thức)`.slice(0, 200);
     const insert = await client.query(

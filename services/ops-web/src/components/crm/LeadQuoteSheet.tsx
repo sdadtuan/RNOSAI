@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  downloadLeadQuoteDocx,
+  downloadLeadQuoteXlsx,
   fetchLeadQuoteSheet,
   saveLeadQuoteSheet,
   sendLeadQuoteToSales,
@@ -46,13 +46,15 @@ export function LeadQuoteSheet({
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
 }) {
-  const visible = phase === 'bao_gia' || phase === 'sale_review';
+  const visible = phase === 'bao_gia' || phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
   const [sheet, setSheet] = useState<LeadQuoteSheet | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
 
+  const locked = phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || locked) return;
     let cancelled = false;
     setLocalError('');
     void fetchLeadQuoteSheet(token, leadId)
@@ -65,7 +67,7 @@ export function LeadQuoteSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, token, leadId, phase]);
+  }, [visible, locked, token, leadId, phase]);
 
   const staffGroups = useMemo(() => {
     const order = ['AE', 'GDKD', 'MKL'];
@@ -201,15 +203,36 @@ export function LeadQuoteSheet({
     setBusy(true);
     setLocalError('');
     try {
-      await downloadLeadQuoteDocx(token, leadId);
-      onMessage?.('Đã tải Word báo giá.');
+      await downloadLeadQuoteXlsx(token, leadId);
+      onMessage?.('Đã tải Excel báo giá.');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không tải được Word báo giá';
+      const message = err instanceof Error ? err.message : 'Không tải được Excel báo giá';
       setLocalError(message);
       onError?.(message);
     } finally {
       setBusy(false);
     }
+  }
+
+  if (locked) {
+    return (
+      <section className="quote-sheet" aria-label="File báo giá">
+        <header className="quote-sheet__head">
+          <p className="solution-desk__kicker">File báo giá</p>
+          <p className="muted">Bảng báo giá được gom vào file Excel và giữ trên lead này.</p>
+        </header>
+        {localError ? (
+          <div className="lead-alert lead-alert--error" role="alert">
+            {localError}
+          </div>
+        ) : null}
+        <div className="solution-desk__actions">
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void onDownload()}>
+            Tải Excel báo giá
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -378,13 +401,6 @@ export function LeadQuoteSheet({
           <br />
           <strong>Tổng thanh toán {vnd(grand)}</strong>
         </p>
-      ) : null}
-      {phase === 'sale_review' ? (
-        <div className="solution-desk__actions">
-          <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onDownload()}>
-            Tải Word báo giá
-          </button>
-        </div>
       ) : null}
       {editable ? (
         <div className="solution-desk__actions">

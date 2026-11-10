@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 
-export type IngressChannel = 'facebook' | 'zalo' | 'webform' | 'api';
+export type IngressChannel = 'facebook' | 'zalo' | 'webform' | 'api' | 'tiktok';
 
 export interface IngressCatalog {
   forms: Array<{ formId: string; pageId: string; projectId: string; projectSlug: string; active: boolean }>;
   pages: Array<{ pageId: string; projectId: string; projectSlug: string; active: boolean }>;
   accounts?: Array<{
-    channel: 'zalo' | 'webform' | 'api';
+    channel: 'zalo' | 'webform' | 'api' | 'tiktok';
     externalKey: string;
     projectId: string;
     projectSlug: string;
@@ -24,6 +24,7 @@ export function resolveIngressProject(
     formId?: string;
     pageId?: string;
     oaId?: string;
+    advertiserId?: string;
     webformSlug?: string;
     apiKeyHash?: string;
     projectSlug: string;
@@ -40,9 +41,11 @@ export function resolveIngressProject(
   const key =
     input.channel === 'zalo'
       ? String(input.oaId ?? '').trim()
-      : input.channel === 'webform'
-        ? String(input.webformSlug ?? '').trim()
-        : String(input.apiKeyHash ?? '').trim();
+      : input.channel === 'tiktok'
+        ? String(input.advertiserId ?? '').trim()
+        : input.channel === 'webform'
+          ? String(input.webformSlug ?? '').trim()
+          : String(input.apiKeyHash ?? '').trim();
   const row = (catalog.accounts ?? []).find(
     (a) => a.active && a.channel === input.channel && a.externalKey === key,
   );
@@ -55,6 +58,7 @@ export function webhookChannelToIngress(channel: string): IngressChannel | null 
   const c = channel.trim().toLowerCase();
   if (c === 'meta' || c === 'facebook') return 'facebook';
   if (c === 'zalo') return 'zalo';
+  if (c === 'tiktok') return 'tiktok';
   if (c === 'webform' || c === 'website') return 'webform';
   if (c === 'api') return 'api';
   return null;
@@ -67,7 +71,7 @@ export function extractIngressKeysFromLead(
     fields?: Record<string, string>;
     raw?: Record<string, unknown>;
   },
-): { formId?: string; pageId?: string; oaId?: string; webformSlug?: string } {
+): { formId?: string; pageId?: string; oaId?: string; advertiserId?: string; webformSlug?: string } {
   const fields = lead.fields ?? {};
   const raw = lead.raw ?? {};
   const rawMeta =
@@ -83,11 +87,15 @@ export function extractIngressKeysFromLead(
   const pageId = String(
     fields.page_id ?? rawMeta.page_id ?? rawMeta.facebook_page_id ?? raw.page_id ?? raw.oa_id ?? '',
   ).trim();
-  const oaId = String(fields.oa_id ?? raw.oa_id ?? raw.app_id ?? rawMeta.oa_id ?? '').trim();
+  const oaId = String(fields.oa_id ?? raw.oa_id ?? rawMeta.oa_id ?? '').trim();
+  const advertiserId = String(
+    fields.advertiser_id ?? rawMeta.advertiser_id ?? raw.advertiser_id ?? raw.adv_id ?? '',
+  ).trim();
   const webformSlug = String(fields.webform_slug ?? fields.slug ?? raw.slug ?? '').trim();
   if (channel === 'meta' || channel === 'facebook') {
     return { formId: formId || undefined, pageId: pageId || undefined };
   }
   if (channel === 'zalo') return { oaId: oaId || undefined };
+  if (channel === 'tiktok') return { advertiserId: advertiserId || undefined };
   return { webformSlug: webformSlug || undefined };
 }

@@ -38,11 +38,11 @@ export function LeadBriefSection({ token, leadId, onError }: Props) {
     <section className="ai-copilot-section" aria-label="Tóm tắt nhanh lead">
       <button
         type="button"
-        className="btn btn-sm"
+        className="btn btn-sm btn-secondary"
         onClick={() => void onGenerate()}
         disabled={loading}
       >
-        {loading ? 'Đang tóm tắt…' : 'Tóm tắt nhanh'}
+        {loading ? 'Đang tóm tắt…' : 'AI · Tóm tắt nhanh'}
       </button>
 
       {loading ? <div className="ai-skeleton ai-skeleton--brief" aria-hidden="true" /> : null}

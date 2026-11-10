@@ -28,6 +28,7 @@ import {
   type LeadSlaSettingsPayload,
   type LeadSlaSettingsResponse,
 } from '@/lib/api';
+import { TeamSlaMilestonesCard } from '@/components/crm/TeamSlaMilestonesCard';
 import {
   clearSession,
   getAccessToken,
@@ -357,6 +358,7 @@ export default function LeadSlaSettingsAdminPage() {
 
       <div className="lead-sla-admin-layout">
         <Form asDiv className={`lead-sla-admin-main${readOnly ? ' is-readonly' : ''}`}>
+          <TeamSlaMilestonesCard readOnly={readOnly} />
           {readOnly ? (
             <FormSection className="page-card" title="Tóm tắt (AM — chỉ xem)">
               <p style={{ margin: 0 }}>

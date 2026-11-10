@@ -9,6 +9,7 @@ interface Props {
   gateStrip: FunnelGateStripViewModel;
   loading?: boolean;
   onRefresh?: () => void;
+  onEdit?: () => void;
 }
 
 function decisionLabel(value: string | undefined): string {
@@ -16,16 +17,32 @@ function decisionLabel(value: string | undefined): string {
   return INTAKE_DECISION_OPTIONS.find((d) => d.value === value)?.label ?? value;
 }
 
-export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh }: Props) {
+export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh, onEdit }: Props) {
   const tone = gateStrip.tone;
   const isProposal = gateStrip.gateKind === 'proposal';
+  const editable = Boolean(onEdit) && !isProposal;
 
   return (
     <section
-      className={`intake-gate-banner intake-gate-banner--${tone} crm-funnel-stepper__gate`}
+      className={`intake-gate-banner intake-gate-banner--${tone} crm-funnel-stepper__gate${
+        editable ? ' intake-gate-banner--editable' : ''
+      }`}
       aria-live="polite"
       aria-label={
         isProposal ? 'Cổng chuyển Báo giá (G4)' : 'Cổng chuyển Tư vấn "Consult gate"'
+      }
+      role={editable ? 'button' : undefined}
+      tabIndex={editable ? 0 : undefined}
+      onClick={editable ? onEdit : undefined}
+      onKeyDown={
+        editable
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onEdit?.();
+              }
+            }
+          : undefined
       }
     >
       <div className="intake-gate-banner__head">
@@ -36,7 +53,10 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh }
               type="button"
               className="btn btn-ghost btn-sm"
               disabled={loading}
-              onClick={onRefresh}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRefresh?.();
+              }}
             >
               {loading ? 'Đang tải…' : 'Làm mới'}
             </button>
@@ -81,7 +101,10 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh }
           BANT {gateStrip.bantTotal ?? '—'}/30 · Quyết định: {decisionLabel(gateStrip.decision)}
           {gateStrip.requiresOverride ? ' · Cần Director override' : ''}
           {gateStrip.requiresConfirm ? ' · Cần xác nhận' : ''}
+          {editable ? ' · Bấm để mở chi tiết BANT' : ''}
         </p>
+      ) : editable ? (
+        <p className="muted intake-gate-banner__meta">Bấm để mở chi tiết BANT</p>
       ) : null}
     </section>
   );

@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { parseGoogleWebhookPayload, parseGoogleWebhook } from './google-webhook.parser';
 import { parseZaloWebhookPayload, parseZaloWebhook, verifyZaloSignature } from './zalo-webhook.parser';
 
@@ -45,6 +45,114 @@ describe('zalo-webhook.parser', () => {
     expect(out.leads).toHaveLength(1);
     expect(out.leads[0].channel).toBe('zalo');
     expect(out.leads[0].client_id).toBe('client-zalo');
+  });
+
+  it('reads the OA id from recipient on the official user_submit_info envelope', () => {
+    const rows = parseZaloWebhookPayload({
+      sender: { id: 'USER1' },
+      recipient: { id: 'OA_OFFICIAL' },
+      event_name: 'user_submit_info',
+      app_id: 'APP_SHOULD_NOT_BE_OA',
+      timestamp: '1540368141908',
+      info: {
+        name: 'Name Example',
+        phone: '84912345678',
+        full_address: { user_city: 'Thành phố Hồ Chí Minh', user_address: 'Đường số 13' },
+      },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].oa_id).toBe('OA_OFFICIAL');
+    expect(rows[0].full_name).toBe('Name Example');
+    expect(rows[0].phone).toBe('84912345678');
+    expect(rows[0].region).toContain('Hồ Chí Minh');
+    expect(rows[0].meta?.user_id).toBe('USER1');
+  });
+
+  it('reads a numeric phone on user_submit_info', () => {
+    const rows = parseZaloWebhookPayload({
+      event_name: 'user_submit_info',
+      sender: { id: 'USER1' },
+      recipient: { id: 'OA1' },
+      info: { name: 'Tú', phone: 84909699999 },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].phone).toBe('84909699999');
+  });
+
+  it('reads a phone written inside a chat message', () => {
+    const rows = parseZaloWebhookPayload({
+      event_name: 'user_send_text',
+      sender: { id: 'USER1' },
+      recipient: { id: 'OA1' },
+      message: { text: 'Số điện thoại: 0909699999' },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].phone).toBe('0909699999');
+  });
+
+  it('does not turn a chat message into a lead', () => {
+    const rows = parseZaloWebhookPayload({
+      event_name: 'user_send_text',
+      app_id: 'APP1',
+      sender: { id: 'USER1' },
+      recipient: { id: 'OA1' },
+      message: { text: 'xin chào', msg_id: 'm1' },
+      timestamp: '1',
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('accepts the official X-ZEvent-Signature', () => {
+    const payload = {
+      event_name: 'user_submit_info',
+      app_id: 'APP1',
+      timestamp: '1540368141908',
+      sender: { id: 'USER1' },
+      recipient: { id: 'OA1' },
+      info: { name: 'A', phone: '090' },
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const secret = 'oa-secret';
+    const mac = createHash('sha256').update('APP1').update(body).update('1540368141908').update(secret).digest('hex');
+    const out = parseZaloWebhook({
+      headers: { 'x-zevent-signature': `mac=${mac}` },
+      rawBody: body,
+      clientId: 'client-zalo',
+      config: { webhookSecret: secret },
+    });
+    expect(out.verified).toBe(true);
+    expect(out.leads[0]?.contact.phone).toBe('090');
+  });
+
+  it('accepts a signature made with the app secret when the OA secret does not match', () => {
+    const payload = {
+      event_name: 'user_submit_info',
+      app_id: 'APP1',
+      timestamp: '1540368141908',
+      info: { name: 'A', phone: '0909699999' },
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const mac = createHash('sha256').update('APP1').update(body).update('1540368141908').update('app-secret').digest('hex');
+    const out = parseZaloWebhook({
+      headers: { 'x-zevent-signature': `mac=${mac}` },
+      rawBody: body,
+      clientId: 'client-zalo',
+      config: { webhookSecret: 'oa-secret', alternateSecrets: ['app-secret'] },
+    });
+    expect(out.verified).toBe(true);
+    expect(out.leads[0]?.contact.phone).toBe('0909699999');
+  });
+
+  it('names the signature failure when the mac does not match', () => {
+    const body = Buffer.from(JSON.stringify({ event_name: 'user_submit_info', app_id: 'APP1', timestamp: '1', info: { phone: '090' } }));
+    const out = parseZaloWebhook({
+      headers: { 'x-zevent-signature': `mac=${'a'.repeat(64)}` },
+      rawBody: body,
+      clientId: 'client-zalo',
+      config: { webhookSecret: 'oa-secret' },
+    });
+    expect(out.verified).toBe(false);
+    expect(out.reject_reason).toBe('Invalid Zalo signature (mismatch)');
   });
 });
 

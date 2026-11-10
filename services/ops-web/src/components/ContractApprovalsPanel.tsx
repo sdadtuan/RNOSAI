@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
   approveContractApproval,
+  downloadLeadContractDocx,
   fetchPendingContractApprovals,
   rejectContractApproval,
   type ContractApprovalRow,
@@ -25,7 +26,10 @@ export function ContractApprovalsPanel({ token, user, onMessage, onError }: Prop
   const [lastLifecycleId, setLastLifecycleId] = useState<number | null>(null);
   const [lastSopRunId, setLastSopRunId] = useState<number | null>(null);
 
-  const canApprove = hasCap(user, 'crm_leads', 'assign');
+  const canApprove =
+    hasCap(user, 'crm_leads', 'assign') ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_gdkd', 'review_queue');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -137,7 +141,22 @@ export function ContractApprovalsPanel({ token, user, onMessage, onError }: Prop
               border: '1px solid var(--border)',
             }}
           />
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={busyId === row.id}
+              onClick={() => {
+                setBusyId(row.id);
+                void downloadLeadContractDocx(token, row.lead_id)
+                  .catch((err: unknown) =>
+                    onError?.(err instanceof Error ? err.message : 'Không tải được file hợp đồng'),
+                  )
+                  .finally(() => setBusyId(null));
+              }}
+            >
+              Tải file hợp đồng
+            </button>
             <button
               type="button"
               className="btn btn-sm btn-primary"

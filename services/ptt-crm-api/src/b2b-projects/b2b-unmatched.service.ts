@@ -27,7 +27,7 @@ export class B2bUnmatchedService {
         pageId: input.pageId,
         formId: row.external_key,
       });
-    } else if (ingress === 'zalo' || ingress === 'webform' || ingress === 'api') {
+    } else if (ingress === 'zalo' || ingress === 'tiktok' || ingress === 'webform' || ingress === 'api') {
       await this.repo.attachChannelAccount({
         projectId: input.projectId,
         channelType: ingress,

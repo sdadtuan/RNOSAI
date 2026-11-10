@@ -16,7 +16,7 @@ export class LeadsRepository {
   async listLeads(
     query: ListLeadsQuery,
     classification?: LeadClassificationConfig | null,
-  ): Promise<{ leads: LeadV1[]; total: number }> {
+  ): Promise<{ leads: LeadV1[]; total: number; signals: { hot: number; consult: number; ai: number; won: number } }> {
     const enriched = await this.withReviewQueueFilter(query);
     return this.pgRepo.listLeads(enriched, classification);
   }

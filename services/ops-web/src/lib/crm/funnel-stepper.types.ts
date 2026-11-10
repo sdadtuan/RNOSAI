@@ -39,6 +39,14 @@ export interface IntakeStepSummary {
     bant_total: number;
     completed_at: string;
   };
+  /** Latest draft or completed session, for the lead pipeline summary. */
+  preview?: {
+    id: number;
+    status: string;
+    decision: string;
+    bant_total: number;
+    bant: Record<string, number>;
+  };
 }
 
 export interface PresalesConsultProposalSla {

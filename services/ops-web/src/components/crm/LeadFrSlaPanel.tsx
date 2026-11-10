@@ -1,5 +1,6 @@
 'use client';
 
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchLeadFrSla,
@@ -85,10 +86,6 @@ const RESULT_VI: Record<string, string> = Object.fromEntries(
   CALL_RESULTS.map((r) => [r.value, r.label]),
 );
 
-const CHANNEL_VI: Record<string, string> = Object.fromEntries(
-  CHANNELS.map((c) => [c.value, c.label.split(' (')[0]]),
-);
-
 function fmtRemain(ms: number | null | undefined): string {
   if (ms == null) return '—';
   if (ms <= 0) return 'Quá hạn';
@@ -124,12 +121,6 @@ function resultLabel(code: string | null | undefined): string {
   const key = String(code ?? '').trim();
   if (!key) return '—';
   return RESULT_VI[key] ?? key;
-}
-
-function channelLabel(code: string | null | undefined): string {
-  const key = String(code ?? '').trim().toLowerCase();
-  if (!key) return '—';
-  return CHANNEL_VI[key] ?? code ?? '—';
 }
 
 const CLAIM_KEY = 'ptt_local_lead_claim_v1';
@@ -490,28 +481,6 @@ export function LeadFrSlaPanel({
         </form>
       ) : null}
 
-      {sla?.attempts?.length ? (
-        <details className="lead-fr-sla__history">
-          <summary>Lịch sử cuộc gọi ({sla.attempts.length})</summary>
-          <ul>
-            {sla.attempts.map((a) => (
-              <li key={a.id}>
-                <span className="lead-fr-sla__hist-no">#{a.attempt_no}</span>
-                <span>{channelLabel(a.channel)}</span>
-                <span>{resultLabel(a.call_result)}</span>
-                <span className="muted">{fmtTs(a.started_at)}</span>
-                {!a.counts_toward_fr1 ? (
-                  <span className="lead-fr-sla__tag">Không tính phản hồi đầu</span>
-                ) : null}
-                {a.warn_call_too_soon ? (
-                  <span className="lead-fr-sla__tag lead-fr-sla__tag--warn">Gọi quá sát</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-
       <style jsx>{`
         .lead-fr-sla {
           margin: 0.75rem 0 1rem;
@@ -693,51 +662,6 @@ export function LeadFrSlaPanel({
           grid-column: 1 / -1;
           justify-self: start;
           min-width: 11rem;
-        }
-        .lead-fr-sla__history {
-          margin-top: 0.9rem;
-          font-size: 0.85rem;
-          color: #2d3d34;
-        }
-        .lead-fr-sla__history summary {
-          cursor: pointer;
-          font-weight: 600;
-          color: #17692f;
-        }
-        .lead-fr-sla__history ul {
-          margin: 0.45rem 0 0;
-          padding: 0;
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 0.4rem;
-        }
-        .lead-fr-sla__history li {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.35rem 0.55rem;
-          padding: 0.45rem 0.55rem;
-          border-radius: 6px;
-          background: #fff;
-          border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .lead-fr-sla__hist-no {
-          font-weight: 650;
-          color: #17692f;
-          min-width: 1.6rem;
-        }
-        .lead-fr-sla__tag {
-          font-size: 0.72rem;
-          font-weight: 600;
-          padding: 0.12rem 0.4rem;
-          border-radius: 999px;
-          background: #eef2f0;
-          color: #3d5246;
-        }
-        .lead-fr-sla__tag--warn {
-          background: #fef3c7;
-          color: #92400e;
         }
         @media (max-width: 640px) {
           .lead-fr-sla__head {

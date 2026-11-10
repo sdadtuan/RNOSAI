@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { getAccessToken, syncAuthCookie } from '@/lib/auth';
 
-/** Keeps middleware auth cookie in sync with sessionStorage (existing sessions after deploy). */
+/** Keeps the middleware cookie in sync and copies an older tab-only session into localStorage. */
 export function AuthCookieSync() {
   useEffect(() => {
     if (getAccessToken()) syncAuthCookie();

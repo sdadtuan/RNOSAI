@@ -6,7 +6,7 @@ import {
 const TOKEN_KEY = 'ptt_ops_access_token';
 const REFRESH_KEY = 'ptt_ops_refresh_token';
 const USER_KEY = 'ptt_ops_user';
-/** Session marker for Next.js middleware (cannot read sessionStorage). */
+/** Session marker for Next.js middleware (cannot read web storage). */
 export const AUTH_COOKIE = 'ptt_ops_auth';
 export const POSITION_COOKIE = 'ptt_ops_position_code';
 
@@ -34,23 +34,81 @@ export interface StoredStaffUser {
   ae_team_access?: 'none' | 'lead' | 'all';
 }
 
+function sharedStore(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function tabStore(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** localStorage is shared across tabs. sessionStorage keeps the tab that logged in before this change. */
+function readSessionItem(key: string): string | null {
+  const shared = sharedStore();
+  const tab = tabStore();
+  const fromShared = shared?.getItem(key);
+  if (fromShared) return fromShared;
+  const fromTab = tab?.getItem(key);
+  if (fromTab) {
+    shared?.setItem(key, fromTab);
+    return fromTab;
+  }
+  return null;
+}
+
+function writeSessionItem(key: string, value: string): void {
+  try {
+    sharedStore()?.setItem(key, value);
+  } catch {
+    /* private mode or blocked storage */
+  }
+  try {
+    tabStore()?.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeSessionItem(key: string): void {
+  try {
+    sharedStore()?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    tabStore()?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function saveSession(
   accessToken: string,
   refreshToken: string,
   user: StoredStaffUser,
 ): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(TOKEN_KEY, accessToken);
-  sessionStorage.setItem(REFRESH_KEY, refreshToken);
-  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  writeSessionItem(TOKEN_KEY, accessToken);
+  writeSessionItem(REFRESH_KEY, refreshToken);
+  writeSessionItem(USER_KEY, JSON.stringify(user));
   syncAuthCookie(user);
 }
 
 export function clearSession(): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(REFRESH_KEY);
-  sessionStorage.removeItem(USER_KEY);
+  removeSessionItem(TOKEN_KEY);
+  removeSessionItem(REFRESH_KEY);
+  removeSessionItem(USER_KEY);
   clearAuthCookie();
 }
 
@@ -69,18 +127,15 @@ export function clearAuthCookie(): void {
 }
 
 export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(TOKEN_KEY);
+  return readSessionItem(TOKEN_KEY);
 }
 
 export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(REFRESH_KEY);
+  return readSessionItem(REFRESH_KEY);
 }
 
 export function getStoredUser(): StoredStaffUser | null {
-  if (typeof window === 'undefined') return null;
-  const raw = sessionStorage.getItem(USER_KEY);
+  const raw = readSessionItem(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredStaffUser;
@@ -94,6 +149,8 @@ export function getStoredUser(): StoredStaffUser | null {
  * API guards remain authoritative; UI must not show actions without caps.
  */
 export function hasCap(user: StoredStaffUser | null, section: string, action = 'view'): boolean {
+  const code = String(user?.position_code ?? '').trim().toLowerCase().replace(/\s+/g, '');
+  if (code === 'super-admin' || code === 'super_admin') return true;
   if (!user?.caps?.length) return false;
   return user.caps.some((c) => c.section === section && c.action === action);
 }
@@ -219,13 +276,13 @@ export function canFinanceRequestMediaOs(user: StoredStaffUser | null): boolean 
 
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  writeSessionItem(USER_KEY, JSON.stringify(user));
   syncAuthCookie(user);
 }
 
 export function updateAccessToken(token: string): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(TOKEN_KEY, token);
+  writeSessionItem(TOKEN_KEY, token);
   syncAuthCookie(getStoredUser());
 }
 
@@ -236,8 +293,8 @@ export function applyStaffLoginResponse(out: {
   user: StoredStaffUser;
 }): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(TOKEN_KEY, out.access_token);
-  sessionStorage.setItem(REFRESH_KEY, out.refresh_token);
-  sessionStorage.setItem(USER_KEY, JSON.stringify(out.user));
+  writeSessionItem(TOKEN_KEY, out.access_token);
+  writeSessionItem(REFRESH_KEY, out.refresh_token);
+  writeSessionItem(USER_KEY, JSON.stringify(out.user));
   syncAuthCookie(out.user);
 }

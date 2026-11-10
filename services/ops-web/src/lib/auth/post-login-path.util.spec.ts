@@ -16,6 +16,15 @@ describe('resolveStaffPostLoginPath', () => {
     expect(resolveStaffPostLoginPath(ceoUser, '/crm/leads')).toBe('/crm/leads');
   });
 
+  it('GDKD lands on the contract hub', () => {
+    expect(
+      resolveStaffPostLoginPath({
+        caps: [{ section: 'crm_gdkd', action: 'assign' }],
+        position_code: 'GDKD',
+      } as never),
+    ).toBe('/crm/hub?hub_tab=contracts');
+  });
+
   it('non-CEO stays on home', () => {
     expect(
       resolveStaffPostLoginPath({

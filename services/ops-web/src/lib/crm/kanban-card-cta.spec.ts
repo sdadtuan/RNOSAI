@@ -43,7 +43,8 @@ describe('kanbanCardActions', () => {
       'return_am',
       'advance_contract',
     ]);
-    expect(actions[2].nextStatus).toBe('won');
+    expect(actions[2].nextStatus).toBeUndefined();
+    expect(actions[2].blockedReason).toContain('GĐKD');
   });
 
   it('contract stage: view + return + mark signed', () => {
@@ -100,7 +101,7 @@ describe('kanbanCardActions', () => {
       quote_sent_to_sale: true,
       quote_case_open: true,
     });
-    expect(approved[0].label).toBe('Triển Khai');
+    expect(approved[0].label).toBe('Chờ GĐKD duyệt HĐ');
     expect(approved[2].nextStatus).toBe('proposal');
   });
 
@@ -143,7 +144,8 @@ describe('kanbanCardActions', () => {
       quote_sent_to_sale: true,
       quote_approved: true,
     });
-    expect(approved.find((action) => action.kind === 'advance_contract')?.nextStatus).toBe('won');
+    expect(approved.find((action) => action.kind === 'advance_contract')?.nextStatus).toBeUndefined();
+    expect(approved.find((action) => action.kind === 'advance_contract')?.blockedReason).toContain('GĐKD');
   });
 
   it('does not offer Xem HĐ when the contract row is absent', () => {

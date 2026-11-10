@@ -20,10 +20,10 @@ describe('mapLegacyHashToPipeline', () => {
   it('maps #funnel-b2 to b2', () => {
     expect(mapLegacyHashToPipeline('#funnel-b2')).toEqual({ tab: 'pipeline', step: 'b2' });
   });
-  it('maps #funnel-presales without stage to presales_lead', () => {
+  it('maps #funnel-presales without stage to Pre Sale', () => {
     expect(mapLegacyHashToPipeline('#funnel-presales')).toEqual({
       tab: 'pipeline',
-      step: 'presales_lead',
+      step: 'intake_bant',
     });
   });
   it('maps #funnel-presales after intake complete (consult stage) to consult', () => {
@@ -70,8 +70,14 @@ describe('defaultLeadWorkspaceTab', () => {
       defaultLeadWorkspaceTab({ ...base, searchTab: 'consult', showConsult: true }),
     ).toBe('consult');
   });
+  it('honors ?tab=history on B2B lead', () => {
+    expect(defaultLeadWorkspaceTab({ ...base, searchTab: 'history' })).toBe('history');
+  });
   it('maps legacy hash over default', () => {
     expect(defaultLeadWorkspaceTab({ ...base, hash: '#funnel-b2' })).toBe('pipeline');
+  });
+  it('opens the contract tab from #lead-contract', () => {
+    expect(defaultLeadWorkspaceTab({ ...base, hash: '#lead-contract' })).toBe('contract');
   });
 });
 

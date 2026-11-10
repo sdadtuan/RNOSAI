@@ -53,6 +53,7 @@ function installBrowserStorage() {
     },
   };
   Object.defineProperty(globalThis, 'window', { configurable: true, value: globalThis });
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: fake });
   Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fake });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,

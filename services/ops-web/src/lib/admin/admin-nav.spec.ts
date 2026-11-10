@@ -42,6 +42,7 @@ describe('admin-nav', () => {
     const groups = buildAdminNavGroups(adminUser());
     const org = groups.find((g) => g.id === 'org');
     expect(org?.links.some((l) => l.href === '/admin/crm/org/users')).toBe(true);
+    expect(org?.links.some((l) => l.href === '/admin/crm/hour-quote' || l.label === 'Hạng mục việc')).toBe(false);
     process.env.NEXT_PUBLIC_WIN_ORG_UI = prev;
   });
 

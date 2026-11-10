@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
 import type { LeadAuditBundle } from '@/lib/api';
-import { isAccountExecutive, isAccountManager, leadAuditForViewer } from './lead-ae-visibility';
+import { isAccountExecutive, isAccountManager, isMarketingLeader, isSuperAdmin, leadAuditForViewer } from './lead-ae-visibility';
 
 function viewer(partial: Partial<StoredStaffUser>): StoredStaffUser {
   return {
@@ -32,6 +32,10 @@ describe('lead AE visibility', () => {
     expect(isAccountExecutive(viewer({ position_code: 'GDKD-01', job_functions: ['sales'] }))).toBe(false);
     expect(isAccountExecutive(viewer({ position_code: 'KD-01' }))).toBe(false);
     expect(isAccountManager(viewer({ position_code: 'ACM' }))).toBe(true);
+    expect(isSuperAdmin(viewer({ position_code: 'SUPER-ADMIN' }))).toBe(true);
+    expect(isSuperAdmin(viewer({ position_code: 'AE' }))).toBe(false);
+    expect(isMarketingLeader(viewer({ position_code: 'MKL' }))).toBe(true);
+    expect(isMarketingLeader(viewer({ position_code: 'AE' }))).toBe(false);
     expect(isAccountManager(viewer({ position_code: 'KD-01' }))).toBe(true);
     expect(isAccountManager(viewer({}))).toBe(false);
   });

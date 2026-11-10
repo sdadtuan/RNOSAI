@@ -188,7 +188,7 @@ export async function replaceB2bProjectChannels(
   token: string,
   id: string,
   channels: Array<{
-    channel_type: 'zalo' | 'webform' | 'api';
+    channel_type: 'zalo' | 'tiktok' | 'webform' | 'api';
     external_key: string;
     label?: string;
     active?: boolean;

@@ -22,6 +22,8 @@ export function useIntakeAutosave({
   const [status, setStatus] = useState<IntakeAutosaveStatus>('idle');
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const lastSavedSnapshot = useRef(snapshot);
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const onSaveRef = useRef(onSave);
@@ -39,22 +41,23 @@ export function useIntakeAutosave({
 
   const runSave = useCallback(async () => {
     if (!enabled || paused || savingRef.current) return;
-    if (snapshot === lastSavedSnapshot.current) return;
+    if (snapshotRef.current === lastSavedSnapshot.current) return;
 
     savingRef.current = true;
     clearTimer();
     setStatus('saving');
     try {
       await onSaveRef.current();
-      lastSavedSnapshot.current = snapshot;
+      lastSavedSnapshot.current = snapshotRef.current;
       setSavedAt(new Date());
       setStatus('saved');
     } catch {
       setStatus('error');
+      throw new Error('intake_autosave_failed');
     } finally {
       savingRef.current = false;
     }
-  }, [clearTimer, enabled, paused, snapshot]);
+  }, [clearTimer, enabled, paused]);
 
   useEffect(() => {
     if (!enabled || paused || !dirty) {
@@ -71,11 +74,25 @@ export function useIntakeAutosave({
     return clearTimer;
   }, [clearTimer, debounceMs, dirty, enabled, paused, runSave, snapshot]);
 
+  const runSaveRef = useRef(runSave);
+  runSaveRef.current = runSave;
+
   const saveOnBlur = useCallback(() => {
-    if (!enabled || paused || !dirty || savingRef.current) return;
+    if (!enabled || paused || savingRef.current) return;
     clearTimer();
-    void runSave();
-  }, [clearTimer, dirty, enabled, paused, runSave]);
+    // RichTextField commits pain in the same blur as this handler. Wait until React
+    // has rendered that value, then save the snapshot the editor just wrote.
+    window.setTimeout(() => {
+      void runSaveRef.current();
+    }, 0);
+  }, [clearTimer, enabled, paused]);
+
+  const flushSave = useCallback(async () => {
+    if (!enabled || paused || savingRef.current) return;
+    if (snapshotRef.current === lastSavedSnapshot.current) return;
+    clearTimer();
+    await runSave();
+  }, [clearTimer, enabled, paused, runSave]);
 
   const syncSnapshot = useCallback((nextSnapshot: string) => {
     lastSavedSnapshot.current = nextSnapshot;
@@ -95,6 +112,7 @@ export function useIntakeAutosave({
     savedAt,
     dirty,
     saveOnBlur,
+    flushSave,
     syncSnapshot,
     markSavedNow,
   };

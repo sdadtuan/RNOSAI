@@ -125,6 +125,17 @@ describe('resolveLeadStageVisibility', () => {
     expect(done.showNbaB2b).toBe(false);
   });
 
+  it('quote approved opens the service delivery contract panel', () => {
+    const out = resolveLeadStageVisibility({
+      ...b2bOpen,
+      b2Complete: true,
+      presalesStage: 'consult',
+      intakeGo: true,
+      quoteApproved: true,
+    });
+    expect(out.showContractPanel).toBe(true);
+  });
+
   it('Deal Room flag off → banner off even at consult', () => {
     const out = resolveLeadStageVisibility({
       ...b2bOpen,

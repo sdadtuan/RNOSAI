@@ -418,7 +418,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.acceptQuoteCase(id, await this.userId(req));
+      return await this.funnel.acceptQuoteCase(id, await this.userId(req), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -432,7 +432,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.sendQuoteToSales(id, await this.userId(req));
+      return await this.funnel.sendQuoteToSales(id, await this.userId(req), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -491,11 +491,89 @@ export class LeadsFunnelController {
     }
   }
 
+  @Post(':id/presales/create-contract')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async createQuoteContract(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.createQuoteContract(id, await this.userId(req));
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/sign-contract')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async signQuoteContract(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.signQuoteContract(id, await this.userId(req));
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/implementation-plan')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async getImplementationPlan(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.funnel.getImplementationPlan(id);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/contract-docx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async quoteContractDocx(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+    try {
+      const out = await this.funnel.quoteContractDocx(id);
+      return new StreamableFile(out.buffer, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        disposition: `attachment; filename="${out.filename}"`,
+        length: out.buffer.length,
+      });
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/delivery-kpi')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async getDeliveryKpi(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.funnel.getDeliveryKpi(id);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Get(':id/presales/quote-sheet')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
   async getQuoteSheet(@Param('id', ParseIntPipe) id: number, @Query('services') services?: string) {
     try {
       return await this.funnel.getQuoteSheet(id, services);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/quote-sheet/xlsx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async quoteSheetXlsx(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+    try {
+      const out = await this.funnel.quoteSheetXlsx(id);
+      return new StreamableFile(out.buffer, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        disposition: `attachment; filename="${out.filename}"`,
+        length: out.buffer.length,
+      });
     } catch (err) {
       this.badRequest(err);
     }
@@ -524,7 +602,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.saveQuoteSheet(id, await this.userId(req), body ?? {});
+      return await this.funnel.saveQuoteSheet(id, await this.userId(req), body ?? {}, req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }

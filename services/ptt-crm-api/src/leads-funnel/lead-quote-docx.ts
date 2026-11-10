@@ -2,6 +2,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  LineRuleType,
   Packer,
   Paragraph,
   ShadingType,
@@ -40,6 +41,13 @@ const BORDERS: ITableCellBorders = {
   bottom: { style: BorderStyle.SINGLE, size: 8, color: LINE },
   left: { style: BorderStyle.SINGLE, size: 8, color: LINE },
   right: { style: BorderStyle.SINGLE, size: 8, color: LINE },
+};
+
+const NO_BORDERS: ITableCellBorders = {
+  top: { style: BorderStyle.NONE, size: 0, color: WHITE },
+  bottom: { style: BorderStyle.NONE, size: 0, color: WHITE },
+  left: { style: BorderStyle.NONE, size: 0, color: WHITE },
+  right: { style: BorderStyle.NONE, size: 0, color: WHITE },
 };
 
 function vnd(value: number): string {
@@ -83,10 +91,21 @@ function groupLabel(group: QuoteSheetGroup): string {
 
 function paragraph(
   text: string,
-  opts: { bold?: boolean; color?: string; size?: number; align?: Align } = {},
+  opts: {
+    bold?: boolean;
+    color?: string;
+    size?: number;
+    align?: Align;
+    before?: number;
+    after?: number;
+  } = {},
 ): Paragraph {
   return new Paragraph({
     alignment: opts.align,
+    spacing:
+      opts.before != null || opts.after != null
+        ? { before: opts.before ?? 0, after: opts.after ?? 0, line: 276, lineRule: LineRuleType.AUTO }
+        : undefined,
     children: [
       new TextRun({
         text,
@@ -147,8 +166,7 @@ function includedSections(view: QuoteSheetView): Array<{
   return sections;
 }
 
-export async function renderLeadQuoteDocx(view: QuoteSheetView, leadLabel: string): Promise<Buffer> {
-  const client = clientLabel(leadLabel);
+function commercialTable(view: QuoteSheetView): Table {
   const sections = includedSections(view);
   const rows: TableRow[] = [
     new TableRow({
@@ -245,6 +263,17 @@ export async function renderLeadQuoteDocx(view: QuoteSheetView, leadLabel: strin
     );
   }
 
+  return new Table({
+    width: { size: TABLE_W, type: WidthType.DXA },
+    columnWidths: [COL_STT, COL_TASK, COL_DESC, COL_AMOUNT],
+    layout: TableLayoutType.FIXED,
+    borders: BORDERS,
+    rows,
+  });
+}
+
+export async function renderLeadQuoteDocx(view: QuoteSheetView, leadLabel: string): Promise<Buffer> {
+  const client = clientLabel(leadLabel);
   const doc = new Document({
     title: 'Báo giá',
     styles: {
@@ -266,18 +295,136 @@ export async function renderLeadQuoteDocx(view: QuoteSheetView, leadLabel: strin
           paragraph('BÁO GIÁ', { bold: true, size: 36, color: BAND }),
           paragraph(client, { size: 24 }),
           paragraph(`Ngày xuất: ${issuedDateIct()}`, { size: 18, color: MUTED, align: AlignmentType.RIGHT }),
-          new Table({
-            width: { size: TABLE_W, type: WidthType.DXA },
-            columnWidths: [COL_STT, COL_TASK, COL_DESC, COL_AMOUNT],
-            layout: TableLayoutType.FIXED,
-            borders: BORDERS,
-            rows,
-          }),
+          commercialTable(view),
         ],
       },
     ],
   });
 
+  const packed = await Packer.toBuffer(doc);
+  return Buffer.isBuffer(packed) ? packed : Buffer.from(packed);
+}
+
+export async function renderLeadContractDocx(
+  view: QuoteSheetView,
+  input: {
+    client: string;
+    statusLabel: string;
+    createdLabel: string;
+    signedLabel: string;
+    amountVnd: number;
+    contractNo?: string;
+    contactName?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+  },
+): Promise<Buffer> {
+  const client = clientLabel(input.client);
+  const partyLines = [
+    input.contactName?.trim() ? `Người liên hệ: ${input.contactName.trim()}` : '',
+    input.address?.trim() ? `Địa chỉ: ${input.address.trim()}` : '',
+    input.phone?.trim() ? `Điện thoại: ${input.phone.trim()}` : '',
+    input.email?.trim() ? `Email: ${input.email.trim()}` : '',
+  ].filter(Boolean);
+  const article = (text: string) =>
+    paragraph(text, { bold: true, size: 24, color: BAND, before: 280, after: 80 });
+  const body = (text: string, opts: { bold?: boolean; size?: number; color?: string; align?: Align; before?: number } = {}) =>
+    paragraph(text, { size: 21, after: 120, ...opts });
+  const half = Math.floor(TABLE_W / 2);
+  const signCell = (title: string, name: string) =>
+    new TableCell({
+      width: { size: half, type: WidthType.DXA },
+      borders: NO_BORDERS,
+      margins: { top: 200, bottom: 120, left: 120, right: 120 },
+      children: [
+        paragraph(title, { bold: true, size: 22, align: AlignmentType.CENTER, before: 80, after: 60 }),
+        paragraph(name, { bold: true, size: 21, align: AlignmentType.CENTER, after: 80 }),
+        paragraph('Ký, ghi rõ họ tên', { size: 20, color: MUTED, align: AlignmentType.CENTER, after: 1400 }),
+      ],
+    });
+  const children: Array<Paragraph | Table> = [
+    body('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', {
+      bold: true,
+      size: 22,
+      align: AlignmentType.CENTER,
+      before: 80,
+    }),
+    body('Độc lập - Tự do - Hạnh phúc', {
+      size: 20,
+      align: AlignmentType.CENTER,
+    }),
+    body('HỢP ĐỒNG CUNG CẤP DỊCH VỤ', {
+      bold: true,
+      size: 36,
+      color: BAND,
+      align: AlignmentType.CENTER,
+      before: 200,
+    }),
+    body(input.contractNo?.trim() ? `Số: ${input.contractNo.trim()}` : 'Số: —', {
+      align: AlignmentType.CENTER,
+    }),
+    body(`Tình trạng: ${input.statusLabel}`, { align: AlignmentType.CENTER }),
+    input.createdLabel ? body(`Ngày lập: ${input.createdLabel}`, { size: 20, color: MUTED }) : body(''),
+    input.signedLabel ? body(`Ngày duyệt: ${input.signedLabel}`, { size: 20, color: MUTED }) : body(''),
+    body(
+      'Căn cứ nhu cầu của khách hàng và báo giá đã chốt, hai bên thống nhất ký hợp đồng với các điều khoản sau.',
+      { before: 160 },
+    ),
+    article('Điều 1. Các bên'),
+    body(`Bên A (Khách hàng): ${client}`, { bold: true }),
+    ...partyLines.map((line) => body(line)),
+    body('Bên B (Nhà cung cấp): PTT', { bold: true, before: 80 }),
+    article('Điều 2. Phạm vi công việc'),
+    body(
+      'Bên B thực hiện các hạng mục dưới đây. Phạm vi lấy từ báo giá đã chốt, không gồm tên nhân sự hay đơn giá giờ.',
+    ),
+    commercialTable(view),
+    article('Điều 3. Giá trị hợp đồng'),
+    body(`Giá trị hợp đồng: ${vnd(input.amountVnd)}`, { bold: true, size: 22 }),
+    body(
+      'Số tiền là tổng thanh toán trên bảng phạm vi, đã trừ khuyến mại và cộng VAT. Bên A thanh toán theo hóa đơn Bên B xuất sau khi hợp đồng có hiệu lực.',
+    ),
+    article('Điều 4. Thời hạn và triển khai'),
+    body(
+      'Thời hạn theo từng hạng mục trong phạm vi. Lịch triển khai được chốt sau khi hợp đồng có hiệu lực. Lead chỉ sang Triển Khai khi GĐKD Bên B đã duyệt hợp đồng này.',
+    ),
+    article('Điều 5. Hiệu lực'),
+    body(
+      'Hợp đồng có hiệu lực khi GĐKD Bên B duyệt. Mỗi bên giữ một bản. Nội dung ngoài bảng phạm vi phải được hai bên thống nhất bằng văn bản.',
+    ),
+    new Table({
+      width: { size: TABLE_W, type: WidthType.DXA },
+      layout: TableLayoutType.FIXED,
+      rows: [
+        new TableRow({
+          cantSplit: true,
+          children: [signCell('ĐẠI DIỆN BÊN A', client), signCell('ĐẠI DIỆN BÊN B', 'PTT')],
+        }),
+      ],
+    }),
+  ];
+  const doc = new Document({
+    title: 'Hợp đồng cung cấp dịch vụ',
+    styles: {
+      default: {
+        document: {
+          run: { font: FONT, size: 21 },
+        },
+      },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: PAGE_W, height: 16838 },
+            margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN },
+          },
+        },
+        children,
+      },
+    ],
+  });
   const packed = await Packer.toBuffer(doc);
   return Buffer.isBuffer(packed) ? packed : Buffer.from(packed);
 }

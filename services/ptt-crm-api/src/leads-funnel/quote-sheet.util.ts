@@ -109,6 +109,37 @@ export type QuoteSheetView = {
   grand_total_vnd: number;
 };
 
+export type ImplementationPlanLine = {
+  task: string;
+  subtask: string;
+  role_label: string;
+  hours: number;
+};
+
+export type ImplementationPlanGroup = {
+  service_name: string;
+  phase_name: string;
+  lines: ImplementationPlanLine[];
+};
+
+/** Work left after the contract is signed. Customer-facing rates and names stay off this list. */
+export function implementationPlanFromSheet(sheet: QuoteSheetView): ImplementationPlanGroup[] {
+  return sheet.groups
+    .map((group) => ({
+      service_name: group.service_name,
+      phase_name: group.phase_name,
+      lines: group.rows
+        .filter((row) => row.included)
+        .map((row) => ({
+          task: row.task,
+          subtask: row.subtask,
+          role_label: row.role_label,
+          hours: row.hours,
+        })),
+    }))
+    .filter((group) => group.lines.length > 0);
+}
+
 export function hourlyFromPosition(monthlySalaryVnd: number, hoursPerMonth: number): number {
   if (!Number.isFinite(monthlySalaryVnd) || monthlySalaryVnd <= 0) return 0;
   if (!Number.isFinite(hoursPerMonth) || hoursPerMonth <= 0) return 0;

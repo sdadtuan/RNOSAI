@@ -191,7 +191,19 @@ describe('resolvePresalesStepStates', () => {
       }),
       consultGate: null,
     });
-    expect(consultStates.intake_bant).toBe('done');
+    expect(consultStates.intake_bant).toBe('current');
+    const consultWithBant = resolvePresalesStepStates({
+      funnel: mockFunnel({
+        presales: {
+          presales: { id: 1, stage: 'consult', service_slug: 'x', status: 'active' },
+          tasks: {},
+          advance: { can_advance_forward: false, block_reason: '', next_stage: 'proposal' },
+        },
+      }),
+      consultGate: null,
+      intakeSummary: mockIntake(),
+    });
+    expect(consultWithBant.intake_bant).toBe('done');
     expect(consultStates.consult).toBe('current');
     expect(consultStates.proposal).toBe('pending');
 
@@ -222,14 +234,14 @@ describe('resolveActiveStep', () => {
     ).toBe('intake_bant');
   });
 
-  it('selects presales_lead when B2 done but presales missing', () => {
+  it('selects Pre Sale when B2 done but presales missing', () => {
     expect(
       resolveActiveStep({
         funnel: mockFunnel({ presales: null }),
         consultGate: null,
         context: 'lead_detail',
       }),
-    ).toBe('presales_lead');
+    ).toBe('intake_bant');
   });
 
   it('selects consult when presales stage is consult', () => {
@@ -455,6 +467,20 @@ describe('resolvePrimaryAction', () => {
     expect(action?.kind).toBe('handoff_solution');
     expect(action?.label).toContain('Giao Solution');
   });
+
+  it('sends the lead back to BANT when the survey is not completed', () => {
+    const action = resolvePrimaryAction({
+      leadId: 5,
+      funnel: mockFunnel(),
+      consultGate: mockGate(),
+      intakeSummary: { has_draft: true },
+      activeStep: 'intake_bant',
+      context: 'lead_detail',
+    });
+    expect(action?.kind).toBe('link');
+    expect(action?.label).toContain('Pre Sale');
+    expect(action?.href).toContain('/crm/intake?lead_id=5');
+  });
 });
 
 describe('resolveGateStrip', () => {
@@ -504,7 +530,7 @@ describe('resolveFunnelStepper', () => {
     expect(vm.visible).toBe(false);
   });
 
-  it('returns five presales steps when visible', () => {
+  it('returns four pipeline steps and names BANT Pre Sale', () => {
     const vm = resolveFunnelStepper({
       leadId: 900000002,
       funnel: mockFunnel(),
@@ -513,7 +539,9 @@ describe('resolveFunnelStepper', () => {
       context: 'intake',
     });
     expect(vm.visible).toBe(true);
-    expect(vm.steps).toHaveLength(5);
+    expect(vm.steps).toHaveLength(4);
+    expect(vm.steps.map((s) => s.key)).toEqual(['b2', 'intake_bant', 'consult', 'proposal']);
+    expect(vm.steps.find((s) => s.key === 'intake_bant')?.label).toBe('Pre Sale');
     expect(vm.steps.find((s) => s.key === 'intake_bant')?.href).toContain('/crm/intake?lead_id=900000002');
     expect(vm.activeStep).toBe('intake_bant');
     expect(vm.gateStrip?.tone).toBe('ok');

@@ -42,6 +42,27 @@ describe('resolveIngressProject', () => {
       ),
     ).toEqual({ projectId: 'p1' });
   });
+
+  it('maps tiktok advertiser_id', () => {
+    expect(
+      resolveIngressProject(
+        { channel: 'tiktok', advertiserId: '7123456789', projectSlug: 'ptt-hcm' },
+        {
+          forms,
+          pages,
+          accounts: [
+            {
+              channel: 'tiktok',
+              externalKey: '7123456789',
+              projectId: 'p1',
+              projectSlug: 'ptt-hcm',
+              active: true,
+            },
+          ],
+        },
+      ),
+    ).toEqual({ projectId: 'p1' });
+  });
 });
 
 describe('extractIngressKeysFromLead', () => {
@@ -51,6 +72,14 @@ describe('extractIngressKeysFromLead', () => {
         raw: { meta: { facebook_form_id: 'F9', facebook_page_id: 'PG9' } },
       }),
     ).toEqual({ formId: 'F9', pageId: 'PG9' });
+  });
+
+  it('reads tiktok advertiser_id from lead meta', () => {
+    expect(
+      extractIngressKeysFromLead('tiktok', {
+        raw: { meta: { advertiser_id: '7123456789', tiktok_lead_id: 'L1' } },
+      }),
+    ).toEqual({ advertiserId: '7123456789' });
   });
 });
 

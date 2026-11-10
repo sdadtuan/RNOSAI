@@ -20,8 +20,7 @@ import type {
 
 export const PRESALES_FUNNEL_STEPS: FunnelStepDefinition[] = [
   { key: 'b2', label: 'Liên hệ lần đầu', shortLabel: 'B2', anchor: '#funnel-b2' },
-  { key: 'presales_lead', label: 'Pre-sales Lead', shortLabel: 'Lead', anchor: '#funnel-presales' },
-  { key: 'intake_bant', label: 'Khảo sát BANT', shortLabel: 'Intake' },
+  { key: 'intake_bant', label: 'Pre Sale', shortLabel: 'Pre Sale' },
   { key: 'consult', label: 'Tư vấn', shortLabel: 'Tư vấn', anchor: '#funnel-presales' },
   { key: 'proposal', label: 'Báo giá', shortLabel: 'Báo giá', anchor: '#funnel-presales' },
 ];
@@ -112,7 +111,7 @@ function resolveIntakeBantState(
   if (!b2Done(funnel) || !presalesStarted(funnel)) return 'pending';
 
   const stageIdx = presalesStageIndex(presalesStage(funnel));
-  if (stageIdx >= 1) return 'done';
+  if (stageIdx >= 1) return hasCompletedIntake(intakeSummary) ? 'done' : 'current';
 
   if (intakeSummary?.has_draft) {
     const ready = intakeGateReadyState(consultGate, intakeSummary);
@@ -198,12 +197,10 @@ export function resolveActiveStep(input: {
 
   if (context === 'intake') {
     if (!b2Done(funnel)) return 'b2';
-    if (!presalesStarted(funnel)) return 'presales_lead';
     return 'intake_bant';
   }
 
   if (!b2Done(funnel)) return 'b2';
-  if (!presalesStarted(funnel)) return 'presales_lead';
 
   const stageIdx = presalesStageIndex(presalesStage(funnel));
   if (stageIdx === 0) {
@@ -401,7 +398,7 @@ export function resolvePrimaryAction(input: {
       };
     }
 
-    if (!hasCompletedIntake(intakeSummary) && !intakeSummary?.has_draft) {
+    if (!hasCompletedIntake(intakeSummary) && !intakeSummary?.has_draft && !intakeSummary?.preview) {
       if (context === 'intake') {
         return {
           kind: 'create_intake_session',
@@ -415,6 +412,18 @@ export function resolvePrimaryAction(input: {
         disabled: false,
         href: intakeLink,
       };
+    }
+
+    if (context === 'lead_detail' && (intakeSummary?.preview || hasCompletedIntake(intakeSummary) || intakeSummary?.has_draft)) {
+      if (!hasCompletedIntake(intakeSummary)) {
+        return {
+          kind: 'link',
+          label: 'Pre Sale →',
+          disabled: false,
+          href: intakeLink,
+        };
+      }
+      return resolveHandoffSolutionAction(consultGate);
     }
 
     if (intakeSummary?.has_draft) {
@@ -659,6 +668,41 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
       activeStep,
     }),
     inReview: inReview(funnel),
+  };
+}
+
+export function summarizeLeadIntake(
+  sessions: Array<{
+    id: number;
+    status: string;
+    decision: string;
+    bant_total: number;
+    bant_json?: Record<string, number> | null;
+    updated_at: string;
+  }>,
+): IntakeStepSummary | null {
+  if (!sessions.length) return null;
+  const byId = [...sessions].sort((a, b) => b.id - a.id);
+  const completed = byId.filter((row) => row.status === 'completed');
+  const done = completed[0];
+  const scored = byId.find((row) => Number(row.bant_total) > 0) ?? byId[0];
+  return {
+    has_draft: sessions.some((row) => row.status === 'draft'),
+    latest_completed: done
+      ? {
+          id: done.id,
+          decision: done.decision,
+          bant_total: done.bant_total,
+          completed_at: done.updated_at,
+        }
+      : undefined,
+    preview: {
+      id: scored.id,
+      status: scored.status,
+      decision: scored.decision || done?.decision || '',
+      bant_total: Number(scored.bant_total) || Number(done?.bant_total) || 0,
+      bant: scored.bant_json ?? {},
+    },
   };
 }
 

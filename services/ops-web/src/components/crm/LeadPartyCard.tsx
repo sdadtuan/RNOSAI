@@ -37,6 +37,7 @@ export function LeadPartyCard({
   saving,
   quoteHref,
   hint,
+  layout = 'card',
 }: {
   leadId?: number;
   value: LeadPartyFormValue;
@@ -46,6 +47,7 @@ export function LeadPartyCard({
   saving?: boolean;
   quoteHref?: string | null;
   hint?: string;
+  layout?: 'card' | 'inline';
 }) {
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState('');
@@ -112,8 +114,13 @@ export function LeadPartyCard({
     }
   }
 
+  const inline = layout === 'inline';
+
   return (
-    <section className="qt-card lead-panel lead-party-card" data-testid="lead-party-card">
+    <section
+      className={`qt-card lead-panel lead-party-card${inline ? ' lead-party-card--inline' : ''}`}
+      data-testid="lead-party-card"
+    >
       <div className="qt-card__head lead-panel__head">
         <b className="lead-panel__title">Thông tin khách</b>
         {quoteHref ? (
@@ -122,10 +129,13 @@ export function LeadPartyCard({
           </a>
         ) : null}
       </div>
-      <p className="qt-muted">
-        {hint ??
-          'Tên công ty in trên báo giá. Chưa tạo khách AM 360. Nên có địa chỉ và logo trên PDF.'}
-      </p>
+      {inline ? null : (
+        <p className="qt-muted">
+          {hint ??
+            'Tên công ty in trên báo giá. Chưa tạo khách AM 360. Nên có địa chỉ và logo trên PDF.'}
+        </p>
+      )}
+      <div className="lead-party-card__fields">
       <label>
         Tên công ty / đơn vị *
         <input
@@ -136,16 +146,18 @@ export function LeadPartyCard({
           disabled={disabled}
         />
       </label>
-      <label>
-        Người liên hệ
-        <input className="qt-inp" name="full_name" value={value.full_name} readOnly disabled />
-      </label>
+      {inline ? null : (
+        <label>
+          Người liên hệ
+          <input className="qt-inp" name="full_name" value={value.full_name} readOnly disabled />
+        </label>
+      )}
       <label>
         Địa chỉ
         <textarea
           className="qt-inp"
           name="company_address"
-          rows={2}
+          rows={inline ? 1 : 2}
           value={value.company_address}
           onChange={(event) => onChange({ ...value, company_address: event.target.value })}
           disabled={disabled}
@@ -187,6 +199,7 @@ export function LeadPartyCard({
           }}
         />
       </label>
+      </div>
       {value.logo_asset_id && leadId ? (
         <div className="lead-party-card__logo">
           {/* auth cookie / bearer not on <img>; show filename + remove */}
@@ -199,7 +212,7 @@ export function LeadPartyCard({
             Gỡ logo
           </button>
         </div>
-      ) : (
+      ) : inline ? null : (
         <p className="qt-muted">Chưa có logo — PDF sẽ không in logo.</p>
       )}
       {logoError ? <p className="qt-muted">{logoError}</p> : null}

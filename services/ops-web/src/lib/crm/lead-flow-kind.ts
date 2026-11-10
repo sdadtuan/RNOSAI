@@ -94,6 +94,7 @@ export const B2B_PROSPECT_STATUSES = [
   'da_lien_he',
   'dang_tu_van',
   'bao_gia',
+  'trien_khai',
   'dam_phan',
   'proposal',
   'won',

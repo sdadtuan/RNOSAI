@@ -214,6 +214,9 @@ export interface PresalesRow {
   quote_assignee_staff_id: number | null;
   quote_reassign_note: string;
   implementation_status: string;
+  contract_created_at: string;
+  contract_signed_at: string;
+  contract_amount_vnd: number;
 }
 
 export interface SolutionQueueRow {

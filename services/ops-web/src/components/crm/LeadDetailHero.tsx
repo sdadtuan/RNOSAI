@@ -24,7 +24,11 @@ export function LeadDetailHero({
   nbaTitle,
   showCockpit,
   onOpenCockpit,
+  showAssign,
+  onOpenAssign,
   contactActions,
+  party,
+  hideMeta,
 }: {
   lead: LeadRow;
   ownerLabel?: string | null;
@@ -33,14 +37,21 @@ export function LeadDetailHero({
   nbaTitle?: string | null;
   showCockpit?: boolean;
   onOpenCockpit?: () => void;
+  showAssign?: boolean;
+  onOpenAssign?: () => void;
   contactActions?: ReactNode;
+  party?: ReactNode;
+  hideMeta?: boolean;
 }) {
   const tone = leadStatusTone(lead.status);
   const created = lead.created_at?.slice(0, 10) ?? '—';
-  const showActions = Boolean(contactActions) || Boolean(showCockpit);
+  const showActions = Boolean(contactActions) || Boolean(showCockpit) || Boolean(showAssign);
 
   return (
-    <header className="lead-detail-hero" data-testid="lead-detail-hero">
+    <header
+      className={`lead-detail-hero${party ? ' lead-detail-hero--with-party' : ''}`}
+      data-testid="lead-detail-hero"
+    >
       <div className="lead-detail-hero__top">
         <Link href="/crm/leads" className="lead-detail-hero__back">
           ← Danh sách leads
@@ -75,46 +86,54 @@ export function LeadDetailHero({
           {showActions ? (
             <div className="lead-detail-hero__actions">
               {contactActions}
-              {showCockpit ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  onClick={onOpenCockpit}
-                >
-                  Sales Cockpit
-                </button>
+              {showAssign || showCockpit ? (
+                <div className="lead-detail-hero__trailing">
+                  {showAssign ? (
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={onOpenAssign}>
+                      Phân công
+                    </button>
+                  ) : null}
+                  {showCockpit ? (
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={onOpenCockpit}>
+                      Mở Sales Cockpit
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
 
+          {hideMeta ? null : (
           <div className="lead-detail-hero__meta">
-            {lead.phone ? (
+              {lead.phone ? (
+                <span className="lead-detail-hero__meta-item">
+                  <span className="lead-detail-hero__meta-label">SĐT</span>
+                  <span className="lead-detail-hero__meta-value">{lead.phone}</span>
+                </span>
+              ) : null}
+              {lead.email ? (
+                <span className="lead-detail-hero__meta-item">
+                  <span className="lead-detail-hero__meta-label">Email</span>
+                  <span className="lead-detail-hero__meta-value">{lead.email}</span>
+                </span>
+              ) : null}
               <span className="lead-detail-hero__meta-item">
-                <span className="lead-detail-hero__meta-label">SĐT</span>
-                <span className="lead-detail-hero__meta-value">{lead.phone}</span>
+                <span className="lead-detail-hero__meta-label">Nguồn</span>
+                <span className="lead-detail-hero__meta-value">{lead.source || '—'}</span>
               </span>
-            ) : null}
-            {lead.email ? (
               <span className="lead-detail-hero__meta-item">
-                <span className="lead-detail-hero__meta-label">Email</span>
-                <span className="lead-detail-hero__meta-value">{lead.email}</span>
+                <span className="lead-detail-hero__meta-label">Owner</span>
+                <span className="lead-detail-hero__meta-value">{ownerLabel || 'Chưa phân'}</span>
               </span>
-            ) : null}
-            <span className="lead-detail-hero__meta-item">
-              <span className="lead-detail-hero__meta-label">Nguồn</span>
-              <span className="lead-detail-hero__meta-value">{lead.source || '—'}</span>
-            </span>
-            <span className="lead-detail-hero__meta-item">
-              <span className="lead-detail-hero__meta-label">Owner</span>
-              <span className="lead-detail-hero__meta-value">{ownerLabel || 'Chưa phân'}</span>
-            </span>
-            <span className="lead-detail-hero__meta-item">
-              <span className="lead-detail-hero__meta-label">Ngày tạo</span>
-              <span className="lead-detail-hero__meta-value">{created}</span>
-            </span>
-          </div>
+              <span className="lead-detail-hero__meta-item">
+                <span className="lead-detail-hero__meta-label">Ngày tạo</span>
+                <span className="lead-detail-hero__meta-value">{created}</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
+      {party}
     </header>
   );
 }

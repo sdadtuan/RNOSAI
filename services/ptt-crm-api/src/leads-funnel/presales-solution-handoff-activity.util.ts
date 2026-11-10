@@ -2,6 +2,7 @@ export const SOLUTION_HANDOFF_ACTIVITY_TYPES = {
   handoff: 'solution_handoff',
   claimed: 'solution_claimed',
   released: 'solution_released',
+  returned: 'solution_returned',
 } as const;
 
 export type SolutionHandoffActivityType =
@@ -13,6 +14,7 @@ export interface SolutionHandoffActivityInput {
   actorName: string;
   amOwnerName?: string;
   solutionOwnerName?: string;
+  returnReason?: string;
 }
 
 export function buildSolutionHandoffActivity(
@@ -35,6 +37,15 @@ export function buildSolutionHandoffActivity(
         result: 'Solution đang xử lý Consult + R5',
         next_action: 'Hoàn tất Consult + KHMKT sơ bộ → Trả Sales',
       };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.returned: {
+      const reason = String(input.returnReason ?? '').trim();
+      return {
+        activity_type: kind,
+        content: `[Solution handoff] ${input.actorName} trả lại Sales lead #${input.leadId}${slug} — thông tin chưa đủ${reason ? `: ${reason}` : ''}`,
+        result: 'MKT trả lại Sales để bổ sung thông tin',
+        next_action: 'Sales: bổ sung thông tin rồi giao lại Solution',
+      };
+    }
     case SOLUTION_HANDOFF_ACTIVITY_TYPES.released:
       return {
         activity_type: kind,

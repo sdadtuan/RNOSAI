@@ -130,11 +130,11 @@ export function B2bIntelligencePanel({ token, leadId }: Props) {
                 Gọi ngay
               </a>
             ) : nba.action === 'note' ? (
-              <a href="#lead-activity-form" className="btn btn-sm btn-secondary">
+              <a href="#lead-activity-history" className="btn btn-sm btn-secondary">
                 Ghi chú
               </a>
             ) : (
-              <a href="#lead-activity-form" className="btn btn-sm btn-secondary">
+              <a href="#lead-activity-history" className="btn btn-sm btn-secondary">
                 Đặt hẹn
               </a>
             )}

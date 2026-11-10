@@ -116,8 +116,8 @@ export function SummarizeSection({
         </label>
       )}
 
-      <button type="button" className="btn btn-sm" onClick={() => void onSummarize()} disabled={loading}>
-        {loading ? 'Đang tóm tắt…' : 'Tóm tắt'}
+      <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onSummarize()} disabled={loading}>
+        {loading ? 'Đang tóm tắt…' : 'AI · Tóm tắt hoạt động'}
       </button>
 
       {loading ? <div className="ai-skeleton ai-skeleton--summary" aria-hidden="true" /> : null}

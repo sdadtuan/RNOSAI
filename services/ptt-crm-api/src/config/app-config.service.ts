@@ -74,6 +74,7 @@ export class AppConfigService {
   readonly webhooksNestZaloEnabled: boolean;
   readonly webhooksNestGoogleEnabled: boolean;
   readonly webhooksNestEmailEnabled: boolean;
+  readonly webhooksNestTiktokEnabled: boolean;
   readonly webhooksFlaskFallback: boolean;
   readonly emailSendEnabled: boolean;
   readonly keycloakIssuer: string | null;
@@ -334,6 +335,7 @@ export class AppConfigService {
     this.webhooksNestZaloEnabled = this.resolveWebhooksNestZaloEnabled();
     this.webhooksNestGoogleEnabled = this.resolveWebhooksNestGoogleEnabled();
     this.webhooksNestEmailEnabled = this.resolveWebhooksNestEmailEnabled();
+    this.webhooksNestTiktokEnabled = this.resolveWebhooksNestTiktokEnabled();
     this.webhooksFlaskFallback = this.resolveWebhooksFlaskFallback();
     this.emailSendEnabled = this.resolveEmailSendEnabled();
     this.keycloakIssuer = (process.env.PTT_KEYCLOAK_ISSUER ?? '').trim() || null;
@@ -919,6 +921,12 @@ export class AppConfigService {
   private resolveWebhooksNestEmailEnabled(): boolean {
     return ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_WEBHOOKS_NEST_EMAIL ?? '1').trim().toLowerCase(),
+    );
+  }
+
+  private resolveWebhooksNestTiktokEnabled(): boolean {
+    return ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_WEBHOOKS_NEST_TIKTOK ?? '1').trim().toLowerCase(),
     );
   }
 

@@ -26,6 +26,45 @@ export interface QuoteCeoEscalation {
 export interface QuoteTransferCandidate {
   id: number;
   name: string;
+  title: string;
+}
+
+export type QuoteDesk = 'sale' | 'marketing_leader';
+
+/** Who must act on this quote step. Hợp đồng and Triển Khai are not reassigned here. */
+export function quoteDeskForPhase(phase: QuoteCasePhase): QuoteDesk | null {
+  if (phase === 'chuyen_bao_gia' || phase === 'bao_gia') return 'marketing_leader';
+  if (phase === 'sale_approve_solution' || phase === 'sale_review') return 'sale';
+  return null;
+}
+
+/**
+ * Position code alone is not the job. Content, design and Agency Ops share the MKL code.
+ * CSKH and Nhân sự share the AE code. The person who receives the case must hold the desk.
+ */
+export function holdsQuoteDesk(
+  desk: QuoteDesk,
+  row: { position_code?: string | null; job_title?: string | null; job_function?: string | null },
+): boolean {
+  const position = String(row.position_code ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  const title = String(row.job_title ?? '').trim().toLowerCase();
+  const fn = String(row.job_function ?? '').trim().toLowerCase();
+  if (desk === 'marketing_leader') {
+    const leaderPosition = position === 'mkl' || position === 'mkt-01' || position === 'mkt01';
+    if (!leaderPosition) return false;
+    if (fn === 'content' || fn === 'design' || fn === 'analyst' || fn === 'technical' || fn === 'ops' || fn === 'sales') {
+      return false;
+    }
+    if (title === 'agency ops') return false;
+    return fn === 'leader' || title === 'marketing leader' || title === 'mkl';
+  }
+  const salePosition = position === 'ae' || position.startsWith('ae-') || position.startsWith('ae_');
+  if (!salePosition) return false;
+  if (fn === 'ops') return false;
+  return fn === 'sales' || title === 'account executive' || title === 'ae';
 }
 
 export interface QuoteCaseSource {
@@ -44,6 +83,9 @@ export interface QuoteCaseSource {
   quote_ceo_escalated_at?: string;
   quote_late_events?: unknown;
   implementation_status: string;
+  contract_created_at?: string;
+  contract_signed_at?: string;
+  contract_amount_vnd?: number | string;
 }
 
 export type QuoteCasePhase =
@@ -51,6 +93,7 @@ export type QuoteCasePhase =
   | 'chuyen_bao_gia'
   | 'bao_gia'
   | 'sale_review'
+  | 'hop_dong'
   | 'trien_khai';
 
 export interface QuoteCaseView {
@@ -75,6 +118,8 @@ export interface QuoteCaseView {
   quote_sent_back_at: string;
   quote_approved_at: string;
   implementation_status: string;
+  contract_state: 'none' | 'draft' | 'signed';
+  contract_amount_vnd: number;
   ceo_escalation: QuoteCeoEscalation | null;
   late_events: QuoteLateEvent[];
   transfer_candidates: QuoteTransferCandidate[];
@@ -167,10 +212,15 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
   let phase: QuoteCasePhase = 'sale_approve_solution';
   let stepLabel = '';
   let expected: QuoteCaseView['expected_role'] = 'Sale';
-  if (quoteApproved) {
+  const releasedToDelivery = String(row.implementation_status ?? '').trim() === 'trien_khai';
+  if (quoteApproved && releasedToDelivery) {
     phase = 'trien_khai';
     stepLabel = 'Triển Khai';
     expected = '';
+  } else if (quoteApproved) {
+    phase = 'hop_dong';
+    stepLabel = 'Hợp đồng';
+    expected = 'Sale';
   } else if (sentBack) {
     phase = 'sale_review';
     stepLabel = 'Báo giá chờ Sale';
@@ -187,7 +237,7 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
 
   const acceptDue = String(row.quote_accept_due_at ?? '').trim();
   const quoteDue = String(row.quote_due_at ?? '').trim();
-  const timerStopped = phase === 'sale_review' || phase === 'trien_khai';
+  const timerStopped = phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
   let timerLabel = '';
   let timerDue = '';
   if (!timerStopped && phase === 'chuyen_bao_gia') {
@@ -211,6 +261,10 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
     slaNote = `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá cho Sale. Giữ nguyên Marketing Leader và báo CEO.`;
   }
 
+  const contractSigned = Boolean(String(row.contract_signed_at ?? '').trim());
+  const contractCreated = contractSigned || Boolean(String(row.contract_created_at ?? '').trim());
+  const contractState = contractSigned ? 'signed' : contractCreated ? 'draft' : 'none';
+  const contractAmount = Number(row.contract_amount_vnd);
   const assigneeId = Number(row.quote_assignee_staff_id);
   const assigneeStaffId = Number.isInteger(assigneeId) && assigneeId > 0 ? assigneeId : null;
   const assigneeName = String(row.quote_assignee_name ?? '').trim();
@@ -261,7 +315,13 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
     quote_accepted_at: String(row.quote_accepted_at ?? ''),
     quote_sent_back_at: String(row.quote_sent_back_at ?? ''),
     quote_approved_at: String(row.quote_approved_at ?? ''),
-    implementation_status: quoteApproved ? 'trien_khai' : String(row.implementation_status ?? ''),
+    implementation_status: releasedToDelivery
+      ? 'trien_khai'
+      : quoteApproved
+        ? 'hop_dong'
+        : String(row.implementation_status ?? ''),
+    contract_state: quoteApproved ? contractState : 'none',
+    contract_amount_vnd: Number.isFinite(contractAmount) && contractAmount > 0 ? Math.round(contractAmount) : 0,
     ceo_escalation: ceoEscalation,
     late_events: lateEvents,
     transfer_candidates: [],

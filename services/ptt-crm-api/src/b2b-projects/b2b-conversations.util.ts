@@ -1,3 +1,4 @@
+import { resolveZaloParties } from '../webhooks/zalo-oa-envelope';
 import { resolveIngressProject, type IngressCatalog } from './b2b-ingest.util';
 
 export interface ZaloConversationEvent {
@@ -56,8 +57,7 @@ export function parseZaloConversationEvents(payload: Record<string, unknown>): Z
   const infoRaw = payload.info ?? payload.data ?? payload.message ?? {};
   if (!infoRaw || typeof infoRaw !== 'object' || Array.isArray(infoRaw)) {
     if (typeof infoRaw === 'string' && infoRaw.trim()) {
-      const oaId = String(payload.oa_id ?? payload.app_id ?? '').trim();
-      const userId = String(payload.user_id ?? payload.sender_id ?? '').trim();
+      const { oaId, userId } = resolveZaloParties(payload, event);
       if (oaId && userId) {
         out.push({
           event,
@@ -72,13 +72,7 @@ export function parseZaloConversationEvents(payload: Record<string, unknown>): Z
   }
 
   const info = infoRaw as Record<string, unknown>;
-  const oaId = String(payload.oa_id ?? payload.app_id ?? info.oa_id ?? '').trim();
-  const follower = payload.follower;
-  const userId = String(
-    follower && typeof follower === 'object'
-      ? (follower as { id?: unknown }).id ?? ''
-      : payload.user_id ?? info.user_id ?? info.from_id ?? '',
-  ).trim();
+  const { oaId, userId } = resolveZaloParties(payload, event);
   const body = readMessageBody(info, payload);
   if (!oaId || !userId || !body) return out;
 

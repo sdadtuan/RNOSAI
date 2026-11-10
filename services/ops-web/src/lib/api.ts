@@ -1579,6 +1579,7 @@ export type LeadFrCallAttempt = {
   counts_toward_sla: boolean;
   counts_toward_fr1: boolean;
   warn_call_too_soon: boolean;
+  notes?: string;
 };
 
 export type LeadFrSlaState = {
@@ -1951,7 +1952,7 @@ export interface LeadFunnelSnapshot {
       sla_note: string;
     } | null;
     quote_case?: {
-      phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'sale_review' | 'trien_khai';
+      phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'sale_review' | 'hop_dong' | 'trien_khai';
       step_label: string;
       expected_role: 'Sale' | 'Marketing Leader' | '';
       accept_due_at: string;
@@ -1983,7 +1984,9 @@ export interface LeadFunnelSnapshot {
         due_at: string;
         logged_at: string;
       }>;
-      transfer_candidates?: Array<{ id: number; name: string }>;
+      transfer_candidates?: Array<{ id: number; name: string; title?: string }>;
+      contract_state?: 'none' | 'draft' | 'signed';
+      contract_amount_vnd?: number;
     } | null;
     l2_docs?: {
       service_slug: string;
@@ -2330,6 +2333,42 @@ export async function approveLeadQuote(
   });
 }
 
+export async function createLeadQuoteContract(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/create-contract`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function signLeadQuoteContract(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/sign-contract`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export type LeadImplementationPlan = {
+  grand_total_vnd: number;
+  groups: Array<{
+    service_name: string;
+    phase_name: string;
+    lines: Array<{ task: string; subtask: string; role_label: string; hours: number }>;
+  }>;
+};
+
+export async function fetchLeadImplementationPlan(
+  token: string,
+  leadId: number,
+): Promise<LeadImplementationPlan> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/implementation-plan`, { method: 'GET' });
+}
+
 export async function requestLeadQuoteEdits(
   token: string,
   leadId: number,
@@ -2404,6 +2443,26 @@ export interface LeadQuoteSheet {
   grand_total_vnd: number;
 }
 
+export interface LeadDeliveryKpiPerson {
+  staff_id: number;
+  staff_name: string;
+  position_name: string;
+  hours: number;
+  tasks: string[];
+}
+
+export interface LeadDeliveryKpi {
+  people: LeadDeliveryKpiPerson[];
+  unassigned_tasks: string[];
+  year: number;
+  month: number;
+  metric_name: string;
+}
+
+export async function fetchLeadDeliveryKpi(token: string, leadId: number): Promise<LeadDeliveryKpi> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/delivery-kpi`, { method: 'GET' });
+}
+
 export async function fetchLeadQuoteSheet(
   token: string,
   leadId: number,
@@ -2430,6 +2489,25 @@ export async function saveLeadQuoteSheet(
 }
 
 const QUOTE_DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const QUOTE_XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export async function downloadLeadQuoteXlsx(token: string, leadId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/quote-sheet/xlsx`, {
+    headers: { ...authHeaders(token), Accept: QUOTE_XLSX_TYPE },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string | string[] }>(res);
+    throw new ApiError(nestApiErrorMessage(body) ?? 'Không tải được Excel báo giá', res.status);
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: QUOTE_XLSX_TYPE });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), `bao-gia-${leadId}.xlsx`);
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export async function downloadLeadQuoteDocx(token: string, leadId: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/quote-sheet/pdf`, {
@@ -2445,6 +2523,24 @@ export async function downloadLeadQuoteDocx(token: string, leadId: number): Prom
   const link = document.createElement('a');
   link.href = url;
   link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), `bao-gia-${leadId}.docx`);
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadLeadContractDocx(token: string, leadId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/contract-docx`, {
+    headers: { ...authHeaders(token), Accept: QUOTE_DOCX_TYPE },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string | string[] }>(res);
+    throw new ApiError(nestApiErrorMessage(body) ?? 'Không tải được file hợp đồng', res.status);
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: QUOTE_DOCX_TYPE });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), `hop-dong-${leadId}.docx`);
   link.click();
   URL.revokeObjectURL(url);
 }

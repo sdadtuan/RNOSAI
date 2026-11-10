@@ -45,7 +45,7 @@ describe('validatePresalesConsultAdvance', () => {
       sessions: [{ status: 'draft', decision: '', bant_total: 0 }],
     });
     expect(gate.ok).toBe(false);
-    expect(gate.messages[0]).toContain('Lead Intake');
+    expect(gate.messages[0]).toContain('khảo sát BANT');
   });
 
   it('requires confirm on nurture decision', () => {

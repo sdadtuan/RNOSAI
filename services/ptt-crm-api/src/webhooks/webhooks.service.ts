@@ -17,6 +17,7 @@ import { B2bConversationsService } from '../b2b-projects/b2b-conversations.servi
 import { parseEmailWebhook } from './email-webhook.parser';
 import { parseGoogleWebhook } from './google-webhook.parser';
 import { parseZaloWebhook } from './zalo-webhook.parser';
+import { parseTikTokWebhook } from './tiktok-webhook.parser';
 import { WebhookNestIngestService } from './webhook-nest-ingest.service';
 import type { NormalizedLeadPayload } from './webhook-lead.types';
 
@@ -43,17 +44,19 @@ export class WebhooksService {
 
   listChannels(): Record<string, unknown> {
     return {
-      channels: ['meta', 'zalo', 'google', 'email'],
+      channels: ['meta', 'zalo', 'google', 'tiktok', 'email'],
       capabilities: {
         meta: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
         zalo: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
         google: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
+        tiktok: { supports_webhooks: true, supports_lead_ingest: true, nest_native: true },
         email: { supports_webhooks: true, supports_lead_ingest: false, nest_native: true },
       },
       routing: {
         meta: this.config.webhooksNestMetaEnabled ? 'nest' : 'none',
         zalo: this.config.webhooksNestZaloEnabled ? 'nest' : 'none',
         google: this.config.webhooksNestGoogleEnabled ? 'nest' : 'none',
+        tiktok: this.config.webhooksNestTiktokEnabled ? 'nest' : 'none',
         email: this.config.webhooksNestEmailEnabled ? 'nest' : 'none',
         default_fallback: 'none',
       },
@@ -73,6 +76,9 @@ export class WebhooksService {
     }
     if (channel === 'google' && this.config.webhooksNestGoogleEnabled) {
       return this.handleGoogle(req);
+    }
+    if (channel === 'tiktok' && this.config.webhooksNestTiktokEnabled) {
+      return this.handleTikTok(req, projectSlug);
     }
     throw new ServiceUnavailableException({ error: 'channel_not_migrated', channel });
   }
@@ -345,10 +351,16 @@ export class WebhooksService {
     const parsed = parseZaloWebhook({ headers, rawBody, clientId });
 
     if (!parsed.verified) {
+      this.logger.warn(`zalo webhook rejected ${parsed.reject_reason ?? 'Unauthorized'}`);
       throw new UnauthorizedException({
         verified: false,
         reject_reason: parsed.reject_reason ?? 'Unauthorized',
       });
+    }
+
+    if (!parsed.leads.length) {
+      const summary = zaloPayloadSummary(rawBody);
+      this.logger.warn(`zalo webhook accepted with no lead event=${summary.event} info_keys=${summary.infoKeys}`);
     }
 
     const conversationCount = await this.b2bConversations.ingestZaloWebhook({
@@ -466,6 +478,69 @@ export class WebhooksService {
 
     return { kind: 'json', status: 200, body: response };
   }
+
+  private async handleTikTok(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const query = flattenQuery(req.query as Record<string, unknown>);
+    const clientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
+    const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
+
+    const parsed = parseTikTokWebhook({ headers, rawBody, clientId, query });
+
+    if (!parsed.verified) {
+      throw new UnauthorizedException({
+        verified: false,
+        reject_reason: parsed.reject_reason ?? 'Unauthorized',
+      });
+    }
+
+    const response: Record<string, unknown> = {
+      verified: true,
+      channel: 'tiktok',
+      correlation_id: correlationId,
+      lead_count: parsed.leads.length,
+      events: parsed.events,
+      handler: 'nest',
+    };
+
+    if (!parsed.leads.length) {
+      return { kind: 'json', status: 200, body: response };
+    }
+
+    try {
+      const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads(
+        'tiktok',
+        parsed.leads,
+        { correlationId, clientId, projectSlug },
+      );
+      response.b2b_unmatched_count = unmatched;
+      response.lead_count = leadsToEnqueue.length;
+      if (!leadsToEnqueue.length) {
+        response.created_count = 0;
+        response.accepted = true;
+        return { kind: 'json', status: 200, body: response };
+      }
+      await this.ingestLeadsOrThrow(
+        'tiktok',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'enqueue_failed',
+      });
+    }
+
+    return { kind: 'json', status: 200, body: response };
+  }
 }
 
 function firstQueryValue(value: unknown): string {
@@ -481,6 +556,19 @@ function flattenQuery(raw: Record<string, unknown>): Record<string, string> {
     out[key] = firstQueryValue(value);
   }
   return out;
+}
+
+function zaloPayloadSummary(rawBody: Buffer): { event: string; infoKeys: string } {
+  try {
+    const body = JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>;
+    const event = String(body.event_name ?? body.event ?? '');
+    const info = body.info ?? body.message ?? body.data;
+    const infoKeys =
+      info && typeof info === 'object' && !Array.isArray(info) ? Object.keys(info).slice(0, 12).join(',') : typeof info;
+    return { event, infoKeys };
+  } catch {
+    return { event: '', infoKeys: 'invalid_json' };
+  }
 }
 
 function cryptoRandomUuid(): string {

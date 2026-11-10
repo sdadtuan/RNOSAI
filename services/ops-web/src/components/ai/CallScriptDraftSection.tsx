@@ -96,7 +96,7 @@ export function CallScriptDraftSection({
           })
         }
       >
-        Copy script
+        AI · Copy script
       </button>
     </section>
   );

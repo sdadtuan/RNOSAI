@@ -12,6 +12,11 @@ export interface PresalesSolutionCaps {
   isAeTrackOnly: boolean;
 }
 
+/** Lead detail + funnel reads (same rule as Solution queue). */
+export function canViewCrmLeadDetail(user: StoredStaffUser | null): boolean {
+  return resolvePresalesSolutionCaps(user).canView;
+}
+
 export function resolvePresalesSolutionCaps(user: StoredStaffUser | null): PresalesSolutionCaps {
   const isGdkd = Boolean(
     user &&

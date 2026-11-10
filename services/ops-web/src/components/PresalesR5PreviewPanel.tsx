@@ -30,6 +30,7 @@ interface Props {
   onEditR5?: () => void;
   token?: string;
   leadId?: number;
+  handoffReleased?: boolean;
   onNotice?: (message: string) => void;
 }
 

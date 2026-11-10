@@ -6,6 +6,7 @@ export type LeadStageVisibilityInput = {
   hasContract: boolean;
   contractStatus: string | null;
   dealRoomEnabled: boolean;
+  quoteApproved?: boolean;
 };
 
 export type LeadStageVisibility = {
@@ -48,6 +49,6 @@ export function resolveLeadStageVisibility(
     showPresalesBlock: input.b2Complete,
     showDealRoomBanner: input.dealRoomEnabled && input.b2Complete && input.intakeGo,
     showContractPanel:
-      input.hasContract || stage === 'proposal' || LIVE_CONTRACT.has(status),
+      input.hasContract || stage === 'proposal' || input.quoteApproved === true || LIVE_CONTRACT.has(status),
   };
 }

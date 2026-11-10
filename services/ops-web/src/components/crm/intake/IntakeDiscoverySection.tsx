@@ -1,7 +1,6 @@
 'use client';
 
 import { IntakeDiscoveryChecklist } from '@/components/crm/intake/IntakeDiscoveryChecklist';
-import { RichTextField } from '@/components/crm/RichTextField';
 import {
   countDiscoveryChecked,
   type DiscoveryResponseEntry,
@@ -16,16 +15,14 @@ interface Props {
   checked: Record<string, boolean>;
   responses: Record<string, DiscoveryResponseEntry>;
   notes: string;
-  contactName: string;
-  need: string;
   disabled?: boolean;
   canChangeMode?: boolean;
   onModeChange?: (mode: IntakeSessionMode) => void;
-  onContactNameChange: (value: string) => void;
-  onNeedChange: (value: string) => void;
   onToggleQuestion: (questionKey: string, next: boolean) => void;
   onResponseChange: (questionKey: string, patch: Partial<DiscoveryResponseEntry>) => void;
   onNotesChange: (value: string) => void;
+  /** Persist draft when leaving Discovery fields (blur tab panel). */
+  onPersistBlur?: () => void;
 }
 
 export function IntakeDiscoverySection({
@@ -34,19 +31,17 @@ export function IntakeDiscoverySection({
   checked,
   responses,
   notes,
-  contactName,
-  need,
   disabled,
   canChangeMode,
   onModeChange,
-  onContactNameChange,
-  onNeedChange,
   onToggleQuestion,
   onResponseChange,
   onNotesChange,
+  onPersistBlur,
 }: Props) {
   const done = countDiscoveryChecked(checked);
   const total = questionItems.length;
+  const optionalItems = questionItems.filter((item) => !item.critical);
 
   return (
     <details className="intake-discovery-section" open>
@@ -70,36 +65,20 @@ export function IntakeDiscoverySection({
         ) : null}
       </summary>
 
-      <div className="intake-discovery-section__body stack-gap">
-        <label className="intake-field">
-          <span className="muted">Liên hệ &quot;Contact&quot;</span>
-          <input
-            className="kpi-input"
-            value={contactName}
-            onChange={(e) => onContactNameChange(e.target.value)}
-            disabled={disabled}
-          />
-        </label>
-
-        <label className="intake-field">
-          <span className="muted">
-            Nhu cầu / điểm đau &quot;Need / Pain&quot;
-            <span className="intake-required-mark" title="Bắt buộc để qua Tư vấn">
-              *
-            </span>
-          </span>
-          <RichTextField
-            value={need}
-            onChange={onNeedChange}
-            disabled={disabled}
-            minHeight="14rem"
-            placeholder="Mô tả pain point, bối cảnh DN, KPI mong muốn, ràng buộc…"
-            ariaLabel='Nhu cầu / điểm đau "Need / Pain" (bắt buộc)'
-          />
-        </label>
-
+      <div
+        className="intake-discovery-section__body stack-gap"
+        onBlur={(e) => {
+          if (!onPersistBlur) return;
+          const next = e.relatedTarget as Node | null;
+          if (next && e.currentTarget.contains(next)) return;
+          onPersistBlur();
+        }}
+      >
+        {optionalItems.length === 0 ? (
+          <p className="muted">Câu bắt buộc đã nằm ở phần Cần điền để lưu.</p>
+        ) : (
         <IntakeDiscoveryChecklist
-          questionItems={questionItems}
+          questionItems={optionalItems}
           mode={mode}
           checked={checked}
           responses={responses}
@@ -109,6 +88,7 @@ export function IntakeDiscoverySection({
           onResponseChange={onResponseChange}
           onNotesChange={onNotesChange}
         />
+        )}
       </div>
     </details>
   );

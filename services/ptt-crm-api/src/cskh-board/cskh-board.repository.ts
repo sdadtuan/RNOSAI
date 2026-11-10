@@ -69,14 +69,27 @@ export class CskhBoardRepository implements OnModuleDestroy {
       const c = params.length;
       clauses.push(`(l.full_name ILIKE $${a} OR l.phone ILIKE $${b} OR l.email ILIKE $${c})`);
     }
+    if (query.within_sla_window) {
+      clauses.push(`(
+        lower(COALESCE(l.status, '')) NOT IN ('won', 'lost', 'post_sale')
+        OR COALESCE(l.received_at, l.created_at) >= NOW() - INTERVAL '48 hours'
+      )`);
+    }
 
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
-    const scanLimit = Math.min(Math.max(Number(query.limit ?? 50) * 8, 150), 800);
+    const requested = Math.max(1, Math.min(Number(query.limit ?? 50) || 50, query.exact_limit ? 200 : 800));
+    const scanLimit = query.exact_limit
+      ? requested
+      : Math.min(Math.max(requested * 8, 150), 800);
+    const rowOffset = query.exact_limit ? Math.max(0, Number(query.offset ?? 0) || 0) : 0;
 
-    const countResult = await this.db.query(`SELECT COUNT(*)::int AS c FROM crm_leads l${where}`, params);
-    const total = Number(countResult.rows[0]?.c ?? 0);
+    let total = 0;
+    if (!query.skip_count) {
+      const countResult = await this.db.query(`SELECT COUNT(*)::int AS c FROM crm_leads l${where}`, params);
+      total = Number(countResult.rows[0]?.c ?? 0);
+    }
 
-    const listParams = [...params, scanLimit, 0];
+    const listParams = [...params, scanLimit, rowOffset];
     const listResult = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,

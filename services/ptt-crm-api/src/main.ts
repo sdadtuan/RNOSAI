@@ -7,7 +7,6 @@ import { initSentry } from './observability/sentry.init';
 async function bootstrap(): Promise<void> {
   initSentry('ptt-crm-api');
   const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'], bodyParser: false });
-  mountJsonBody(app);
   const config = app.get(AppConfigService);
   const origins = [
     ...new Set([...config.portalCorsOrigins, ...config.opsCorsOrigins, ...config.gtmCorsOrigins]),
@@ -16,7 +15,7 @@ async function bootstrap(): Promise<void> {
     app.enableCors({
       origin: origins,
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: [
         'Content-Type',
         'Authorization',
@@ -27,6 +26,7 @@ async function bootstrap(): Promise<void> {
       ],
     });
   }
+  mountJsonBody(app);
   await app.listen(config.port, '0.0.0.0');
 }
 

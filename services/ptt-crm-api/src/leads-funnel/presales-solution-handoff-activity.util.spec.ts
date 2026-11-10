@@ -35,6 +35,17 @@ describe('presales-solution-handoff-activity.util', () => {
     expect(out.result).toContain('proposal');
   });
 
+  it('builds a return activity Sales can see as cần chỉnh', () => {
+    const out = buildSolutionHandoffActivity(SOLUTION_HANDOFF_ACTIVITY_TYPES.returned, {
+      ...base,
+      returnReason: 'Thiếu ngân sách và người quyết định',
+    });
+    expect(out.activity_type).toBe('solution_returned');
+    expect(out.content).toContain('trả lại Sales');
+    expect(out.content).toContain('Thiếu ngân sách');
+    expect(out.next_action).toContain('bổ sung thông tin');
+  });
+
   it('builds released activity without AM name', () => {
     const out = buildSolutionHandoffActivity(SOLUTION_HANDOFF_ACTIVITY_TYPES.released, base);
     expect(out.next_action).toBe('AM: tiếp tục Proposal trên lead');

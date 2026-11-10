@@ -23,6 +23,9 @@ interface Props {
   responses: Record<string, DiscoveryResponseEntry>;
   notes: string;
   disabled?: boolean;
+  hideHead?: boolean;
+  hideNotes?: boolean;
+  markIncomplete?: boolean;
   onToggle: (questionKey: string, next: boolean) => void;
   onResponseChange: (questionKey: string, patch: Partial<DiscoveryResponseEntry>) => void;
   onNotesChange: (value: string) => void;
@@ -35,6 +38,9 @@ export function IntakeDiscoveryChecklist({
   responses,
   notes,
   disabled,
+  hideHead,
+  hideNotes,
+  markIncomplete,
   onToggle,
   onResponseChange,
   onNotesChange,
@@ -45,13 +51,15 @@ export function IntakeDiscoveryChecklist({
 
   return (
     <div className="intake-discovery-checklist">
-      <div className="intake-discovery-checklist__head">
-        <strong>Câu hỏi gợi ý — {intakeModeLabel(mode)}</strong>
-        <span className="muted intake-discovery-checklist__progress">
-          Đã hỏi {done}/{total} câu
-          {done < minSuggested ? ` · gợi ý ≥${minSuggested}` : ''}
-        </span>
-      </div>
+      {hideHead ? null : (
+        <div className="intake-discovery-checklist__head">
+          <strong>Câu hỏi gợi ý — {intakeModeLabel(mode)}</strong>
+          <span className="muted intake-discovery-checklist__progress">
+            Đã hỏi {done}/{total} câu
+            {done < minSuggested ? ` · gợi ý ≥${minSuggested}` : ''}
+          </span>
+        </div>
+      )}
 
       {questionItems.length === 0 ? (
         <p className="muted">Đang tải câu hỏi khảo sát…</p>
@@ -60,8 +68,13 @@ export function IntakeDiscoveryChecklist({
           {questionItems.map((item) => {
             const isChecked = Boolean(checked[item.key]);
             const response = responses[item.key];
+            const incomplete =
+              Boolean(markIncomplete && item.critical && (!isChecked || !response?.answer?.trim()));
             return (
-              <li key={item.key} className="intake-discovery-checklist__row">
+              <li
+                key={item.key}
+                className={`intake-discovery-checklist__row${incomplete ? ' intake-discovery-checklist__row--required' : ''}`}
+              >
                 <label className="intake-discovery-checklist__item">
                   <input
                     type="checkbox"
@@ -124,6 +137,7 @@ export function IntakeDiscoveryChecklist({
         </ul>
       )}
 
+      {hideNotes ? null : (
       <label className="intake-field">
         <span className="muted">Ghi chú discovery</span>
         <textarea
@@ -135,6 +149,7 @@ export function IntakeDiscoveryChecklist({
           onChange={(e) => onNotesChange(e.target.value)}
         />
       </label>
+      )}
     </div>
   );
 }

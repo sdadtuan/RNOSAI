@@ -172,9 +172,73 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'crm_email_mkt', action: 'reports' },
 ];
 
+/** Every action the staff console can check. Super-admin receives all of them on every module. */
+const SUPER_ADMIN_ACTIONS = [
+  'view', 'edit', 'create', 'delete', 'export', 'configure', 'act', 'approve', 'claim', 'release',
+  'write', 'settings', 'compliance', 'deliverability', 'reports', 'assign', 'view_all', 'manage',
+  'override', 'review_queue', 'view_all_leads', 'view_financial', 'view_pii', 'generate', 'publish',
+  'approve_internal', 'qa', 'production', 'admin', 'execute', 'view_team', 'finance_request',
+  'request', 'send', 'query', 'commit', 'review', 'lists', 'schedule', 'executive', 'bcc',
+  'external', 'simulate', 'org', 'rbac', 'audit', 'policy', 'run', 'feedback', 'submit',
+] as const;
+
+const SUPER_ADMIN_SECTIONS = `
+ai_admin ai_analytics ai_forecast automation_workflows ceo_command csd iwr
+crm_ae_team crm_agency crm_assistant crm_b2b_projects crm_board crm_board_create
+crm_board_create__btn_new_case crm_board_customers crm_board_customers__btn_create
+crm_board_funnel crm_board_kanban crm_board_playbook crm_board_workspace
+crm_business_dashboard crm_daily_work_report crm_data_config crm_delivery_projects
+crm_email_mkt crm_facebook_ads crm_gdkd crm_google_ads crm_hdsd crm_hub_campaigns
+crm_hub_campaigns__btn_create crm_hub_contracts crm_hub_contracts__btn_create
+crm_hub_reminders crm_hub_reminders__btn_create crm_kpi_alerts crm_kpi_chart
+crm_kpi_metrics crm_kpi_metrics__btn_save crm_kpi_records crm_kpi_records__btn_save
+crm_leads crm_leads__btn_activity crm_leads__btn_ai_classify crm_leads__btn_ai_recommend
+crm_leads__btn_ai_search crm_leads__btn_ai_summary crm_leads__btn_assign crm_leads__btn_config
+crm_leads__btn_convert crm_leads__btn_create crm_leads__btn_delete crm_leads__btn_edit
+crm_leads__btn_export_pdf crm_leads__btn_export_xlsx crm_leads__btn_fb_sync crm_leads__btn_import
+crm_leads__btn_merge crm_leads__btn_rescore crm_leads__btn_rules crm_leads__btn_save
+crm_mkt_ai crm_mktplan crm_owner_weekly_dashboard crm_payroll_attendance crm_payroll_device
+crm_payroll_salary crm_presales_solution crm_re_projects crm_re_projects__btn_create
+crm_re_projects_budget crm_re_projects_business crm_re_projects_kpi crm_re_projects_marketing
+crm_re_projects_marketing__btn_save crm_re_projects_products crm_re_projects_products__btn_save
+crm_re_projects_risks crm_re_projects_sales crm_research crm_sales_deals crm_sales_funnel
+crm_sales_market crm_sales_overview crm_sales_plans crm_sales_prospects crm_sales_reports
+crm_sales_training crm_search crm_seo_aeo crm_seo_aeo_approve crm_seo_aeo_reports
+crm_seo_aeo_settings crm_seo_aeo_technical crm_seo_aeo_write crm_sop_overdue crm_sop_runs
+crm_sop_templates crm_staff_departments crm_staff_departments__btn_add crm_staff_kpi_am_sp
+crm_staff_positions crm_staff_positions__btn_add crm_staff_roster crm_staff_roster__btn_add
+crm_staff_roster__btn_export_xlsx crm_staff_roster__btn_import
+crm_vd.admin crm_vd.bible crm_vd.budget crm_vd.delivery crm_vd.gate1 crm_vd.gate2 crm_vd.gate3
+crm_vd.keyframe crm_vd.motion crm_vd.post crm_vd.project crm_vd.qc crm_vd.report crm_vd.script
+dashboard meta_campaign_write p13_catalog p13_holidays p13_pricing p13_quote playbooks
+`.trim().split(/\s+/);
+
+function superAdminGrantRows(): Array<{ section_id: string; action: string }> {
+  const rows: Array<{ section_id: string; action: string }> = [];
+  for (const section_id of SUPER_ADMIN_SECTIONS) {
+    for (const action of SUPER_ADMIN_ACTIONS) {
+      rows.push({ section_id, action });
+    }
+  }
+  return rows;
+}
+
+let superAdminSectionCapsCache: StaffSectionCap[] | null = null;
+function superAdminSectionCaps(): StaffSectionCap[] {
+  if (!superAdminSectionCapsCache) {
+    superAdminSectionCapsCache = superAdminGrantRows().map((row) => ({
+      section: row.section_id,
+      action: row.action,
+    }));
+  }
+  return superAdminSectionCapsCache;
+}
+
 @Injectable()
 export class StaffAuthService {
   private pool: Pool | null = null;
+  private readonly meCache = new Map<string, { at: number; value: StaffMeResponse }>();
+  private readonly positionCodes = new Map<number, string | null>();
 
   constructor(
     private readonly config: AppConfigService,
@@ -406,6 +470,15 @@ export class StaffAuthService {
   }
 
   async me(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
+    const cacheKey = `${accessPayload.sub}:${accessPayload.position_id}`;
+    const hit = this.meCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < 30_000) return hit.value;
+    const value = await this.loadMe(accessPayload);
+    this.meCache.set(cacheKey, { at: Date.now(), value });
+    return value;
+  }
+
+  private async loadMe(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
     const baseCaps = await this.loadCaps(accessPayload.position_id);
     const jobFunctions = await this.jobFunctions.loadUserFunctionCodes(accessPayload.sub);
     const functionCaps = await this.jobFunctions.loadCapsForFunctions(jobFunctions);
@@ -442,6 +515,19 @@ export class StaffAuthService {
             { section_id: 'crm_ae_team', action: 'view' },
             { section_id: 'crm_ae_team', action: 'manage' },
             { section_id: 'crm_ae_team', action: 'view_all' },
+            { section_id: 'crm_delivery_projects', action: 'view' },
+            { section_id: 'crm_delivery_projects', action: 'edit' },
+            { section_id: 'crm_delivery_projects', action: 'manage' },
+            { section_id: 'crm_b2b_projects', action: 'view' },
+            { section_id: 'crm_b2b_projects', action: 'edit' },
+            { section_id: 'crm_leads', action: 'view' },
+            { section_id: 'crm_leads', action: 'edit' },
+            { section_id: 'crm_leads', action: 'assign' },
+            { section_id: 'crm_gdkd', action: 'view_all_leads' },
+            { section_id: 'crm_presales_solution', action: 'view' },
+            { section_id: 'crm_presales_solution', action: 'edit' },
+            { section_id: 'crm_board', action: 'view' },
+            { section_id: 'crm_board_customers', action: 'view' },
           ])
         : caps,
       p13PositionCaps(position_code),
@@ -487,6 +573,15 @@ export class StaffAuthService {
 
   isSuperAdminPosition(positionCode: string | null | undefined): boolean {
     return isSuperAdminPositionCode(positionCode);
+  }
+
+  /** Admin đã được gắn toàn quyền theo chức vụ. Không đọc lại bảng quyền. */
+  async isSuperAdminUser(payload: StaffJwtPayload): Promise<boolean> {
+    return this.isSuperAdminPosition(await this.loadPositionCode(payload.position_id));
+  }
+
+  superAdminCaps(): StaffSectionCap[] {
+    return superAdminSectionCaps();
   }
 
   async loadPositionCodePublic(positionId: number): Promise<string | null> {
@@ -697,18 +792,23 @@ export class StaffAuthService {
   }
 
   private async loadPositionCode(positionId: number): Promise<string | null> {
+    if (this.positionCodes.has(positionId)) return this.positionCodes.get(positionId) ?? null;
     try {
       const result = await this.db.query<{ code: string }>(
         `SELECT code FROM crm_positions WHERE id = $1 LIMIT 1`,
         [positionId],
       );
-      return result.rows[0]?.code ? String(result.rows[0].code) : null;
+      const code = result.rows[0]?.code ? String(result.rows[0].code) : null;
+      this.positionCodes.set(positionId, code);
+      return code;
     } catch {
       return null;
     }
   }
 
   async loadCaps(positionId: number): Promise<StaffSectionCap[]> {
+    const code = await this.loadPositionCode(positionId);
+    if (isSuperAdminPositionCode(code)) return superAdminSectionCaps();
     try {
       const result = await this.db.query(
         `SELECT section_id, action

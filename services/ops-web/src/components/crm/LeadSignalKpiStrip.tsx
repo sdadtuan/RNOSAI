@@ -1,6 +1,12 @@
 import type { LeadSignalKpi } from '@/lib/crm/lead-signal-kpis';
 
-export function LeadSignalKpiStrip({ items }: { items: LeadSignalKpi[] }) {
+export function LeadSignalKpiStrip({
+  items,
+  caption = 'Toàn bộ bộ lọc',
+}: {
+  items: LeadSignalKpi[];
+  caption?: string;
+}) {
   return (
     <div className="lead-signal-kpis" data-testid="lead-signal-kpis">
       {items.map((item) => (
@@ -9,7 +15,7 @@ export function LeadSignalKpiStrip({ items }: { items: LeadSignalKpi[] }) {
           <span>{item.label}</span>
         </div>
       ))}
-      <p className="lead-signal-kpis__caption">Trong trang này</p>
+      <p className="lead-signal-kpis__caption">{caption}</p>
     </div>
   );
 }

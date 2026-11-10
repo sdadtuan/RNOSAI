@@ -17,17 +17,6 @@ export class StaffOrInternalKeyGuard implements CanActivate {
       Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
     >();
 
-    if (this.config.authDisabled || !this.config.internalKey) {
-      req.staffAuthVia = 'internal';
-      return true;
-    }
-
-    const key = String(req.headers['x-ptt-internal-key'] ?? '').trim();
-    if (key && key === this.config.internalKey) {
-      req.staffAuthVia = 'internal';
-      return true;
-    }
-
     const header = String(req.headers.authorization ?? '').trim();
     const queryToken = String((req.query as { access_token?: string })?.access_token ?? '').trim();
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : queryToken;
@@ -40,6 +29,17 @@ export class StaffOrInternalKeyGuard implements CanActivate {
         req.staffAuthVia = 'jwt';
         return true;
       });
+    }
+
+    if (this.config.authDisabled || !this.config.internalKey) {
+      req.staffAuthVia = 'internal';
+      return true;
+    }
+
+    const key = String(req.headers['x-ptt-internal-key'] ?? '').trim();
+    if (key && key === this.config.internalKey) {
+      req.staffAuthVia = 'internal';
+      return true;
     }
 
     throw new UnauthorizedException({ error: 'Unauthorized' });

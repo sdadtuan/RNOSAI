@@ -32,6 +32,7 @@ import {
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { parseQuoteServiceCodes } from './quote-sheet.util';
 import { isCeoPosition } from './quote-case.util';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack } from './presales-marketing-plan.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
@@ -188,9 +189,25 @@ export class LeadsFunnelService {
     staffUser?: StaffJwtPayload,
   ) {
     await this.getFunnel(leadId);
+    if (await this.actorIsSuperAdmin(staffUser)) {
+      return this.policy.preview(action, {
+        gdkd_assign: true,
+        job_functions: [],
+        permission_sets: [],
+        handoff_status: action === 'claim' ? 'pending' : 'with_solution',
+        has_handoff_activity: true,
+        consult_complete: true,
+        preliminary_plan_ok: true,
+      });
+    }
     const ctx = await this.buildPresalesPolicyContext(leadId, action, staffUser);
     const { action: _ignored, ...rest } = ctx;
     return this.policy.preview(action, rest);
+  }
+
+  private async actorIsSuperAdmin(staffUser?: StaffJwtPayload): Promise<boolean> {
+    if (!staffUser) return false;
+    return this.staffAuth.isSuperAdminUser(staffUser);
   }
 
   private async assertPresalesPolicy(
@@ -198,6 +215,7 @@ export class LeadsFunnelService {
     action: 'release' | 'claim',
     staffUser?: StaffJwtPayload,
   ): Promise<void> {
+    if (staffUser && (await this.staffAuth.isSuperAdminUser(staffUser))) return;
     const ctx = await this.buildPresalesPolicyContext(leadId, action, staffUser);
     this.policy.assertAllow(ctx);
   }
@@ -566,7 +584,11 @@ export class LeadsFunnelService {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     await this.assertPresalesPolicy(leadId, 'claim', staffUser);
     try {
-      await this.pgRepo.claimSolution(leadId, staffId);
+      await this.pgRepo.claimSolution(
+        leadId,
+        staffId,
+        await this.actorIsSuperAdmin(staffUser),
+      );
       await this.logSolutionHandoffActivity(
         leadId,
         SOLUTION_HANDOFF_ACTIVITY_TYPES.claimed,
@@ -647,20 +669,20 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  async acceptQuoteCase(leadId: number, staffId: number | null) {
+  async acceptQuoteCase(leadId: number, staffId: number | null, staffUser?: StaffJwtPayload) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
-      await this.pgRepo.acceptQuoteCase(leadId, staffId);
+      await this.pgRepo.acceptQuoteCase(leadId, staffId, await this.actorIsSuperAdmin(staffUser));
     } catch (err) {
       this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  async sendQuoteToSales(leadId: number, staffId: number | null) {
+  async sendQuoteToSales(leadId: number, staffId: number | null, staffUser?: StaffJwtPayload) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
-      await this.pgRepo.sendQuoteToSales(leadId, staffId);
+      await this.pgRepo.sendQuoteToSales(leadId, staffId, await this.actorIsSuperAdmin(staffUser));
     } catch (err) {
       this.funnelError(err);
     }
@@ -675,6 +697,34 @@ export class LeadsFunnelService {
       this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async createQuoteContract(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.createQuoteContract(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async signQuoteContract(leadId: number, staffId: number | null) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.signQuoteContract(leadId, staffId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async getImplementationPlan(leadId: number) {
+    try {
+      return await this.pgRepo.getImplementationPlan(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   async requestQuoteEdits(leadId: number, staffId: number | null, note: string) {
@@ -694,7 +744,7 @@ export class LeadsFunnelService {
     positionCode: string | null | undefined,
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
-    if (!isCeoPosition(positionCode)) {
+    if (!isCeoPosition(positionCode) && !isSuperAdminPositionCode(positionCode)) {
       throw new ForbiddenException({ error: 'Chỉ CEO được chuyển case báo giá.' });
     }
     if (!Number.isInteger(targetStaffId) || targetStaffId <= 0) {
@@ -717,9 +767,33 @@ export class LeadsFunnelService {
     }
   }
 
+  async getDeliveryKpi(leadId: number) {
+    try {
+      return await this.pgRepo.syncQuoteDeliveryKpi(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
   async quoteSheetPdf(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
     try {
       return await this.pgRepo.quoteSheetPdf(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async quoteSheetXlsx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    try {
+      return await this.pgRepo.quoteSheetXlsx(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async quoteContractDocx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    try {
+      return await this.pgRepo.quoteContractDocx(leadId);
     } catch (err) {
       this.funnelError(err);
     }
@@ -729,10 +803,16 @@ export class LeadsFunnelService {
     leadId: number,
     staffId: number | null,
     body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+    staffUser?: StaffJwtPayload,
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
-      return await this.pgRepo.saveQuoteSheet(leadId, staffId, body);
+      return await this.pgRepo.saveQuoteSheet(
+        leadId,
+        staffId,
+        body,
+        await this.actorIsSuperAdmin(staffUser),
+      );
     } catch (err) {
       this.funnelError(err);
     }

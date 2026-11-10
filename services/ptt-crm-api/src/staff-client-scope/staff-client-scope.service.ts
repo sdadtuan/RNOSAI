@@ -92,6 +92,9 @@ export class StaffClientScopeService {
     if (!this.pilotEnabled() || req.staffAuthVia === 'internal' || !req.staffUser) {
       return { restricted: false, allowedClientIds: [] };
     }
+    if (await this.staffAuth.isSuperAdminUser(req.staffUser)) {
+      return { restricted: false, allowedClientIds: [] };
+    }
 
     let clientIds = req.staffUser.client_ids;
     let positionCode: string | null | undefined;

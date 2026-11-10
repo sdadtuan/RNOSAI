@@ -40,4 +40,24 @@ describe('parseZaloConversationEvents', () => {
       }),
     ]);
   });
+
+  it('parses the official sender/recipient envelope', () => {
+    const events = parseZaloConversationEvents({
+      app_id: 'APP_NOT_OA',
+      sender: { id: 'USER9' },
+      recipient: { id: 'OA9' },
+      event_name: 'user_send_text',
+      message: { text: 'cần báo giá', msg_id: 'm9' },
+      timestamp: '1',
+    });
+    expect(events).toEqual([
+      expect.objectContaining({
+        oaId: 'OA9',
+        userId: 'USER9',
+        body: 'cần báo giá',
+        direction: 'inbound',
+        providerMessageId: 'm9',
+      }),
+    ]);
+  });
 });

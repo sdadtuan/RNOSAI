@@ -71,18 +71,13 @@ export default function CrmBoardPage() {
       setLoading(true);
       setError('');
       try {
-        const board = await fetchCrmBoard(access);
+        const summaryPromise = hasCap(me, 'crm_leads', 'view')
+          ? fetchCskhHomeSummary(access).catch(() => null)
+          : Promise.resolve(null);
+        const [board, summary] = await Promise.all([fetchCrmBoard(access), summaryPromise]);
         setModules(board.modules ?? []);
-        if (hasCap(me, 'crm_leads', 'view')) {
-          try {
-            const summary = await fetchCskhHomeSummary(access);
-            setSlaBreachBadge(summary.sla.breach_count);
-            setReviewQueueBadge(summary.review_queue.pending_count);
-          } catch {
-            setSlaBreachBadge(null);
-            setReviewQueueBadge(null);
-          }
-        }
+        setSlaBreachBadge(summary ? summary.sla.breach_count : null);
+        setReviewQueueBadge(summary ? summary.review_queue.pending_count : null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được CRM board');
       } finally {

@@ -14,15 +14,18 @@ export function buildReadinessChecks(input: {
   marketingPlan: Record<string, unknown> | null;
   contract: ContractRow | null;
   pendingApproval: ContractApprovalRow | null;
+  quoteApproved?: boolean;
 }): ReadinessCheck[] {
   const checks: ReadinessCheck[] = [];
+  const passed = input.quoteApproved === true;
 
   const careGate = presalesCareGateState(input.careStageCurrent, input.careStagesDoneJson);
+  const b2Ok = passed || careGate.complete;
   checks.push({
     key: 'b2_complete',
-    ok: careGate.complete,
+    ok: b2Ok,
     label: 'B2 — Liên hệ OK',
-    message: careGate.complete ? undefined : 'Hoàn thành B2 trước khi ký HĐ.',
+    message: b2Ok ? undefined : 'Hoàn thành B2 trước khi ký HĐ.',
   });
 
   if (!input.presales || input.presales.status !== 'active') {
@@ -35,7 +38,7 @@ export function buildReadinessChecks(input: {
   } else {
     for (const stage of PRESALES_STAGES) {
       const prog = input.presales.tasksProgress[stage] ?? { total: 0, done: 0 };
-      const ok = prog.total > 0 && prog.done >= prog.total;
+      const ok = passed || (prog.total > 0 && prog.done >= prog.total);
       checks.push({
         key: `presales_${stage}`,
         ok,
@@ -46,11 +49,12 @@ export function buildReadinessChecks(input: {
   }
 
   const planValidation = validatePreliminaryPlan(input.marketingPlan);
+  const planOk = passed || planValidation.ok;
   checks.push({
     key: 'marketing_plan',
-    ok: planValidation.ok,
+    ok: planOk,
     label: 'KH MKT sơ bộ @ Proposal',
-    message: planValidation.ok ? undefined : (planValidation.messages[0] ?? 'Thiếu KH MKT sơ bộ'),
+    message: planOk ? undefined : (planValidation.messages[0] ?? 'Thiếu KH MKT sơ bộ'),
   });
 
   checks.push({

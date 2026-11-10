@@ -186,13 +186,18 @@ export function IntakeP13CatalogDialog({
             type="button"
             className="btn btn-primary btn-sm"
             disabled={saving || !activeCode}
-            onClick={() =>
-              void onSave({
-                service_code: activeCode,
-                item_codes: selected,
-                service_name: detail?.name,
-              })
-            }
+            onClick={() => {
+              setError('');
+              void Promise.resolve(
+                onSave({
+                  service_code: activeCode,
+                  item_codes: selected,
+                  service_name: detail?.name,
+                }),
+              ).catch((err: unknown) => {
+                setError(err instanceof Error ? err.message : 'Lưu hạng mục thất bại');
+              });
+            }}
           >
             {saving ? 'Đang lưu…' : 'Lưu'}
           </button>

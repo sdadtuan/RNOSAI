@@ -14,6 +14,8 @@ import {
 } from '@/lib/api';
 import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
+import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
+import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 
 interface Props {
@@ -137,6 +139,13 @@ export function DealRoomL1Panel({
     }
   }
 
+  const planDue = showPreliminaryMarketingPlan({
+    stage: snapshot.presales.presales.stage,
+    handoffStatus: snapshot.presales.handoff?.status,
+    quotePhase: snapshot.presales.quote_case?.phase,
+  });
+  if (!planDue && !isSuperAdmin(user)) return null;
+
   if (snapshot.presales.presales.stage === 'consult') {
     return (
       <section className="deal-room-panel deal-room-panel--l1" aria-label="L1 marketing plan">
@@ -149,6 +158,7 @@ export function DealRoomL1Panel({
           funnel={{ presales: snapshot.presales } as LeadFunnelSnapshot}
           canEdit={canEdit}
           canAiDraft={canAiDraft}
+          forcePlan={isSuperAdmin(user)}
           onMessage={onMessage}
           onError={onError}
           onFunnelChange={() => {
@@ -219,6 +229,7 @@ export function DealRoomL1Panel({
           onEditR5={canEdit ? () => setEditMode(true) : undefined}
           token={token}
           leadId={leadId}
+          handoffReleased={snapshot.presales.handoff?.status === 'released'}
           onNotice={(msg) => {
             if (msg.includes('LibreOffice')) onMessage?.(msg);
             else onError?.(msg);

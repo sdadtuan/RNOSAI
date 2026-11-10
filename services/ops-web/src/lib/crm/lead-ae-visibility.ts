@@ -17,6 +17,24 @@ export function isAccountManager(user: StoredStaffUser | null): boolean {
   return code === 'acm' || code === 'kd-01' || code === 'kd01';
 }
 
+/** Marketing Leader desk. mkt-01 is the older position code. */
+export function isMarketingLeader(user: StoredStaffUser | null): boolean {
+  const code = norm(user?.position_code).replace(/\s+/g, '');
+  return code === 'mkl' || code === 'mkt-01' || code === 'mkt01';
+}
+
+/** SUPER-ADMIN sees and operates every department desk. */
+export function isSuperAdmin(user: { position_code?: string | null } | null): boolean {
+  const code = norm(user?.position_code).replace(/\s+/g, '');
+  return code === 'super-admin' || code === 'super_admin';
+}
+
+/** GDKD chỉ duyệt hợp đồng: menu Hub, lead chỉ xem báo giá / Solution / HĐ. */
+export function isGdkdContractDesk(user: StoredStaffUser | null): boolean {
+  const code = norm(user?.position_code).replace(/\s+/g, '');
+  return code === 'gdkd';
+}
+
 function actorIsViewer(actor: string, user: StoredStaffUser): boolean {
   const value = norm(actor);
   if (!value) return false;

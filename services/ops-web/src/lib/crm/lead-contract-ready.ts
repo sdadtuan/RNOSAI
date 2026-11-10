@@ -27,7 +27,7 @@ export function readinessCheckHref(key: string, leadId: number): string | null {
     case 'contract_draft':
       return '#lead-contract-amount';
     case 'no_pending_approval':
-      return '/crm/hub';
+      return '/crm/hub?hub_tab=contracts';
     default:
       return null;
   }

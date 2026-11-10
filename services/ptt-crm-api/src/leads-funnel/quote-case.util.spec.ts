@@ -1,7 +1,9 @@
 import {
   buildQuoteCaseView,
+  holdsQuoteDesk,
   isCeoPosition,
   preferredMarketingLeaderId,
+  quoteDeskForPhase,
   type QuoteCaseSource,
 } from './quote-case.util';
 
@@ -175,10 +177,53 @@ describe('buildQuoteCaseView', () => {
       }),
       now,
     );
-    expect(done?.step_label).toBe('Triển Khai');
-    expect(done?.implementation_status).toBe('trien_khai');
+    expect(done?.step_label).toBe('Hợp đồng');
+    expect(done?.phase).toBe('hop_dong');
+    expect(done?.implementation_status).toBe('hop_dong');
+    expect(done?.contract_state).toBe('none');
     expect(done?.timer_stopped).toBe(true);
     expect(done?.quote_due_at).toBe('');
+
+    const delivering = buildQuoteCaseView(
+      row({
+        solution_approved_at: '2026-11-05T03:00:00.000Z',
+        quote_accepted_at: '2026-11-05T03:30:00.000Z',
+        quote_sent_back_at: '2026-11-05T04:00:00.000Z',
+        quote_approved_at: '2026-11-05T04:10:00.000Z',
+        implementation_status: 'trien_khai',
+      }),
+      now,
+    );
+    expect(delivering?.step_label).toBe('Triển Khai');
+    expect(delivering?.phase).toBe('trien_khai');
+  });
+
+  it('opens the implementation plan only after the contract is signed', () => {
+    const draft = buildQuoteCaseView(
+      row({
+        quote_approved_at: '2026-11-05T04:10:00.000Z',
+        contract_created_at: '2026-11-05T04:20:00.000Z',
+        contract_amount_vnd: 12000000,
+      }),
+      now,
+    );
+    expect(draft?.contract_state).toBe('draft');
+    expect(draft?.phase).toBe('hop_dong');
+    expect(draft?.implementation_status).toBe('hop_dong');
+    expect(draft?.contract_amount_vnd).toBe(12000000);
+
+    const signed = buildQuoteCaseView(
+      row({
+        quote_approved_at: '2026-11-05T04:10:00.000Z',
+        contract_created_at: '2026-11-05T04:20:00.000Z',
+        contract_signed_at: '2026-11-05T05:00:00.000Z',
+        contract_amount_vnd: 12000000,
+      }),
+      now,
+    );
+    expect(signed?.contract_state).toBe('signed');
+    expect(signed?.phase).toBe('hop_dong');
+    expect(signed?.implementation_status).toBe('hop_dong');
   });
 });
 
@@ -187,6 +232,31 @@ describe('Marketing Leader quote assignment', () => {
     expect(preferredMarketingLeaderId([4, 9], 9)).toBe(9);
     expect(preferredMarketingLeaderId([4, 9], 3)).toBe(4);
     expect(preferredMarketingLeaderId([], 9)).toBeNull();
+  });
+
+  it('assigns the desk that the quote step actually needs', () => {
+    expect(quoteDeskForPhase('chuyen_bao_gia')).toBe('marketing_leader');
+    expect(quoteDeskForPhase('bao_gia')).toBe('marketing_leader');
+    expect(quoteDeskForPhase('sale_approve_solution')).toBe('sale');
+    expect(quoteDeskForPhase('sale_review')).toBe('sale');
+    expect(quoteDeskForPhase('hop_dong')).toBeNull();
+    expect(quoteDeskForPhase('trien_khai')).toBeNull();
+  });
+
+  it('keeps Sale and Marketing Leader off specialist staff who only share the position code', () => {
+    expect(holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'MKL', job_function: '' })).toBe(true);
+    expect(
+      holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'Marketing Leader', job_function: 'content' }),
+    ).toBe(false);
+    expect(
+      holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'Agency Ops', job_function: 'technical' }),
+    ).toBe(false);
+    expect(holdsQuoteDesk('sale', { position_code: 'AE', job_title: 'Account Executive', job_function: 'sales' })).toBe(
+      true,
+    );
+    expect(holdsQuoteDesk('sale', { position_code: 'AE', job_title: 'AE', job_function: '' })).toBe(true);
+    expect(holdsQuoteDesk('sale', { position_code: 'AE', job_title: 'Nhân viên CSKH', job_function: 'ops' })).toBe(false);
+    expect(holdsQuoteDesk('sale', { position_code: 'MKL', job_title: 'MKL', job_function: '' })).toBe(false);
   });
 
   it('recognizes only the CEO position for a quote transfer', () => {

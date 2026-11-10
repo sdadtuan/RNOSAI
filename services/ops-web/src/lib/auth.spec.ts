@@ -33,6 +33,12 @@ describe('hasCap (fail-closed R1-S2)', () => {
     expect(hasCap(user([{ section: 'crm_leads', action: 'view' }]), 'crm_leads', 'view')).toBe(true);
   });
 
+  it('lets Super Admin operate every section without a stored cap', () => {
+    const admin = { ...user([]), position_code: 'SUPER-ADMIN' };
+    expect(hasCap(admin, 'crm_presales_solution', 'claim')).toBe(true);
+    expect(hasCap(admin, 'crm_gdkd', 'review_queue')).toBe(true);
+  });
+
   it('returns false for wrong action (KD-01 presales view only)', () => {
     const kd = user([{ section: 'crm_presales_solution', action: 'view' }]);
     expect(hasCap(kd, 'crm_presales_solution', 'view')).toBe(true);

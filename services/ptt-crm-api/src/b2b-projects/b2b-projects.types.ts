@@ -40,7 +40,7 @@ export interface B2bProjectPageInput {
 }
 
 export interface B2bProjectChannelInput {
-  channel_type: 'zalo' | 'webform' | 'api';
+  channel_type: 'zalo' | 'webform' | 'api' | 'tiktok';
   external_key: string;
   label?: string;
   config_json?: Record<string, unknown>;

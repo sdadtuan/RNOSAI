@@ -68,6 +68,29 @@ describe('field-level.serializer', () => {
     expect(out.margin_pct).toBe(12.5);
   });
 
+  it('shows phone and email for Solution desk without crm_leads.view', () => {
+    const lead = {
+      id: 1,
+      full_name: 'A',
+      phone: '0901234567',
+      email: 'user@example.com',
+      status: 'new',
+      source: 'web',
+      channel: 'web',
+      client_id: 'c1',
+      campaign_id: null,
+      external_lead_id: null,
+      owner_id: null,
+      created_at: '',
+      received_at: '',
+      is_duplicate: false,
+    };
+    const solutionCaps = [{ section: 'crm_presales_solution', action: 'view' }];
+    const out = serializeLeadForCaps(lead, solutionCaps, hasCap);
+    expect(out.phone).toBe('0901234567');
+    expect(out.email).toBe('user@example.com');
+  });
+
   it('shows the full phone to any staff who can view the lead', () => {
     const lead = {
       id: 1,

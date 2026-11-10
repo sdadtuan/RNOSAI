@@ -35,7 +35,7 @@ export type FormDraft = {
 };
 
 export type ChannelDraft = {
-  channel_type: 'zalo' | 'webform' | 'api';
+  channel_type: 'zalo' | 'tiktok' | 'webform' | 'api';
   external_key: string;
   label: string;
   active: boolean;
@@ -66,6 +66,7 @@ function channelsToDraft(rows: B2bProjectChannelRow[]): ChannelDraft[] {
 
 const CHANNEL_TYPE_LABELS: Record<ChannelDraft['channel_type'], string> = {
   zalo: 'Zalo OA',
+  tiktok: 'TikTok Ads',
   webform: 'Webform / Landing',
   api: 'API key',
 };
@@ -462,9 +463,13 @@ export function B2bProjectChannelsPanel({
       </Form>
 
       <Form className="page-card" onSubmit={(e) => void saveChannels(e)}>
-        <FormSection title="Zalo, Webform và API">
+        <FormSection title="Zalo, TikTok, Webform và API">
           <div className="delivery-card-toolbar">
-            <p className="form-hint">Webhook Zalo: /api/v1/webhooks/zalo/{projectCode}</p>
+            <p className="form-hint">
+              Webhook Zalo: /api/v1/webhooks/zalo/{projectCode}
+              <br />
+              Webhook TikTok (callback subscribe LEAD): /api/v1/webhooks/tiktok/{projectCode}
+            </p>
             {canManage ? (
               <div className="delivery-card-actions">
                 <button
@@ -488,7 +493,7 @@ export function B2bProjectChannelsPanel({
           </div>
 
           {channelsDraft.length === 0 ? (
-            <p className="form-hint">Chưa có kênh Zalo, Webform hoặc API.</p>
+            <p className="form-hint">Chưa có kênh Zalo, TikTok, Webform hoặc API.</p>
           ) : (
             <div className="data-table-wrap">
               <table className="data-table delivery-forms-table">
@@ -532,9 +537,11 @@ export function B2bProjectChannelsPanel({
                           placeholder={
                             ch.channel_type === 'zalo'
                               ? 'Zalo OA ID'
-                              : ch.channel_type === 'webform'
-                                ? 'landing-slug'
-                                : 'api-key-id'
+                              : ch.channel_type === 'tiktok'
+                                ? 'TikTok advertiser_id'
+                                : ch.channel_type === 'webform'
+                                  ? 'landing-slug'
+                                  : 'api-key-id'
                           }
                           onChange={(e) =>
                             setChannelsDraft((prev) =>

@@ -9,6 +9,7 @@ import { ContractApprovalsPanel } from '@/components/ContractApprovalsPanel';
 import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import { winCplDigestEnabled } from '@/lib/win/flags';
+import { isGdkdContractDesk } from '@/lib/crm/lead-ae-visibility';
 import {
   clearSession,
   getAccessToken,
@@ -36,6 +37,7 @@ export function CrmHubContent() {
   const [accessToken, setAccessToken] = useState('');
 
   const canWrite = canAgencyWrite(user);
+  const gdkdDesk = isGdkdContractDesk(user);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -49,7 +51,14 @@ export function CrmHubContent() {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
-      if (!hasCap(me, 'crm_agency', 'view') && !hasCap(me, 'crm_leads', 'assign')) {
+      if (
+        !hasCap(me, 'crm_agency', 'view') &&
+        !hasCap(me, 'crm_leads', 'assign') &&
+        !hasCap(me, 'crm_gdkd', 'assign') &&
+        !hasCap(me, 'crm_gdkd', 'review_queue') &&
+        !hasCap(me, 'crm_gdkd', 'view_all_leads') &&
+        !hasCap(me, 'crm_hub_contracts', 'edit')
+      ) {
         setError('Không có quyền Hub');
         return null;
       }
@@ -90,21 +99,29 @@ export function CrmHubContent() {
     <StaffPageShell
       user={user}
       onLogout={logout}
-      breadcrumb={[
-        { label: 'CRM', href: '/crm' },
-        { label: 'Hub', href: '/crm/hub' },
-        { label: 'Agency map' },
-      ]}
+      breadcrumb={
+        gdkdDesk
+          ? [{ label: 'Hub hợp đồng', href: '/crm/hub?hub_tab=contracts' }]
+          : [
+              { label: 'CRM', href: '/crm' },
+              { label: 'Hub', href: '/crm/hub' },
+              { label: 'Agency map' },
+            ]
+      }
     >
       <HubPageLayout
-        title="Hub · Agency"
-        subtitle="Campaign map và hợp đồng chờ duyệt"
-        headerExtra={<AgencyReadOnlyBadge user={user} />}
-        tabs={[
-          { id: 'campaigns' as HubTab, label: 'Campaign map' },
-          { id: 'contracts' as HubTab, label: 'HĐ chờ duyệt' },
-        ]}
-        tab={hubTab}
+        title={gdkdDesk ? 'Hub hợp đồng' : 'Hub · Agency'}
+        subtitle={gdkdDesk ? 'Hợp đồng chờ GDKD duyệt' : 'Campaign map và hợp đồng chờ duyệt'}
+        headerExtra={gdkdDesk ? null : <AgencyReadOnlyBadge user={user} />}
+        tabs={
+          gdkdDesk
+            ? [{ id: 'contracts' as HubTab, label: 'HĐ chờ duyệt' }]
+            : [
+                { id: 'campaigns' as HubTab, label: 'Campaign map' },
+                { id: 'contracts' as HubTab, label: 'HĐ chờ duyệt' },
+              ]
+        }
+        tab={gdkdDesk ? 'contracts' : hubTab}
         onTabChange={setHubTab}
       >
         {clientFilter ? (
@@ -122,7 +139,7 @@ export function CrmHubContent() {
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
-        {winCplDigestEnabled() &&
+        {!gdkdDesk && winCplDigestEnabled() &&
         user &&
         (hasCap(user, 'crm_ai_insights', 'view') || hasCap(user, 'crm_business_dashboard', 'view')) ? (
           <p style={{ margin: '0 0 1rem' }}>
@@ -132,7 +149,7 @@ export function CrmHubContent() {
           </p>
         ) : null}
 
-        {hubTab === 'campaigns' && accessToken ? (
+        {hubTab === 'campaigns' && accessToken && !gdkdDesk ? (
           <>
             {campaignFilter ? <p className="muted">Lọc hub_campaign_id={campaignFilter}</p> : null}
             <HubCampaignMapsPanel
@@ -147,7 +164,7 @@ export function CrmHubContent() {
           </>
         ) : null}
 
-        {hubTab === 'contracts' && accessToken ? (
+        {(gdkdDesk || hubTab === 'contracts') && accessToken ? (
           <ContractApprovalsPanel
             token={accessToken}
             user={user}

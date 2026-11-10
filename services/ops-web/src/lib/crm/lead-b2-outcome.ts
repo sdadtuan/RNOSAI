@@ -72,7 +72,7 @@ export function resolveB2CallOutcome(input: {
         kind: 'complete_b2',
         report,
         completeNote: content,
-        primary_label_vi: 'Xong B2 → sang Pre-sales',
+        primary_label_vi: 'Xong B2 → sang Pre Sale',
         suggestLost: false,
       },
     };

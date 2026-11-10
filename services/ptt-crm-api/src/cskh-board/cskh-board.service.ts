@@ -4,6 +4,7 @@ import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
+import { PgLeadRow } from '../leads/leads.types';
 import {
   computeSpaMeta24hSlas,
   enrichSlaTierSummaries,
@@ -35,13 +36,14 @@ import { buildBreachBacklogSnapshot } from './cskh-breach-backlog.util';
 import { buildShiftHandoffReport } from './cskh-shift-handoff.util';
 import { buildHomeSummary } from './home-summary.util';
 import {
-  filterPredictionsByOwner,
   predictSlaRiskForRows,
   type SlaPredictRow,
 } from './sla-predict.util';
 
 @Injectable()
 export class CskhBoardService {
+  private readonly recentRowsCache = new Map<string, { at: number; rows: CskhBoardRow[] }>();
+  private readonly recentRowsInflight = new Map<string, Promise<CskhBoardRow[]>>();
   constructor(
     private readonly repo: CskhBoardRepository,
     private readonly legacyPg: CrmLeadsPgRepository,
@@ -65,58 +67,15 @@ export class CskhBoardService {
         ? query.sla_tier
         : 'all';
 
-    const { leads } = await this.repo.listLeadCandidates({
+    const { leads, total: sqlTotal } = await this.repo.listLeadCandidates({
       ...query,
       sla_tier: selectedTier,
       spa_meta_only: query.spa_meta_only !== false,
       limit,
+      offset,
+      exact_limit: true,
     });
-    const ids = leads.map((r) => Number(r.sqlite_lead_id));
-    const firstCalls = await this.legacyPg.firstCallAtByLeadIds(ids);
-    const followUps = await this.legacyPg.nextFollowUpByLeadIds(ids);
-    const ownerIds = leads.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
-    const ownerNames = await this.legacyPg.staffNamesByIds(ownerIds);
-
-    const enriched: CskhBoardRow[] = leads.map((row) => {
-      const base = CskhBoardRepository.toBoardRowBase(
-        row as Parameters<typeof CskhBoardRepository.toBoardRowBase>[0],
-      );
-      const firstCallAt = firstCalls.get(base.id) ?? null;
-      const b2CompletedAt = parseB2CompletedAt(base.care_stages_done_json);
-      const closedAt = isSpaClosedStatus(base.status) ? base.updated_at : null;
-      const sla = computeSpaMeta24hSlas({
-        status: base.status,
-        receivedAt: base.received_at,
-        createdAt: base.created_at,
-        firstCallAt,
-        careStagesDoneJson: base.care_stages_done_json,
-        b2CompletedAt,
-        closedAt,
-      });
-
-      return {
-        id: base.id,
-        full_name: base.full_name,
-        phone: base.phone,
-        email: base.email,
-        status: base.status,
-        source: base.source,
-        channel: base.channel,
-        owner_id: base.owner_id,
-        received_at: base.received_at,
-        created_at: base.created_at,
-        owner_name: base.owner_id ? ownerNames.get(base.owner_id) ?? null : null,
-        first_call_at: firstCallAt,
-        b2_completed_at: b2CompletedAt,
-        closed_at: closedAt,
-        sla_state: sla.sla_state,
-        sla_tier: sla.sla_tier,
-        sla_tiers: sla.tiers,
-        sla_minutes_elapsed: sla.sla_minutes_elapsed,
-        sla_deadline_at: sla.sla_deadline_at,
-        next_follow_up_at: followUps.get(base.id) ?? null,
-      };
-    });
+    const enriched = await this.enrichCandidateRows(leads);
 
     const filtered = enriched.filter((row) => {
       const tierSnapshot =
@@ -144,12 +103,12 @@ export class CskhBoardService {
         return tier?.sla_state === 'ok';
       }).length,
     };
-    const page = filtered.slice(offset, offset + limit);
+    const page = filtered;
 
     return {
       ok: true,
       items: page,
-      total: filtered.length,
+      total: sqlTotal,
       limit,
       offset,
       summary,
@@ -300,7 +259,7 @@ export class CskhBoardService {
         : undefined;
 
     const [allRows, leadsNewToday, reviewMetrics] = await Promise.all([
-      this.loadAllEnrichedRows(),
+      this.loadRecentEnrichedRows(ownerStaffId),
       ownerStaffId != null
         ? this.repo.countOwnedLeadsReceivedToday(ownerStaffId)
         : this.repo.countSpaMetaLeadsReceivedToday(null),
@@ -354,11 +313,10 @@ export class CskhBoardService {
     items: SlaPredictRow[];
     total: number;
   }> {
-    const rows = await this.loadAllEnrichedRows();
-    let items = predictSlaRiskForRows(rows);
-    if (!opts?.viewAll && opts?.ownerId != null && Number.isFinite(opts.ownerId)) {
-      items = filterPredictionsByOwner(items, opts.ownerId);
-    }
+    const ownerId =
+      !opts?.viewAll && opts?.ownerId != null && Number.isFinite(opts.ownerId) ? opts.ownerId : null;
+    const rows = await this.loadRecentEnrichedRows(ownerId);
+    const items = predictSlaRiskForRows(rows);
     return {
       ok: true,
       generated_at: new Date().toISOString(),
@@ -375,6 +333,41 @@ export class CskhBoardService {
     return this.closedLoop.getPlaybookAbMetrics(windowDays ?? 30);
   }
 
+  /** Shared by the home summary and the SLA toast so one click does not scan twice. */
+  private loadRecentEnrichedRows(ownerStaffId?: number | null): Promise<CskhBoardRow[]> {
+    const key = ownerStaffId == null ? 'all' : String(ownerStaffId);
+    const cached = this.recentRowsCache.get(key);
+    if (cached && Date.now() - cached.at < 30_000) return Promise.resolve(cached.rows);
+    const inflight = this.recentRowsInflight.get(key);
+    if (inflight) return inflight;
+    const job = this.fetchRecentEnrichedRows(ownerStaffId)
+      .then((rows) => {
+        this.recentRowsCache.set(key, { at: Date.now(), rows });
+        this.recentRowsInflight.delete(key);
+        return rows;
+      })
+      .catch((err: unknown) => {
+        this.recentRowsInflight.delete(key);
+        throw err;
+      });
+    this.recentRowsInflight.set(key, job);
+    return job;
+  }
+
+  private async fetchRecentEnrichedRows(ownerStaffId?: number | null): Promise<CskhBoardRow[]> {
+    const { leads } = await this.repo.listLeadCandidates({
+      sla_filter: 'all',
+      sla_tier: 'all',
+      spa_meta_only: true,
+      within_sla_window: true,
+      exact_limit: true,
+      skip_count: true,
+      limit: 200,
+      owner_id: ownerStaffId ?? undefined,
+    });
+    return this.enrichCandidateRows(leads);
+  }
+
   private async loadAllEnrichedRows(): Promise<CskhBoardRow[]> {
     const { leads } = await this.repo.listLeadCandidates({
       sla_filter: 'all',
@@ -382,11 +375,17 @@ export class CskhBoardService {
       spa_meta_only: true,
       limit: 500,
     });
+    return this.enrichCandidateRows(leads);
+  }
+
+  private async enrichCandidateRows(leads: PgLeadRow[]): Promise<CskhBoardRow[]> {
     const ids = leads.map((r) => Number(r.sqlite_lead_id));
-    const firstCalls = await this.legacyPg.firstCallAtByLeadIds(ids);
-    const followUps = await this.legacyPg.nextFollowUpByLeadIds(ids);
     const ownerIds = leads.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
-    const ownerNames = await this.legacyPg.staffNamesByIds(ownerIds);
+    const [firstCalls, followUps, ownerNames] = await Promise.all([
+      this.legacyPg.firstCallAtByLeadIds(ids),
+      this.legacyPg.nextFollowUpByLeadIds(ids),
+      this.legacyPg.staffNamesByIds(ownerIds),
+    ]);
 
     return leads.map((row) => {
       const base = CskhBoardRepository.toBoardRowBase(

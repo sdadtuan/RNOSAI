@@ -84,6 +84,54 @@ export class LeadDedupRepository implements OnModuleDestroy {
     }));
   }
 
+  /** Lost contacts stay lost. Match them even after the short dedupe window. */
+  async findLostContact(input: {
+    phone?: string;
+    email?: string;
+    b2bProjectId?: string | null;
+  }): Promise<LeadDuplicateMatch[]> {
+    const ph = normalizePhone(input.phone);
+    const em = normalizeEmail(input.email);
+    if (!ph && !em) return [];
+
+    const clauses = [
+      `COALESCE(is_duplicate, FALSE) IS NOT TRUE`,
+      `lower(trim(COALESCE(status, ''))) = 'lost'`,
+    ];
+    const params: unknown[] = [];
+    const sub: string[] = [];
+    if (ph) {
+      sub.push(`${pgPhoneNormSql()} = $${params.length + 1}`);
+      params.push(ph);
+    }
+    if (em) {
+      sub.push(`lower(trim(email)) = $${params.length + 1}`);
+      params.push(em);
+    }
+    clauses.push(`(${sub.join(' OR ')})`);
+    if (input.b2bProjectId !== undefined) {
+      clauses.push(`b2b_project_id IS NOT DISTINCT FROM $${params.length + 1}::uuid`);
+      params.push(input.b2bProjectId || null);
+    }
+
+    const result = await this.db.query(
+      `SELECT sqlite_lead_id, full_name, phone, email, owner_id
+       FROM crm_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY sqlite_lead_id DESC
+       LIMIT 5`,
+      params,
+    );
+
+    return result.rows.map((row) => ({
+      lead_id: Number(row.sqlite_lead_id),
+      full_name: row.full_name ?? null,
+      phone: row.phone ?? null,
+      email: row.email ?? null,
+      owner_id: row.owner_id != null ? Number(row.owner_id) : null,
+    }));
+  }
+
   async findByExternalId(input: {
     clientId?: string | null;
     channel?: string;

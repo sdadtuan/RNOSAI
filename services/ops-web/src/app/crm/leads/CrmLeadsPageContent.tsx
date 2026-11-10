@@ -13,7 +13,6 @@ import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
 import { AeAssignedRawLeadsPanel } from '@/components/crm/AeAssignedRawLeadsPanel';
 import { AeCareHistoryPanel } from '@/components/crm/AeCareHistoryPanel';
-import { AePerformancePanel } from '@/components/crm/AePerformancePanel';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
 import {
@@ -27,7 +26,6 @@ import {
   StaffPageShell,
 } from '@/components/layout';
 import { PresalesConsultSlaSummaryCard } from '@/components/PresalesConsultSlaSummaryCard';
-import { PresalesFunnelMetricsCard } from '@/components/PresalesFunnelMetricsCard';
 import {
   fetchLeadOwnerOptions,
   fetchLeads,
@@ -35,12 +33,11 @@ import {
   fetchCrmStaffList,
   fetchLeadLookupOptions,
   fetchPresalesConsultSlaSummary,
-  fetchPresalesFunnelMetrics,
   fetchReviewQueueCount,
   staffMe,
   staffRefresh,
 } from '@/lib/api';
-import type { CrmLeadLookupOption, CrmStaffRow, LeadRow, PresalesConsultSlaSummary, PresalesFunnelMetricsResponse } from '@/lib/api';
+import type { CrmLeadLookupOption, CrmStaffRow, LeadRow, PresalesConsultSlaSummary } from '@/lib/api';
 import { aiCopilotEnabled, canUseAiCopilot } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
@@ -53,7 +50,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { isAccountManager } from '@/lib/crm/lead-ae-visibility';
+import { isAccountManager, isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
 import { type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import {
   leadListFilterOptions,
@@ -62,7 +59,7 @@ import {
   leadStatusSearchLabel,
   leadStatusSearchStatuses,
 } from '@/lib/crm/lead-status';
-import { leadSignalKpis } from '@/lib/crm/lead-signal-kpis';
+import { leadSignalKpis, type LeadSignalKpi } from '@/lib/crm/lead-signal-kpis';
 import {
   leadFlowKindQuery,
   leadsListHref,
@@ -158,7 +155,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [slaSummary, setSlaSummary] = useState<PresalesConsultSlaSummary | null>(null);
-  const [funnelMetrics, setFunnelMetrics] = useState<PresalesFunnelMetricsResponse | null>(null);
+  const [filterSignals, setFilterSignals] = useState<{ hot: number; consult: number; ai: number; won: number } | null>(
+    null,
+  );
   const [visibleColumns, setVisibleColumns] = useState<Set<LeadsColumnId>>(() =>
     flowScope === 'b2b_prospect' ? defaultB2bLeadsVisibleColumns() : readLeadsVisibleColumns(false),
   );
@@ -182,10 +181,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const pageTitle = leadsListTitle(flowScope);
   const pageSubtitleHint = leadsListSubtitle(flowScope);
   const flowKindFilter = leadFlowKindQuery(flowScope);
-  const statusOptions = useMemo(
-    () => leadListFilterOptions(flowKindFilter),
-    [flowKindFilter],
-  );
+  const marketingLeader = isMarketingLeader(user);
+  const statusOptions = useMemo(() => {
+    const options = leadListFilterOptions(flowKindFilter);
+    if (!marketingLeader) return options;
+    const earlySale = new Set(['moi', 'da_lien_he', 'dang_tu_van', 'hen_gap']);
+    return options.filter((option) => !earlySale.has(option.id));
+  }, [flowKindFilter, marketingLeader]);
 
   const canImport = useMemo(
     () => hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'assign'),
@@ -279,8 +281,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         const p1Filters = p1 && flowScope !== 'b2b_prospect' ? leadP1Filters() : null;
         const scopedMine = (!canViewAllLeads && !browsesAllB2bLeads) || listTab === 'mine';
         const assigneeId = Number(filterAssignee);
-        const ownerId =
-          Number.isFinite(assigneeId) && assigneeId > 0
+        const ownerId = marketingLeader
+          ? undefined
+          : Number.isFinite(assigneeId) && assigneeId > 0
             ? assigneeId
             : scopedMine && myCrmStaffId != null
               ? myCrmStaffId
@@ -322,10 +325,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           setRows(data.leads);
           setTotal(data.total);
           setOffset(data.offset);
+          if (data.signals) setFilterSignals(data.signals);
         } else {
           const collected: Awaited<ReturnType<typeof fetchLeads>>['leads'] = [];
           let totalCount = 0;
           let pageOffset = 0;
+          let pageSignals: NonNullable<Awaited<ReturnType<typeof fetchLeads>>['signals']> | null = null;
           do {
             const data = await fetchLeads(accessToken, {
               ...queryParams,
@@ -335,11 +340,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             collected.push(...data.leads);
             totalCount = data.total;
             pageOffset += data.leads.length;
+            if (data.signals) pageSignals = data.signals;
             if (data.leads.length === 0) break;
           } while (collected.length < totalCount && collected.length < 5000);
           setRows(collected);
           setTotal(totalCount);
           setOffset(0);
+          if (pageSignals) setFilterSignals(pageSignals);
         }
       } catch (err) {
         if (!silent) {
@@ -349,7 +356,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         if (!silent) setLoading(false);
       }
     },
-    [browsesAllB2bLeads, canViewAllLeads, filterAssignee, filterChannel, filterReceivedFrom, filterReceivedTo, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
+    [browsesAllB2bLeads, canViewAllLeads, filterAssignee, filterChannel, filterReceivedFrom, filterReceivedTo, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, marketingLeader, myCrmStaffId, savedView, viewMode],
   );
 
   useEffect(() => {
@@ -491,15 +498,6 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       const access = await ensureAuth();
       if (!access) return;
       setToken(access);
-      const [staffOut, reviewOut, sourceOut, channelOut] = await Promise.all([
-        fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
-        canReviewQueue
-          ? fetchReviewQueueCount(access).catch(() => ({ count: 0 }))
-          : Promise.resolve({ count: 0 }),
-        fetchLeadLookupOptions(access, 'source').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
-        fetchLeadLookupOptions(access, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
-      ]);
-      setStaffOptions(staffOut.staff ?? []);
       const viewer = getStoredUser();
       const viewerPosition = String(viewer?.position_code ?? '').trim().toLowerCase();
       const viewerMayFilterOwners =
@@ -508,20 +506,26 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         (flowScope === 'b2b_prospect' && isAccountManager(viewer)) ||
         viewerPosition === 'gdkd-01' ||
         (viewer?.job_functions ?? []).includes('leader');
-      if (viewerMayFilterOwners) {
-        const owners = await fetchLeadOwnerOptions(access).catch(() => ({ owners: [] }));
-        setOwnerOptions(owners.owners ?? []);
-      }
+      const [staffOut, reviewOut, sourceOut, channelOut, owners, projects] = await Promise.all([
+        fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
+        canReviewQueue
+          ? fetchReviewQueueCount(access).catch(() => ({ count: 0 }))
+          : Promise.resolve({ count: 0 }),
+        fetchLeadLookupOptions(access, 'source').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
+        fetchLeadLookupOptions(access, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
+        viewerMayFilterOwners
+          ? fetchLeadOwnerOptions(access).catch(() => ({ owners: [] as Array<{ id: number; name: string }> }))
+          : Promise.resolve({ owners: [] as Array<{ id: number; name: string }> }),
+        hasCap(viewer, 'crm_b2b_projects', 'view')
+          ? fetchB2bProjects(access, 'active').catch(() => [])
+          : Promise.resolve([]),
+      ]);
+      setStaffOptions(staffOut.staff ?? []);
+      setOwnerOptions(owners.owners ?? []);
       setReviewQueueCount(reviewOut.count ?? 0);
       setSourceOptions(sourceOut.options ?? []);
       setChannelOptions(channelOut.options ?? []);
-      if (hasCap(getStoredUser(), 'crm_b2b_projects', 'view')) {
-        try {
-          setB2bProjects(await fetchB2bProjects(access, 'active'));
-        } catch {
-          setB2bProjects([]);
-        }
-      }
+      setB2bProjects(projects);
     })();
   }, [ensureAuth, canReviewQueue]);
 
@@ -555,7 +559,6 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   useEffect(() => {
     if (!token || flowScope !== 'b2b_prospect') {
       setSlaSummary(null);
-      setFunnelMetrics(null);
       return;
     }
     void (async () => {
@@ -564,15 +567,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           (!canViewAllLeads || listTab === 'mine') && myCrmStaffId != null
             ? myCrmStaffId
             : undefined;
-        const [slaOut, metricsOut] = await Promise.all([
-          fetchPresalesConsultSlaSummary(token, amId),
-          fetchPresalesFunnelMetrics(token, { amId }),
-        ]);
+        const slaOut = await fetchPresalesConsultSlaSummary(token, amId);
         setSlaSummary(slaOut.summary);
-        setFunnelMetrics(metricsOut);
       } catch {
         setSlaSummary(null);
-        setFunnelMetrics(null);
       }
     })();
   }, [token, flowScope, listTab, canViewAllLeads, myCrmStaffId]);
@@ -670,7 +668,15 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const boardPulse = useMemo(() => kanbanPulse(visibleRows), [visibleRows]);
   const leaderPulse = showKanbanLeaderPulse(user?.job_functions);
   const leadIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
-  const signalKpis = useMemo(() => leadSignalKpis(visibleRows), [visibleRows]);
+  const signalKpis = useMemo((): LeadSignalKpi[] => {
+    if (!filterSignals) return leadSignalKpis(visibleRows);
+    return [
+      { key: 'hot', label: 'Nóng — gọi ngay', count: filterSignals.hot },
+      { key: 'consult', label: 'Chờ tư vấn', count: filterSignals.consult },
+      { key: 'ai', label: 'AI đề xuất', count: filterSignals.ai },
+      { key: 'won', label: 'Won tuần này', count: filterSignals.won },
+    ];
+  }, [filterSignals, visibleRows]);
   const assigneeChoices = useMemo(() => {
     const rows = ownerOptions.length
       ? ownerOptions
@@ -770,7 +776,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const pageMeta = useMemo(() => {
     const parts = [
       `${total.toLocaleString('vi-VN')} leads`,
-      `trang ${Math.floor(offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`,
+      viewMode === 'kanban'
+        ? 'kanban'
+        : `trang ${Math.floor(offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`,
       pageSubtitleHint,
     ];
     if (flowScope !== 'b2b_prospect') {
@@ -779,7 +787,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     }
     if (selectedList.length) parts.push(`đã chọn ${selectedList.length}`);
     return parts.join(' · ');
-  }, [total, offset, leadKind, pageSubtitleHint, selectedList.length, flowScope]);
+  }, [total, offset, leadKind, pageSubtitleHint, selectedList.length, flowScope, viewMode]);
 
   if (!user) {
     return (
@@ -904,11 +912,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         }
       />
 
-      {flowScope === 'b2b_prospect' && token ? <AePerformancePanel token={token} /> : null}
-
+      {marketingLeader ? null : (
       <div className="crm-leads-signal">
         <LeadSignalKpiStrip items={signalKpis} />
       </div>
+      )}
 
       <div className="bitrix-view-tabs" role="tablist" aria-label="Chế độ xem lead">
         {flowScope === 'b2b_prospect' ? (
@@ -943,6 +951,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             >
               Danh sách
             </button>
+            {marketingLeader ? null : (
             <button
               type="button"
               role="tab"
@@ -952,6 +961,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             >
               Lead thô
             </button>
+            )}
             <button
               type="button"
               role="tab"
@@ -996,7 +1006,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         )}
       </div>
 
-      {flowScope === 'b2b_prospect' && b2bSurface === 'raw' ? (
+      {flowScope === 'b2b_prospect' && b2bSurface === 'raw' && !marketingLeader ? (
         token ? (
           <AeAssignedRawLeadsPanel token={token} />
         ) : (
@@ -1010,14 +1020,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         )
       ) : (
       <div className="page-card page-card--flat-top stack-gap">
-        {flowScope === 'b2b_prospect' && slaSummary ? (
+        {flowScope === 'b2b_prospect' && slaSummary && !marketingLeader ? (
           <PresalesConsultSlaSummaryCard summary={slaSummary} />
-        ) : null}
-        {flowScope === 'b2b_prospect' && funnelMetrics ? (
-          <PresalesFunnelMetricsCard data={funnelMetrics} />
         ) : null}
 
         <div className="crm-leads-inline-filters">
+        {marketingLeader ? null : (
         <SegmentedControl
           options={
             canViewAllLeads
@@ -1039,6 +1047,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setSelectedIds(new Set());
           }}
         />
+        )}
 
         {flowScope === 'spa_operational' || flowScope === 'all' ? (
           <SegmentedControl
@@ -1267,7 +1276,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             await loadLeads(token, offset, query);
           }}
         >
-          {viewMode === 'kanban' && flowScope === 'b2b_prospect' ? (
+          {viewMode === 'kanban' && flowScope === 'b2b_prospect' && !marketingLeader ? (
             <div style={{ marginBottom: '0.75rem' }}>
               <p className="canopy-next-action" role="status">
                 Bước tiếp: SLA trễ {boardPulse.slaLate} · Hẹn hôm nay {boardPulse.callbackToday} · Báo giá cũ{' '}
@@ -1287,6 +1296,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               flowKind={(flowKindFilter ?? 'b2b_prospect') as LeadFlowKind}
               token={token ?? undefined}
               canChangeOwner={hasCap(user, 'crm_leads', 'assign')}
+              fromSolution={marketingLeader}
               onLeadUpdated={() => {
                 if (token) void loadLeads(token, 0, query, 'kanban');
               }}

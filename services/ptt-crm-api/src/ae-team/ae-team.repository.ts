@@ -3,6 +3,10 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { buildB2bProspectListFilter } from '../leads-funnel/lead-flow-list-filter.util';
 
+function isStaffUserUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export interface AeMemberRow {
   staff_id: number;
   name: string;
@@ -124,6 +128,7 @@ export class AeTeamRepository implements OnModuleDestroy {
   }
 
   async leadTeamIds(userId: string): Promise<number[]> {
+    if (!isStaffUserUuid(userId)) return [];
     const result = await this.db.query(
       `SELECT team_id FROM staff_user_teams WHERE user_id = $1 AND team_role = 'lead'`,
       [userId],
@@ -132,6 +137,7 @@ export class AeTeamRepository implements OnModuleDestroy {
   }
 
   async memberTeamIds(userId: string): Promise<number[]> {
+    if (!isStaffUserUuid(userId)) return [];
     const result = await this.db.query(
       `SELECT team_id FROM staff_user_teams WHERE user_id = $1`,
       [userId],

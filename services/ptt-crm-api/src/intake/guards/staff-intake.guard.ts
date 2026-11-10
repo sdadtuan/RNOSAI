@@ -20,10 +20,13 @@ export class StaffIntakeViewGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_leads', 'view')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_leads' });
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_leads', 'view') ||
+      this.staffAuth.hasCap(me.caps, 'crm_presales_solution', 'view')
+    ) {
+      return true;
     }
-    return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'crm_leads' });
   }
 }
 
@@ -38,9 +41,12 @@ export class StaffIntakeWriteGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_leads', 'edit')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_leads' });
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_leads', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_presales_solution', 'edit')
+    ) {
+      return true;
     }
-    return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'crm_leads' });
   }
 }

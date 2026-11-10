@@ -244,5 +244,6 @@ export async function parseMetaWebhook(input: {
 export function normalizeWebhookChannel(channel: string): string {
   const c = channel.trim().toLowerCase();
   if (c === 'facebook' || c === 'meta') return 'meta';
+  if (c === 'tiktok_ads' || c === 'tiktok-business') return 'tiktok';
   return c;
 }

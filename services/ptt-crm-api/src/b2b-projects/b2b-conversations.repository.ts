@@ -37,7 +37,7 @@ export class B2bConversationsRepository implements OnModuleDestroy {
 
   async findLeadByZaloUser(projectId: string, userId: string): Promise<number | null> {
     const result = await this.db.query(
-      `SELECT id
+      `SELECT sqlite_lead_id
        FROM crm_leads
        WHERE b2b_project_id = $1::uuid
          AND (
@@ -49,7 +49,7 @@ export class B2bConversationsRepository implements OnModuleDestroy {
        LIMIT 1`,
       [projectId, userId],
     );
-    const id = result.rows[0]?.id;
+    const id = result.rows[0]?.sqlite_lead_id;
     return id != null ? Number(id) : null;
   }
 

@@ -81,11 +81,12 @@ type QuoteProgressLead = Pick<
 
 /**
  * Quote-sheet / quote-case state. crm_proposals (`has_quote`) is only the legacy file.
- * No sheet → Chưa có báo giá. Saved → Đã có báo giá. Sent → Đã gửi Sale. Approved → Triển Khai.
+ * No sheet → Chưa có báo giá. Saved → Đã có báo giá. Sent → Đã gửi Sale.
+ * Approved quote waits for a closed contract and GDKD approval before Triển Khai.
  * Null means the caller has no quote-case fields and should keep the legacy label.
  */
 export function quoteProgressLabel(lead: QuoteProgressLead): string | null {
-  if (lead.quote_approved) return 'Triển Khai';
+  if (lead.quote_approved) return 'Chờ GĐKD duyệt HĐ';
   if (lead.quote_sent_to_sale) return 'Đã gửi Sale';
   if (lead.quote_sheet_saved) return 'Đã có báo giá';
   if (lead.has_quote === false) return 'Chưa có báo giá';
@@ -174,8 +175,7 @@ function advanceContractAction(lead: QuoteProgressLead): KanbanCardAction {
   return {
     label: '→ Tạo HĐ',
     kind: 'advance_contract',
-    nextStatus: 'won',
-    auditNote: 'AE xác nhận Proposal OK — chuyển sang tạo HĐ.',
+    blockedReason: 'Lập hợp đồng trên lead. GĐKD duyệt xong thì lead sang Triển Khai.',
   };
 }
 

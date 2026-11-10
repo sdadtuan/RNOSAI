@@ -186,11 +186,9 @@ export class IntakeService {
     }
     if (
       String(existing.status ?? '').trim() === 'completed' &&
-      body.service_slug !== undefined
+      (body.service_slug !== undefined || body.answers_json !== undefined)
     ) {
-      throw new BadRequestException({
-        error: 'Không thể đổi dịch vụ khi phiên đã hoàn thành. Reopen hoặc tạo phiên mới.',
-      });
+      await this.pg.reopenSession(id);
     }
     const updated = await this.pg.updateSession(id, body);
     if (!updated) {

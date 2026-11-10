@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { isAccountManagerPosition, isB2bDirectorPosition, isMarketingLeaderPosition } from './b2b-director.util';
@@ -47,7 +48,7 @@ export class B2bLeadScopeService {
     caps: StaffSectionCap[];
     positionCode?: string | null;
   }): B2bListScope {
-    const viewAll = hasGdkdViewAllLeads(input.caps);
+    const viewAll = hasGdkdViewAllLeads(input.caps) || isSuperAdminPositionCode(input.positionCode);
     const isDirector = isB2bDirectorPosition(input.positionCode);
     const accountManager = isAccountManagerPosition(input.positionCode) && !viewAll && !isDirector;
     return {
@@ -72,19 +73,21 @@ export class B2bLeadScopeService {
     const mayOpenDesk = Boolean(actor.seesMemberProjectPool || actor.seesHandedOffSolutions);
     if (mayOpenDesk && Number.isFinite(leadId) && leadId > 0) {
       const onDesk = await this.repo.isLeadOnSolutionDesk(leadId);
-      if (
-        accountManagerMayOpenSolutionLead(actor, onDesk) ||
-        marketingLeaderMayOpenSolutionLead(actor, onDesk)
-      ) {
-        return;
-      }
+      if (accountManagerMayOpenSolutionLead(actor, onDesk)) return;
+      const solutionOnward =
+        onDesk ||
+        (actor.seesHandedOffSolutions
+          ? await this.repo.isLeadFromSolutionOnward(leadId)
+          : false);
+      if (marketingLeaderMayOpenSolutionLead(actor, solutionOnward)) return;
     }
     throw new NotFoundException({ error: 'not_found' });
   }
 
   private async buildVisibilityActor(input: Omit<B2bLeadVisibilityInput, 'lead'>) {
     const staff = await this.repo.findStaffActive(input.staffId);
-    const hasViewAllLeads = hasGdkdViewAllLeads(input.caps);
+    const hasViewAllLeads =
+      hasGdkdViewAllLeads(input.caps) || isSuperAdminPositionCode(input.positionCode);
     return {
       staffId: input.staffId,
       isDirector: isB2bDirectorPosition(input.positionCode),

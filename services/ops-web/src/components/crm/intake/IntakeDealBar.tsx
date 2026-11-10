@@ -67,8 +67,6 @@ export function IntakeDealBar({
   canEdit,
   sessionCompleted = false,
   slugMismatch,
-  funnelCollapsed,
-  onToggleFunnel,
   onServiceChange,
   onIndustryChange,
   onOpenServiceCatalog,
@@ -144,7 +142,7 @@ export function IntakeDealBar({
             </span>
           ) : (
             <select
-              className="kpi-select intake-deal-bar__select"
+              className={`kpi-select intake-deal-bar__select${serviceSlug && serviceSlug !== '_common' ? '' : ' intake-deal-bar__select--required'}`}
               value={serviceSlug}
               aria-label={`${serviceLabel} (bắt buộc)`}
               onChange={(e) => onServiceChange(e.target.value)}
@@ -237,14 +235,6 @@ export function IntakeDealBar({
             Sales Kit
           </button>
         ) : null}
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          aria-expanded={!funnelCollapsed}
-          onClick={onToggleFunnel}
-        >
-          Funnel {funnelCollapsed ? '▾' : '▴'}
-        </button>
       </div>
     </section>
   );

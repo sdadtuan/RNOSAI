@@ -1,19 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PresalesConsultBriefPanel } from '@/components/PresalesConsultBriefPanel';
 import { PresalesConsultPlanScreen } from '@/components/PresalesConsultPlanScreen';
 import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { PresalesL2DocsChecklist } from '@/components/PresalesL2DocsChecklist';
-import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { WinFieldMask } from '@/components/rbac/WinFieldMask';
 import {
-  fetchCatalogServices,
-  fetchIntakeSessions,
   fetchLeadFunnel,
-  fetchLeadPresalesMarketingPlan,
   fetchLeadPresalesProposalHandoff,
   patchLeadPresalesL2Docs,
   patchLeadPresalesTask,
@@ -23,17 +19,12 @@ import {
   type LeadFunnelSnapshot,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
-import { attachedScopeLines, scopeFromLeadSessions } from '@/lib/crm/consult-attached-scope';
-import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
-import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
-import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
-import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import {
   canDraftConsultPlan,
   isConsultWorkspaceReadOnly,
   resolvePresalesSolutionCaps,
 } from '@/lib/crm/presales-solution-caps';
-import { fetchP13Service, fetchP13Services } from '@/lib/p13/api';
+import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 
 interface Props {
   token: string;
@@ -45,7 +36,6 @@ interface Props {
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
-  onEditR5?: () => void;
 }
 
 export function LeadConsultWorkspace({
@@ -58,78 +48,20 @@ export function LeadConsultWorkspace({
   onFunnelChange,
   onMessage,
   onError,
-  onEditR5,
 }: Props) {
   const [funnel, setFunnel] = useState(funnelSnap);
   const [busy, setBusy] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
-  const [planName, setPlanName] = useState('');
-  const [planNorthStar, setPlanNorthStar] = useState('');
-  const [planObjectives, setPlanObjectives] = useState('');
-  const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
-  const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [handoffBlocked, setHandoffBlocked] = useState<string | null>(null);
   const [prefillBusy, setPrefillBusy] = useState(false);
-  const [serviceTitle, setServiceTitle] = useState('');
-  const [catalogServiceName, setCatalogServiceName] = useState('');
-  const [attachedItems, setAttachedItems] = useState<Array<{ code: string; label: string }>>([]);
-  const serviceSlug = funnel.presales?.presales.service_slug ?? '';
 
   useEffect(() => {
     setFunnel(funnelSnap);
   }, [funnelSnap]);
 
-  useEffect(() => {
-    if (!serviceSlug) {
-      setServiceTitle('');
-      setCatalogServiceName('');
-      setAttachedItems([]);
-      return;
-    }
-    let cancelled = false;
-    setServiceTitle(intakeServiceLabel(serviceSlug));
-    void (async () => {
-      try {
-        const [catalog, sessions] = await Promise.all([
-          fetchCatalogServices(token).catch(() => []),
-          fetchIntakeSessions(token, { lead_id: leadId }).catch(() => []),
-        ]);
-        if (cancelled) return;
-        const catalogName = catalog.find((row) => row.slug === serviceSlug && row.active !== false)?.name;
-        setServiceTitle(intakeServiceLabel(serviceSlug, catalogName));
-        const scope = scopeFromLeadSessions(sessions, serviceSlug);
-        if (!scope?.item_codes.length) {
-          setCatalogServiceName('');
-          setAttachedItems([]);
-          return;
-        }
-        const services = await fetchP13Services(token).catch(() => []);
-        const code = scope.service_code || p13CodeForIntakeSlug(serviceSlug, services) || '';
-        if (!code) {
-          setCatalogServiceName('');
-          setAttachedItems(scope.item_codes.map((itemCode) => ({ code: itemCode, label: '' })));
-          return;
-        }
-        const detail = await fetchP13Service(token, code);
-        if (cancelled) return;
-        setCatalogServiceName(detail.name);
-        setAttachedItems(attachedScopeLines(scope, detail.items));
-      } catch {
-        if (!cancelled) {
-          setCatalogServiceName('');
-          setAttachedItems([]);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token, leadId, serviceSlug]);
-
   const presalesStage = funnel.presales?.presales.stage;
-  const workspaceStage = presalesStage === 'proposal' ? 'proposal' : 'consult';
   const solutionCaps = resolvePresalesSolutionCaps(user);
   const consultReadOnly = isConsultWorkspaceReadOnly(funnel, solutionCaps);
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit') && solutionCaps.canEditConsult && !consultReadOnly);
@@ -145,25 +77,6 @@ export function LeadConsultWorkspace({
   const consultTask = useMemo(() => {
     return (funnel.presales?.tasks.consult ?? [])[0] ?? null;
   }, [funnel.presales?.tasks.consult]);
-
-  const loadMarketingPlan = useCallback(async () => {
-    if (!funnel.presales) return;
-    try {
-      const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
-      const hydrated = hydratePresalesR5Form(mp.plan);
-      setPlanName(hydrated.planName);
-      setPlanNorthStar(hydrated.planNorthStar);
-      setPlanObjectives(hydrated.planObjectives);
-      setPlanStrategy(hydrated.planStrategy);
-      setPlanValidation(mp.validation.messages ?? []);
-    } catch {
-      setPlanValidation([]);
-    }
-  }, [funnel.presales, leadId, token]);
-
-  useEffect(() => {
-    void loadMarketingPlan();
-  }, [loadMarketingPlan, presalesStage]);
 
   useEffect(() => {
     if (presalesStage !== 'consult' && presalesStage !== 'proposal') return;
@@ -308,33 +221,6 @@ export function LeadConsultWorkspace({
       data-testid="lead-consult-workspace"
       aria-label="Workspace Tư vấn pre-sales"
     >
-      <header className="lead-consult-workspace__header">
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
-          Workspace · {presalesStageLabel(presalesStage)}
-        </h2>
-        <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-          Dịch vụ: <strong>{serviceTitle || serviceSlug || '—'}</strong>
-        </p>
-        {catalogServiceName && catalogServiceName !== serviceTitle ? (
-          <p className="muted" style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>
-            {catalogServiceName}
-          </p>
-        ) : null}
-        {attachedItems.length > 0 ? (
-          <div className="consult-scope">
-            <p className="consult-scope__label">Hạng mục triển khai</p>
-            <ul>
-              {attachedItems.map((item) => (
-                <li key={item.code}>
-                  <strong>{item.code}</strong>
-                  {item.label ? ` ${item.label}` : ''}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </header>
-
       {panelError ? (
         <div className="lead-alert lead-alert--error" role="alert">
           {panelError}
@@ -367,6 +253,20 @@ export function LeadConsultWorkspace({
 
       {presalesStage === 'consult' ? (
         <>
+          <PresalesConsultPlanScreen
+            token={token}
+            leadId={leadId}
+            funnel={funnel}
+            canEdit={canEdit}
+            canAiDraft={canAiDraft}
+            forcePlan={isSuperAdmin(user)}
+            onMessage={onMessage}
+            onError={(msg) => {
+              setPanelError(msg);
+              onError?.(msg);
+            }}
+            onFunnelChange={applyFunnel}
+          />
           <details className="consult-plan__fold">
             <summary>Buổi gặp và hồ sơ</summary>
             <div className="stack-gap">
@@ -414,26 +314,8 @@ export function LeadConsultWorkspace({
                   {aiBusyTaskId != null ? 'AI…' : 'AI ghi chú buổi gặp'}
                 </button>
               </div>
-              <p style={{ margin: 0 }}>
-                <Link href={intakeHref} className="nav-link">
-                  Mở Lead Intake (BANT) →
-                </Link>
-              </p>
             </div>
           </details>
-          <PresalesConsultPlanScreen
-            token={token}
-            leadId={leadId}
-            funnel={funnel}
-            canEdit={canEdit}
-            canAiDraft={canAiDraft}
-            onMessage={onMessage}
-            onError={(msg) => {
-              setPanelError(msg);
-              onError?.(msg);
-            }}
-            onFunnelChange={applyFunnel}
-          />
         </>
       ) : (
         <>
@@ -450,22 +332,6 @@ export function LeadConsultWorkspace({
               </section>
 
               {renderStageTasks()}
-
-              <PresalesR5PreviewPanel
-                planName={planName}
-                planNorthStar={planNorthStar}
-                planObjectives={planObjectives}
-                planStrategy={planStrategy}
-                planValidation={planValidation}
-                stage={workspaceStage}
-                onEditR5={onEditR5}
-                token={token}
-                leadId={leadId}
-                onNotice={(msg) => {
-                  if (msg.includes('LibreOffice')) onMessage?.(msg);
-                  else onError?.(msg);
-                }}
-              />
             </div>
 
             {user ? (

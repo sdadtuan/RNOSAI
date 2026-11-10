@@ -24,6 +24,7 @@ import { isRevopsShellEnabled } from '@/lib/crm/revops-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
 import { canSeeIwrNav } from '@/lib/crm/iwr-nav.util';
 import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
+import { isGdkdContractDesk } from '@/lib/crm/lead-ae-visibility';
 import {
   canViewSeoAeo,
   canViewSeoAuthority,
@@ -177,6 +178,17 @@ function pushSeoChildren(user: StoredStaffUser | null, children: NavChild[]): vo
 }
 
 export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpts = {}): NavItem[] {
+  if (isGdkdContractDesk(user)) {
+    return [
+      {
+        kind: 'leaf',
+        id: 'sales-hub',
+        label: 'Hub hợp đồng',
+        href: '/crm/hub?hub_tab=contracts',
+        icon: 'hub',
+      },
+    ];
+  }
   const {
     emailPendingApprovals,
     agencyUnread,
@@ -233,9 +245,20 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     hasCap(user, 'crm_hub_contracts', 'edit') ||
     hasCap(user, 'crm_agency', 'edit') ||
     hasCap(user, 'crm_agency', 'configure') ||
-    canRunB2bDesk
+    canRunB2bDesk ||
+    canRunGdkdDesk ||
+    hasCap(user, 'crm_gdkd', 'review_queue') ||
+    hasCap(user, 'crm_leads', 'assign')
   ) {
-    sales.push(child('sales-hub', 'Hub hợp đồng', '/crm/hub'));
+    sales.push(
+      child(
+        'sales-hub',
+        'Hub hợp đồng',
+        canRunGdkdDesk || hasCap(user, 'crm_gdkd', 'review_queue')
+          ? '/crm/hub?hub_tab=contracts'
+          : '/crm/hub',
+      ),
+    );
   }
   if (hasCap(user, 'crm_leads', 'view')) {
     sales.push(child('sales-intake', 'Lead Intake', '/crm/intake'));

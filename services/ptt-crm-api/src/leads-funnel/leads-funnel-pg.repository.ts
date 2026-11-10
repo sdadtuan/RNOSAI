@@ -71,8 +71,10 @@ import {
   QUOTE_ACCEPT_MINUTES,
   QUOTE_FINISH_HOURS,
   buildQuoteCaseView,
+  holdsQuoteDesk,
   isBaoGiaColumnStatus,
   preferredMarketingLeaderId,
+  quoteDeskForPhase,
   quoteDeadlineIso,
   quoteLateEventKey,
   quoteTimerLabel,
@@ -88,11 +90,20 @@ import {
   buildSolutionCaseView,
   solutionWorkDueAt,
 } from './solution-case.util';
-import { renderLeadQuoteDocx } from './lead-quote-docx';
+import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
+import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
+import {
+  QUOTE_DELIVERY_HOURS_CODE,
+  QUOTE_DELIVERY_HOURS_NAME,
+  deliveryKpiFromSheet,
+  deliveryPeriod,
+  type DeliveryKpiSplit,
+} from './quote-delivery-kpi.util';
 import {
   QUOTE_SHEET_MAX_SERVICES,
   assembleQuoteSheet,
   hourlyFromPosition,
+  implementationPlanFromSheet,
   readStoredQuoteSheet,
   type QuoteSheetItem,
   type QuoteSheetService,
@@ -189,12 +200,16 @@ type PgPresalesRow = {
   quote_assignee_staff_id?: string | number | null;
   quote_reassign_note?: string | null;
   implementation_status?: string | null;
+  contract_created_at?: Date | string | null;
+  contract_signed_at?: Date | string | null;
+  contract_amount_vnd?: string | number | null;
 };
 
 @Injectable()
 export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
   private quoteCaseReady: Promise<void> | null = null;
+  private deliveryKpiReady: Promise<void> | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -275,6 +290,9 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           : null,
       quote_reassign_note: String(row.quote_reassign_note ?? ''),
       implementation_status: String(row.implementation_status ?? ''),
+      contract_created_at: row.contract_created_at ? String(row.contract_created_at) : '',
+      contract_signed_at: row.contract_signed_at ? String(row.contract_signed_at) : '',
+      contract_amount_vnd: Number(row.contract_amount_vnd) || 0,
     };
   }
 
@@ -301,7 +319,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              ADD COLUMN IF NOT EXISTS solution_due_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS solution_customer_due_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS solution_revision_note TEXT,
-             ADD COLUMN IF NOT EXISTS solution_revision_due_at TIMESTAMPTZ`,
+             ADD COLUMN IF NOT EXISTS solution_revision_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS contract_created_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS contract_signed_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS contract_amount_vnd BIGINT NOT NULL DEFAULT 0`,
         )
         .then(() => undefined)
         .catch((err) => {
@@ -1135,13 +1156,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       },
       now,
     );
-    if (quoteCase && (quoteCase.phase === 'chuyen_bao_gia' || quoteCase.phase === 'bao_gia')) {
-      const leaders = await this.marketingLeaders();
+    const desk = quoteCase ? quoteDeskForPhase(quoteCase.phase) : null;
+    if (quoteCase && desk) {
+      const people = await this.staffForDesk(desk);
+      const currentId =
+        desk === 'marketing_leader' ? quoteCase.assignee_staff_id : await this.leadOwnerId(ps.lead_id);
       quoteCase = {
         ...quoteCase,
-        transfer_candidates: leaders
-          .filter((leader) => leader.id !== quoteCase?.assignee_staff_id)
-          .map((leader) => ({ id: leader.id, name: leader.name })),
+        transfer_candidates: people
+          .filter((person) => person.id !== currentId)
+          .map((person) => ({ id: person.id, name: person.name, title: person.title })),
       };
     }
     const handoff = await this.buildHandoffView(ps);
@@ -1529,7 +1553,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const activeResult = await this.db.query(
       `SELECT ps.stage, ps.consult_entered_at, ps.stage_entered_at
        FROM crm_lead_presales ps
-       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        WHERE ps.status = 'active' AND ps.stage = 'consult'${amFilter}`,
       params,
     );
@@ -1551,7 +1575,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const completedResult = await this.db.query(
       `SELECT ps.consult_entered_at, ps.proposal_entered_at
        FROM crm_lead_presales ps
-       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        WHERE ps.consult_entered_at IS NOT NULL
          AND ps.proposal_entered_at IS NOT NULL
          AND ps.consult_entered_at::text != ''
@@ -2015,13 +2039,17 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     );
   }
 
-  async claimSolution(leadId: number, staffId: number): Promise<PresalesRow> {
+  async claimSolution(leadId: number, staffId: number, asSuperAdmin = false): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (snap.presales.handoff_status !== 'pending') {
       throw new Error('Lead không ở trạng thái chờ Solution nhận case.');
     }
-    if (snap.presales.solution_owner_staff_id && snap.presales.solution_owner_staff_id !== staffId) {
+    if (
+      !asSuperAdmin &&
+      snap.presales.solution_owner_staff_id &&
+      snap.presales.solution_owner_staff_id !== staffId
+    ) {
       throw new Error('Case Solutions đang giao cho Marketing Leader khác.');
     }
     const due = solutionWorkDueAt(new Date());
@@ -2168,6 +2196,45 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     );
   }
 
+  private async staffForDesk(
+    desk: 'sale' | 'marketing_leader',
+  ): Promise<Array<{ id: number; name: string; title: string }>> {
+    const deskSql =
+      desk === 'marketing_leader'
+        ? `lower(replace(p.code, ' ', '')) IN ('mkl', 'mkt-01', 'mkt01')
+           AND lower(btrim(COALESCE(s.job_function_primary, ''))) IN ('', 'leader')
+           AND lower(btrim(COALESCE(s.job_title, ''))) IN ('mkl', 'marketing leader')`
+        : `lower(replace(p.code, ' ', '')) IN ('ae')
+           AND lower(btrim(COALESCE(s.job_function_primary, ''))) <> 'ops'
+           AND (
+             lower(btrim(COALESCE(s.job_function_primary, ''))) = 'sales'
+             OR lower(btrim(COALESCE(s.job_title, ''))) IN ('account executive', 'ae')
+           )`;
+    const result = await this.db.query(
+      `SELECT s.id, s.name, p.code AS position_code, p.name AS position_name,
+              COALESCE(s.job_title, '') AS job_title,
+              COALESCE(s.job_function_primary, '') AS job_function
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND ${deskSql}
+        ORDER BY s.name, s.id`,
+    );
+    return result.rows
+      .filter((row) =>
+        holdsQuoteDesk(desk, {
+          position_code: row.position_code,
+          job_title: row.job_title,
+          job_function: row.job_function,
+        }),
+      )
+      .map((row) => ({
+        id: Number(row.id),
+        name: String(row.name ?? '').trim(),
+        title: desk === 'marketing_leader' ? 'Marketing Leader' : 'Sale',
+      }));
+  }
+
   private async marketingLeaders(): Promise<Array<{ id: number; name: string }>> {
     const result = await this.db.query(
       `SELECT s.id, s.name
@@ -2181,6 +2248,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       id: Number(row.id),
       name: String(row.name ?? '').trim(),
     }));
+  }
+
+  private async leadOwnerId(leadId: number): Promise<number | null> {
+    const result = await this.db.query(`SELECT owner_id FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
+    const owner = Number(result.rows[0]?.owner_id);
+    return Number.isInteger(owner) && owner > 0 ? owner : null;
   }
 
   private async quoteAssigneeName(staffId: number | null): Promise<string> {
@@ -2286,12 +2359,38 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     const ps = snap.presales;
+    const desk = snap.quote_case ? quoteDeskForPhase(snap.quote_case.phase) : null;
+    if (!desk) throw new Error('Giai đoạn này không giao lại người nhận.');
+    const people = await this.staffForDesk(desk);
+    const target = people.find((row) => row.id === targetStaffId);
+    if (!target) {
+      throw new Error(
+        desk === 'sale' ? 'Chỉ giao cho nhân sự đang làm Sale.' : 'Chỉ giao cho nhân sự đang làm Marketing Leader.',
+      );
+    }
+    if (desk === 'sale') {
+      const ownerId = await this.leadOwnerId(leadId);
+      if (ownerId === targetStaffId) throw new Error('Lead đang giao cho Sale này.');
+      const note = `Giao Sale ${target.name} nhận bước ${snap.quote_case?.step_label || 'Sale'}.`;
+      await this.db.query(
+        `UPDATE crm_leads
+            SET owner_id = $2, assigned_at = NOW(), updated_at = NOW()
+          WHERE sqlite_lead_id = $1`,
+        [leadId, targetStaffId],
+      );
+      await this.db.query(
+        `INSERT INTO crm_lead_assignment_log
+           (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [leadId, ownerId, targetStaffId, note.slice(0, 500), String(actorStaffId)],
+      );
+      const status = await this.currentLeadStatus(leadId);
+      await this.noteLeadStep(leadId, actorStaffId, status, note.slice(0, 500));
+      return;
+    }
     if (!ps.solution_approved_at) throw new Error('Chưa có case báo giá để chuyển.');
-    if (ps.quote_approved_at) throw new Error('Báo giá đã sang Triển Khai.');
+    if (ps.quote_approved_at) throw new Error('Báo giá đã được Approve.');
     if (ps.quote_sent_back_at) throw new Error('Báo giá đang chờ Sale.');
-    const leaders = await this.marketingLeaders();
-    const target = leaders.find((row) => row.id === targetStaffId);
-    if (!target) throw new Error('Chỉ chuyển cho Marketing Leader đang hoạt động.');
     if (ps.quote_assignee_staff_id === targetStaffId) {
       throw new Error('Case đang giao cho Marketing Leader này.');
     }
@@ -2332,7 +2431,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.noteLeadStep(leadId, actorStaffId, status, note.slice(0, 500));
   }
 
-  private assertQuoteAssignee(ps: PresalesRow, staffId: number): void {
+  private assertQuoteAssignee(ps: PresalesRow, staffId: number, bypass = false): void {
+    if (bypass) return;
     if (ps.quote_assignee_staff_id && ps.quote_assignee_staff_id !== staffId) {
       throw new Error('Case báo giá đang giao cho Marketing Leader khác.');
     }
@@ -2458,10 +2558,20 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
+  private async assertQuoteSheetReadable(leadId: number, snap: PresalesSnapshot): Promise<void> {
+    const phase = snap.quote_case?.phase;
+    const kept =
+      phase === 'trien_khai' ||
+      Boolean(snap.presales.quote_approved_at) ||
+      Boolean(snap.presales.quote_sent_back_at);
+    if (kept) return;
+    await this.assertBaoGiaSheet(leadId, snap);
+  }
+
   async getQuoteSheet(leadId: number, requestedCodes: string[] | null): Promise<QuoteSheetView> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    await this.assertBaoGiaSheet(leadId, snap);
+    await this.assertQuoteSheetReadable(leadId, snap);
     const stored = await this.storedQuoteSheet(snap.presales.id);
     const catalog = await this.loadQuoteCatalog(requestedCodes ?? stored.service_codes);
     return assembleQuoteSheet({
@@ -2480,12 +2590,17 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     leadId: number,
     staffId: number,
     body: { service_codes?: unknown; lines?: unknown; vat_percent?: unknown; promo_percent?: unknown },
+    asSuperAdmin = false,
   ): Promise<QuoteSheetView> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    await this.assertBaoGiaSheet(leadId, snap);
-    if (snap.quote_case?.phase !== 'bao_gia') throw new Error('Bảng báo giá đang khóa.');
-    this.assertQuoteAssignee(snap.presales, staffId);
+    if (asSuperAdmin) {
+      if (snap.presales.quote_approved_at) throw new Error('Bảng báo giá đang khóa.');
+    } else {
+      await this.assertBaoGiaSheet(leadId, snap);
+      if (snap.quote_case?.phase !== 'bao_gia') throw new Error('Bảng báo giá đang khóa.');
+      this.assertQuoteAssignee(snap.presales, staffId);
+    }
     const parsed = readStoredQuoteSheet({
       service_codes: body.service_codes,
       lines: body.lines,
@@ -2530,6 +2645,68 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return { filename: `bao-gia-${leadId}.docx`, buffer };
   }
 
+  async quoteSheetXlsx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    const view = await this.getQuoteSheet(leadId, null);
+    const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
+    const label = String(name.rows[0]?.full_name ?? '').trim() || `Lead ${leadId}`;
+    const buffer = await renderLeadQuoteXlsx(view, label);
+    return { filename: `bao-gia-${leadId}.xlsx`, buffer };
+  }
+
+  async quoteContractDocx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.quote_approved_at && !snap.presales.contract_created_at) {
+      throw new Error('Sale chưa Approve báo giá.');
+    }
+    const view = await this.assembledQuoteSheet(snap.presales.id, false);
+    const contact = await this.getLeadPlanContact(leadId);
+    const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
+    const person = String(name.rows[0]?.full_name ?? '').trim();
+    const client = contact.company_name || person || `Lead ${leadId}`;
+    const contract = await this.db.query(
+      `SELECT c.amount_vnd, c.status, c.signed_on, a.status AS approval_status
+         FROM crm_contracts c
+         LEFT JOIN LATERAL (
+           SELECT status
+             FROM crm_contract_approvals
+            WHERE contract_id = c.id
+            ORDER BY id DESC
+            LIMIT 1
+         ) a ON TRUE
+        WHERE c.lead_id = $1
+        ORDER BY c.id DESC
+        LIMIT 1`,
+      [leadId],
+    );
+    const row = contract.rows[0] as
+      | { amount_vnd?: number | string; status?: string; signed_on?: string; approval_status?: string }
+      | undefined;
+    const approval = String(row?.approval_status ?? '');
+    const contractStatus = String(row?.status ?? '');
+    const approved =
+      approval === 'approved' || contractStatus === 'active' || Boolean(snap.presales.contract_signed_at);
+    const statusLabel = approved ? 'Đã duyệt' : approval === 'pending' ? 'Chờ GĐKD duyệt' : 'Bản gửi GĐKD';
+    const storedAmount = Number(row?.amount_vnd);
+    const amountVnd =
+      Number.isFinite(storedAmount) && storedAmount > 0
+        ? storedAmount
+        : Number(snap.presales.contract_amount_vnd) || view.grand_total_vnd;
+    const buffer = await renderLeadContractDocx(view, {
+      client,
+      contactName: person && person !== client ? person : '',
+      address: contact.address,
+      phone: contact.phone,
+      email: contact.email,
+      contractNo: `HĐ-${leadId}`,
+      statusLabel,
+      createdLabel: contractDateLabel(snap.presales.quote_approved_at || snap.presales.contract_created_at),
+      signedLabel: approved ? contractDateLabel(row?.signed_on || snap.presales.contract_signed_at) : '',
+      amountVnd,
+    });
+    return { filename: `hop-dong-${leadId}.docx`, buffer };
+  }
+
   async approveSubmittedSolution(leadId: number, staffId: number): Promise<void> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
@@ -2567,7 +2744,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.noteLeadStep(leadId, staffId, status, `Sale Approve Solution — sang bước Chuyển Báo Giá.${who}`);
   }
 
-  async acceptQuoteCase(leadId: number, staffId: number): Promise<void> {
+  async acceptQuoteCase(leadId: number, staffId: number, asSuperAdmin = false): Promise<void> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (!snap.presales.solution_approved_at) {
@@ -2576,14 +2753,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.quote_accepted_at) {
       throw new Error('Case đã được nhận lên báo giá.');
     }
-    const leaders = await this.marketingLeaders();
-    const isLeader = leaders.some((row) => row.id === staffId);
-    const isAssignee = snap.presales.quote_assignee_staff_id === staffId;
-    const isSolutionOwner = snap.presales.solution_owner_staff_id === staffId;
-    if (!isLeader && !isAssignee && !isSolutionOwner) {
-      throw new Error('Chỉ Marketing Leader được nhận case báo giá.');
+    if (!asSuperAdmin) {
+      const leaders = await this.marketingLeaders();
+      const isLeader = leaders.some((row) => row.id === staffId);
+      const isAssignee = snap.presales.quote_assignee_staff_id === staffId;
+      const isSolutionOwner = snap.presales.solution_owner_staff_id === staffId;
+      if (!isLeader && !isAssignee && !isSolutionOwner) {
+        throw new Error('Chỉ Marketing Leader được nhận case báo giá.');
+      }
+      this.assertQuoteAssignee(snap.presales, staffId);
     }
-    this.assertQuoteAssignee(snap.presales, staffId);
     await this.db.query(
       `UPDATE crm_lead_presales
        SET quote_accepted_at = NOW(),
@@ -2598,7 +2777,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.setLeadStatus(leadId, 'bao_gia', staffId, 'Marketing Leader nhận case báo giá.');
   }
 
-  async sendQuoteToSales(leadId: number, staffId: number): Promise<void> {
+  async sendQuoteToSales(leadId: number, staffId: number, asSuperAdmin = false): Promise<void> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (snap.presales.quote_approved_at) {
@@ -2611,7 +2790,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.quote_case?.phase !== 'bao_gia') {
       throw new Error('Báo giá không còn ở bước Marketing Leader.');
     }
-    this.assertQuoteAssignee(snap.presales, staffId);
+    this.assertQuoteAssignee(snap.presales, staffId, asSuperAdmin);
     await this.assertQuoteSheetReady(snap.presales.id);
     await this.db.query(
       `UPDATE crm_lead_presales
@@ -2639,14 +2818,198 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.db.query(
       `UPDATE crm_lead_presales
        SET quote_approved_at = NOW(),
-           implementation_status = 'trien_khai',
+           implementation_status = '',
            quote_accept_due_at = NULL,
            quote_due_at = NULL,
            updated_at = NOW()
        WHERE id = $1`,
       [snap.presales.id],
     );
-    await this.setLeadStatus(leadId, 'trien_khai', staffId, 'Sale Approve báo giá — sang Triển Khai.');
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      'Sale Approve báo giá. Lập hợp đồng và chờ GĐKD duyệt trước khi sang Triển Khai.',
+    );
+    try {
+      await this.syncQuoteDeliveryKpi(leadId);
+    } catch {
+      // Triển Khai đã lưu. Màn KPI gọi lại sync này.
+    }
+  }
+
+  private ensureDeliveryKpi(): Promise<void> {
+    if (!this.deliveryKpiReady) {
+      this.deliveryKpiReady = this.db
+        .query(
+          `CREATE TABLE IF NOT EXISTS crm_quote_delivery_alloc (
+             lead_id      BIGINT NOT NULL,
+             staff_id     BIGINT NOT NULL REFERENCES crm_staff (id) ON DELETE CASCADE,
+             hours        NUMERIC(10, 2) NOT NULL DEFAULT 0,
+             task_count   INTEGER NOT NULL DEFAULT 0,
+             year         INTEGER NOT NULL,
+             month        INTEGER NOT NULL,
+             updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+             PRIMARY KEY (lead_id, staff_id)
+           )`,
+        )
+        .then(() =>
+          this.db.query(
+            `INSERT INTO crm_kpi_metrics (code, name, unit, description, sort_order, active, higher_is_better)
+             SELECT $1, $2, 'giờ', 'Tổng giờ việc được phân trên báo giá đã Approve.', 900, TRUE, TRUE
+             WHERE NOT EXISTS (SELECT 1 FROM crm_kpi_metrics WHERE code = $1)`,
+            [QUOTE_DELIVERY_HOURS_CODE, QUOTE_DELIVERY_HOURS_NAME],
+          ),
+        )
+        .then(() => undefined)
+        .catch((err) => {
+          this.deliveryKpiReady = null;
+          throw err;
+        });
+    }
+    return this.deliveryKpiReady;
+  }
+
+  async syncQuoteDeliveryKpi(leadId: number): Promise<
+    DeliveryKpiSplit & { year: number; month: number; metric_name: string }
+  > {
+    await this.ensureQuoteCaseColumns();
+    await this.ensureDeliveryKpi();
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.quote_approved_at) throw new Error('Báo giá chưa Approve.');
+    const approvedAt = new Date(snap.presales.quote_approved_at);
+    if (!Number.isFinite(approvedAt.getTime())) throw new Error('Thiếu ngày Approve báo giá.');
+    const period = deliveryPeriod(approvedAt);
+    const leads = await this.db.query(
+      `SELECT id, lead_id
+         FROM crm_lead_presales
+        WHERE quote_approved_at IS NOT NULL
+          AND EXTRACT(YEAR FROM quote_approved_at AT TIME ZONE 'Asia/Ho_Chi_Minh') = $1
+          AND EXTRACT(MONTH FROM quote_approved_at AT TIME ZONE 'Asia/Ho_Chi_Minh') = $2`,
+      [period.year, period.month],
+    );
+    await this.db.query(`DELETE FROM crm_quote_delivery_alloc WHERE year = $1 AND month = $2`, [
+      period.year,
+      period.month,
+    ]);
+    let current = deliveryKpiFromSheet({ groups: [], included_count: 0 } as unknown as QuoteSheetView);
+    for (const row of leads.rows) {
+      const rowLeadId = Number(row.lead_id);
+      let split = deliveryKpiFromSheet({ groups: [], included_count: 0 } as unknown as QuoteSheetView);
+      try {
+        split = deliveryKpiFromSheet(await this.assembledQuoteSheet(Number(row.id), false));
+      } catch (err) {
+        if (rowLeadId === leadId) throw err;
+        continue;
+      }
+      if (rowLeadId === leadId) current = split;
+      for (const person of split.people) {
+        await this.db.query(
+          `INSERT INTO crm_quote_delivery_alloc (lead_id, staff_id, hours, task_count, year, month)
+           SELECT $1, s.id, $3, $4, $5, $6
+             FROM crm_staff s
+            WHERE s.id = $2
+           ON CONFLICT (lead_id, staff_id) DO UPDATE
+             SET hours = EXCLUDED.hours,
+                 task_count = EXCLUDED.task_count,
+                 year = EXCLUDED.year,
+                 month = EXCLUDED.month,
+                 updated_at = NOW()`,
+          [rowLeadId, person.staff_id, person.hours, person.tasks.length, period.year, period.month],
+        );
+      }
+    }
+    const metric = await this.db.query(`SELECT id FROM crm_kpi_metrics WHERE code = $1 ORDER BY id LIMIT 1`, [
+      QUOTE_DELIVERY_HOURS_CODE,
+    ]);
+    const metricId = Number(metric.rows[0]?.id);
+    if (metricId) {
+      await this.db.query(
+        `INSERT INTO crm_staff_kpi (staff_id, metric_id, year, month, target_value, status, notes)
+         SELECT a.staff_id, $1, $2, $3, ROUND(SUM(a.hours), 2), 'on_track',
+                'Giờ được phân trên báo giá đã Approve'
+           FROM crm_quote_delivery_alloc a
+          WHERE a.year = $2 AND a.month = $3
+          GROUP BY a.staff_id
+         ON CONFLICT (staff_id, metric_id, year, month) DO UPDATE
+           SET target_value = EXCLUDED.target_value,
+               notes = EXCLUDED.notes,
+               updated_at = NOW()`,
+        [metricId, period.year, period.month],
+      );
+      await this.db.query(
+        `UPDATE crm_staff_kpi k
+            SET target_value = 0, updated_at = NOW()
+          WHERE k.metric_id = $1 AND k.year = $2 AND k.month = $3
+            AND NOT EXISTS (
+              SELECT 1 FROM crm_quote_delivery_alloc a
+               WHERE a.staff_id = k.staff_id AND a.year = k.year AND a.month = k.month
+            )`,
+        [metricId, period.year, period.month],
+      );
+    }
+    return { ...current, year: period.year, month: period.month, metric_name: QUOTE_DELIVERY_HOURS_NAME };
+  }
+
+  async createQuoteContract(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.quote_approved_at) {
+      throw new Error('Sale chưa Approve báo giá.');
+    }
+    if (snap.presales.contract_created_at) {
+      throw new Error('Hợp đồng đã được tạo.');
+    }
+    const sheet = await this.assembledQuoteSheet(snap.presales.id, false);
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET contract_created_at = NOW(),
+           contract_amount_vnd = $2,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id, sheet.grand_total_vnd],
+    );
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      'trien_khai',
+      `Đã tạo hợp đồng từ báo giá đã Approve. Giá trị ${sheet.grand_total_vnd} đ.`,
+    );
+  }
+
+  async signQuoteContract(leadId: number, staffId: number): Promise<void> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.contract_created_at) {
+      throw new Error('Tạo hợp đồng trước khi ký.');
+    }
+    if (snap.presales.contract_signed_at) {
+      throw new Error('Hợp đồng đã ký.');
+    }
+    await this.db.query(
+      `UPDATE crm_lead_presales
+       SET contract_signed_at = NOW(),
+           implementation_status = 'ke_hoach',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [snap.presales.id],
+    );
+    await this.noteLeadStep(leadId, staffId, 'trien_khai', 'Hợp đồng đã ký. Mở kế hoạch triển khai.');
+  }
+
+  async getImplementationPlan(leadId: number) {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (!snap.presales.contract_signed_at) {
+      throw new Error('Kế hoạch triển khai mở sau khi hợp đồng đã ký.');
+    }
+    const sheet = await this.assembledQuoteSheet(snap.presales.id, false);
+    return {
+      grand_total_vnd: sheet.grand_total_vnd,
+      groups: implementationPlanFromSheet(sheet),
+    };
   }
 
   async requestQuoteEdits(leadId: number, staffId: number, note: string): Promise<void> {
@@ -2799,6 +3162,18 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       queue_kind: row.queue_kind === 'am_rework' ? 'am_rework' : 'solution',
     };
   }
+}
+
+function contractDateLabel(value: string | null | undefined): string {
+  const text = String(value ?? '').trim();
+  const ms = Date.parse(text);
+  if (!text || !Number.isFinite(ms)) return '';
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(ms));
 }
 
 function leadMetaRecord(raw: unknown): Record<string, unknown> | null {

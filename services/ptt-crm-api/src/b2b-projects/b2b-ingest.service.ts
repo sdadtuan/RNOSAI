@@ -69,6 +69,7 @@ export class B2bIngestService {
           formId: keys.formId,
           pageId: keys.pageId,
           oaId: keys.oaId,
+          advertiserId: keys.advertiserId,
           webformSlug: keys.webformSlug,
         },
         catalog,
@@ -79,7 +80,12 @@ export class B2bIngestService {
         await this.repo.insertUnmatchedIngress({
           channel: ingressChannel,
           projectSlug: projectSlug || undefined,
-          externalKey: keys.formId ?? keys.oaId ?? keys.webformSlug ?? lead.external_lead_id,
+          externalKey:
+            keys.formId ??
+            keys.oaId ??
+            keys.advertiserId ??
+            keys.webformSlug ??
+            lead.external_lead_id,
           payload: {
             reason: resolved.reason,
             external_lead_id: lead.external_lead_id,

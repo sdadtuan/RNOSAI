@@ -1,6 +1,25 @@
+/** Sale work that sits above Solution. Marketing Leader does not see these prompts. */
+function isSaleEarlyPath(path: string): boolean {
+  return (
+    path === '/crm/b2b/leads' ||
+    path === '/crm/leads' ||
+    path.startsWith('/crm/b2b/leads/new') ||
+    path.startsWith('/crm/leads/new') ||
+    (path.startsWith('/crm/leads/') && path !== '/crm/leads') ||
+    path.startsWith('/crm/b2b-inbox') ||
+    path.startsWith('/crm/intake') ||
+    path.startsWith('/crm/sales') ||
+    path.startsWith('/crm/operational/leads')
+  );
+}
+
 /** P2 — one next-action line per workspace path (Pipedrive-style). */
-export function nextActionFor(pathname: string): string | null {
+export function nextActionFor(
+  pathname: string,
+  options?: { hideSaleEarly?: boolean },
+): string | null {
   const path = String(pathname ?? '').split('?')[0] || '/';
+  if (options?.hideSaleEarly && isSaleEarlyPath(path)) return null;
 
   if (path === '/crm/b2b/leads' || path === '/crm/leads') {
     return 'Bước tiếp: gọi lead Nóng trong giờ làm việc — mở card hoặc Inbox.';

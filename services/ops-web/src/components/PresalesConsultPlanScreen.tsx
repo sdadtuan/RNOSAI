@@ -24,6 +24,7 @@ import {
 } from '@/lib/crm/client-plan-brief.ui';
 import { CONSULT_CHANNEL_OPTIONS, formatChannelsBrief, parseChannelsBrief } from '@/lib/crm/consult-facts-suggest.ui';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
+import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
 
 const PLAN_FIELDS: Array<{ key: string; label: string; slot: string }> = [
   { key: 'name', label: 'Tên kế hoạch', slot: 'name' },
@@ -42,12 +43,64 @@ const PLAN_FIELDS: Array<{ key: string; label: string; slot: string }> = [
 
 const EMPTY_PLAN: Record<string, string> = Object.fromEntries(PLAN_FIELDS.map((field) => [field.key, '']));
 
+const MKT_FILE_MAX_BYTES = 1_500_000;
+const MKT_FILE_MAX_COUNT = 5;
+
+interface MktAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  data_url: string;
+}
+
+function readMktAttachments(plan: Record<string, unknown> | null | undefined): MktAttachment[] {
+  if (!plan) return [];
+  const raw = plan.strategy_framework_json ?? plan.strategy_framework;
+  let record: Record<string, unknown> = {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        record = parsed as Record<string, unknown>;
+      }
+    } catch {
+      record = {};
+    }
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    record = raw as Record<string, unknown>;
+  }
+  const packed = record.mkt_files;
+  if (typeof packed !== 'string' || !packed.trim()) return [];
+  try {
+    const rows = JSON.parse(packed) as unknown;
+    if (!Array.isArray(rows)) return [];
+    return rows.flatMap((row) => {
+      if (!row || typeof row !== 'object') return [];
+      const item = row as Record<string, unknown>;
+      const name = String(item.name ?? '').trim();
+      const dataUrl = String(item.data_url ?? '');
+      if (!name || !dataUrl.startsWith('data:')) return [];
+      return [
+        {
+          id: String(item.id ?? name),
+          name,
+          mime: String(item.mime ?? 'application/octet-stream'),
+          data_url: dataUrl,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 interface Props {
   token: string;
   leadId: number;
   funnel: LeadFunnelSnapshot;
   canEdit: boolean;
   canAiDraft: boolean;
+  forcePlan?: boolean;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
@@ -59,6 +112,7 @@ export function PresalesConsultPlanScreen({
   funnel,
   canEdit,
   canAiDraft,
+  forcePlan = false,
   onMessage,
   onError,
   onFunnelChange,
@@ -82,6 +136,7 @@ export function PresalesConsultPlanScreen({
   const [humanEdited, setHumanEdited] = useState<string[]>([]);
   const [dirty, setDirty] = useState<string[]>([]);
   const [plan, setPlan] = useState<Record<string, string>>(EMPTY_PLAN);
+  const [files, setFiles] = useState<MktAttachment[]>([]);
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [modelName, setModelName] = useState('');
   const [sourceErrors, setSourceErrors] = useState<string[]>([]);
@@ -134,6 +189,7 @@ export function PresalesConsultPlanScreen({
           ...hydrated.planStrategy,
         });
         setPlanValidation(planOut.validation.messages ?? []);
+        setFiles(readMktAttachments(planOut.plan));
         setModelName(planOut.ai_draft?.model_name ?? '');
         setFactsReady(true);
       } catch (err) {
@@ -359,6 +415,61 @@ export function PresalesConsultPlanScreen({
     }
   }
 
+  async function persistFiles(next: MktAttachment[]) {
+    setFiles(next);
+    await patchLeadPresalesMarketingPlan(token, leadId, {
+      strategy_framework: { mkt_files: JSON.stringify(next) },
+    });
+  }
+
+  async function onAttachFile(file: File | undefined) {
+    if (!file || !canEdit) return;
+    if (file.size > MKT_FILE_MAX_BYTES) {
+      onError?.('File lớn hơn 1.5MB');
+      return;
+    }
+    if (files.length >= MKT_FILE_MAX_COUNT) {
+      onError?.('Tối đa 5 file');
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(new Error('Không đọc được file'));
+      reader.readAsDataURL(file);
+    });
+    setBusy(true);
+    try {
+      await persistFiles([
+        ...files,
+        {
+          id: `${Date.now()}-${file.name}`,
+          name: file.name,
+          mime: file.type || 'application/octet-stream',
+          data_url: dataUrl,
+        },
+      ]);
+      onMessage?.(`Đã đính kèm ${file.name}`);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Không lưu được file');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRemoveFile(id: string) {
+    if (!canEdit) return;
+    setBusy(true);
+    try {
+      await persistFiles(files.filter((row) => row.id !== id));
+      onMessage?.('Đã gỡ file');
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Không gỡ được file');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onExport() {
     setBusy(true);
     try {
@@ -386,6 +497,12 @@ export function PresalesConsultPlanScreen({
       </label>
     );
   }
+
+  const showPlan = forcePlan || showPreliminaryMarketingPlan({
+    stage: funnel.presales?.presales.stage,
+    handoffStatus: funnel.presales?.handoff?.status,
+    quotePhase: funnel.presales?.quote_case?.phase,
+  });
 
   return (
     <section className="consult-plan stack-gap" aria-label="Kế hoạch gửi khách">
@@ -520,66 +637,112 @@ export function PresalesConsultPlanScreen({
         </div>
       </details>
 
-      <div>
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          disabled={busy || !canEdit || !canAiDraft || missing.length > 0}
-          onClick={() => void onAi()}
-        >
-          AI viết kế hoạch
-        </button>
-        {missing.length > 0 ? (
+      <div className="client-plan-brief__field">
+        <span>
+          File đính kèm
+        </span>
+        <input
+          type="file"
+          aria-label="Đính kèm file Solutions"
+          disabled={!canEdit || busy}
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = '';
+            void onAttachFile(picked);
+          }}
+        />
+        <span className="client-plan-brief__hint">Tối đa 5 file, mỗi file 1.5MB. PDF, ảnh, Excel, Word.</span>
+        {files.length === 0 ? (
+          <span className="muted">Chưa có file.</span>
+        ) : (
           <ul className="client-plan-brief__missing">
-            {missing.map((label) => (
-              <li key={label}>Thiếu {label}.</li>
+            {files.map((file) => (
+              <li key={file.id}>
+                <a href={file.data_url} download={file.name}>
+                  {file.name}
+                </a>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    disabled={busy}
+                    onClick={() => void onRemoveFile(file.id)}
+                  >
+                    Gỡ
+                  </button>
+                ) : null}
+              </li>
             ))}
           </ul>
-        ) : null}
+        )}
       </div>
 
-      {modelLine ? (
-        <div className="banner banner-warning">
-          <strong>Bản nháp — SP duyệt.</strong>
-          <p style={{ margin: '0.35rem 0 0' }}>{modelLine}</p>
-          {sourceErrors.length > 0 ? <p style={{ margin: '0.35rem 0 0' }}>{sourceErrors[0]}</p> : null}
-        </div>
+      {showPlan ? (
+        <>
+          <div>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={busy || !canEdit || !canAiDraft || missing.length > 0}
+              onClick={() => void onAi()}
+            >
+              AI viết kế hoạch
+            </button>
+            {missing.length > 0 ? (
+              <ul className="client-plan-brief__missing">
+                {missing.map((label) => (
+                  <li key={label}>Thiếu {label}.</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          {modelLine ? (
+            <div className="banner banner-warning">
+              <strong>Bản nháp — SP duyệt.</strong>
+              <p style={{ margin: '0.35rem 0 0' }}>{modelLine}</p>
+              {sourceErrors.length > 0 ? <p style={{ margin: '0.35rem 0 0' }}>{sourceErrors[0]}</p> : null}
+            </div>
+          ) : null}
+
+          <h4 style={{ margin: 0 }}>KH Marketing sơ bộ (R5)</h4>
+
+          {PLAN_FIELDS.map((field) => {
+            const locked = humanEdited.includes(field.key) || dirty.includes(field.key);
+            return (
+              <label className="client-plan-brief__field" key={field.slot}>
+                {field.label}
+                {locked ? <span className="consult-plan__lock">Đã sửa — AI không đè</span> : null}
+                <textarea
+                  id={`consult-plan-${field.slot}`}
+                  value={plan[field.key] ?? ''}
+                  disabled={!canEdit || busy}
+                  onChange={(event) => markDirty(field.key, event.target.value)}
+                />
+              </label>
+            );
+          })}
+
+          {g4.length > 0 ? (
+            <ul className="client-plan-brief__missing">
+              {g4.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          <div className="flex-gap">
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canEdit} onClick={() => void onSave()}>
+              Lưu
+            </button>
+            {showClientPlanExportButton(planValidation) ? (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void onExport()}>
+                Tải PPTX
+              </button>
+            ) : null}
+          </div>
+        </>
       ) : null}
-
-      {PLAN_FIELDS.map((field) => {
-        const locked = humanEdited.includes(field.key) || dirty.includes(field.key);
-        return (
-          <label className="client-plan-brief__field" key={field.slot}>
-            {field.label}
-            {locked ? <span className="consult-plan__lock">Đã sửa — AI không đè</span> : null}
-            <textarea
-              id={`consult-plan-${field.slot}`}
-              value={plan[field.key] ?? ''}
-              disabled={!canEdit || busy}
-              onChange={(event) => markDirty(field.key, event.target.value)}
-            />
-          </label>
-        );
-      })}
-
-      {g4.length > 0 ? (
-        <ul className="client-plan-brief__missing">
-          {g4.map((message) => (
-            <li key={message}>{message}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="flex-gap">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canEdit} onClick={() => void onSave()}>
-          Lưu
-        </button>
-        {showClientPlanExportButton(planValidation) ? (
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void onExport()}>
-            Tải PPTX
-          </button>
-        ) : null}
-      </div>
     </section>
   );
 }

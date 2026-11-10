@@ -2,7 +2,7 @@ import { isLeadPipelineTabEnabled } from '@/lib/crm/lead-pipeline-flags';
 import { showPresalesForFlow, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import type { PresalesFunnelStepKey } from '@/lib/crm/funnel-stepper.types';
 
-export type LeadWorkspaceDesktopTab = 'pipeline' | 'contract' | 'consult' | 'lmp';
+export type LeadWorkspaceDesktopTab = 'pipeline' | 'history' | 'contract' | 'consult' | 'lmp';
 
 export type PipelineTabDefaultInput = {
   flowKind: LeadFlowKind;
@@ -33,12 +33,13 @@ export function mapLegacyHashToPipeline(
   presalesStage?: string | null,
 ): { tab: 'pipeline'; step: PresalesFunnelStepKey } | null {
   const h = hash.startsWith('#') ? hash : hash ? `#${hash}` : '';
+  if (h === '#lead-contract' || h.startsWith('#lead-contract')) return null;
   if (h === '#funnel-b2') return { tab: 'pipeline', step: 'b2' };
   if (h === '#funnel-presales') {
     if (presalesStage === 'consult' || presalesStage === 'proposal') {
       return { tab: 'pipeline', step: presalesStage };
     }
-    return { tab: 'pipeline', step: 'presales_lead' };
+    return { tab: 'pipeline', step: 'intake_bant' };
   }
   if (h === '#funnel-presales-r5') {
     return {
@@ -49,15 +50,19 @@ export function mapLegacyHashToPipeline(
   return null;
 }
 
-const TABS: LeadWorkspaceDesktopTab[] = ['pipeline', 'contract', 'consult', 'lmp'];
+const TABS: LeadWorkspaceDesktopTab[] = ['pipeline', 'history', 'contract', 'consult', 'lmp'];
 
 export function defaultLeadWorkspaceTab(input: PipelineTabDefaultInput): LeadWorkspaceDesktopTab {
+  const hash = input.hash.startsWith('#') ? input.hash : input.hash ? `#${input.hash}` : '';
+  if (hash === '#lead-contract' || hash.startsWith('#lead-contract')) return 'contract';
+
   const fromHash = mapLegacyHashToPipeline(input.hash);
   if (fromHash) return fromHash.tab;
 
   const requested = TABS.find((t) => t === input.searchTab);
   if (requested === 'consult' && input.showConsult) return 'consult';
   if (requested === 'lmp' && input.showLmp) return 'lmp';
+  if (requested === 'history' && shouldShowPipelineTab(input.flowKind)) return 'history';
   if (requested === 'contract') return 'contract';
   if (requested === 'pipeline' && shouldShowPipelineTab(input.flowKind)) return 'pipeline';
 

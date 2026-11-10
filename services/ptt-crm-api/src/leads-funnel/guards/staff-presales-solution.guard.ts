@@ -29,6 +29,7 @@ export class StaffPresalesSolutionClaimGuard implements CanActivate {
     >();
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
     assertCapOrThrow(me.caps, 'claim');
     return true;

@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { IntakeFormActions } from '@/components/crm/intake/IntakeFormActions';
 import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeCompleteConfirmModal';
 import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
-import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
 import { IntakeP13CatalogDialog } from '@/components/crm/intake/IntakeP13CatalogDialog';
@@ -15,6 +14,7 @@ import { IntakeNextStepBanner } from '@/components/crm/intake/IntakeNextStepBann
 import { IntakeWinChecklistPanel } from '@/components/crm/intake/IntakeWinChecklistPanel';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
+import { decisionMakerNameOf, IntakeSaveGate } from '@/components/crm/intake/IntakeSaveGate';
 import { IntakeSalesKitLibrarySheet } from '@/components/crm/intake/IntakeSalesKitLibrarySheet';
 import { IntakeSalesKitPanel } from '@/components/crm/intake/IntakeSalesKitPanel';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
@@ -152,9 +152,13 @@ import {
 export function IntakeContent({
   initialLeadId = 0,
   initialLifecycleId = 0,
+  initialSessionId = 0,
+  initialOpenBant = false,
 }: {
   initialLeadId?: number;
   initialLifecycleId?: number;
+  initialSessionId?: number;
+  initialOpenBant?: boolean;
 }) {
   const router = useRouter();
   const [leadId, setLeadId] = useState(initialLeadId);
@@ -169,6 +173,10 @@ export function IntakeContent({
   const [decisionReason, setDecisionReason] = useState('');
   const [contactName, setContactName] = useState('');
   const [need, setNeed] = useState('');
+  const needRef = useRef(need);
+  useEffect(() => {
+    needRef.current = need;
+  }, [need]);
   const [discovery, setDiscovery] = useState<DiscoveryChecklistState>(emptyDiscoveryForMode('phone'));
   const [stakeholders, setStakeholders] = useState<IntakeStakeholderRow[]>(defaultStakeholders());
   const [commitments, setCommitments] = useState<IntakeCommitmentRow[]>(defaultCommitments());
@@ -183,7 +191,7 @@ export function IntakeContent({
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false);
-  const [bantOpen, setBantOpen] = useState(false);
+  const [bantOpen, setBantOpen] = useState(initialOpenBant);
   const [winOpen, setWinOpen] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -649,7 +657,7 @@ export function IntakeContent({
           loadLeadContext(access),
           loadIntakeDealContext(access),
           refreshStepperData(access),
-          loadSessions(access, null),
+          loadSessions(access, initialSessionId > 0 ? initialSessionId : null),
         ]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải trang khảo sát thất bại');
@@ -708,12 +716,6 @@ export function IntakeContent({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed tab when session identity changes
   }, [activeId, active?.status]);
-
-  function onSelectSession(session: IntakeSessionRow) {
-    applySession(session);
-    setSidebarOpen(false);
-    setMessage('');
-  }
 
   async function onDeleteSession(session: IntakeSessionRow) {
     if (session.status !== 'draft') return;
@@ -793,10 +795,6 @@ export function IntakeContent({
 
   const onServiceChange = useCallback(
     async (slug: string) => {
-      if (active?.status === 'completed') {
-        setMessage('Reopen hoặc tạo phiên mới để đổi dịch vụ.');
-        return;
-      }
       const previousOverride = serviceOverride;
       setServiceOverride(slug);
       if (slug && slug !== '_common') setP13PopupSlug(slug);
@@ -838,12 +836,15 @@ export function IntakeContent({
 
   const saveP13Scope = useCallback(
     async (scope: IntakeP13Scope & { service_name?: string }) => {
-      if (!active || active.status !== 'draft' || !canCreate) {
-        setError('Reopen hoặc tạo phiên nháp để lưu dịch vụ và hạng mục.');
-        return;
+      if (!canCreate) {
+        const message = 'Không có quyền lưu dịch vụ và hạng mục.';
+        setError(message);
+        throw new Error(message);
       }
       const access = getAccessToken();
-      if (!access) return;
+      if (!access) {
+        throw new Error('Hết phiên đăng nhập. Tải lại trang rồi đăng nhập lại.');
+      }
       const matchedSlug =
         catalogServices.find(
           (row) =>
@@ -862,30 +863,46 @@ export function IntakeContent({
       setP13Saving(true);
       setError('');
       try {
-        const answers = mergeIntakeP13Scope(active.answers_json, nextScope);
-        await patchIntakeSession(access, active.id, {
+        let session = active;
+        if (!session || session.status !== 'draft') {
+          const existingDraft = sessions.find((row) => row.status === 'draft');
+          if (existingDraft) {
+            session = existingDraft;
+          } else if (session?.status === 'completed') {
+            session = await reopenIntakeSession(access, session.id);
+          } else {
+            session = await createIntakeSession(
+              access,
+              buildCreateIntakeSessionBody({
+                leadId,
+                lifecycleId,
+                mode: 'phone',
+                lead,
+                serviceSlug: matchedSlug ?? undefined,
+              }),
+            );
+          }
+        }
+        const answers = mergeIntakeP13Scope(session.answers_json, nextScope);
+        await patchIntakeSession(access, session.id, {
           answers_json: answers,
           ...(matchedSlug ? { service_slug: matchedSlug } : {}),
         });
         if (matchedSlug) setServiceOverride(matchedSlug);
-        setSessions((rows) =>
-          rows.map((row) =>
-            row.id === active.id
-              ? { ...row, answers_json: answers, service_slug: matchedSlug ?? row.service_slug }
-              : row,
-          ),
-        );
+        await loadSessions(access, session.id);
         setMessage(
           `Đã lưu ${scope.service_name || scope.service_code} · ${scope.item_codes.length} hạng mục`,
         );
         setP13PopupSlug(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Lưu hạng mục thất bại');
+        const message = err instanceof Error ? err.message : 'Lưu hạng mục thất bại';
+        setError(message);
+        throw err instanceof Error ? err : new Error(message);
       } finally {
         setP13Saving(false);
       }
     },
-    [active, canCreate, catalogServices],
+    [active, canCreate, catalogServices, lead, leadId, lifecycleId, loadSessions, sessions],
   );
 
   const performSave = useCallback(
@@ -924,7 +941,7 @@ export function IntakeContent({
           answers_json: mergeIntakeP13Scope(
             buildIntakeAnswersPatch({
               existing: active.answers_json,
-              need,
+              need: needRef.current,
               discovery: { ...nextDiscovery, mode: sessionMode },
               redFlags,
               winIntel: nextWinIntel,
@@ -987,8 +1004,24 @@ export function IntakeContent({
     },
   });
 
+  async function onSelectSession(session: IntakeSessionRow) {
+    if (session.id !== activeId && autosave.dirty && active?.status === 'draft' && canCreate) {
+      try {
+        await autosave.flushSave();
+      } catch {
+        if (!window.confirm('Không lưu được phiên hiện tại. Vẫn chuyển sang phiên khác?')) {
+          return;
+        }
+      }
+    }
+    applySession(session);
+    setSidebarOpen(false);
+    setMessage('');
+  }
+
   useEffect(() => {
     if (!active || !intakeDefinition) return;
+    if (autosave.dirty) return;
     const form = intakeFormFromSession(active, intakeDefinition);
     setDiscovery(form.discovery);
     setStakeholders(form.stakeholders);
@@ -998,8 +1031,8 @@ export function IntakeContent({
     setQualifyChecked(form.qualifyChecked);
     setBantChecklist(form.bantChecklist);
     setWinChecklist(form.winChecklist);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
-  }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate when definition loads; skip if user has unsaved edits
+  }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id, autosave.dirty]);
 
   useEffect(() => {
     setScoreSuggest(null);
@@ -1100,8 +1133,7 @@ export function IntakeContent({
       const updated = await completeIntakeSession(access, active.id);
       await loadSessions(access, updated.id);
       await refreshStepperData(access);
-      setFunnelCollapsed(false);
-      setMessage('Đã hoàn thành phiên — xem Bước tiếp theo / Funnel để giao Solution nếu gate OK');
+      setMessage('Đã hoàn thành phiên. Giao Solution ở banner phía trên, hoặc quay lại lead.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hoàn thành thất bại');
     } finally {
@@ -1209,6 +1241,49 @@ export function IntakeContent({
     const next = event.relatedTarget as Node | null;
     if (next && event.currentTarget.contains(next)) return;
     autosave.saveOnBlur();
+  }
+
+  function onWorkspaceTabChange(tab: IntakeWorkspaceTab) {
+    if (tab !== activeTab) {
+      autosave.saveOnBlur();
+    }
+    setActiveTab(tab);
+  }
+
+  async function persistCompletedBantScore(
+    nextChecklist: BantChecklistState,
+    nextBant: Record<string, number>,
+  ) {
+    if (!active || !canCreate) return;
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      if (active.status === 'completed') {
+        await reopenIntakeSession(access, active.id);
+      }
+      await patchIntakeSession(access, active.id, {
+        bant_json: nextBant,
+        answers_json: buildIntakeAnswersPatch({
+          existing: active.answers_json,
+          need,
+          discovery,
+          redFlags,
+          winIntel,
+          qualifyChecked,
+          bantChecklist: nextChecklist,
+          winChecklist,
+        }),
+      });
+      await loadSessions(access, active.id);
+      setMessage('Đã lưu điểm BANT');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lưu được điểm BANT');
+      await loadSessions(access, active.id).catch(() => undefined);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function onReopen() {
@@ -1478,8 +1553,8 @@ export function IntakeContent({
                 sciExcerpt={sciExcerpt}
                 leadHref={leadHref}
                 cockpitHref={cockpitHref}
-                canEdit={canCreate && active?.status !== 'completed'}
-                sessionCompleted={active?.status === 'completed'}
+                canEdit={canCreate}
+                sessionCompleted={false}
                 slugMismatch={slugMismatch}
                 funnelCollapsed={funnelCollapsed}
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
@@ -1563,24 +1638,6 @@ export function IntakeContent({
                 </div>
               ) : null}
 
-              {leadId > 0 && !funnelCollapsed ? (
-                <CrmFunnelStepper
-                  leadId={leadId}
-                  funnel={funnelSnap}
-                  consultGate={consultGate}
-                  intakeSummary={intakeSummary}
-                  solutionCaps={solutionCaps}
-                  context="intake"
-                  gateLoading={gateLoading}
-                  actionBusy={stepperBusy || saving}
-                  onRefreshGate={() => {
-                    const access = getAccessToken();
-                    if (access) void refreshStepperData(access);
-                  }}
-                  onPrimaryAction={(action) => void onStepperPrimaryAction(action)}
-                />
-              ) : null}
-
               {active ? (
                 <div className="intake-form stack-gap">
                   <header className="intake-form__head">
@@ -1594,14 +1651,44 @@ export function IntakeContent({
                     </p>
                   </header>
 
+                  <IntakeSaveGate
+                    serviceMissing={!resolvedSlug || resolvedSlug === '_common'}
+                    contactName={contactName}
+                    need={need}
+                    decision={decision}
+                    decisionReason={decisionReason}
+                    disabled={formDisabled}
+                    mode={sessionMode}
+                    criticalItems={discoveryQuestionItems.filter((item) => item.critical)}
+                    checked={discovery.checked}
+                    responses={discovery.responses}
+                    decisionMakerName={decisionMakerNameOf(stakeholders)}
+                    onContactNameChange={setContactName}
+                    onNeedChange={(html) => {
+                      needRef.current = html;
+                      setNeed(html);
+                    }}
+                    onDecisionChange={setDecision}
+                    onDecisionReasonChange={setDecisionReason}
+                    onDecisionBlur={onBantDecisionBlur}
+                    onToggleQuestion={onToggleDiscoveryQuestion}
+                    onResponseChange={onDiscoveryResponseChange}
+                    onDecisionMakerNameChange={(value) =>
+                      setStakeholders((prev) =>
+                        prev.map((row) =>
+                          row.role === 'decision_maker' ? { ...row, name: value } : row,
+                        ),
+                      )
+                    }
+                  />
+
                   <IntakeWorkspaceTabs
                     activeTab={activeTab}
-                    onChange={setActiveTab}
+                    onChange={onWorkspaceTabChange}
                     qualify={
                       <IntakeQualifyTab
                         bant={bant}
                         decision={decision}
-                        decisionReason={decisionReason}
                         disabled={formDisabled}
                         validationErrors={validationErrors}
                         redFlagItems={redFlagItems}
@@ -1609,9 +1696,6 @@ export function IntakeContent({
                         qualifyItems={intakeDefinition?.qualify_items ?? []}
                         qualifyChecked={qualifyChecked}
                         onOpenBant={() => setBantOpen(true)}
-                        onDecisionChange={setDecision}
-                        onDecisionReasonChange={setDecisionReason}
-                        onBantDecisionBlur={onBantDecisionBlur}
                         onToggleRedFlag={onToggleRedFlag}
                         onRedFlagNotesChange={(value) =>
                           setRedFlags((prev) => ({ ...prev, notes: value }))
@@ -1626,18 +1710,15 @@ export function IntakeContent({
                         checked={discovery.checked}
                         responses={discovery.responses}
                         notes={discovery.notes}
-                        contactName={contactName}
-                        need={need}
                         disabled={formDisabled}
                         canChangeMode={active.status === 'draft' && canCreate}
                         onModeChange={(mode) => void onChangeSessionMode(mode)}
-                        onContactNameChange={setContactName}
-                        onNeedChange={setNeed}
                         onToggleQuestion={onToggleDiscoveryQuestion}
                         onResponseChange={onDiscoveryResponseChange}
                         onNotesChange={(value) =>
                           setDiscovery((prev) => ({ ...prev, mode: sessionMode, notes: value }))
                         }
+                        onPersistBlur={autosave.saveOnBlur}
                       />
                     }
                     winIntel={
@@ -1732,7 +1813,7 @@ export function IntakeContent({
         <div id="intake-bant-checklist">
           <IntakeBantChecklistPanel
             checklist={bantChecklist}
-            canEdit={canCreate && active?.status !== 'completed'}
+            canEdit={Boolean(canCreate && active) && !saving}
             canConfirmAssumed={canCreate}
             questionItems={discoveryQuestionItems}
             checked={discovery.checked}
@@ -1740,7 +1821,11 @@ export function IntakeContent({
             onToggle={(key, score) => {
               setBantChecklist((prev) => {
                 const next = toggleBantChecklistScore(prev, key, score);
-                setBant(scoreBantFromChecklist(next));
+                const nextBant = scoreBantFromChecklist(next);
+                setBant(nextBant);
+                if (active?.status === 'completed') {
+                  void persistCompletedBantScore(next, nextBant);
+                }
                 return next;
               });
             }}

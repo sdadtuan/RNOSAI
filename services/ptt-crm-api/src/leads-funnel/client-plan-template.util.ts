@@ -176,7 +176,7 @@ function lineForSlide(slideNo: number, input: ClientPlanTemplateInput): string {
     13: show(input.message || input.usp),
     14: show(input.channels || input.media),
     15: show(input.media || input.channels),
-    16: show(input.channels),
+    16: show(input.conversion || input.channels),
     17: `Từ khóa tìm kiếm: ${LOCK}`,
     18: show(input.retain),
     19: 'Lịch nội dung chốt sau khi chọn kênh.',

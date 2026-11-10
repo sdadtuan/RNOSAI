@@ -24,6 +24,8 @@ import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePane
 import { LeadPipelinePresalesPanel } from '@/components/crm/LeadPipelinePresalesPanel';
 import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
+import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import {
   hydratePresalesR5Form,
   shouldHydratePresalesMarketingPlan,
@@ -452,6 +454,14 @@ export function LeadFunnelPanel({
     ));
   }
 
+  const showPlan =
+    isSuperAdmin(user) ||
+    showPreliminaryMarketingPlan({
+      stage: funnel?.presales?.presales?.stage,
+      handoffStatus: funnel?.presales?.handoff?.status,
+      quotePhase: funnel?.presales?.quote_case?.phase,
+    });
+
   const r5Form = (
     <>
       <PresalesClientBriefCard
@@ -627,6 +637,7 @@ export function LeadFunnelPanel({
                 onOpenConsultTab={onOpenConsultTab}
                 tasks={renderPresalesTasks()}
                 r5Form={r5Form}
+                showPlan={showPlan}
                 stage="lead"
               />
             )
@@ -653,6 +664,7 @@ export function LeadFunnelPanel({
               onOpenConsultTab={onOpenConsultTab}
               tasks={renderPresalesTasks()}
               r5Form={r5Form}
+              showPlan={showPlan}
               stage="consult"
             />
           }
@@ -669,6 +681,7 @@ export function LeadFunnelPanel({
               onOpenConsultTab={onOpenConsultTab}
               tasks={renderPresalesTasks()}
               r5Form={r5Form}
+              showPlan={showPlan}
               stage="proposal"
             />
           }
@@ -701,6 +714,7 @@ export function LeadFunnelPanel({
               onOpenConsultTab={onOpenConsultTab}
               tasks={renderPresalesTasks()}
               r5Form={r5Form}
+              showPlan={showPlan}
             />
           ) : null}
         </>

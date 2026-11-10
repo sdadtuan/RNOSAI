@@ -13,6 +13,6 @@ export function showLeadConsultTab(funnel: LeadFunnelSnapshot | null | undefined
 export function presalesStageLabel(stage: string | undefined): string {
   if (stage === 'consult') return 'Tư vấn';
   if (stage === 'proposal') return 'Báo giá';
-  if (stage === 'lead') return 'Pre-sales Lead';
+  if (stage === 'lead') return 'Pre Sale';
   return stage ?? '—';
 }

@@ -13,7 +13,16 @@ export function hasFieldCap(
   entry: FieldRegistryEntry,
   hasCap: CapChecker,
 ): boolean {
-  return hasCap(caps, entry.section, entry.action);
+  if (hasCap(caps, entry.section, entry.action)) return true;
+  if (
+    entry.entity === 'lead' &&
+    (entry.field === 'phone' || entry.field === 'email') &&
+    (hasCap(caps, 'crm_presales_solution', 'view') ||
+      hasCap(caps, 'crm_presales_solution', 'edit'))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function maskLeadPhoneAndEmail<T extends { phone?: string | null; email?: string | null }>(

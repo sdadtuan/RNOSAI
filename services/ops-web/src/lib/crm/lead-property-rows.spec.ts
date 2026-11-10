@@ -16,6 +16,8 @@ describe('leadPropertyRows', () => {
       'Lan',
     );
     expect(rows.map((r) => r.key)).toEqual([
+      'phone',
+      'email',
       'source',
       'channel',
       'project',
@@ -31,6 +33,19 @@ describe('leadPropertyRows', () => {
       tone: 'hot',
     });
     expect(rows.find((r) => r.key === 'created')?.value).toBe('2026-08-25');
+  });
+
+  it('hides channel when it matches source', () => {
+    const rows = leadPropertyRows({
+      phone: '090',
+      email: 'a@b.com',
+      source: 'facebook',
+      channel: 'Facebook',
+      project_code: '',
+      created_at: '2026-01-01',
+    });
+    expect(rows.some((r) => r.key === 'channel')).toBe(false);
+    expect(rows.find((r) => r.key === 'source')?.value).toBe('facebook');
   });
 
   it('falls back when fields are empty', () => {

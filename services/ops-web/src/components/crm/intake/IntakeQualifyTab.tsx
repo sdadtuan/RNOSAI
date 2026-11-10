@@ -1,10 +1,8 @@
 'use client';
 
-import type { FocusEvent } from 'react';
 import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
 import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
 import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
-import { INTAKE_DECISION_OPTIONS } from '@/lib/crm/intake-labels';
 import type { IntakeQuestionItem, IntakeRedFlagItem } from '@/lib/crm/intake-questions';
 import type { IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
 import type { IntakeValidationIssue } from '@/lib/crm/intake-validation';
@@ -12,7 +10,6 @@ import type { IntakeValidationIssue } from '@/lib/crm/intake-validation';
 export type IntakeQualifyTabProps = {
   bant: Record<string, number>;
   decision: string;
-  decisionReason: string;
   disabled: boolean;
   validationErrors: IntakeValidationIssue[];
   redFlagItems: IntakeRedFlagItem[];
@@ -20,9 +17,6 @@ export type IntakeQualifyTabProps = {
   qualifyItems: IntakeQuestionItem[];
   qualifyChecked: Record<string, boolean>;
   onOpenBant: () => void;
-  onDecisionChange: (value: string) => void;
-  onDecisionReasonChange: (value: string) => void;
-  onBantDecisionBlur: (event: FocusEvent<HTMLDivElement>) => void;
   onToggleRedFlag: (key: string, next: boolean) => void;
   onRedFlagNotesChange: (value: string) => void;
   onToggleQualify: (key: string, next: boolean) => void;
@@ -31,7 +25,6 @@ export type IntakeQualifyTabProps = {
 export function IntakeQualifyTab({
   bant,
   decision,
-  decisionReason,
   disabled,
   validationErrors,
   redFlagItems,
@@ -39,9 +32,6 @@ export function IntakeQualifyTab({
   qualifyItems,
   qualifyChecked,
   onOpenBant,
-  onDecisionChange,
-  onDecisionReasonChange,
-  onBantDecisionBlur,
   onToggleRedFlag,
   onRedFlagNotesChange,
   onToggleQualify,
@@ -50,47 +40,15 @@ export function IntakeQualifyTab({
     <>
       <section className="intake-bant-section stack-gap" aria-label="Quyết định">
         <header className="intake-form__head">
-          <h2 className="intake-form__title">C. Quyết định</h2>
+          <h2 className="intake-form__title">Chấm điểm</h2>
           <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-            Hoặc bấm <strong>Quyết định</strong> trên Deal Bar để mở nhanh.
+            Quyết định nằm ở phần Cần điền để lưu phía trên.
           </p>
         </header>
 
-        <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
+        <div className="intake-bant-decision-pane">
           <IntakeBantSection bant={bant} decision={decision} onOpenBant={onOpenBant} />
-
           <IntakeValidationErrors issues={validationErrors} />
-
-          <label className="intake-field">
-            <span className="muted">
-              Quyết định &quot;Decision&quot;
-              <span className="intake-required-mark" title="Cần Go để qua Tư vấn">
-                *
-              </span>
-            </span>
-            <select
-              className="kpi-select"
-              value={decision}
-              onChange={(e) => onDecisionChange(e.target.value)}
-              disabled={disabled}
-            >
-              {INTAKE_DECISION_OPTIONS.map((d) => (
-                <option key={d.value || 'empty'} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="intake-field">
-            <span className="muted">Lý do &quot;Reason&quot;</span>
-            <input
-              className="kpi-input"
-              value={decisionReason}
-              onChange={(e) => onDecisionReasonChange(e.target.value)}
-              disabled={disabled}
-            />
-          </label>
         </div>
       </section>
 

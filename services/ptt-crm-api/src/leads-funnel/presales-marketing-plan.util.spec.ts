@@ -1,5 +1,7 @@
 import {
+  hasCompletedSolutionPack,
   planContentFromRow,
+  solutionSubmitGaps,
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
 
@@ -40,6 +42,38 @@ describe('validatePreliminaryPlan', () => {
     });
     expect(out.ok).toBe(false);
     expect(out.messages.some((m) => m.includes('market_message'))).toBe(true);
+  });
+});
+
+describe('solutionSubmitGaps', () => {
+  const ready = {
+    strategy_framework_json: {
+      solution_pack: JSON.stringify({
+        problem: 'Cần phạm vi',
+        approach: 'Làm các hạng mục',
+        lines: [{ code: 'SEO-01', work: 'Audit', result: 'Báo cáo' }],
+      }),
+      mkt_files: JSON.stringify([{ name: 'Solution.html', data_url: 'data:text/html,ok' }]),
+    },
+  };
+
+  it('accepts any uploaded Solution file without hạng mục text or Solution.html', () => {
+    expect(solutionSubmitGaps(ready)).toEqual([]);
+    expect(hasCompletedSolutionPack(ready)).toBe(true);
+    const pdfOnly = {
+      strategy_framework_json: {
+        mkt_files: JSON.stringify([{ name: 'Quy-trinh.pdf', data_url: 'data:application/pdf,ok' }]),
+      },
+    };
+    expect(solutionSubmitGaps(pdfOnly)).toEqual([]);
+    expect(hasCompletedSolutionPack(pdfOnly)).toBe(true);
+  });
+
+  it('asks for a file and does not mention hạng mục text or packaging', () => {
+    const gaps = solutionSubmitGaps({ strategy_framework_json: {} });
+    expect(gaps).toEqual(['Tải file Solution trước khi nộp.']);
+    expect(gaps.join('\n')).not.toContain('Điền việc sẽ làm');
+    expect(gaps.join('\n')).not.toContain('Đóng gói Solution trước khi nộp');
   });
 });
 

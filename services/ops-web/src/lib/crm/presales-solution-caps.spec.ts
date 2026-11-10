@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
-import { canDraftConsultPlan, resolvePresalesSolutionCaps } from './presales-solution-caps';
+import {
+  canDraftConsultPlan,
+  canViewCrmLeadDetail,
+  resolvePresalesSolutionCaps,
+} from './presales-solution-caps';
 
 function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
   return {
@@ -59,5 +63,12 @@ describe('resolvePresalesSolutionCaps', () => {
     );
     expect(caps.isGdkd).toBe(true);
     expect(caps.canClaim).toBe(true);
+  });
+
+  it('canViewCrmLeadDetail allows Solution view without crm_leads.view', () => {
+    expect(canViewCrmLeadDetail(user([{ section: 'crm_presales_solution', action: 'view' }]))).toBe(
+      true,
+    );
+    expect(canViewCrmLeadDetail(user([{ section: 'crm_leads', action: 'edit' }]))).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import type { StoredStaffUser } from '@/lib/auth';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
+import { isGdkdContractDesk } from '@/lib/crm/lead-ae-visibility';
 
 export function isCeoPosition(user: StoredStaffUser | null | undefined): boolean {
   return user?.position_code?.trim().toUpperCase() === 'CEO';
@@ -16,6 +17,9 @@ export function resolveStaffPostLoginPath(
   }
   if (isCeoPosition(user) && ceoCommandEnabled() && canSeeCeoNav(user)) {
     return '/crm/ceo';
+  }
+  if (isGdkdContractDesk(user)) {
+    return '/crm/hub?hub_tab=contracts';
   }
   return '/';
 }

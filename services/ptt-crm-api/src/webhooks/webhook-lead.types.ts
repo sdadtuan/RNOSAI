@@ -1,4 +1,4 @@
-export type WebhookLeadChannel = 'meta' | 'zalo' | 'google';
+export type WebhookLeadChannel = 'meta' | 'zalo' | 'google' | 'tiktok';
 
 export interface LegacyLeadRow {
   full_name?: string;
