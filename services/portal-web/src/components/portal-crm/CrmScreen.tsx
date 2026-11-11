@@ -142,7 +142,7 @@ function CrmBody({
   }, [initialCustomerSource]);
 
   const load = useCallback(async () => {
-    const data = await fetchPortalDesk(token, {});
+    const data = await fetchPortalDesk(token, { sync: '1' });
     setDesk((current) => (current ? mergeDeskMessages(current, data) : data));
     setRefreshedAt(new Date());
   }, [token]);
@@ -171,7 +171,7 @@ function CrmBody({
       }
       flying = true;
       try {
-        const data = await fetchPortalDesk(token, {});
+        const data = await fetchPortalDesk(token, { sync: '1' });
         if (stopped) return;
         setDesk((current) => (current ? mergeDeskMessages(current, data) : data));
         setRefreshedAt(new Date());

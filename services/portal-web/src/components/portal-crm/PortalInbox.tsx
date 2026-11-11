@@ -85,7 +85,7 @@ function InboxBody({ token }: { token: string }) {
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
-    const data = await fetchPortalDesk(token, {});
+    const data = await fetchPortalDesk(token, { sync: '1' });
     setDesk((current) => (current ? mergeDeskMessages(current, data) : data));
     setRefreshedAt(new Date());
   }, [token]);
@@ -179,7 +179,7 @@ function InboxBody({ token }: { token: string }) {
       }
       flying = true;
       try {
-        const data = await fetchPortalDesk(token, {});
+        const data = await fetchPortalDesk(token, { sync: '1' });
         if (stopped) return;
         setDesk((current) => (current ? mergeDeskMessages(current, data) : data));
         setRefreshedAt(new Date());

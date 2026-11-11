@@ -1,35 +1,64 @@
-/** Portal inbox background poller — env + overlap lock (testable without Nest). */
+/** Portal inbox / Meta sync — env flags, on-demand TTL, overlap locks. */
 
 export function isPortalWorkerProcess(): boolean {
   return (process.env.PTT_PROCESS_ROLE ?? '').trim().toLowerCase() === 'portal-worker';
 }
 
-/** Main API reads PTT_PORTAL_INBOX_POLL (default off). Worker ignores that flag so .env can disable the API copy. */
+function envFlagEnabled(raw: string | undefined, defaultValue: string): boolean {
+  const value = (raw ?? defaultValue).trim().toLowerCase();
+  return value !== '0' && value !== 'false' && value !== 'off' && value !== 'no';
+}
+
+/** Continuous inbox polling is opt-in. Worker and API both default off. */
 export function portalInboxPollEnabled(): boolean {
   if (isPortalWorkerProcess()) {
-    const raw = (process.env.PTT_PORTAL_WORKER_INBOX_POLL ?? '1').trim().toLowerCase();
-    return raw !== '0' && raw !== 'false' && raw !== 'off' && raw !== 'no';
+    return envFlagEnabled(process.env.PTT_PORTAL_WORKER_INBOX_POLL, '0');
   }
-  const raw = (process.env.PTT_PORTAL_INBOX_POLL ?? '0').trim().toLowerCase();
-  return raw !== '0' && raw !== 'false' && raw !== 'off' && raw !== 'no';
+  return envFlagEnabled(process.env.PTT_PORTAL_INBOX_POLL, '0');
 }
 
+/** Continuous insights polling is opt-in and worker-only. */
 export function portalMetaInsightsPollEnabled(): boolean {
   if (!isPortalWorkerProcess()) return false;
-  const raw = (process.env.PTT_PORTAL_WORKER_META_INSIGHTS_POLL ?? '1').trim().toLowerCase();
-  return raw !== '0' && raw !== 'false' && raw !== 'off' && raw !== 'no';
+  return envFlagEnabled(process.env.PTT_PORTAL_WORKER_META_INSIGHTS_POLL, '0');
 }
 
+/** If polling is explicitly re-enabled, keep it slow: 2 min – 1 hour, default 5 min. */
 export function portalInboxPollIntervalMs(): number {
-  const raw = Number(process.env.PTT_PORTAL_INBOX_POLL_MS ?? 45_000);
-  const ms = Number.isFinite(raw) ? raw : 45_000;
-  return Math.min(120_000, Math.max(15_000, ms));
+  const raw = Number(process.env.PTT_PORTAL_INBOX_POLL_MS ?? 300_000);
+  const ms = Number.isFinite(raw) ? raw : 300_000;
+  return Math.min(3_600_000, Math.max(120_000, ms));
 }
 
 export function portalMetaInsightsPollIntervalMs(): number {
-  const raw = Number(process.env.PTT_PORTAL_META_INSIGHTS_POLL_MS ?? 900_000);
-  const ms = Number.isFinite(raw) ? raw : 900_000;
-  return Math.min(3_600_000, Math.max(60_000, ms));
+  const raw = Number(process.env.PTT_PORTAL_META_INSIGHTS_POLL_MS ?? 3_600_000);
+  const ms = Number.isFinite(raw) ? raw : 3_600_000;
+  return Math.min(6 * 3_600_000, Math.max(15 * 60_000, ms));
+}
+
+/** Reuse a just-fetched inbox/leads sync for 2–5 minutes (default 3). */
+export function portalOnDemandTtlMs(): number {
+  const raw = Number(process.env.PTT_PORTAL_ON_DEMAND_TTL_MS ?? 180_000);
+  const ms = Number.isFinite(raw) ? raw : 180_000;
+  return Math.min(300_000, Math.max(120_000, ms));
+}
+
+/** Insights change slowly; refresh at most hourly unless overridden (15 min – 6 h). */
+export function portalInsightsOnDemandTtlMs(): number {
+  const raw = Number(process.env.PTT_PORTAL_INSIGHTS_ON_DEMAND_TTL_MS ?? 3_600_000);
+  const ms = Number.isFinite(raw) ? raw : 3_600_000;
+  return Math.min(6 * 3_600_000, Math.max(15 * 60_000, ms));
+}
+
+export function portalPageTokenCacheMs(): number {
+  const raw = Number(process.env.PTT_PORTAL_PAGE_TOKEN_CACHE_MS ?? 2 * 3_600_000);
+  const ms = Number.isFinite(raw) ? raw : 2 * 3_600_000;
+  return Math.min(6 * 3_600_000, Math.max(30 * 60_000, ms));
+}
+
+export function shouldReuseFreshSync(lastAt: number | undefined, now: number, ttlMs: number): boolean {
+  if (!lastAt) return false;
+  return now - lastAt < ttlMs;
 }
 
 export function portalMetaWebhookVerifyToken(): string {
@@ -74,5 +103,19 @@ export class InboxPollOverlapLock {
 
   get busy(): boolean {
     return this.flying;
+  }
+}
+
+export class KeyedSingleFlight {
+  private readonly inflight = new Map<string, Promise<unknown>>();
+
+  run<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const existing = this.inflight.get(key);
+    if (existing) return existing as Promise<T>;
+    const created = task().finally(() => {
+      if (this.inflight.get(key) === created) this.inflight.delete(key);
+    });
+    this.inflight.set(key, created);
+    return created;
   }
 }

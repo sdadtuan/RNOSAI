@@ -41,9 +41,10 @@ export class PortalCrmController {
     @Query('day') day?: string,
     @Query('label') label?: string,
     @Query('include_inactive') includeInactive?: string,
+    @Query('sync') sync?: string,
   ) {
     this.assertEnabled();
-    return this.care.desk(user, { channel, page_id: pageId, day, label, include_inactive: includeInactive });
+    return this.care.desk(user, { channel, page_id: pageId, day, label, include_inactive: includeInactive, sync });
   }
 
   @Get('cases/:id')

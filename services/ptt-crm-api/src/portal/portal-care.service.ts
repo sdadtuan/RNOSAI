@@ -23,7 +23,13 @@ import {
   staffCanViewCareCase,
   visibleAdsChannels,
 } from './portal-care.util';
-import { isFacebookRateOrThrottleError } from './portal-inbox-poller.util';
+import {
+  isFacebookRateOrThrottleError,
+  KeyedSingleFlight,
+  portalOnDemandTtlMs,
+  shouldReuseFreshSync,
+} from './portal-inbox-poller.util';
+import { shouldPauseGraph } from './portal-graph-usage';
 import { PortalInboxSyncService, type PortalInboxIngestResult } from './portal-inbox-sync.service';
 
 export type { PortalInboxIngestResult } from './portal-inbox-sync.service';
@@ -40,7 +46,7 @@ function liveSince(raw?: string): Date {
 @Injectable()
 export class PortalCareService {
   private readonly inboxAt = new Map<string, number>();
-  private readonly ingestFlight = new Set<string>();
+  private readonly ingestFlights = new KeyedSingleFlight();
   private readonly inboxStat = new Map<
     string,
     { pages: number; withToken: number; leads: number; messages: number; leadNote: string; messageNote: string; error: string }
@@ -67,7 +73,6 @@ export class PortalCareService {
 
   async live(user: PortalJwtPayload, sinceRaw?: string) {
     await this.repo.ensure();
-    void this.ingestFacebook(user.client_id);
     const since = liveSince(sinceRaw);
     const scope = careListFilterForUser(user);
     const messages = await this.repo.messagesSince(user.client_id, since, scope);
@@ -121,8 +126,11 @@ export class PortalCareService {
     };
   }
 
-  async desk(user: PortalJwtPayload, query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string }) {
+  async desk(user: PortalJwtPayload, query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string; sync?: string }) {
     await this.prepare(user.client_id);
+    if (query.sync === '1' || query.sync === 'true') {
+      await this.ingestFacebook(user.client_id);
+    }
     const accounts = await this.agency.listChannelAccounts(user.client_id);
     const channels = visibleAdsChannels(accounts.map((row) => row.channel));
     const selected = query.channel ? channels.find((item) => item.id === query.channel) ?? null : null;
@@ -514,17 +522,20 @@ export class PortalCareService {
   private async prepare(clientId: string): Promise<void> {
     await this.pages.ensureStore();
     await this.repo.ensure();
-    await this.ingestFacebook(clientId);
     await this.repo.syncCases(clientId);
     await this.rebalance(clientId);
   }
 
   private async ingestFacebook(clientId: string): Promise<void> {
-    const now = Date.now();
-    if (this.ingestFlight.has(clientId)) return;
-    if ((this.inboxAt.get(clientId) ?? 0) > now - 30_000) return;
-    this.inboxAt.set(clientId, now);
-    await this.pullFacebookInbox(clientId, { fromUserDesk: true });
+    if (shouldPauseGraph()) return;
+    const ttl = portalOnDemandTtlMs();
+    if (shouldReuseFreshSync(this.inboxAt.get(clientId), Date.now(), ttl)) return;
+    await this.ingestFlights.run(clientId, async () => {
+      if (shouldPauseGraph()) return;
+      if (shouldReuseFreshSync(this.inboxAt.get(clientId), Date.now(), ttl)) return;
+      await this.pullFacebookInbox(clientId, { fromUserDesk: true });
+      this.inboxAt.set(clientId, Date.now());
+    });
   }
 
   /** Background poller — no 30s user throttle; optional explicit page list from DB. */

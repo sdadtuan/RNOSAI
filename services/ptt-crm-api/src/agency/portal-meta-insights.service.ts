@@ -13,6 +13,12 @@ import {
   summarizeBreakdownWarnings,
 } from './portal-meta-insights.util';
 import { PortalClientPagesRepository } from './portal-client-pages.repository';
+import { shouldPauseGraph } from '../portal/portal-graph-usage';
+import {
+  KeyedSingleFlight,
+  portalInsightsOnDemandTtlMs,
+  shouldReuseFreshSync,
+} from '../portal/portal-inbox-poller.util';
 
 export type SyncRowsByLevel = Record<InsightLevel | 'breakdown', number>;
 
@@ -39,6 +45,9 @@ export class PortalMetaInsightsService {
     private readonly tokenService: MetaBusinessTokenService,
     private readonly pagesRepo: PortalClientPagesRepository,
   ) {}
+
+  private readonly insightFlights = new KeyedSingleFlight();
+  private readonly insightAttemptAt = new Map<string, number>();
 
   private async requireOwnedAccount(clientId: string, accountIdRaw: string): Promise<string> {
     const digits = normalizeAdAccountDigits(accountIdRaw);
@@ -196,6 +205,7 @@ export class PortalMetaInsightsService {
     query: { since?: string; until?: string; level?: string },
   ): Promise<Record<string, unknown>> {
     const accountId = await this.requireOwnedAccount(clientId, accountIdRaw);
+    await this.maybeRefreshOnDemand(clientId, accountId);
     const { since, until } = this.resolveRange({ since: query.since, until: query.until });
 
     const accountRows = await this.repo.queryInsights(clientId, accountId, since, until, 'account');
@@ -389,5 +399,22 @@ export class PortalMetaInsightsService {
         .sort((a, b) => b.spend - a.spend);
     }
     return out;
+  }
+
+  private async maybeRefreshOnDemand(clientId: string, accountId: string): Promise<void> {
+    if (shouldPauseGraph()) return;
+    const ttl = portalInsightsOnDemandTtlMs();
+    const key = `${clientId}:${accountId}`;
+    if (shouldReuseFreshSync(this.insightAttemptAt.get(key), Date.now(), ttl)) return;
+    const state = await this.repo.readSyncState(clientId, accountId);
+    const lastRaw = state?.last_synced_at;
+    const last = lastRaw ? Date.parse(String(lastRaw)) : 0;
+    if (shouldReuseFreshSync(Number.isFinite(last) ? last : 0, Date.now(), ttl)) return;
+    await this.insightFlights.run(key, async () => {
+      if (shouldPauseGraph()) return;
+      if (shouldReuseFreshSync(this.insightAttemptAt.get(key), Date.now(), ttl)) return;
+      this.insightAttemptAt.set(key, Date.now());
+      await this.syncAccount(clientId, accountId, undefined, { incremental: true });
+    });
   }
 }

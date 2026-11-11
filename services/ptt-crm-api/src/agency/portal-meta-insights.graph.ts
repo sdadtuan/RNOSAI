@@ -8,6 +8,7 @@ import {
   normalizeGraphInsightRow,
   NormalizedInsightRow,
 } from './portal-meta-insights.util';
+import { noteGraphError, noteGraphHeaders, recordGraphCall, shouldPauseGraph } from '../portal/portal-graph-usage';
 
 const GRAPH_VER = 'v21.0';
 const BASE_FIELDS =
@@ -28,6 +29,10 @@ async function graphGet(url: string, accessToken: string, attempt = 0): Promise<
   const sep = url.includes('?') ? '&' : '?';
   const full =
     url.includes('access_token=') ? url : `${url}${sep}access_token=${encodeURIComponent(accessToken)}`;
+  if (shouldPauseGraph()) {
+    throw new Error('Facebook tam dung goi API vi gan dat gioi han.');
+  }
+  recordGraphCall('insights');
   let response: Response;
   try {
     response = await fetch(full, { signal: AbortSignal.timeout(120000) });
@@ -38,6 +43,7 @@ async function graphGet(url: string, accessToken: string, attempt = 0): Promise<
     }
     throw err;
   }
+  noteGraphHeaders(response.headers);
   const wait = graphRateLimitWaitMs(response.headers);
   if (wait > 0 && attempt < maxAttempts - 1) {
     await sleep(wait);
@@ -71,6 +77,9 @@ async function fetchPagedInsights(
   const rows: NormalizedInsightRow[] = [];
 
   for (let hop = 0; hop < 200 && url; hop += 1) {
+    if (shouldPauseGraph()) {
+      return { ok: false, error: 'Facebook tam dung goi API vi gan dat gioi han.', retryable: true };
+    }
     const response = await graphGet(url, accessToken);
     const body = (await response.json().catch(() => ({}))) as {
       data?: Array<Record<string, unknown>>;
@@ -80,6 +89,7 @@ async function fetchPagedInsights(
     if (!response.ok || body.error) {
       const code = Number(body.error?.code ?? 0);
       const err = formatGraphError(body);
+      noteGraphError(err, code);
       const retryable = response.status === 429 || RATE_LIMIT_CODES.has(code);
       if (retryable && hop < 3) {
         await sleep(2000 * (hop + 1));
@@ -153,6 +163,9 @@ async function fetchPagedInsightsRaw(
   const normalized: NormalizedInsightRow[] = [];
 
   for (let hop = 0; hop < 200 && url; hop += 1) {
+    if (shouldPauseGraph()) {
+      return { ok: false, error: 'Facebook tam dung goi API vi gan dat gioi han.', retryable: true };
+    }
     const response = await graphGet(url, accessToken);
     const body = (await response.json().catch(() => ({}))) as {
       data?: Array<Record<string, unknown>>;

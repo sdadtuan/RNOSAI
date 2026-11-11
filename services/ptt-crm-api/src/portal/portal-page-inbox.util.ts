@@ -1,4 +1,12 @@
 import { parseLeadFieldData } from './portal-lead-fields.util';
+import {
+  classifyGraphPath,
+  extractGraphErrorCode,
+  noteGraphError,
+  noteGraphHeaders,
+  recordGraphCall,
+  shouldPauseGraph,
+} from './portal-graph-usage';
 export type PulledLead = {
   external_id: string;
   full_name: string;
@@ -177,13 +185,22 @@ function facebookSendError(error?: { message?: string; code?: number; error_subc
 }
 
 async function graphGet(path: string, token: string, timeoutMs = 8000): Promise<{ body: Record<string, unknown> | null; error: string }> {
+  if (shouldPauseGraph()) {
+    return { body: null, error: 'Facebook tam dung goi API vi gan dat gioi han. Thu lai sau.' };
+  }
   try {
     const joiner = path.includes('?') ? '&' : '?';
+    recordGraphCall(classifyGraphPath(path));
     const response = await fetch(`https://graph.facebook.com/v21.0/${path}${joiner}access_token=${encodeURIComponent(token)}`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!response.ok || !body) return { body: null, error: graphErrorText(body) };
+    noteGraphHeaders(response.headers);
+    if (!response.ok || !body) {
+      const error = graphErrorText(body);
+      noteGraphError(error, extractGraphErrorCode(body));
+      return { body: null, error };
+    }
     return { body, error: '' };
   } catch {
     return { body: null, error: '' };
@@ -191,10 +208,19 @@ async function graphGet(path: string, token: string, timeoutMs = 8000): Promise<
 }
 
 async function graphGetUrl(url: string, timeoutMs = 8000): Promise<{ body: Record<string, unknown> | null; error: string }> {
+  if (shouldPauseGraph()) {
+    return { body: null, error: 'Facebook tam dung goi API vi gan dat gioi han. Thu lai sau.' };
+  }
   try {
+    recordGraphCall(classifyGraphPath(url));
     const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!response.ok || !body) return { body: null, error: graphErrorText(body) };
+    noteGraphHeaders(response.headers);
+    if (!response.ok || !body) {
+      const error = graphErrorText(body);
+      noteGraphError(error, extractGraphErrorCode(body));
+      return { body: null, error };
+    }
     return { body, error: '' };
   } catch {
     return { body: null, error: '' };

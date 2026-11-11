@@ -1875,7 +1875,7 @@ export function subscribePortalDesk(listener: (desk: PortalDesk) => void): () =>
 
 export function fetchPortalDesk(
   token: string,
-  query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string },
+  query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string; sync?: boolean | string },
 ): Promise<PortalDesk> {
   const params = new URLSearchParams();
   if (query.channel) params.set('channel', query.channel);
@@ -1883,13 +1883,15 @@ export function fetchPortalDesk(
   if (query.day) params.set('day', query.day);
   if (query.label) params.set('label', query.label);
   if (query.include_inactive) params.set('include_inactive', query.include_inactive);
+  if (query.sync === true || query.sync === '1' || query.sync === 'true') params.set('sync', '1');
   const qs = params.toString();
   const key = `${token}|${qs}`;
   const existing = portalDeskInflight.get(key);
   if (existing) return existing;
   const pending = portalCrm<PortalDesk>(token, `/desk${qs ? `?${qs}` : ''}`)
     .then((desk) => {
-      if (!qs) {
+      const filtered = params.has('channel') || params.has('page_id') || params.has('day') || params.has('label');
+      if (!filtered) {
         for (const listener of portalDeskListeners) listener(desk);
       }
       return desk;
