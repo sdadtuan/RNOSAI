@@ -1,6 +1,6 @@
 'use client';
 
-import { DashboardContent } from '@/app/dashboard/page';
+import { DashboardContent } from '@/components/dashboard/DashboardContent';
 import { PortalPageShell } from '@/components/PortalPageShell';
 
 export default function PortalCrmPage() {
