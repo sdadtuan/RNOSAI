@@ -433,11 +433,9 @@ function CrmBody({
               ? 'Chưa gắn Page từ Kênh ads.'
               : view === 'customers'
                 ? 'Chưa có khách hàng trên Page đang nhận.'
-                : view === 'leads'
-                  ? (desk?.inbox?.leadNote || 'Page đã gắn nhưng chưa có lead để phân cho nhân viên.')
-                  : 'Page đã gắn. Chưa có mục nào trên Page này.'
+                : 'Page đã gắn. Chưa có mục nào trên Page này.'
           }
-          showCustomer={view === 'leads' || view === 'messages'}
+          showCustomer={view === 'messages'}
           me={userId}
           role={role}
           staff={desk?.staff ?? []}

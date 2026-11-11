@@ -1,4 +1,6 @@
-import type { PortalCareCase, PortalCaseMessage, PortalDesk } from '@/lib/api';
+import type { PortalCareCase, PortalCaseDetail, PortalDesk } from '@/lib/api';
+
+type PortalCaseMessage = PortalCaseDetail['messages'][number];
 
 export const PORTAL_CRM_DESK_POLL_MS = 12_000;
 
