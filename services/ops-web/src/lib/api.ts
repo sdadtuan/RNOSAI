@@ -6973,7 +6973,7 @@ export async function fetchClientPortalPages(
 export async function addClientPortalPage(
   token: string,
   clientId: string,
-  body: { channel: 'facebook' | 'zalo' | 'google' | 'tiktok'; page_id: string; page_name?: string },
+  body: { channel: PortalClientPage['channel']; page_id: string; page_name?: string },
 ): Promise<{ ok: boolean; page: PortalClientPage }> {
   return agencyMutate(token, `/api/v1/clients/${clientId}/pages`, {
     method: 'POST',
@@ -6985,7 +6985,7 @@ export async function updateClientPortalPage(
   token: string,
   clientId: string,
   rowId: string,
-  body: { channel?: 'facebook' | 'zalo' | 'google' | 'tiktok'; page_id?: string; page_name?: string },
+  body: { channel?: PortalClientPage['channel']; page_id?: string; page_name?: string },
 ): Promise<{ ok: boolean; page: PortalClientPage }> {
   return agencyMutate(token, `/api/v1/clients/${clientId}/pages/${encodeURIComponent(rowId)}`, {
     method: 'PATCH',
@@ -9581,7 +9581,7 @@ export async function fetchLeadLookupOptions(
   if (hit?.value && now - hit.at < STAFF_ME_TTL_MS) return hit.value;
   if (hit?.inflight) return hit.inflight;
   const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
-  const inflight = crmFetch(token, `/api/v1/leads/lookup-options${qs}`).then((value) => {
+  const inflight = crmFetch<{ options: CrmLeadLookupOption[] }>(token, `/api/v1/leads/lookup-options${qs}`).then((value) => {
     lookupOptionsCache.set(key, { at: Date.now(), value });
     return value;
   });

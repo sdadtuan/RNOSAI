@@ -343,7 +343,7 @@ export function LeadConsultWorkspace({
                     user={user}
                     leadId={leadId}
                     onPrefilled={() => {
-                      void loadMarketingPlan();
+                      void fetchLeadFunnel(token, leadId).then(applyFunnel);
                       onMessage?.('Đã prefill consult');
                     }}
                   />
