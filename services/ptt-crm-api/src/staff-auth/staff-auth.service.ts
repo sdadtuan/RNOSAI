@@ -6,7 +6,7 @@ import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-func
 import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
-import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
+import { capAllows, isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { p13PositionCaps } from '../p13/p13-caps';
 import { p13Flag, p13FlagsFromPolicy } from '../p13/p13-flag';
 import { verifyPortalPassword } from '../portal/portal-password.util';
@@ -21,6 +21,7 @@ import {
 } from './staff-auth.types';
 import { signStaffJwt, StaffJwtPayload, verifyStaffJwt } from './staff-jwt.util';
 import { parseNumericStaffSub } from './staff-user-id.util';
+import { ensureCrmStaffReceiveColumns } from '../crm-staff/crm-staff-schema.util';
 import {
   exchangeStaffAuthorizationCode,
   normalizeKeycloakGroups,
@@ -172,58 +173,12 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'crm_email_mkt', action: 'reports' },
 ];
 
-/** Every action the staff console can check. Super-admin receives all of them on every module. */
-const SUPER_ADMIN_ACTIONS = [
-  'view', 'edit', 'create', 'delete', 'export', 'configure', 'act', 'approve', 'claim', 'release',
-  'write', 'settings', 'compliance', 'deliverability', 'reports', 'assign', 'view_all', 'manage',
-  'override', 'review_queue', 'view_all_leads', 'view_financial', 'view_pii', 'generate', 'publish',
-  'approve_internal', 'qa', 'production', 'admin', 'execute', 'view_team', 'finance_request',
-  'request', 'send', 'query', 'commit', 'review', 'lists', 'schedule', 'executive', 'bcc',
-  'external', 'simulate', 'org', 'rbac', 'audit', 'policy', 'run', 'feedback', 'submit',
-] as const;
-
-const SUPER_ADMIN_SECTIONS = `
-ai_admin ai_analytics ai_forecast automation_workflows ceo_command csd iwr
-crm_ae_team crm_agency crm_assistant crm_b2b_projects crm_board crm_board_create
-crm_board_create__btn_new_case crm_board_customers crm_board_customers__btn_create
-crm_board_funnel crm_board_kanban crm_board_playbook crm_board_workspace
-crm_business_dashboard crm_daily_work_report crm_data_config crm_delivery_projects
-crm_email_mkt crm_facebook_ads crm_gdkd crm_google_ads crm_hdsd crm_hub_campaigns
-crm_hub_campaigns__btn_create crm_hub_contracts crm_hub_contracts__btn_create
-crm_hub_reminders crm_hub_reminders__btn_create crm_kpi_alerts crm_kpi_chart
-crm_kpi_metrics crm_kpi_metrics__btn_save crm_kpi_records crm_kpi_records__btn_save
-crm_leads crm_leads__btn_activity crm_leads__btn_ai_classify crm_leads__btn_ai_recommend
-crm_leads__btn_ai_search crm_leads__btn_ai_summary crm_leads__btn_assign crm_leads__btn_config
-crm_leads__btn_convert crm_leads__btn_create crm_leads__btn_delete crm_leads__btn_edit
-crm_leads__btn_export_pdf crm_leads__btn_export_xlsx crm_leads__btn_fb_sync crm_leads__btn_import
-crm_leads__btn_merge crm_leads__btn_rescore crm_leads__btn_rules crm_leads__btn_save
-crm_mkt_ai crm_mktplan crm_owner_weekly_dashboard crm_payroll_attendance crm_payroll_device
-crm_payroll_salary crm_presales_solution crm_re_projects crm_re_projects__btn_create
-crm_re_projects_budget crm_re_projects_business crm_re_projects_kpi crm_re_projects_marketing
-crm_re_projects_marketing__btn_save crm_re_projects_products crm_re_projects_products__btn_save
-crm_re_projects_risks crm_re_projects_sales crm_research crm_sales_deals crm_sales_funnel
-crm_sales_market crm_sales_overview crm_sales_plans crm_sales_prospects crm_sales_reports
-crm_sales_training crm_search crm_seo_aeo crm_seo_aeo_approve crm_seo_aeo_reports
-crm_seo_aeo_settings crm_seo_aeo_technical crm_seo_aeo_write crm_sop_overdue crm_sop_runs
-crm_sop_templates crm_staff_departments crm_staff_departments__btn_add crm_staff_kpi_am_sp
-crm_staff_positions crm_staff_positions__btn_add crm_staff_roster crm_staff_roster__btn_add
-crm_staff_roster__btn_export_xlsx crm_staff_roster__btn_import
-crm_vd.admin crm_vd.bible crm_vd.budget crm_vd.delivery crm_vd.gate1 crm_vd.gate2 crm_vd.gate3
-crm_vd.keyframe crm_vd.motion crm_vd.post crm_vd.project crm_vd.qc crm_vd.report crm_vd.script
-dashboard meta_campaign_write p13_catalog p13_holidays p13_pricing p13_quote playbooks
-`.trim().split(/\s+/);
+let superAdminSectionCapsCache: StaffSectionCap[] | null = null;
 
 function superAdminGrantRows(): Array<{ section_id: string; action: string }> {
-  const rows: Array<{ section_id: string; action: string }> = [];
-  for (const section_id of SUPER_ADMIN_SECTIONS) {
-    for (const action of SUPER_ADMIN_ACTIONS) {
-      rows.push({ section_id, action });
-    }
-  }
-  return rows;
+  return [{ section_id: '*', action: '*' }];
 }
 
-let superAdminSectionCapsCache: StaffSectionCap[] | null = null;
 function superAdminSectionCaps(): StaffSectionCap[] {
   if (!superAdminSectionCapsCache) {
     superAdminSectionCapsCache = superAdminGrantRows().map((row) => ({
@@ -568,7 +523,22 @@ export class StaffAuthService {
       caps: mergedCaps,
       feature_flags: { p13_enabled: p13Flag('ENABLED', process.env, p13Settings) },
       ae_team_access,
+      can_receive_solution: await this.canReceiveSolution(accessPayload),
     };
+  }
+
+  async canReceiveSolution(payload: StaffJwtPayload): Promise<boolean> {
+    try {
+      await ensureCrmStaffReceiveColumns(this.db);
+      const result = await this.db.query(
+        `SELECT COALESCE(can_receive_solution, FALSE) AS flag
+         FROM crm_staff WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1`,
+        [payload.email],
+      );
+      return result.rows[0]?.flag === true;
+    } catch {
+      return false;
+    }
   }
 
   isSuperAdminPosition(positionCode: string | null | undefined): boolean {
@@ -642,7 +612,7 @@ export class StaffAuthService {
   }
 
   hasCap(caps: StaffSectionCap[], section: string, action: string): boolean {
-    return caps.some((c) => c.section === section && c.action === action);
+    return capAllows(caps, section, action);
   }
 
   private async issueTokens(

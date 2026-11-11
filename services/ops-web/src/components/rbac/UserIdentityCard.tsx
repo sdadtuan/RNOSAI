@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReceiveQueueFlags } from '@/components/crm/ReceiveQueueFlags';
 import { EffectiveCapsPreview } from '@/components/rbac/EffectiveCapsPreview';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
 import { ClientScopePicker } from '@/components/rbac/ClientScopePicker';
@@ -49,6 +50,8 @@ export function UserIdentityCard({
   onOffboarded,
 }: Props) {
   const [displayName, setDisplayName] = useState(user.display_name);
+  const [canReceiveLeads, setCanReceiveLeads] = useState(Boolean(user.can_receive_leads));
+  const [canReceiveSolution, setCanReceiveSolution] = useState(Boolean(user.can_receive_solution));
   const [positionId, setPositionId] = useState(user.position_id);
   const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
   const [teamIds, setTeamIds] = useState<number[]>(user.team_ids ?? []);
@@ -141,6 +144,8 @@ export function UserIdentityCard({
 
   useEffect(() => {
     setDisplayName(user.display_name);
+    setCanReceiveLeads(Boolean(user.can_receive_leads));
+    setCanReceiveSolution(Boolean(user.can_receive_solution));
     setPositionId(user.position_id);
     setFunctions(user.job_functions ?? []);
     setTeamIds(user.team_ids ?? []);
@@ -176,6 +181,8 @@ export function UserIdentityCard({
         position_id: positionId,
         team_ids: teamIds,
         lead_team_ids: leadTeamIds.filter((id) => teamIds.includes(id)),
+        can_receive_leads: canReceiveLeads,
+        can_receive_solution: canReceiveSolution,
       });
       await putStaffUserJobFunctions(token, user.id, functions);
       if (winPermissionSetsEnabled()) {
@@ -279,6 +286,13 @@ export function UserIdentityCard({
         )}
       </section>
 
+      <ReceiveQueueFlags
+        canReceiveLeads={canReceiveLeads}
+        canReceiveSolution={canReceiveSolution}
+        onLeadsChange={setCanReceiveLeads}
+        onSolutionChange={setCanReceiveSolution}
+        disabled={!canEdit || busy}
+      />
       <label>
         Tên hiển thị
         <input

@@ -12,6 +12,7 @@ import { assertInternalEmailRecipients, parseInternalEmailDomains } from './iwr-
 import { IwrReportsRepository } from './iwr-reports.repository';
 import { IwrDelegationsRepository } from './iwr-w4.repository';
 import type { IwrActor, SendIwrEmailInput } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const FILE_MAX_BYTES = 104857600;
 const ALLOWED_MIME = new Set([
@@ -36,7 +37,7 @@ function fileDir(): string {
 }
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

@@ -24,12 +24,13 @@ import { summarizeLeadIntake } from '@/lib/crm/funnel-stepper.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
+import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { isBaoGiaKanbanColumn, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
-import { isAccountExecutive, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
+import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
@@ -354,6 +355,13 @@ export default function CrmLeadDetailPage() {
       pendingApproval: Boolean(contractSummary?.pendingApproval),
       submitReady: contractSubmitReady(contractChecks),
       createReady: contractCreateReady(contractChecks),
+      canWriteContract:
+        isSuperAdmin(user) ||
+        isAccountManager(user) ||
+        (isAccountExecutive(user) &&
+          Boolean(contractSummary?.createdBy) &&
+          String(contractSummary?.createdBy).trim().toLowerCase() ===
+            String(user?.email ?? "").trim().toLowerCase()),
     });
   }, [lead, showLmpTab, b2Complete, presalesStage, prep, contractSummary, contractChecks]);
 
@@ -957,6 +965,7 @@ export default function CrmLeadDetailPage() {
               data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
             lifecycleStage: data.lifecycle_stage ?? null,
             agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
+            createdBy: data.contract?.created_by ?? null,
           },
           data.checks ?? [],
         );
@@ -1635,6 +1644,18 @@ export default function CrmLeadDetailPage() {
                   setLead(row);
                   setStatus(row.status || 'moi');
                 }}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {accessToken && lead && funnelSnap?.presales?.implementation_handoff ? (
+              <ImplementationHandoffCard
+                token={accessToken}
+                leadId={leadId}
+                handoff={funnelSnap.presales.implementation_handoff}
+                user={user}
+                onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}
               />

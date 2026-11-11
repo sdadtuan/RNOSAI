@@ -78,13 +78,14 @@ export default function AgencyPage() {
   }, [router]);
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
-      const access = await ensureAuth();
-      if (!access) return;
-      setToken(access);
       setLoading(true);
       setError('');
       try {
+        const access = await ensureAuth();
+        if (!access || cancelled) return;
+        setToken(access);
         const [st, list, notif] = await Promise.all([
           fetchAgencyStats(access),
           fetchAgencyClients(access, {
@@ -93,15 +94,19 @@ export default function AgencyPage() {
           }),
           fetchAgencyNotifications(access).catch(() => ({ notifications: [], unread: 0 })),
         ]);
+        if (cancelled) return;
         setStats(st);
-        setClients(list.clients);
+        setClients(list.clients ?? []);
         setUnread(notif.unread);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải agency thất bại');
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Tải agency thất bại');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [ensureAuth, q, statusFilter]);
 
   function logout() {
@@ -155,6 +160,9 @@ export default function AgencyPage() {
                 + Client
               </Link>
             ) : null}
+            <Link href="/agency/meta-token" className="btn btn-secondary btn-sm">
+              Token Business Manager
+            </Link>
             <Link href="/agency/ingest" className="btn btn-secondary btn-sm">
               Ingest
             </Link>
@@ -224,6 +232,7 @@ export default function AgencyPage() {
                 <th>Code</th>
                 <th>Tên</th>
                 <th>Trạng thái</th>
+                <th>Account Client</th>
                 <th>Kênh</th>
                 <th>AM</th>
               </tr>
@@ -253,13 +262,18 @@ export default function AgencyPage() {
                       {c.tenant_locked ? ' · locked' : ''}
                     </span>
                   </td>
+                  <td>
+                    <Link href={`/agency/clients/${c.id}?tab=portal`} className="nav-link">
+                      {c.portal_logins?.trim() ? c.portal_logins : 'Tạo account'}
+                    </Link>
+                  </td>
                   <td>{c.channels || '—'}</td>
                   <td>{c.owner_am_id || '—'}</td>
                 </tr>
               ))}
               {!loading && clients.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="muted agency-empty">
+                  <td colSpan={6} className="muted agency-empty">
                     Không có client
                   </td>
                 </tr>

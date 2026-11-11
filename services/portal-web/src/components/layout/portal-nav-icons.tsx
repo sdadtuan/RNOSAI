@@ -24,6 +24,8 @@ const PATH_ICON: Record<string, IconName> = {
   '/creatives': 'creatives',
   '/notifications': 'notifications',
   '/settings': 'settings',
+  '/products': 'settings',
+  '/crm': 'notifications',
   '/seo': 'seo',
   '/seo/reports': 'seo',
   '/seo/content': 'seo',
@@ -35,9 +37,14 @@ const SECTION_ICON: Record<string, IconName> = {
   overview: 'overview',
   channels: 'channels',
   workflow: 'workflow',
+  lead: 'notifications',
+  message: 'notifications',
+  customers: 'settings',
   seo: 'seo',
   email: 'email',
   settings: 'settings',
+  products: 'settings',
+  account: 'settings',
 };
 
 function Svg({ children }: { children: ReactNode }) {

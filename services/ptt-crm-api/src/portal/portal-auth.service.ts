@@ -4,6 +4,7 @@ import { ClientOffboardService } from '../agency/client-offboard.service';
 import { AppConfigService, PortalStubUser } from '../config/app-config.service';
 import { signPortalJwt, verifyPortalJwt, PortalJwtPayload, signPortalRefreshJwt, verifyPortalRefreshJwt } from './portal-jwt.util';
 import { mapKeycloakToPortalPayload, verifyKeycloakAccessToken } from './portal-keycloak.util';
+import { portalClientRole } from '../agency/portal-client-users.types';
 import { hashPortalPassword, verifyPortalPassword } from './portal-password.util';
 
 export interface PortalLoginResult {
@@ -16,7 +17,7 @@ export interface PortalLoginResult {
     id: string;
     email: string;
     client_id: string;
-    role: 'viewer' | 'approver';
+    role: 'viewer' | 'approver' | 'staff';
   };
 }
 
@@ -155,7 +156,10 @@ export class PortalAuthService {
     return payload;
   }
 
-  private async resolveUser(email: string, password: string): Promise<(PortalStubUser & { id: string }) | null> {
+  private async resolveUser(
+    email: string,
+    password: string,
+  ): Promise<{ id: string; email: string; clientId: string; password: string; role: 'viewer' | 'approver' | 'staff' } | null> {
     if (this.config.portalAllowStubUsers) {
       const stub = this.config.portalStubUsers.find(
         (u) => u.email === email && u.password === password,
@@ -189,7 +193,7 @@ export class PortalAuthService {
         email: row.email,
         clientId: row.client_id,
         password,
-        role: row.role === 'approver' ? 'approver' : 'viewer',
+        role: portalClientRole(row.role),
       };
     } catch {
       return null;
@@ -199,7 +203,7 @@ export class PortalAuthService {
   private async resolveUserById(
     userId: string,
     clientId: string,
-  ): Promise<(PortalStubUser & { id: string }) | null> {
+  ): Promise<(PortalStubUser & { id: string }) | { id: string; email: string; clientId: string; password: string; role: 'viewer' | 'approver' | 'staff' } | null> {
     if (userId.startsWith('stub:') && this.config.portalAllowStubUsers) {
       const email = userId.slice('stub:'.length);
       const stub = this.config.portalStubUsers.find((u) => u.email === email && u.clientId === clientId);
@@ -227,7 +231,7 @@ export class PortalAuthService {
         email: row.email,
         clientId: row.client_id,
         password: '',
-        role: row.role === 'approver' ? 'approver' : 'viewer',
+        role: portalClientRole(row.role),
       };
     } catch {
       return null;

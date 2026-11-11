@@ -54,13 +54,29 @@ export class PerformanceRepository implements OnModuleDestroy {
     return Number(result.rows[0]?.c ?? 0) > 0;
   }
 
+  async clientOwnsAdAccount(clientId: string, accountDigits: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1 FROM portal_client_pages
+       WHERE client_id = $1::uuid AND channel = 'ad_account' AND page_id = $2 AND active IS TRUE
+       LIMIT 1`,
+      [clientId, accountDigits],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async fetchRows(
     clientId: string,
     start: string,
     end: string,
     groupBy: PerformanceGroupBy,
     channels: PerformanceChannel[] = ['meta', 'google'],
+    accountIds: string[] | null = null,
   ): Promise<PerformanceDbRow[]> {
+    const accountClause =
+      accountIds && accountIds.length
+        ? `AND regexp_replace(COALESCE(dp.external_account_id, ''), '^act_', '', 'i') = ANY($5::text[])`
+        : '';
+    const accountParams = accountIds && accountIds.length ? [accountIds] : [];
     if (groupBy === 'campaign') {
       const result = await this.db.query(
         `SELECT
@@ -92,9 +108,10 @@ export class PerformanceRepository implements OnModuleDestroy {
           WHERE dp.client_id = $1::uuid
             AND dp.channel = ANY($4::text[])
             AND dp.performance_date BETWEEN $2::date AND $3::date
+            ${accountClause}
           GROUP BY dp.external_campaign_id
           ORDER BY SUM(dp.spend) DESC, dp.external_campaign_id`,
-        [clientId, start, end, channels],
+        [clientId, start, end, channels, ...accountParams],
       );
       return result.rows as PerformanceDbRow[];
     }
@@ -139,8 +156,9 @@ export class PerformanceRepository implements OnModuleDestroy {
         WHERE dp.client_id = $1::uuid
           AND dp.channel = ANY($4::text[])
           AND dp.performance_date BETWEEN $2::date AND $3::date
+          ${accountClause}
         ORDER BY dp.performance_date DESC, dp.external_campaign_name NULLS LAST`,
-      [clientId, start, end, channels],
+      [clientId, start, end, channels, ...accountParams],
     );
     return result.rows as PerformanceDbRow[];
   }
@@ -148,15 +166,22 @@ export class PerformanceRepository implements OnModuleDestroy {
   async fetchMeta(
     clientId: string,
     channels: PerformanceChannel[] = ['meta', 'google'],
+    accountIds: string[] | null = null,
   ): Promise<{ latestDate: string | null; latestSync: string | null; campaignCount: number }> {
+    const accountClause =
+      accountIds && accountIds.length
+        ? `AND regexp_replace(COALESCE(external_account_id, ''), '^act_', '', 'i') = ANY($3::text[])`
+        : '';
+    const accountParams = accountIds && accountIds.length ? [accountIds] : [];
     const result = await this.db.query(
       `SELECT
           MAX(performance_date)::text AS latest_date,
           MAX(synced_at) AS latest_synced_at,
           COUNT(DISTINCT external_campaign_id)::int AS campaigns_tracked
        FROM daily_performance
-       WHERE client_id = $1::uuid AND channel = ANY($2::text[])`,
-      [clientId, channels],
+       WHERE client_id = $1::uuid AND channel = ANY($2::text[])
+       ${accountClause}`,
+      [clientId, channels, ...accountParams],
     );
     const row = result.rows[0];
     return {

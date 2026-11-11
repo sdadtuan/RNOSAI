@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createLeadSlaAutoTask,
-  cskhSlaAlertsStreamUrl,
   fetchCskhSlaPredictions,
   type SlaPredictRow,
 } from '@/lib/api';
@@ -36,67 +35,44 @@ export function SlaAlertToastHost({ user }: { user: StoredStaffUser | null }) {
     setToasts((prev) => [...fresh, ...prev].slice(0, MAX_TOASTS));
   }, []);
 
+  const canWatchSla = Boolean(user && hasCap(user, 'crm_leads', 'view'));
+
   useEffect(() => {
-    if (!user || !hasCap(user, 'crm_leads', 'view')) return;
+    if (!user || !canWatchSla) return;
 
     let cancelled = false;
-    let eventSource: EventSource | null = null;
     let pollTimer: number | undefined;
+    let inFlight = false;
 
     function stopAfterUnauthorized(token: string) {
       noteBackgroundUnauthorized(token);
       cancelled = true;
-      eventSource?.close();
-      eventSource = null;
       if (pollTimer) window.clearInterval(pollTimer);
     }
 
     async function poll() {
+      if (inFlight || cancelled) return;
       const token = await staffTokenForBackground();
       if (!token || cancelled) return;
+      inFlight = true;
       try {
         const data = await fetchCskhSlaPredictions(token);
         if (!cancelled) pushAlerts(data.items);
       } catch (err) {
         if (isApiUnauthorized(err)) stopAfterUnauthorized(token);
+      } finally {
+        inFlight = false;
       }
     }
-
-    void staffTokenForBackground().then((token) => {
-      if (!token || cancelled || typeof EventSource === 'undefined') return;
-      try {
-        eventSource = new EventSource(cskhSlaAlertsStreamUrl(token));
-        eventSource.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data) as {
-              changed?: boolean;
-              alerts?: SlaPredictRow[];
-            };
-            if (payload.changed && payload.alerts?.length) {
-              pushAlerts(payload.alerts);
-            }
-          } catch {
-            // ignore malformed SSE payload
-          }
-        };
-        eventSource.onerror = () => {
-          eventSource?.close();
-          eventSource = null;
-        };
-      } catch {
-        eventSource = null;
-      }
-    });
 
     void poll();
     pollTimer = window.setInterval(() => void poll(), POLL_MS);
 
     return () => {
       cancelled = true;
-      eventSource?.close();
       if (pollTimer) window.clearInterval(pollTimer);
     };
-  }, [user, pushAlerts]);
+  }, [user?.id, canWatchSla, pushAlerts]);
 
   if (!user || !hasCap(user, 'crm_leads', 'view') || toasts.length === 0) {
     return null;

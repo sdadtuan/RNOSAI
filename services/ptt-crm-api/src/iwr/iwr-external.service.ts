@@ -11,11 +11,12 @@ import { IwrReportsService } from './iwr-reports.service';
 import { IwrW5Repository } from './iwr-w5.repository';
 import { IwrW6Repository } from './iwr-w6.repository';
 import type { IwrActor } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const SHARE_TTL_DAYS = 7;
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function publicBaseUrl(): string {

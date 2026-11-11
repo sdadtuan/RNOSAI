@@ -1,9 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IwrListsRepository } from './iwr-lists.repository';
 import type { IwrActor, IwrListRow } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

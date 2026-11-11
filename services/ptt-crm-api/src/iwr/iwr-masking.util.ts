@@ -1,4 +1,5 @@
 import type { IwrActor } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 export type IwrFieldSensitivity = 'internal' | 'hr' | 'finance';
 
@@ -10,7 +11,7 @@ export type IwrTemplateFieldDef = {
 const MASK = '***';
 
 function hasCap(actor: IwrActor, section: string, action: string): boolean {
-  return actor.caps.some((c) => c.section === section && c.action === action);
+  return capAllows(actor.caps, section, action);
 }
 
 export function canSeeSensitiveField(actor: IwrActor, sensitivity: IwrFieldSensitivity): boolean {

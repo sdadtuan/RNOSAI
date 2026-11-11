@@ -23,10 +23,12 @@ import { MarketingAiPlannerModule } from '../marketing-ai-planner/marketing-ai-p
 import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
 import { StaffConsultAiGenerateGuard } from './guards/staff-consult-ai.guard';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 
 @Module({
   imports: [
     StaffAuthModule,
+    StaffNotificationsModule,
     B2bProjectsModule,
     forwardRef(() => LeadsModule),
     forwardRef(() => CrmLeadsLegacyModule),

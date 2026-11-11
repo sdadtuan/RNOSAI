@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { KeycloakRedirect } from '@/components/login/KeycloakRedirect';
 import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
-import { fetchStaffSsoConfig, sandboxLogin, staffLogin, staffMe } from '@/lib/api';
+import { fetchStaffSsoConfig, portalClientLogin, sandboxLogin, staffLogin, staffMe, ApiError } from '@/lib/api';
 import { clearSession, saveSession, updateStoredUser } from '@/lib/auth';
+import { savePortalSession } from '@/lib/portal-session';
 import { resolveStaffPostLoginPath } from '@/lib/auth/post-login-path.util';
+import { opsClientLoginFallbackEnabled } from '@/lib/portal/flags';
 import { winSsoEnabled } from '@/lib/win/flags';
 
 function LoginPageContent() {
@@ -39,18 +41,33 @@ function LoginPageContent() {
       // Always wipe prior staff session so CEO caps cannot stick into AE login.
       clearSession();
       const loginId = email.trim();
-      const out = loginId.startsWith('demo_')
-        ? await sandboxLogin(loginId, password)
-        : await staffLogin(loginId, password);
-      saveSession(out.access_token, out.refresh_token, out.user);
-      if (out.user.position_code === 'sandbox_visitor') {
-        router.push('/sandbox/leads');
+      try {
+        const out = loginId.startsWith('demo_')
+          ? await sandboxLogin(loginId, password)
+          : await staffLogin(loginId, password);
+        saveSession(out.access_token, out.refresh_token, out.user);
+        if (out.user.position_code === 'sandbox_visitor') {
+          router.push('/sandbox/leads');
+          return;
+        }
+        const me = await staffMe(out.access_token);
+        updateStoredUser(me);
+        const next = new URLSearchParams(window.location.search).get('next');
+        router.push(resolveStaffPostLoginPath(me, next));
         return;
+      } catch (staffErr) {
+        if (
+          !(staffErr instanceof ApiError) ||
+          staffErr.status !== 401 ||
+          loginId.startsWith('demo_') ||
+          !opsClientLoginFallbackEnabled()
+        ) {
+          throw staffErr;
+        }
+        const portal = await portalClientLogin(loginId, password);
+        savePortalSession(portal.access_token, portal.user, portal.refresh_token, portal.expires_in);
+        window.location.assign('/client/dashboard');
       }
-      const me = await staffMe(out.access_token);
-      updateStoredUser(me);
-      const next = new URLSearchParams(window.location.search).get('next');
-      router.push(resolveStaffPostLoginPath(me, next));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại');
     } finally {
@@ -68,9 +85,11 @@ function LoginPageContent() {
         <p className="badge" style={{ marginBottom: '0.75rem' }}>
           PTT CRM
         </p>
-        <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.5rem' }}>Đăng nhập nhân viên</h1>
+        <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.5rem' }}>Đăng nhập</h1>
         <p className="muted" style={{ marginTop: 0, marginBottom: '1.25rem' }}>
-          Staff console — rs.pttads.vn
+          {opsClientLoginFallbackEnabled()
+            ? 'Nhân sự PTT và user Client dùng cùng form này (dev fallback).'
+            : 'Đăng nhập nhân sự PTT. Khách hàng dùng portal-web /login.'}
         </p>
         {showSso ? <WinSsoMigrationBanner /> : null}
         {showSso ? <KeycloakRedirect /> : null}

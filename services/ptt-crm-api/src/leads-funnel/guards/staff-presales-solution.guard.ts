@@ -30,6 +30,7 @@ export class StaffPresalesSolutionClaimGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
+    if (await this.staffAuth.canReceiveSolution(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
     assertCapOrThrow(me.caps, 'claim');
     return true;
@@ -46,6 +47,7 @@ export class StaffPresalesSolutionReleaseGuard implements CanActivate {
     >();
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    if (await this.staffAuth.canReceiveSolution(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
     assertCapOrThrow(me.caps, 'release');
     return true;

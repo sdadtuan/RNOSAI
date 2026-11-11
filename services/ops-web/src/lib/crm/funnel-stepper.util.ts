@@ -77,7 +77,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate) {
     return {
       kind: 'none',
-      label: 'Giao Solution/MKT →',
+      label: 'Giao Solution/AM →',
       disabled: true,
       blockReason: 'Đang tải gate…',
     };
@@ -86,7 +86,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate.ok || consultGate.level === 'block') {
     return {
       kind: 'handoff_solution',
-      label: 'Giao Solution/MKT →',
+      label: 'Giao Solution/AM →',
       disabled: true,
       blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện giao Solution',
       requiresOverride: consultGate.requires_override,
@@ -96,7 +96,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
   return {
     kind: 'handoff_solution',
-    label: requiresConfirm ? 'Giao Solution/MKT (xác nhận) →' : 'Giao Solution/MKT →',
+    label: requiresConfirm ? 'Giao Solution/AM (xác nhận) →' : 'Giao Solution/AM →',
     disabled: false,
     requiresConfirm,
   };
@@ -450,7 +450,7 @@ export function resolvePrimaryAction(input: {
       if (!(solutionCaps?.canHandoff ?? true)) {
         return {
           kind: 'none',
-          label: 'Giao Solution/MKT →',
+          label: 'Giao Solution/AM →',
           disabled: true,
           blockReason: 'Chỉ AM Sales mới giao Solution/MKT',
         };

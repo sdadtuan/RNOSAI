@@ -9,11 +9,12 @@ import type {
   IwrDashStaff,
 } from './iwr.types';
 import { IwrDashSnapshotsRepository } from './iwr-w4.repository';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const SNAPSHOT_MAX_AGE_MS = 15 * 60_000;
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

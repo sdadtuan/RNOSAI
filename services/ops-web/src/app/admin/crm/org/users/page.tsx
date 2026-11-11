@@ -161,6 +161,8 @@ function AdminOrgUsersPageContent() {
                 <td>
                   <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
                     {formatOrgUserRole(row)}
+                    {row.can_receive_leads ? <span className="chip">Nhận Lead</span> : null}
+                    {row.can_receive_solution ? <span className="chip">Nhận Solution</span> : null}
                     <WinScopeBadge clientIds={row.client_ids} />
                   </span>
                 </td>

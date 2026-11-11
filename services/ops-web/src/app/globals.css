@@ -14172,6 +14172,62 @@ html.rs-mobile-chrome .lead-b2b-call-sticky {
   font-size: 0.9375rem;
 }
 
+.receive-queue-flags {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.25rem;
+  align-items: start;
+  width: 100%;
+}
+.receive-queue-flags-slot {
+  grid-column: 1 / -1 !important;
+}
+.receive-queue-flags__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin: 0;
+  min-width: 0;
+}
+.receive-queue-flags__label {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  width: auto;
+  max-width: 100%;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.receive-queue-flags__label input[type='checkbox'] {
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 !important;
+  flex: 0 0 auto;
+  align-self: center;
+}
+.receive-queue-flags__text {
+  font-size: inherit;
+  font-weight: inherit;
+}
+.receive-queue-flags__hint {
+  margin: 0;
+  padding-left: 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+@media (max-width: 640px) {
+  .receive-queue-flags {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-check input[type='checkbox'],
 .form-check input[type='radio'] {
   width: 1rem;

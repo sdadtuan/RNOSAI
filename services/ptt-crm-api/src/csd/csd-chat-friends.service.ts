@@ -13,13 +13,14 @@ import type {
   CsdChatFriendshipRow,
   CsdChatPersonRow,
 } from './csd.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function pairIds(a: number, b: number): { lo: number; hi: number } {
   return { lo: Math.min(a, b), hi: Math.max(a, b) };
 }
 
 function hasCsdCap(actor: CsdActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'csd' && c.action === action);
+  return capAllows(actor.caps, 'csd', action);
 }
 
 function isParticipant(row: CsdChatFriendshipRow, staffId: number): boolean {

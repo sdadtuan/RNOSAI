@@ -6,9 +6,7 @@ import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import {
   B2B_LEAD_ALERTS_CHANGED_EVENT,
-  b2bLeadAlertsStreamUrl,
   fetchB2bLeadAlerts,
-  parseB2bLeadAlerts,
   type B2bLeadAlertRow,
 } from '@/lib/b2b-lead-alerts-api';
 import {
@@ -123,69 +121,52 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
     },
     [pathname, syncRing],
   );
+  const applyItemsRef = useRef(applyItems);
+  applyItemsRef.current = applyItems;
+
+  const canWatchAlerts = Boolean(user && hasCap(user, 'crm_leads', 'view'));
 
   useEffect(() => {
-    if (!user || !hasCap(user, 'crm_leads', 'view')) return;
+    if (!user || !canWatchAlerts) return;
 
     let cancelled = false;
-    let eventSource: EventSource | null = null;
     let pollTimer: number | undefined;
     let lastFingerprint: string | null = null;
+    let inFlight = false;
 
     function ingest(items: B2bLeadAlertRow[], announce: boolean) {
       const next = alertsFingerprint(items);
       const changed = lastFingerprint != null && next !== lastFingerprint;
       lastFingerprint = next;
-      applyItems(items);
+      applyItemsRef.current(items);
       if (announce && changed) notifyLeadAlertsChanged();
     }
 
     function stopAfterUnauthorized(token: string) {
       noteBackgroundUnauthorized(token);
       cancelled = true;
-      eventSource?.close();
-      eventSource = null;
       if (pollTimer) window.clearInterval(pollTimer);
     }
 
     async function poll() {
+      if (inFlight || cancelled) return;
       const token = await staffTokenForBackground();
       if (!token || cancelled) return;
+      inFlight = true;
       try {
         const items = await fetchB2bLeadAlerts(token, { limit: 30 });
         if (cancelled) return;
         ingest(items, true);
       } catch (err) {
         if (isApiUnauthorized(err)) stopAfterUnauthorized(token);
+      } finally {
+        inFlight = false;
       }
     }
 
     void staffTokenForBackground().then((token) => {
       if (!token || cancelled) return;
       void registerB2bStaffPush(token);
-      if (typeof EventSource === 'undefined') return;
-      try {
-        eventSource = new EventSource(b2bLeadAlertsStreamUrl(token));
-        eventSource.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data) as {
-              changed?: boolean;
-              items?: unknown;
-            };
-            if (payload.changed && payload.items) {
-              ingest(parseB2bLeadAlerts(payload.items), true);
-            }
-          } catch {
-            // ignore malformed SSE payload
-          }
-        };
-        eventSource.onerror = () => {
-          eventSource?.close();
-          eventSource = null;
-        };
-      } catch {
-        eventSource = null;
-      }
     });
 
     void poll();
@@ -193,11 +174,10 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
 
     return () => {
       cancelled = true;
-      eventSource?.close();
       if (pollTimer) window.clearInterval(pollTimer);
       stopTone();
     };
-  }, [user, applyItems, stopTone]);
+  }, [user?.id, canWatchAlerts, stopTone]);
 
   useEffect(() => {
     syncRing(urgentRef.current);

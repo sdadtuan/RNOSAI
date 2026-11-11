@@ -14,6 +14,8 @@ export type StaffOrgUserSummary = {
   position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
+  can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
   account_kind?: string;
   expires_at?: string | null;
   last_login_at?: string | null;
@@ -40,6 +42,7 @@ export type CreateStaffOrgUserBody = {
     internal_code?: string;
     department_id?: number | null;
     can_receive_leads?: boolean;
+    can_receive_solution?: boolean;
   };
 };
 
@@ -52,6 +55,8 @@ export type PatchStaffOrgUserBody = {
   password?: string;
   account_kind?: 'staff' | 'guest' | 'contractor';
   expires_at?: string | null;
+  can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
 };
 
 export type OffboardStaffOrgUserBody = {

@@ -192,9 +192,8 @@ export class PortalClientUsersService {
 
   private normalizeRole(role: unknown): PortalClientRole {
     const value = String(role ?? 'viewer').trim().toLowerCase();
-    if (value === 'approver') return 'approver';
-    if (value === 'viewer') return 'viewer';
-    throw new BadRequestException({ error: 'invalid_role', allowed: ['viewer', 'approver'] });
+    if (value === 'approver' || value === 'viewer' || value === 'staff') return value;
+    throw new BadRequestException({ error: 'invalid_role', allowed: ['viewer', 'approver', 'staff'] });
   }
 
   private generateTemporaryPassword(): string {

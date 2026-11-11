@@ -54,6 +54,7 @@ import {
   SendCsdMessageInput,
   SendCsdMessageResult,
 } from './csd.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
 
@@ -70,7 +71,7 @@ function uniqueStaffIds(ids: number[] | undefined, exclude: number): number[] {
 }
 
 function hasCsdCap(actor: CsdActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'csd' && c.action === action);
+  return capAllows(actor.caps, 'csd', action);
 }
 
 function canManageConversation(actor: CsdActor, ownerStaffId: number | null): boolean {

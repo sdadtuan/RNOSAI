@@ -1,5 +1,6 @@
 import {
   assertClientInScope,
+  capAllows,
   isClientScopeRestricted,
   isSuperAdminPositionCode,
   normalizeClientIds,
@@ -8,7 +9,18 @@ import {
 describe('staff-client-scope.util', () => {
   it('detects super-admin bypass', () => {
     expect(isSuperAdminPositionCode('super-admin')).toBe(true);
+    expect(isSuperAdminPositionCode('SUPER-ADMIN')).toBe(true);
     expect(isSuperAdminPositionCode('AM-01')).toBe(false);
+  });
+
+  it('capAllows honors compact SUPER-ADMIN wildcard without exploding grants', () => {
+    const star = [{ section: '*', action: '*' }];
+    expect(capAllows(star, 'crm_leads', 'view')).toBe(true);
+    expect(capAllows(star, 'crm_board', 'view')).toBe(true);
+    expect(capAllows(star, 'crm_presales_solution', 'claim')).toBe(true);
+    expect(capAllows(star, 'crm_gdkd', 'view_all_leads')).toBe(true);
+    expect(capAllows([], 'crm_leads', 'view')).toBe(false);
+    expect(capAllows([{ section: 'crm_leads', action: 'view' }], 'crm_leads', 'edit')).toBe(false);
   });
 
   it('restricts only when pilot on and bindings exist', () => {

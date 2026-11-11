@@ -25,28 +25,37 @@ describe('PolicyEngine WIN-4-C', () => {
     expect(out.policy_id).toBe('presales.no_release_without_handoff');
   });
 
-  it('allows claim for MKT content function', () => {
+  it('allows claim for Account Manager position', () => {
     const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
       action: 'claim',
-      job_functions: ['content'],
+      position_code: 'KD-01',
     });
     expect(out.allow).toBe(true);
   });
 
-  it('denies claim without MKT function or set', () => {
+  it('denies claim without AM desk or set', () => {
     const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
       action: 'claim',
-      job_functions: ['sales'],
-      permission_sets: ['AM-BASE'],
+      job_functions: ['content'],
+      permission_sets: ['MKT-SOLUTION'],
     });
     expect(out.allow).toBe(false);
     expect(out.policy_id).toBe('presales.no_claim_without_mkt_set');
   });
 
-  it('allows claim via MKT permission set', () => {
+  it('allows claim when can_receive_solution is set', () => {
     const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
       action: 'claim',
-      permission_sets: ['MKT-SOLUTION'],
+      position_code: 'ae',
+      can_receive_solution: true,
+    });
+    expect(out.allow).toBe(true);
+  });
+
+  it('allows claim via AM permission set', () => {
+    const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
+      action: 'claim',
+      permission_sets: ['KD-01-AM'],
     });
     expect(out.allow).toBe(true);
   });

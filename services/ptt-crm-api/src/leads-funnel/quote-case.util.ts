@@ -1,5 +1,7 @@
 /** Quote handoff after Solution is approved. Separate from Sale receive / reassign SLA. */
 
+import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
+
 export const QUOTE_ACCEPT_MINUTES = 15;
 export const QUOTE_FINISH_HOURS = 2;
 
@@ -29,11 +31,11 @@ export interface QuoteTransferCandidate {
   title: string;
 }
 
-export type QuoteDesk = 'sale' | 'marketing_leader';
+export type QuoteDesk = 'sale' | 'am';
 
 /** Who must act on this quote step. Hợp đồng and Triển Khai are not reassigned here. */
 export function quoteDeskForPhase(phase: QuoteCasePhase): QuoteDesk | null {
-  if (phase === 'chuyen_bao_gia' || phase === 'bao_gia') return 'marketing_leader';
+  if (phase === 'chuyen_bao_gia' || phase === 'bao_gia') return 'am';
   if (phase === 'sale_approve_solution' || phase === 'sale_review') return 'sale';
   return null;
 }
@@ -52,14 +54,12 @@ export function holdsQuoteDesk(
     .replace(/\s+/g, '');
   const title = String(row.job_title ?? '').trim().toLowerCase();
   const fn = String(row.job_function ?? '').trim().toLowerCase();
-  if (desk === 'marketing_leader') {
-    const leaderPosition = position === 'mkl' || position === 'mkt-01' || position === 'mkt01';
-    if (!leaderPosition) return false;
-    if (fn === 'content' || fn === 'design' || fn === 'analyst' || fn === 'technical' || fn === 'ops' || fn === 'sales') {
+  if (desk === 'am') {
+    if (!isAccountManagerPosition(position)) return false;
+    if (fn === 'content' || fn === 'design' || fn === 'analyst' || fn === 'technical' || fn === 'ops') {
       return false;
     }
-    if (title === 'agency ops') return false;
-    return fn === 'leader' || title === 'marketing leader' || title === 'mkl';
+    return true;
   }
   const salePosition = position === 'ae' || position.startsWith('ae-') || position.startsWith('ae_');
   if (!salePosition) return false;
@@ -99,7 +99,7 @@ export type QuoteCasePhase =
 export interface QuoteCaseView {
   phase: QuoteCasePhase;
   step_label: string;
-  expected_role: 'Sale' | 'Marketing Leader' | '';
+  expected_role: 'Sale' | 'AM' | '';
   accept_due_at: string;
   quote_due_at: string;
   change_note: string;
@@ -185,11 +185,20 @@ function cleanStaffIds(candidateIds: number[]): number[] {
   return [...new Set(candidateIds.filter((id) => Number.isInteger(id) && id > 0))].sort((left, right) => left - right);
 }
 
-/** Prefer the Solution owner when they are a Marketing Leader. Otherwise the first active one. */
-export function preferredMarketingLeaderId(candidateIds: number[], preferredId: number | null): number | null {
+/** Prefer the Solution owner when they are AM. Otherwise the first active one. */
+export function preferredAccountManagerId(candidateIds: number[], preferredId: number | null): number | null {
   const ids = cleanStaffIds(candidateIds);
   if (preferredId != null && preferredId > 0 && ids.includes(preferredId)) return preferredId;
   return ids[0] ?? null;
+}
+
+/** @deprecated Use preferredAccountManagerId — kept for grandfathered in-flight rows in tests. */
+export const preferredMarketingLeaderId = preferredAccountManagerId;
+
+export function isGrandfatheredQuoteMarketingLeader(
+  positionCode: string | null | undefined,
+): boolean {
+  return isMarketingLeaderPosition(positionCode);
 }
 
 /** Same statuses as the ops-web Báo giá kanban column. */
@@ -220,7 +229,7 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
   } else if (quoteApproved) {
     phase = 'hop_dong';
     stepLabel = 'Hợp đồng';
-    expected = 'Sale';
+    expected = 'AM';
   } else if (sentBack) {
     phase = 'sale_review';
     stepLabel = 'Báo giá chờ Sale';
@@ -228,11 +237,11 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
   } else if (accepted) {
     phase = 'bao_gia';
     stepLabel = 'Báo giá';
-    expected = 'Marketing Leader';
+    expected = 'AM';
   } else if (approved) {
     phase = 'chuyen_bao_gia';
     stepLabel = 'Chuyển Báo Giá';
-    expected = 'Marketing Leader';
+    expected = 'AM';
   }
 
   const acceptDue = String(row.quote_accept_due_at ?? '').trim();
@@ -256,9 +265,9 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
   if (timerWarning && phase === 'bao_gia') warningNote = `Sắp hết ${QUOTE_FINISH_HOURS} giờ nộp báo giá.`;
   let slaNote = '';
   if (phase === 'chuyen_bao_gia' && timerOverdue) {
-    slaNote = `Quá ${QUOTE_ACCEPT_MINUTES} phút chưa bấm Nhận Case Báo Giá. Giữ nguyên Marketing Leader và báo CEO.`;
+    slaNote = `Quá ${QUOTE_ACCEPT_MINUTES} phút chưa bấm Nhận Case Báo Giá. Giữ nguyên AM và báo CEO.`;
   } else if (phase === 'bao_gia' && timerOverdue) {
-    slaNote = `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá cho Sale. Giữ nguyên Marketing Leader và báo CEO.`;
+    slaNote = `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá cho Sale. Giữ nguyên AM và báo CEO.`;
   }
 
   const contractSigned = Boolean(String(row.contract_signed_at ?? '').trim());

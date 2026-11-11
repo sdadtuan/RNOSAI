@@ -7,6 +7,9 @@ import {
   fetchPendingCreativeCount,
   fetchPortalNotificationSummary,
   fetchPortalSettings,
+  fetchPortalAdsChannels,
+  fetchPortalDesk,
+  subscribePortalDesk,
   portalSeoStatus,
   type PortalNotificationSummaryResponse,
   type PortalSettingsResponse,
@@ -15,6 +18,7 @@ import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { usePortalEmailNav } from '@/hooks/usePortalEmailNav';
 import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
 import { applyPortalBranding, clearPortalBranding } from '@/lib/portal/branding';
+import { PortalAdsChannelProvider } from '@/lib/portal/ads-channels';
 
 interface PortalPageShellProps {
   children: (ctx: {
@@ -37,6 +41,9 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
     null,
   );
   const [branding, setBranding] = useState<PortalSettingsResponse | null>(null);
+  const [adsChannelIds, setAdsChannelIds] = useState<string[] | null>(null);
+  const [openLeads, setOpenLeads] = useState(0);
+  const [openMessages, setOpenMessages] = useState(0);
 
   const refreshBranding = useCallback(async () => {
     if (!token) return;
@@ -63,6 +70,20 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
     void fetchPortalNotificationSummary(token)
       .then(setNotificationSummary)
       .catch(() => setNotificationSummary(null));
+    void fetchPortalAdsChannels(token)
+      .then((out) => setAdsChannelIds((out.channels ?? []).map((item) => item.id)))
+      .catch(() => setAdsChannelIds([]));
+    const applyDesk = (out: { leads: unknown[]; messages: unknown[] }) => {
+      setOpenLeads(out.leads.length);
+      setOpenMessages(out.messages.length);
+    };
+    const unsubDesk = subscribePortalDesk(applyDesk);
+    void fetchPortalDesk(token, {})
+      .then(applyDesk)
+      .catch(() => {
+        setOpenLeads(0);
+        setOpenMessages(0);
+      });
     if (seoEnabled) {
       void portalSeoStatus(token)
         .then((status) => setSeoPending(Number(status.pending_client_review ?? 0)))
@@ -70,6 +91,9 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
     } else {
       setSeoPending(0);
     }
+    return () => {
+      unsubDesk();
+    };
   }, [token, seoEnabled, refreshBranding]);
 
   if (loading || !user || !token) {
@@ -81,7 +105,7 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
   }
 
   return (
-    <>
+    <PortalAdsChannelProvider ids={adsChannelIds}>
       <PortalAppNav
         user={user}
         onLogout={logout}
@@ -92,6 +116,9 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
         branding={branding}
         seoEnabled={seoEnabled}
         emailEnabled={emailEnabled}
+        adsChannelIds={adsChannelIds ?? []}
+        openLeads={openLeads}
+        openMessages={openMessages}
       />
       <PortalPage breadcrumb={breadcrumb} width={width}>
         {sessionWarning ? <p className="badge portal-session-warning">{sessionWarning}</p> : null}
@@ -104,6 +131,6 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
         emailEnabled={emailEnabled}
         isApprover={user.role === 'approver'}
       />
-    </>
+    </PortalAdsChannelProvider>
   );
 }

@@ -1,6 +1,7 @@
 import type { StoredUser } from '@/lib/auth';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { isOpsPortalSummaryFeEnabled } from '@/lib/ops-portal-flags';
+import { isPortalCrmCareEnabled } from '@/lib/portal-crm-flags';
 
 export type PortalNavLink = { href: string; label: string; badge?: number };
 
@@ -19,6 +20,9 @@ export type PortalNavContext = {
   seoPending?: number;
   seoEnabled?: boolean;
   emailEnabled?: boolean;
+  adsChannelIds?: string[];
+  openLeads?: number;
+  openMessages?: number;
 };
 
 function badgeSuffix(count: number | undefined): string {
@@ -35,7 +39,17 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     seoPending = 0,
     seoEnabled = false,
     emailEnabled = false,
+    adsChannelIds = [],
+    openLeads = 0,
+    openMessages = 0,
   } = ctx;
+
+  const channelCatalog = [
+    { id: 'meta', href: '/meta', label: 'Meta (Facebook / IG)' },
+    { id: 'google', href: '/google', label: 'Google Ads' },
+    { id: 'zalo', href: '/zalo', label: 'Zalo Ads' },
+  ];
+  const channelLinks = channelCatalog.filter((item) => adsChannelIds.includes(item.id));
 
   const sections: PortalNavSection[] = [
     {
@@ -44,34 +58,62 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
       shortLabel: 'Home',
       links: [{ href: '/dashboard', label: 'Performance tổng hợp' }],
     },
-    {
+  ];
+
+  if (isPortalCrmCareEnabled()) {
+    sections.push(
+      {
+        id: 'lead',
+        label: 'Lead',
+        shortLabel: 'Lead',
+        links: [{ href: '/crm/leads', label: 'Lead', badge: openLeads }],
+      },
+      {
+        id: 'message',
+        label: 'Tin nhắn',
+        shortLabel: 'Tin nhắn',
+        links: [{ href: '/crm/messages', label: 'Tin nhắn', badge: openMessages }],
+      },
+      {
+        id: 'customers',
+        label: 'Khách hàng',
+        shortLabel: 'Khách hàng',
+        links: [{ href: '/crm/customers', label: 'Khách hàng' }],
+      },
+      {
+        id: 'products',
+        label: 'Sản Phẩm',
+        shortLabel: 'Sản Phẩm',
+        links: [{ href: '/products', label: 'Sản Phẩm' }],
+      },
+    );
+  }
+
+  if (channelLinks.length > 0) {
+    sections.push({
       id: 'channels',
       label: 'Kênh quảng cáo',
       shortLabel: 'Ads',
-      links: [
-        { href: '/meta', label: 'Meta (Facebook / IG)' },
-        { href: '/google', label: 'Google Ads' },
-        { href: '/zalo', label: 'Zalo Ads' },
-      ],
-    },
-    {
-      id: 'workflow',
-      label: 'Duyệt & thông báo',
-      shortLabel: 'Duyệt',
-      links: [
-        {
-          href: '/creatives',
-          label: `Creative inbox${badgeSuffix(pendingCount)}`,
-          badge: pendingCount,
-        },
-        {
-          href: '/notifications',
-          label: `Thông báo${badgeSuffix(notificationUnread)}`,
-          badge: notificationUnread,
-        },
-      ],
-    },
-  ];
+      links: channelLinks.map(({ href, label }) => ({ href, label })),
+    });
+  }
+  sections.push({
+    id: 'workflow',
+    label: 'Duyệt',
+    shortLabel: 'Duyệt',
+    links: [
+      {
+        href: '/creatives',
+        label: `Creative inbox${badgeSuffix(pendingCount)}`,
+        badge: pendingCount,
+      },
+      {
+        href: '/notifications',
+        label: `Thông báo${badgeSuffix(notificationUnread)}`,
+        badge: notificationUnread,
+      },
+    ],
+  });
 
   if (seoEnabled) {
     sections.push({
@@ -137,12 +179,19 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Performance tổng hợp',
+  '/crm': 'Tổng quan',
+  '/crm/leads': 'Lead',
+  '/crm/messages': 'Tin nhắn',
+  '/crm/customers': 'Khách hàng',
+  '/crm/customers/leads': 'Khách hàng',
+  '/crm/customers/messages': 'Khách hàng',
   '/meta': 'Meta Performance',
   '/google': 'Google Performance',
   '/zalo': 'Zalo Performance',
   '/creatives': 'Creative inbox',
   '/notifications': 'Thông báo',
   '/settings': 'Cài đặt',
+  '/products': 'Sản Phẩm',
   '/seo': 'SEO / AEO',
   '/seo/reports': 'SEO Reports',
   '/seo/content': 'SEO Content review',
@@ -160,6 +209,8 @@ export function portalPageTitle(pathname: string): string {
 }
 
 export function portalNavIsActive(pathname: string, href: string): boolean {
+  if (href === '/crm') return pathname === '/crm';
+  if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/crm';
   return pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 }
 

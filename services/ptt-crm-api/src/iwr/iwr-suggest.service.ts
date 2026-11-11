@@ -4,9 +4,10 @@ import type { CsdTicketRow } from '../csd/csd.types';
 import { ancestorIds, isOnPath } from './iwr-org.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import type { IwrActor, IwrSuggestHit } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function ymdOf(iso: string | null | undefined): string {

@@ -15,6 +15,8 @@ export interface AgencyClientRow {
   updated_at: string | null;
   tenant_locked?: boolean;
   channels?: string | null;
+  /** Email đăng nhập Client CRM gắn với client này. */
+  portal_logins?: string | null;
 }
 
 export interface AgencyClientsListResponse {

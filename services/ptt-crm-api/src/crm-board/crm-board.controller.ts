@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -11,7 +11,10 @@ export class CrmBoardController {
   constructor(private readonly crmBoard: CrmBoardService) {}
 
   @Get('board')
-  board(@Req() req: Request & { staffUser: StaffJwtPayload }) {
+  board(@Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    if (!req.staffUser) {
+      throw new UnauthorizedException({ error: 'Unauthorized' });
+    }
     return this.crmBoard.board(req.staffUser);
   }
 }

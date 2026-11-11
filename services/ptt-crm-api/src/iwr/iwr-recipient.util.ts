@@ -1,5 +1,6 @@
 import { isOnPath, sameDepartment } from './iwr-org.util';
 import type { IwrActor, IwrRecipientRow, IwrReportRow, IwrStaffNode } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 export type RecipientPolicyError =
   | 'iwr_to_locked'
@@ -23,7 +24,7 @@ export function defaultToStaffId(author: IwrStaffNode): number | null {
 }
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function hasIwrManage(actor: IwrActor): boolean {

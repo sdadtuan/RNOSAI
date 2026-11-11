@@ -40,6 +40,7 @@ import {
   PresalesTaskRow,
   ReleaseReviewQueueBody,
   SolutionQueueRow,
+  ImplementationQueueRow,
 } from './leads-funnel.types';
 import {
   consultAdvanceBlockReason,
@@ -73,7 +74,7 @@ import {
   buildQuoteCaseView,
   holdsQuoteDesk,
   isBaoGiaColumnStatus,
-  preferredMarketingLeaderId,
+  preferredAccountManagerId,
   quoteDeskForPhase,
   quoteDeadlineIso,
   quoteLateEventKey,
@@ -90,6 +91,17 @@ import {
   buildSolutionCaseView,
   solutionWorkDueAt,
 } from './solution-case.util';
+import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
+import {
+  IMPLEMENTATION_ACCEPT_MINUTES,
+  buildImplementationHandoffView,
+  normalizeImplementationHandoffStatus,
+} from './implementation-handoff.util';
+import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
+import {
+  canClaimSolutionCase,
+  grandfatheredMarketingLeaderOwner,
+} from './presales-solution-desk.util';
 import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
 import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
 import {
@@ -200,6 +212,10 @@ type PgPresalesRow = {
   quote_assignee_staff_id?: string | number | null;
   quote_reassign_note?: string | null;
   implementation_status?: string | null;
+  implementation_handoff_status?: string | null;
+  implementation_owner_staff_id?: string | number | null;
+  implementation_accept_due_at?: Date | string | null;
+  implementation_claimed_at?: Date | string | null;
   contract_created_at?: Date | string | null;
   contract_signed_at?: Date | string | null;
   contract_amount_vnd?: string | number | null;
@@ -293,6 +309,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       contract_created_at: row.contract_created_at ? String(row.contract_created_at) : '',
       contract_signed_at: row.contract_signed_at ? String(row.contract_signed_at) : '',
       contract_amount_vnd: Number(row.contract_amount_vnd) || 0,
+      implementation_handoff_status: normalizeImplementationHandoffStatus(row.implementation_handoff_status),
+      implementation_owner_staff_id:
+        row.implementation_owner_staff_id != null && Number(row.implementation_owner_staff_id) > 0
+          ? Number(row.implementation_owner_staff_id)
+          : null,
+      implementation_accept_due_at: row.implementation_accept_due_at
+        ? String(row.implementation_accept_due_at)
+        : '',
+      implementation_claimed_at: row.implementation_claimed_at ? String(row.implementation_claimed_at) : '',
     };
   }
 
@@ -322,7 +347,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              ADD COLUMN IF NOT EXISTS solution_revision_due_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS contract_created_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS contract_signed_at TIMESTAMPTZ,
-             ADD COLUMN IF NOT EXISTS contract_amount_vnd BIGINT NOT NULL DEFAULT 0`,
+             ADD COLUMN IF NOT EXISTS contract_amount_vnd BIGINT NOT NULL DEFAULT 0,
+             ADD COLUMN IF NOT EXISTS implementation_handoff_status TEXT,
+             ADD COLUMN IF NOT EXISTS implementation_owner_staff_id BIGINT,
+             ADD COLUMN IF NOT EXISTS implementation_accept_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS implementation_claimed_at TIMESTAMPTZ`,
         )
         .then(() => undefined)
         .catch((err) => {
@@ -356,6 +385,32 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (staffId == null || staffId <= 0) return '';
     const result = await this.db.query(`SELECT name FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
     return String(result.rows[0]?.name ?? '').trim();
+  }
+
+  private async staffPositionCode(staffId: number | null): Promise<string> {
+    if (staffId == null || staffId <= 0) return '';
+    const result = await this.db.query(
+      `SELECT p.code AS position_code
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.id = $1
+        LIMIT 1`,
+      [staffId],
+    );
+    return String(result.rows[0]?.position_code ?? '').trim();
+  }
+
+  private async staffCanReceiveSolution(staffId: number | null): Promise<boolean> {
+    if (staffId == null || staffId <= 0) return false;
+    try {
+      const result = await this.db.query(
+        `SELECT COALESCE(can_receive_solution, FALSE) AS flag FROM crm_staff WHERE id = $1 LIMIT 1`,
+        [staffId],
+      );
+      return result.rows[0]?.flag === true;
+    } catch {
+      return false;
+    }
   }
 
   async buildHandoffView(ps: PresalesRow): Promise<PresalesHandoffView> {
@@ -1160,7 +1215,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (quoteCase && desk) {
       const people = await this.staffForDesk(desk);
       const currentId =
-        desk === 'marketing_leader' ? quoteCase.assignee_staff_id : await this.leadOwnerId(ps.lead_id);
+        desk === 'am' ? quoteCase.assignee_staff_id : await this.leadOwnerId(ps.lead_id);
       quoteCase = {
         ...quoteCase,
         transfer_candidates: people
@@ -1176,12 +1231,24 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       },
       now,
     );
+    const implOwnerName = await this.staffNameById(ps.implementation_owner_staff_id);
+    const implementationHandoff = buildImplementationHandoffView(
+      {
+        implementation_handoff_status: ps.implementation_handoff_status,
+        implementation_owner_staff_id: ps.implementation_owner_staff_id,
+        implementation_owner_name: implOwnerName,
+        implementation_accept_due_at: ps.implementation_accept_due_at,
+        implementation_claimed_at: ps.implementation_claimed_at,
+      },
+      now,
+    );
 
     return {
       presales: ps,
       handoff,
       solution_case: solutionCase,
       quote_case: quoteCase,
+      implementation_handoff: implementationHandoff,
       l2_docs: buildPresalesL2DocsView(ps.service_slug, ps.l2_docs_json),
       consult_proposal_sla: buildPresalesConsultProposalSla({
         presalesStage: ps.stage,
@@ -1967,12 +2034,6 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
 
-    const leaders = await this.marketingLeaders();
-    const assigneeId = preferredMarketingLeaderId(
-      leaders.map((row) => row.id),
-      null,
-    );
-    const assigneeName = leaders.find((row) => row.id === assigneeId)?.name ?? '';
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET stage = 'consult',
@@ -1985,8 +2046,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            handoff_status = 'pending',
            handed_off_at = NOW(),
            handed_off_by_staff_id = $2,
-           solution_owner_staff_id = $3,
-           solution_accept_due_at = NOW() + ($4::int * INTERVAL '1 minute'),
+           solution_owner_staff_id = NULL,
+           solution_accept_due_at = NOW() + ($3::int * INTERVAL '1 minute'),
            solution_claimed_at = NULL,
            solution_due_at = NULL,
            solution_released_at = NULL,
@@ -1995,17 +2056,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            solution_revision_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, assigneeId, SOLUTION_ACCEPT_MINUTES],
+      [snap.presales.id, staffId, SOLUTION_ACCEPT_MINUTES],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
     const status = await this.currentLeadStatus(leadId);
-    const who = assigneeName ? ` Đã giao ${assigneeName}.` : '';
     await this.noteLeadStep(
       leadId,
       staffId,
       status,
-      `Lead chờ Solutions.${who} Hạn nhận case ${SOLUTION_ACCEPT_MINUTES} phút.`,
+      `Lead chờ AM nhận Solutions. Hạn nhận case ${SOLUTION_ACCEPT_MINUTES} phút.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -2045,14 +2105,23 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.handoff_status !== 'pending') {
       throw new Error('Lead không ở trạng thái chờ Solution nhận case.');
     }
+    const position = await this.staffPositionCode(staffId);
+    const canReceiveSolution = await this.staffCanReceiveSolution(staffId);
+    if (!asSuperAdmin && !canClaimSolutionCase(position, { gdkdAssign: false, canReceiveSolution })) {
+      throw new Error('Chỉ AM hoặc nhân viên được phép nhận Solution mới nhận case được.');
+    }
     if (
       !asSuperAdmin &&
       snap.presales.solution_owner_staff_id &&
       snap.presales.solution_owner_staff_id !== staffId
     ) {
-      throw new Error('Case Solutions đang giao cho Marketing Leader khác.');
+      const ownerPos = await this.staffPositionCode(snap.presales.solution_owner_staff_id);
+      const ownerIsAm = isAccountManagerPosition(ownerPos);
+      if (ownerIsAm) {
+        throw new Error('Case Solutions đang giao cho AM khác.');
+      }
     }
-    const due = solutionWorkDueAt(new Date());
+    const due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET handoff_status = 'with_solution',
@@ -2067,7 +2136,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [snap.presales.id, staffId, due.toISOString()],
     );
     const status = await this.currentLeadStatus(leadId);
-    await this.noteLeadStep(leadId, staffId, status, 'Đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.');
+    await this.noteLeadStep(leadId, staffId, status, 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.');
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
 
@@ -2197,13 +2266,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   }
 
   private async staffForDesk(
-    desk: 'sale' | 'marketing_leader',
+    desk: 'sale' | 'am',
   ): Promise<Array<{ id: number; name: string; title: string }>> {
     const deskSql =
-      desk === 'marketing_leader'
-        ? `lower(replace(p.code, ' ', '')) IN ('mkl', 'mkt-01', 'mkt01')
-           AND lower(btrim(COALESCE(s.job_function_primary, ''))) IN ('', 'leader')
-           AND lower(btrim(COALESCE(s.job_title, ''))) IN ('mkl', 'marketing leader')`
+      desk === 'am'
+        ? `lower(replace(p.code, ' ', '')) IN ('acm', 'kd-01', 'kd01')`
         : `lower(replace(p.code, ' ', '')) IN ('ae')
            AND lower(btrim(COALESCE(s.job_function_primary, ''))) <> 'ops'
            AND (
@@ -2231,8 +2298,23 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       .map((row) => ({
         id: Number(row.id),
         name: String(row.name ?? '').trim(),
-        title: desk === 'marketing_leader' ? 'Marketing Leader' : 'Sale',
+        title: desk === 'am' ? 'AM' : 'Sale',
       }));
+  }
+
+  private async accountManagers(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT s.id, s.name
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) IN ('acm', 'kd-01', 'kd01')
+        ORDER BY s.id`,
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? '').trim(),
+    }));
   }
 
   private async marketingLeaders(): Promise<Array<{ id: number; name: string }>> {
@@ -2258,11 +2340,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   private async quoteAssigneeName(staffId: number | null): Promise<string> {
     if (staffId == null || staffId <= 0) return '';
-    const leaders = await this.marketingLeaders();
-    return leaders.find((row) => row.id === staffId)?.name || (await this.staffNameById(staffId));
+    return (await this.staffNameById(staffId)) || 'AM';
   }
 
-  /** A missed quote timer stays with the Solution Marketing Leader and is logged for the CEO. */
+  /** A missed quote timer stays with the Solution/quote AM owner and is logged for the CEO. */
   private async syncQuoteWithSolutionOwner(ps: PresalesRow): Promise<void> {
     const forcedAccept = await this.restoreQuoteToSolutionOwner(ps);
     await this.recordQuoteLateness(ps, forcedAccept);
@@ -2326,7 +2407,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const already = existing.some((row) => quoteLateEventKey(row) === quoteLateEventKey(event));
     if (already && ps.quote_ceo_escalated_at) return;
     const events = already ? existing : [...existing, event];
-    const who = staffName || 'Marketing Leader';
+    const who = staffName || 'AM';
     const note = acceptLate
       ? `Quá ${QUOTE_ACCEPT_MINUTES} phút chưa bấm Nhận Case Báo Giá — ${who} trễ, đã báo CEO. Giữ nguyên người phụ trách.`
       : `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá — ${who} trễ, đã báo CEO. Giữ nguyên người phụ trách.`;
@@ -2365,7 +2446,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const target = people.find((row) => row.id === targetStaffId);
     if (!target) {
       throw new Error(
-        desk === 'sale' ? 'Chỉ giao cho nhân sự đang làm Sale.' : 'Chỉ giao cho nhân sự đang làm Marketing Leader.',
+        desk === 'sale' ? 'Chỉ giao cho nhân sự đang làm Sale.' : 'Chỉ giao cho nhân sự đang làm AM.',
       );
     }
     if (desk === 'sale') {
@@ -2392,7 +2473,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (ps.quote_approved_at) throw new Error('Báo giá đã được Approve.');
     if (ps.quote_sent_back_at) throw new Error('Báo giá đang chờ Sale.');
     if (ps.quote_assignee_staff_id === targetStaffId) {
-      throw new Error('Case đang giao cho Marketing Leader này.');
+      throw new Error('Case đang giao cho AM này.');
     }
     const accepted = Boolean(ps.quote_accepted_at);
     const note = accepted
@@ -2434,7 +2515,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private assertQuoteAssignee(ps: PresalesRow, staffId: number, bypass = false): void {
     if (bypass) return;
     if (ps.quote_assignee_staff_id && ps.quote_assignee_staff_id !== staffId) {
-      throw new Error('Case báo giá đang giao cho Marketing Leader khác.');
+      throw new Error('Case báo giá đang giao cho AM khác.');
     }
   }
 
@@ -2471,7 +2552,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          JOIN crm_positions p ON p.id = s.position_id
          LEFT JOIN crm_position_rates r ON r.position_id = p.id
         WHERE s.active IS TRUE
-          AND upper(p.code) IN ('AE', 'GDKD', 'MKL')
+          AND upper(replace(p.code, ' ', '')) IN ('AE', 'GDKD', 'MKL', 'ACM', 'KD-01', 'KD01')
         ORDER BY upper(p.code), s.name, s.id`,
     );
     const staff: QuoteSheetStaff[] = staffResult.rows.map((row) => {
@@ -2611,7 +2692,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const allowed = new Set(catalog.staff.map((person) => person.id));
     for (const line of parsed.lines) {
       if (line.staff_id != null && !allowed.has(line.staff_id)) {
-        throw new Error('Nhân sự không thuộc AE, GDKD hoặc Marketing Leader.');
+        throw new Error('Nhân sự không thuộc AE, GDKD, AM hoặc Marketing Leader.');
       }
     }
     const payload = {
@@ -2716,17 +2797,21 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.solution_approved_at) {
       throw new Error('Solution đã được Approve.');
     }
-    const leaders = await this.marketingLeaders();
+    const ams = await this.accountManagers();
     const ownerId = snap.presales.solution_owner_staff_id;
+    const ownerPos = ownerId ? await this.staffPositionCode(ownerId) : '';
+    const ownerIsAm = isAccountManagerPosition(ownerPos);
+    const ownerIsGrandfatherMkl =
+      ownerId != null && ownerId > 0 && grandfatheredMarketingLeaderOwner(ownerPos);
     const assigneeId =
-      ownerId != null && ownerId > 0
-        ? ownerId
-        : preferredMarketingLeaderId(
-            leaders.map((row) => row.id),
+      ownerIsAm || ownerIsGrandfatherMkl
+        ? ownerId!
+        : preferredAccountManagerId(
+            ams.map((row) => row.id),
             null,
           );
     const assigneeName =
-      leaders.find((row) => row.id === assigneeId)?.name || (await this.staffNameById(assigneeId));
+      ams.find((row) => row.id === assigneeId)?.name || (await this.staffNameById(assigneeId));
     await this.db.query(
       `UPDATE crm_lead_presales
        SET solution_approved_at = NOW(),
@@ -2754,12 +2839,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       throw new Error('Case đã được nhận lên báo giá.');
     }
     if (!asSuperAdmin) {
-      const leaders = await this.marketingLeaders();
-      const isLeader = leaders.some((row) => row.id === staffId);
+      const position = await this.staffPositionCode(staffId);
+      const isAm = isAccountManagerPosition(position);
       const isAssignee = snap.presales.quote_assignee_staff_id === staffId;
       const isSolutionOwner = snap.presales.solution_owner_staff_id === staffId;
-      if (!isLeader && !isAssignee && !isSolutionOwner) {
-        throw new Error('Chỉ Marketing Leader được nhận case báo giá.');
+      const grandfatherMkl =
+        grandfatheredMarketingLeaderOwner(position) && (isAssignee || isSolutionOwner);
+      if (!isAm && !grandfatherMkl) {
+        throw new Error('Chỉ AM được nhận case báo giá (MKL chỉ với case đang phụ trách).');
       }
       this.assertQuoteAssignee(snap.presales, staffId);
     }
@@ -2774,7 +2861,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        WHERE id = $1`,
       [snap.presales.id, staffId, QUOTE_FINISH_HOURS],
     );
-    await this.setLeadStatus(leadId, 'bao_gia', staffId, 'Marketing Leader nhận case báo giá.');
+    await this.setLeadStatus(leadId, 'bao_gia', staffId, 'AM nhận case báo giá.');
   }
 
   async sendQuoteToSales(leadId: number, staffId: number, asSuperAdmin = false): Promise<void> {
@@ -2788,7 +2875,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       throw new Error('Nhận case báo giá trước khi gửi Sale.');
     }
     if (snap.quote_case?.phase !== 'bao_gia') {
-      throw new Error('Báo giá không còn ở bước Marketing Leader.');
+      throw new Error('Báo giá không còn ở bước AM.');
     }
     this.assertQuoteAssignee(snap.presales, staffId, asSuperAdmin);
     await this.assertQuoteSheetReady(snap.presales.id);
@@ -2803,14 +2890,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        WHERE id = $1`,
       [snap.presales.id],
     );
-    await this.noteLeadStep(leadId, staffId, status, 'Marketing Leader nộp báo giá cho Sale.');
+    await this.noteLeadStep(leadId, staffId, status, 'AM nộp báo giá cho Sale.');
   }
 
   async approveQuote(leadId: number, staffId: number): Promise<void> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (!snap.presales.quote_sent_back_at) {
-      throw new Error('Marketing Leader chưa nộp báo giá.');
+      throw new Error('AM chưa nộp báo giá.');
     }
     if (snap.presales.quote_approved_at) {
       throw new Error('Báo giá đã được Approve.');
@@ -3161,6 +3248,126 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       owner_name: String(row.owner_name ?? ''),
       queue_kind: row.queue_kind === 'am_rework' ? 'am_rework' : 'solution',
     };
+  }
+
+  async listImplementationQueue(
+    status: 'pending' | 'claimed' | 'all' = 'pending',
+    limit = 50,
+  ): Promise<ImplementationQueueRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    const statuses =
+    status === 'all' ? ['pending', 'claimed'] : status === 'claimed' ? ['claimed'] : ['pending'];
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id AS lead_id, l.full_name, l.phone, l.owner_id,
+              COALESCE(ps.service_slug, '') AS service_slug,
+              COALESCE(ps.implementation_handoff_status, '') AS implementation_handoff_status,
+              ps.implementation_owner_staff_id,
+              COALESCE(impl.name, '') AS implementation_owner_name,
+              COALESCE(ps.implementation_accept_due_at::text, '') AS implementation_accept_due_at,
+              COALESCE(am.name, '') AS owner_name
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
+       LEFT JOIN crm_staff am ON am.id = l.owner_id
+       LEFT JOIN crm_staff impl ON impl.id = ps.implementation_owner_staff_id
+       WHERE ps.status = 'active'
+         AND ps.implementation_status = 'trien_khai'
+         AND lower(COALESCE(ps.implementation_handoff_status, '')) = ANY($1::text[])
+       ORDER BY ps.implementation_accept_due_at ASC NULLS LAST, ps.id DESC
+       LIMIT $2`,
+      [statuses, lim],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      lead_id: Number(row.lead_id),
+      full_name: String(row.full_name ?? ''),
+      phone: String(row.phone ?? ''),
+      service_slug: String(row.service_slug ?? ''),
+      implementation_handoff_status: String(row.implementation_handoff_status ?? ''),
+      implementation_owner_staff_id:
+        row.implementation_owner_staff_id != null ? Number(row.implementation_owner_staff_id) : null,
+      implementation_owner_name: String(row.implementation_owner_name ?? ''),
+      implementation_accept_due_at: String(row.implementation_accept_due_at ?? ''),
+      owner_id: row.owner_id != null ? Number(row.owner_id) : null,
+      owner_name: String(row.owner_name ?? ''),
+    }));
+  }
+
+  async claimImplementationHandoff(
+    leadId: number,
+    staffId: number,
+    asSuperAdmin = false,
+  ): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.implementation_handoff_status !== 'pending') {
+      throw new Error('Không có case Triển khai chờ MKL nhận.');
+    }
+    if (!asSuperAdmin) {
+      const position = await this.staffPositionCode(staffId);
+      if (!isMarketingLeaderPosition(position)) {
+        throw new Error('Chỉ Marketing Leader được nhận case Triển khai.');
+      }
+    }
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+          SET implementation_handoff_status = 'claimed',
+              implementation_owner_staff_id = $2,
+              implementation_claimed_at = NOW(),
+              updated_at = NOW()
+        WHERE lead_id = $1
+          AND implementation_handoff_status = 'pending'
+        RETURNING *`,
+      [leadId, staffId],
+    );
+    if (!updated.rowCount) throw new Error('Không nhận được case Triển khai.');
+    const status = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      `Marketing Leader nhận case Triển khai. SLA nhận ${IMPLEMENTATION_ACCEPT_MINUTES} phút.`,
+    );
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async marketingLeaderAuthUserIds(): Promise<string[]> {
+    const result = await this.db.query(
+      `SELECT DISTINCT u.id::text AS user_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+         JOIN staff_users u ON lower(trim(u.email)) = lower(trim(s.email))
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) IN ('mkl', 'mkt-01', 'mkt01')`,
+    );
+    return result.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
+  }
+
+  async accountManagerAuthUserIds(): Promise<string[]> {
+    const result = await this.db.query(
+      `SELECT DISTINCT u.id::text AS user_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+         JOIN staff_users u ON lower(trim(u.email)) = lower(trim(s.email))
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) IN ('acm', 'kd-01', 'kd01')`,
+    );
+    return result.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
+  }
+
+  async solutionDeskAuthUserIds(): Promise<string[]> {
+    const am = await this.accountManagerAuthUserIds();
+    try {
+      const flagged = await this.db.query(
+        `SELECT DISTINCT u.id::text AS user_id
+           FROM crm_staff s
+           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(s.email))
+          WHERE s.active IS TRUE
+            AND COALESCE(s.can_receive_solution, FALSE) IS TRUE`,
+      );
+      const extra = flagged.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
+      return [...new Set([...am, ...extra])];
+    } catch {
+      return am;
+    }
   }
 }
 

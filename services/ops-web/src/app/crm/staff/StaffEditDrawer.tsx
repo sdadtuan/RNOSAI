@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ReceiveQueueFlags } from '@/components/crm/ReceiveQueueFlags';
 import { WinDrawer } from '@/components/win';
 import { WinRbacBadge } from '@/components/win/WinRbacBadge';
 import {
@@ -41,6 +42,7 @@ export function StaffEditDrawer({
   const [email, setEmail] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [canReceiveLeads, setCanReceiveLeads] = useState(false);
+  const [canReceiveSolution, setCanReceiveSolution] = useState(false);
   const [reportsToId, setReportsToId] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +57,7 @@ export function StaffEditDrawer({
     setEmail(staff.email ?? '');
     setJobTitle(staff.position_catalog_name?.trim() || staff.job_title || '');
     setCanReceiveLeads(Boolean(staff.can_receive_leads));
+    setCanReceiveSolution(Boolean(staff.can_receive_solution));
     setReportsToId(staff.reports_to_id != null ? String(staff.reports_to_id) : '');
     setError('');
   }, [staff]);
@@ -70,6 +73,7 @@ export function StaffEditDrawer({
         email: email.trim(),
         job_title: staff.position_catalog_name?.trim() || jobTitle.trim(),
         can_receive_leads: canReceiveLeads,
+        can_receive_solution: canReceiveSolution,
         reports_to_id: reportsToId ? Number(reportsToId) : null,
       });
       onSaved(updated);
@@ -197,15 +201,13 @@ export function StaffEditDrawer({
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
         Dùng làm người nhận Đến mặc định trên báo cáo ngày.
       </p>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <input
-          type="checkbox"
-          checked={canReceiveLeads}
-          disabled={!canEdit}
-          onChange={(e) => setCanReceiveLeads(e.target.checked)}
-        />
-        Cho phép nhận lead (hiện trong pool dự án PTT)
-      </label>
+      <ReceiveQueueFlags
+        canReceiveLeads={canReceiveLeads}
+        canReceiveSolution={canReceiveSolution}
+        onLeadsChange={setCanReceiveLeads}
+        onSolutionChange={setCanReceiveSolution}
+        disabled={!canEdit}
+      />
     </WinDrawer>
   );
 }

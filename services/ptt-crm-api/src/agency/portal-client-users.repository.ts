@@ -1,7 +1,8 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import { createAppPgPool, shouldEndLocalPool } from '../config/pg-pool.factory';
 import { AppConfigService } from '../config/app-config.service';
-import { PortalClientRole, PortalClientUserPublic } from './portal-client-users.types';
+import { portalClientRole, PortalClientRole, PortalClientUserPublic } from './portal-client-users.types';
 
 function iso(value: unknown): string | null {
   if (value == null) return null;
@@ -13,7 +14,7 @@ function mapRow(row: Record<string, unknown>): PortalClientUserPublic {
   return {
     id: String(row.id),
     email: String(row.email),
-    role: row.role === 'approver' ? 'approver' : 'viewer',
+    role: portalClientRole(row.role),
     active: row.active === true || row.active === 't' || row.active === 1,
     last_login_at: iso(row.last_login_at),
     created_at: iso(row.created_at) ?? new Date().toISOString(),
@@ -29,13 +30,13 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
 
   private get db(): Pool {
     if (!this.pool) {
-      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+      this.pool = createAppPgPool(this.config.databaseUrl);
     }
     return this.pool;
   }
 
   onModuleDestroy(): void {
-    void this.pool?.end();
+    if (shouldEndLocalPool()) void this.pool?.end();
     this.pool = null;
   }
 

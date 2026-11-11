@@ -213,10 +213,11 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
       sales.push(child('sales-ae-performance', 'Hiệu suất AE', '/crm/b2b/team/hieu-suat'));
     }
     sales.push(child('sales-inbox', 'Inbox B2B', '/crm/b2b-inbox'));
-    if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
-      const solLabel = resolvePresalesSolutionCaps(user).isAeTrackOnly
-        ? 'Theo dõi Solution'
-        : 'Hàng đợi Solution';
+    const solutionCaps = resolvePresalesSolutionCaps(user);
+    if (solutionCaps.isMklImplementationDesk) {
+      sales.push(child('sales-implementation', 'Hàng đợi Triển khai', '/crm/implementation/queue'));
+    } else if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
+      const solLabel = solutionCaps.isAeTrackOnly ? 'Theo dõi Solution' : 'Hàng đợi Solution';
       sales.push(child('sales-solution', solLabel, '/crm/solution/queue'));
     }
   }
@@ -345,6 +346,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   const agency: NavChild[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
     agency.push(child('agency-hub', 'Agency Hub', '/agency'));
+    agency.push(child('agency-meta-token', 'Token Business Manager', '/agency/meta-token'));
     agency.push(child('agency-notif', 'Thông báo', '/agency/notifications', agencyUnread));
   }
   if (hasCap(user, 'crm_agency', 'configure')) {

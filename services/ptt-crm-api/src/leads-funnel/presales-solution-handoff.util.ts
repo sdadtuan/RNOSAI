@@ -43,10 +43,10 @@ export function handoffBadgeLabel(
   status: PresalesHandoffStatus,
   ownerName?: string | null,
 ): string | null {
-  if (status === 'pending') return 'Đang chờ Solution/MKT nhận case';
+  if (status === 'pending') return 'Đang chờ AM nhận case Solutions';
   if (status === 'with_solution') {
     const who = String(ownerName ?? '').trim();
-    return who ? `Đang Solution/MKT — ${who}` : 'Đang Solution/MKT xử lý';
+    return who ? `Đang Solutions — ${who}` : 'Đang AM xử lý Solutions';
   }
   return null;
 }

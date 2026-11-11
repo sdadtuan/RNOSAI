@@ -163,7 +163,7 @@ export class PortalNotificationRepository implements OnModuleDestroy {
   }
 
   async listActivePortalUsers(clientId: string): Promise<
-    Array<{ id: string; email: string; role: 'viewer' | 'approver' }>
+    Array<{ id: string; email: string; role: 'viewer' | 'approver' | 'staff' }>
   > {
     try {
       const result = await this.db.query(
@@ -175,7 +175,7 @@ export class PortalNotificationRepository implements OnModuleDestroy {
       return result.rows.map((row) => ({
         id: String(row.id),
         email: String(row.email),
-        role: row.role === 'approver' ? 'approver' : 'viewer',
+        role: row.role === 'approver' || row.role === 'staff' ? row.role : 'viewer',
       }));
     } catch {
       return [];

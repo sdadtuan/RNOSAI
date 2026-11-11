@@ -20,7 +20,7 @@ type SettingsPortalShellProps = {
 
 export function SettingsPortalShell({
   title = 'Cài đặt',
-  subtitle = 'Thông báo, branding portal và bảo mật tài khoản',
+  subtitle = 'Thông báo, nhân viên, branding portal và bảo mật tài khoản',
   breadcrumb,
   children,
 }: SettingsPortalShellProps) {

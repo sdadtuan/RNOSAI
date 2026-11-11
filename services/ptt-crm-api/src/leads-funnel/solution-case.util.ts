@@ -2,13 +2,55 @@
 
 export const SOLUTION_ACCEPT_MINUTES = 15;
 export const SOLUTION_WORK_HOURS = 4;
+
+export type SolutionWorkDueSettings = {
+  cutoffTime?: string;
+  beforeCutoffHours?: number;
+  afterCutoffTime?: string;
+  workStartTime?: string;
+};
+
+export const DEFAULT_SOLUTION_WORK_SETTINGS = {
+  cutoffTime: '15:30',
+  beforeCutoffHours: 4,
+  afterCutoffTime: '11:00',
+  workStartTime: '08:30',
+} as const;
 export const SOLUTION_REVISION_HOURS = 2;
 export const SOLUTION_CUSTOMER_HOURS = 8;
 
 const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
-const WORK_START_MINUTES = 8 * 60 + 30;
-const WORK_END_MINUTES = 16 * 60;
-const MONDAY_CUTOFF_MINUTES = 11 * 60;
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function parseClock(raw: string | undefined, fallback: number): number {
+  const m = TIME_RE.exec(String(raw ?? '').trim());
+  if (!m) return fallback;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+export function resolveSolutionWorkDueSettings(
+  raw?: SolutionWorkDueSettings,
+): {
+  cutoffTime: string;
+  beforeCutoffHours: number;
+  afterCutoffTime: string;
+  workStartTime: string;
+} {
+  const hours = Number(raw?.beforeCutoffHours);
+  return {
+    cutoffTime: TIME_RE.test(String(raw?.cutoffTime ?? '').trim())
+      ? String(raw?.cutoffTime).trim()
+      : DEFAULT_SOLUTION_WORK_SETTINGS.cutoffTime,
+    beforeCutoffHours:
+      Number.isFinite(hours) && hours >= 0 ? hours : DEFAULT_SOLUTION_WORK_SETTINGS.beforeCutoffHours,
+    afterCutoffTime: TIME_RE.test(String(raw?.afterCutoffTime ?? '').trim())
+      ? String(raw?.afterCutoffTime).trim()
+      : DEFAULT_SOLUTION_WORK_SETTINGS.afterCutoffTime,
+    workStartTime: TIME_RE.test(String(raw?.workStartTime ?? '').trim())
+      ? String(raw?.workStartTime).trim()
+      : DEFAULT_SOLUTION_WORK_SETTINGS.workStartTime,
+  };
+}
 
 export interface SolutionCaseSource {
   handoff_status: string;
@@ -29,7 +71,7 @@ export type SolutionCasePhase = 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_pha
 export interface SolutionCaseView {
   phase: SolutionCasePhase;
   step_label: string;
-  expected_role: 'Marketing Leader' | 'Sale';
+  expected_role: 'AM' | 'Sale';
   assignee_staff_id: number | null;
   assignee_name: string;
   revision_note: string;
@@ -72,43 +114,35 @@ function addCalendarDays(parts: IctParts, days: number): Pick<IctParts, 'year' |
   return { year: next.getUTCFullYear(), month: next.getUTCMonth(), day: next.getUTCDate() };
 }
 
-function mondayAt1100(parts: IctParts): Date {
-  const untilMonday = parts.weekday === 5 ? 3 : parts.weekday === 6 ? 2 : 1;
-  const monday = addCalendarDays(parts, untilMonday);
-  return ictDate(monday.year, monday.month, monday.day, MONDAY_CUTOFF_MINUTES);
-}
-
-function nextWorkStart(parts: IctParts): Date {
-  const skip = parts.weekday === 5 ? 3 : parts.weekday === 6 ? 2 : 1;
-  const next = addCalendarDays(parts, skip);
-  return ictDate(next.year, next.month, next.day, WORK_START_MINUTES);
-}
-
-/** 4 working hours inside Mon–Fri 08:30–16:00. After 16:00 Friday, Saturday, or Sunday: Monday 11:00. */
-export function solutionWorkDueAt(receivedAt: Date): Date {
-  const parts = ictParts(receivedAt);
-  const afterFridayOrWeekend =
-    parts.weekday === 6 || parts.weekday === 0 || (parts.weekday === 5 && parts.minutes >= WORK_END_MINUTES);
-  if (afterFridayOrWeekend) return mondayAt1100(parts);
-
-  let cursor = receivedAt;
-  let left = SOLUTION_WORK_HOURS * 60;
-  for (let guard = 0; guard < 8 && left > 0; guard += 1) {
-    const here = ictParts(cursor);
-    if (here.weekday === 0 || here.weekday === 6 || here.minutes >= WORK_END_MINUTES) {
-      cursor = nextWorkStart(here);
-      continue;
-    }
-    if (here.minutes < WORK_START_MINUTES) {
-      cursor = ictDate(here.year, here.month, here.day, WORK_START_MINUTES);
-      continue;
-    }
-    const room = WORK_END_MINUTES - here.minutes;
-    const take = Math.min(left, room);
-    cursor = new Date(cursor.getTime() + take * 60 * 1000);
-    left -= take;
+function nextWorkingDayAt(parts: IctParts, clockMinutes: number): Date {
+  let cursor = addCalendarDays(parts, 1);
+  let weekday = new Date(Date.UTC(cursor.year, cursor.month, cursor.day)).getUTCDay();
+  while (weekday === 0 || weekday === 6) {
+    cursor = addCalendarDays(
+      { year: cursor.year, month: cursor.month, day: cursor.day, weekday, minutes: 0 },
+      1,
+    );
+    weekday = new Date(Date.UTC(cursor.year, cursor.month, cursor.day)).getUTCDay();
   }
-  return cursor;
+  return ictDate(cursor.year, cursor.month, cursor.day, clockMinutes);
+}
+
+/** Before cutoff: add configured hours (clock starts at work start if earlier). After cutoff T2–T6 or weekend: next working day at the after-cutoff time. */
+export function solutionWorkDueAt(receivedAt: Date, rawSettings?: SolutionWorkDueSettings): Date {
+  const settings = resolveSolutionWorkDueSettings(rawSettings);
+  const cutoff = parseClock(settings.cutoffTime, 15 * 60 + 30);
+  const after = parseClock(settings.afterCutoffTime, 11 * 60);
+  const workStart = parseClock(settings.workStartTime, 8 * 60 + 30);
+  const parts = ictParts(receivedAt);
+  const weekend = parts.weekday === 0 || parts.weekday === 6;
+  if (weekend || parts.minutes >= cutoff) {
+    return nextWorkingDayAt(parts, after);
+  }
+  const startAt =
+    parts.minutes < workStart
+      ? ictDate(parts.year, parts.month, parts.day, workStart)
+      : receivedAt;
+  return new Date(startAt.getTime() + settings.beforeCutoffHours * 60 * 60 * 1000);
 }
 
 function parseTime(raw: string): number | null {
@@ -145,21 +179,21 @@ export function buildSolutionCaseView(row: SolutionCaseSource, now: Date): Solut
   const labels: Record<SolutionCasePhase, { step: string; role: SolutionCaseView['expected_role']; timer: string; due: string; warn: number }> = {
     cho_nhan: {
       step: 'Lead chờ Solutions',
-      role: 'Marketing Leader',
+      role: 'AM',
       timer: 'Hạn nhận Solutions',
       due: String(row.solution_accept_due_at ?? '').trim(),
       warn: 3,
     },
     dang_lam: {
       step: 'Đang làm Solutions',
-      role: 'Marketing Leader',
+      role: 'AM',
       timer: 'Hạn trả Solutions',
       due: String(row.solution_due_at ?? '').trim(),
       warn: 48,
     },
     chinh_sua: {
       step: 'Chỉnh Solutions',
-      role: 'Marketing Leader',
+      role: 'AM',
       timer: 'Hạn trả Solutions đã chỉnh',
       due: revisionDue,
       warn: 24,
@@ -182,7 +216,7 @@ export function buildSolutionCaseView(row: SolutionCaseSource, now: Date): Solut
   if (state.warning && phase === 'cho_phan_hoi') warningNote = 'Sắp hết 8 giờ phản hồi khách.';
   if (state.overdue && phase === 'cho_nhan') slaNote = 'Quá 15 phút chưa bấm nhận case Solutions.';
   if (state.overdue && phase === 'dang_lam') {
-    slaNote = 'Quá hạn trả Solutions. Giờ làm việc 8:30–16:00 là 4 giờ; nhận sau 16:00 thứ Sáu, thứ Bảy hoặc Chủ nhật thì hạn là 11:00 thứ Hai.';
+    slaNote = 'Quá hạn trả Solutions. Trước mốc cắt cộng số giờ cấu hình; sau mốc cắt (T2–T6) hạn là giờ đã đặt vào ngày làm việc kế tiếp.';
   }
   if (state.overdue && phase === 'chinh_sua') slaNote = 'Quá 2 giờ chưa trả Solutions đã chỉnh.';
   if (state.overdue && phase === 'cho_phan_hoi') slaNote = 'Quá 8 giờ chưa có phản hồi khách về Solutions.';

@@ -35,7 +35,7 @@ function blockMessage(code: string): string {
     return 'Nhân viên này đang ngưng. Bật lại tài khoản rồi mới thêm vào pool.';
   }
   if (code === 'cannot_receive_leads' || code === 'staff_not_lead_eligible') {
-    return 'Nhân viên này chưa bật «Cho phép nhận lead». Bật tại Nhân sự → Nhân viên rồi mới thêm vào pool.';
+    return 'Nhân viên này chưa bật «Nhận Lead». Bật tại Nhân sự → Nhân viên rồi mới thêm vào pool.';
   }
   return 'Không lưu được pool nhân viên.';
 }
@@ -43,7 +43,7 @@ function blockMessage(code: string): string {
 function receiveNote(row: B2bStaffDraft): string {
   if (row.active && row.can_receive_leads) return 'Đủ điều kiện nhận lead tự động';
   if (!row.active) return 'Chưa nhận lead tự động — tài khoản đang ngưng';
-  return 'Chưa nhận lead tự động — chưa bật «Cho phép nhận lead»';
+  return 'Chưa nhận lead tự động — chưa bật «Nhận Lead»';
 }
 
 export function B2bProjectStaffPanel({
@@ -167,7 +167,7 @@ export function B2bProjectStaffPanel({
         <FormSection title="Nhân viên nhận lead">
           <p className="muted">
             Thuộc pool của dự án này. Vai trò và vị trí gắn với dự án. Muốn nhận lead tự động, nhân viên phải đang
-            hoạt động và đã bật «Cho phép nhận lead».
+            hoạt động và đã bật «Nhận Lead».
           </p>
           {canManage ? (
             <FormGrid cols={2}>

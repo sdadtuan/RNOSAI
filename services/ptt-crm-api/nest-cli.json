@@ -11,7 +11,8 @@
       { "include": "marketing-ai-planner/playbooks/**/*.json", "watchAssets": true },
       { "include": "deal-room/**/*.json", "watchAssets": true },
       { "include": "strategy-packs/assets/**/*.docx", "watchAssets": true },
-      { "include": "assets/client-plan/**/*.pptx", "watchAssets": true }
+      { "include": "assets/client-plan/**/*.pptx", "watchAssets": true },
+      { "include": "portal/sql/**/*.sql", "watchAssets": true }
     ]
   }
 }

@@ -384,17 +384,10 @@ function MarketingFields({
       />
       <TimeField
         label="Trả Solutions sau mốc cắt"
-        hint="Sáng hôm sau, thứ 2–5"
+        hint="Sáng ngày làm việc kế tiếp (T2–T6)"
         value={clocks.solution_after_cutoff_time}
         disabled={readOnly}
         onChange={(solution_after_cutoff_time) => onChange({ ...clocks, solution_after_cutoff_time })}
-      />
-      <TimeField
-        label="Trả Solutions sau mốc cắt ngày thứ 6"
-        hint="Sáng thứ 2"
-        value={clocks.solution_friday_time}
-        disabled={readOnly}
-        onChange={(solution_friday_time) => onChange({ ...clocks, solution_friday_time })}
       />
       <NumField
         label="Hạn sửa Solutions (giờ)"

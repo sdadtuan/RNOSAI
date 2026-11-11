@@ -2,9 +2,10 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { IwrReportsService } from './iwr-reports.service';
 import { IwrW5Repository } from './iwr-w5.repository';
 import type { CreateIwrApprovalInput, IwrActor, IwrApprovalRow } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

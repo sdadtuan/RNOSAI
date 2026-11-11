@@ -20,7 +20,7 @@ import {
   readinessCheckHref,
 } from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
-import { isGdkdContractDesk, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
+import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { normalizeAgencyClientId } from '@/lib/crm/funnel-snapshot.util';
 
@@ -68,11 +68,11 @@ export function LeadContractPanel({
 
   const canEdit =
     !readOnly &&
-    (hasCap(user, 'crm_hub_contracts', 'edit') ||
-      hasCap(user, 'crm_hub_contracts', 'create') ||
-      hasCap(user, 'crm_am', 'edit') ||
-      hasCap(user, 'crm_gdkd', 'view_all_leads') ||
-      hasCap(user, 'ceo_command', 'act'));
+    (isSuperAdmin(user) ||
+      isAccountManager(user) ||
+      (isAccountExecutive(user) &&
+        Boolean(contract?.created_by) &&
+        String(contract?.created_by).trim().toLowerCase() === String(user?.email ?? '').trim().toLowerCase()));
   const canDecide =
     isGdkdContractDesk(user) ||
     isSuperAdmin(user) ||
@@ -101,6 +101,7 @@ export function LeadContractPanel({
           lifecycleId: lifecycle,
           lifecycleStage: data.lifecycle_stage ?? null,
           agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
+          createdBy: data.contract?.created_by ?? null,
         },
         data.checks ?? [],
       );
@@ -223,7 +224,7 @@ export function LeadContractPanel({
       </p>
       {!canEdit && !readOnly ? (
         <p className="muted" style={{ fontSize: '0.85rem' }} data-testid="lead-contract-view-only">
-          Bạn chỉ xem HĐ / xuất PDF / gửi khách. Nếu cần sửa, trả lại Account Manager, CEO hoặc GĐKD.
+          Bạn chỉ xem hợp đồng. AM lập HĐ rồi gửi GDKD duyệt.
         </p>
       ) : null}
 

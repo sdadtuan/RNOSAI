@@ -16,12 +16,13 @@ import type {
   IwrSavedReport,
   IwrSavedReportQuery,
 } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const RUN_LIMIT = 5000;
 const ASYNC_THRESHOLD = 100_000;
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ClientOnboardingWidget } from '@/components/ClientOnboardingWidget';
 import { ClientOnboardWizard } from '@/components/ClientOnboardWizard';
 import { ClientPortalUsersPanel } from '@/components/ClientPortalUsersPanel';
+import { ClientPagesPanel } from '@/components/ClientPagesPanel';
 import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
@@ -176,27 +177,52 @@ export function AgencyClientDetailContent() {
         return null;
       }
       return access;
-    } catch {
+    } catch (authErr) {
       const refresh = getRefreshToken();
       if (!refresh) {
         clearSession();
         router.replace('/login');
         return null;
       }
-      const out = await staffRefresh(refresh);
-      updateAccessToken(out.access_token);
-      access = out.access_token;
-      const me = await staffMe(access);
-      setUser(me);
-      updateStoredUser(me);
-      return access;
+      try {
+        const out = await staffRefresh(refresh);
+        updateAccessToken(out.access_token);
+        access = out.access_token;
+        const me = await staffMe(access);
+        setUser(me);
+        updateStoredUser(me);
+        if (!hasCap(me, 'crm_agency', 'view')) {
+          setError('Không có quyền Agency');
+          return null;
+        }
+        return access;
+      } catch {
+        throw authErr instanceof Error
+          ? authErr
+          : new Error('Không xác thực được phiên. Tải lại trang hoặc đăng nhập lại.');
+      }
     }
   }, [router]);
 
   const reload = useCallback(
     async (access: string) => {
       // Client detail is required; optional widgets fail soft so Hub never sticks on “Đang tải…”.
-      const detail = await fetchAgencyClient(access, clientId);
+      const detail = await new Promise<AgencyClient>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('Tải client quá lâu (hết thời gian chờ 20s).')),
+          20_000,
+        );
+        fetchAgencyClient(access, clientId).then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (err) => {
+            clearTimeout(timer);
+            reject(err);
+          },
+        );
+      });
       const [perf, ob, orch, leadsOut] = await Promise.all([
         fetchClientPerformance(access, clientId, { group_by: 'campaign' }).catch(() => ({
           rows: [] as PerformanceRow[],
@@ -222,27 +248,41 @@ export function AgencyClientDetailContent() {
   );
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId) {
+      setError('Thiếu mã client trên đường dẫn.');
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     void (async () => {
-      const access = await ensureAuth();
-      if (!access) return;
-      setAccessToken(access);
       setLoading(true);
-      setError('');
       try {
+        const access = await ensureAuth();
+        if (!access) {
+          return;
+        }
+        if (cancelled) return;
+        setAccessToken(access);
+        setError('');
         await reload(access);
         const [catalog, roster] = await Promise.all([
           fetchCatalogIndustries(access).catch(() => ({ industries: [] })),
           fetchStaffRoster(access).catch(() => ({ staff: [] })),
         ]);
+        if (cancelled) return;
         setIndustries(catalog.industries ?? []);
         setStaffRoster(roster.staff ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải client thất bại');
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Tải client thất bại');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [ensureAuth, clientId, reload]);
 
   useEffect(() => {
@@ -704,7 +744,16 @@ export function AgencyClientDetailContent() {
         actions={<AgencyReadOnlyBadge user={user} />}
       >
         {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {!loading && !client && !error ? (
+          <p className="form-error" role="alert">
+            Không tải được thông tin client.
+          </p>
+        ) : null}
         {actionMsg ? <p className="muted">{actionMsg}</p> : null}
 
         {client && !loading ? (
@@ -731,7 +780,7 @@ export function AgencyClientDetailContent() {
                   ['contracts', `Hợp đồng (${clientContracts.length})`],
                   ['health', 'Health'],
                   ['retain', 'Retain'],
-                  ['portal', 'Portal users'],
+                  ['portal', 'Account Client'],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -1253,7 +1302,7 @@ export function AgencyClientDetailContent() {
                   <form onSubmit={(e) => void handleConnectToken(e)} style={{ marginTop: '1.25rem', display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
                     <h3 style={{ fontSize: '1rem', margin: 0 }}>Connect Meta token (vault)</h3>
                     <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                      Chọn account Meta rồi dán access token.
+                      Token riêng của account Meta này, không phải token Business Manager chung.
                     </p>
                     <select
                       value={tokenAccountId}
@@ -1413,6 +1462,13 @@ export function AgencyClientDetailContent() {
             {tab === 'portal' && accessToken ? (
               <div style={{ marginTop: '1rem' }}>
                 <ClientPortalUsersPanel
+                  token={accessToken}
+                  clientId={clientId}
+                  canMutate={canMutate}
+                  onMessage={(msg) => setActionMsg(msg)}
+                  onError={(msg) => setError(msg)}
+                />
+                <ClientPagesPanel
                   token={accessToken}
                   clientId={clientId}
                   canMutate={canMutate}

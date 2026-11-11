@@ -36,6 +36,9 @@ export function parseB2bLeadAlerts(body: unknown): B2bLeadAlertRow[] {
   });
 }
 
+const ALERTS_TTL_MS = 5_000;
+const alertsCache = new Map<string, { at: number; value?: B2bLeadAlertRow[]; inflight?: Promise<B2bLeadAlertRow[]> }>();
+
 export async function fetchB2bLeadAlerts(
   token: string,
   opts?: { scope?: 'all'; limit?: number },
@@ -44,15 +47,32 @@ export async function fetchB2bLeadAlerts(
   if (opts?.scope === 'all') params.set('scope', 'all');
   if (opts?.limit != null) params.set('limit', String(opts.limit));
   const qs = params.toString() ? `?${params.toString()}` : '';
-  const res = await fetch(`${API_BASE}/api/v1/b2b-lead-alerts${qs}`, {
-    headers: authHeaders(token) as Record<string, string>,
-    cache: 'no-store',
-  });
-  const body = await parseJson<{ items?: unknown; error?: string }>(res);
-  if (!res.ok) {
-    throw new ApiError(body.error ?? 'B2B alerts request failed', res.status);
+  const key = `${token}::${qs}`;
+  const now = Date.now();
+  const hit = alertsCache.get(key);
+  if (hit?.value && now - hit.at < ALERTS_TTL_MS) return hit.value;
+  if (hit?.inflight) return hit.inflight;
+  const inflight = (async () => {
+    const res = await fetch(`${API_BASE}/api/v1/b2b-lead-alerts${qs}`, {
+      headers: authHeaders(token) as Record<string, string>,
+      cache: 'no-store',
+    });
+    const body = await parseJson<{ items?: unknown; error?: string }>(res);
+    if (!res.ok) {
+      throw new ApiError(body.error ?? 'B2B alerts request failed', res.status);
+    }
+    const items = parseB2bLeadAlerts(body);
+    alertsCache.set(key, { at: Date.now(), value: items });
+    return items;
+  })();
+  alertsCache.set(key, { at: now, inflight });
+  try {
+    return await inflight;
+  } catch (err) {
+    const cur = alertsCache.get(key);
+    if (cur?.inflight === inflight) alertsCache.delete(key);
+    throw err;
   }
-  return parseB2bLeadAlerts(body);
 }
 
 export function b2bLeadAlertsStreamUrl(token: string): string {

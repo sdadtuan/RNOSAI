@@ -742,6 +742,34 @@ export class LeadsFunnelController {
     return this.funnel.getPresalesProposalHandoff(id);
   }
 
+  @Get('presales/implementation-queue')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPresalesSolutionQueueGuard, PresalesOnLeadGuard)
+  async listImplementationQueue(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? Number(limit) : 50;
+    return this.funnel.listImplementationQueue(status?.trim(), Number.isFinite(lim) ? lim : 50);
+  }
+
+  @Post(':id/presales/claim-implementation')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async claimImplementation(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.claimImplementationHandoff(
+        id,
+        await this.userId(req),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Get('presales/solution-queue')
   @UseGuards(StaffOrInternalKeyGuard, StaffPresalesSolutionQueueGuard, PresalesOnLeadGuard)
   async listSolutionQueue(
@@ -760,10 +788,13 @@ export class LeadsFunnelController {
         String(me.position_code ?? '').toLowerCase() === 'super-admin';
       const isAccountManager = isAccountManagerPosition(me.position_code);
       const isMarketingLeader = isMarketingLeaderPosition(me.position_code);
+      if (!viewAll && isMarketingLeader && !isAccountManager) {
+        return { ok: true, rows: [], count: 0 };
+      }
       if (!viewAll && !isAccountManager && !isMarketingLeader) {
         ownerStaffId = await this.userId(req);
         includeAmRework = true;
-      } else if (!viewAll && (isAccountManager || isMarketingLeader)) {
+      } else if (!viewAll && isAccountManager) {
         maskForeignPhoneForStaffId = await this.userId(req);
       }
     }

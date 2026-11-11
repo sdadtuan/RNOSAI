@@ -5,6 +5,10 @@ import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan
 import { ensureAgencyClientOnPromote } from './contract-promote-client-pg.util';
 import type { ContractPromoteResult } from './contract.types';
 import { seedPostOnboardLifecycleTasks } from './lifecycle-tasks-seed-pg.util';
+import {
+  ensureImplementationHandoffOnTrienKhai,
+  notifyMarketingLeadersImplementationHandoff,
+} from '../leads-funnel/implementation-handoff.pg.util';
 
 export interface PresalesPromoteSource {
   presalesId: number;
@@ -176,6 +180,15 @@ export class ContractPromotePgUtil {
           WHERE lead_id = $1`,
         [leadId, ts],
       );
+      const handoffCreated = await ensureImplementationHandoffOnTrienKhai(client, leadId);
+      if (handoffCreated) {
+        const leadNameRow = await client.query(
+          `SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
+          [leadId],
+        );
+        const leadName = String(leadNameRow.rows[0]?.full_name ?? '').trim();
+        await notifyMarketingLeadersImplementationHandoff(client, leadId, leadName);
+      }
 
       const placeholderId = Number(contract.customer_id);
       if (placeholderId !== convert.customer_id) {

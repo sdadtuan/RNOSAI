@@ -4,16 +4,25 @@ import {
   PolicyEvaluateResult,
   PolicyId,
 } from './policy.types';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 
-const MKT_JOB_FUNCTIONS = new Set(['content', 'design', 'technical']);
-const MKT_SET_PATTERN = /mkt|solution|content|marketing/i;
+const AM_POSITION_CODES = new Set(['acm', 'kd-01', 'kd01']);
+const AM_SET_PATTERN = /acm|account.?manager|kd-01|kd01/i;
 
-function hasMktFunction(jobFunctions: string[] | undefined): boolean {
-  return (jobFunctions ?? []).some((fn) => MKT_JOB_FUNCTIONS.has(String(fn).trim().toLowerCase()));
+function normPositionCode(code: string | null | undefined): string {
+  return String(code ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
 }
 
-function hasMktPermissionSet(permissionSets: string[] | undefined): boolean {
-  return (permissionSets ?? []).some((code) => MKT_SET_PATTERN.test(String(code).trim()));
+function isAccountManagerDesk(code: string | null | undefined): boolean {
+  const norm = normPositionCode(code);
+  return AM_POSITION_CODES.has(norm);
+}
+
+function hasAmPermissionSet(permissionSets: string[] | undefined): boolean {
+  return (permissionSets ?? []).some((code) => AM_SET_PATTERN.test(String(code).trim()));
 }
 
 function evaluateRelease(ctx: PolicyContext): PolicyEvaluateResult {
@@ -36,15 +45,17 @@ function evaluateRelease(ctx: PolicyContext): PolicyEvaluateResult {
 function evaluateClaim(ctx: PolicyContext): PolicyEvaluateResult {
   const policyId: PolicyId = 'presales.no_claim_without_mkt_set';
   const allow =
+    isSuperAdminPositionCode(ctx.position_code) ||
     ctx.gdkd_assign === true ||
-    hasMktFunction(ctx.job_functions) ||
-    hasMktPermissionSet(ctx.permission_sets);
+    isAccountManagerDesk(ctx.position_code) ||
+    hasAmPermissionSet(ctx.permission_sets) ||
+    ctx.can_receive_solution === true;
   return {
     allow,
     policy_id: policyId,
     reason: allow
       ? undefined
-      : 'Solution claim requires MKT job function (content/design/technical) or MKT permission set.',
+      : 'Solution claim requires Account Manager (ACM/KD-01), AM permission set, or Nhận Solution.',
     bundle_version: POLICY_BUNDLE_VERSION,
   };
 }

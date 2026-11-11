@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AgencyModule } from '../agency/agency.module';
 import { PortalAuthController } from './portal-auth.controller';
 import { PortalAuthService } from './portal-auth.service';
@@ -24,15 +25,28 @@ import { PortalJwtGuard } from './portal-jwt.guard';
 import { PortalSettingsController } from './portal-settings.controller';
 import { PortalSettingsRepository } from './portal-settings.repository';
 import { PortalSettingsService } from './portal-settings.service';
+import { PortalCrmController } from './portal-crm.controller';
+import { PortalMetaInsightsController } from './portal-meta-insights.controller';
+import { PortalProductMediaController } from './portal-product-media.controller';
+import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareService } from './portal-care.service';
+import { PortalInboxPollerService } from './portal-inbox-poller.service';
+import { PortalInboxSyncService } from './portal-inbox-sync.service';
+import { PortalMetaWebhookController } from './portal-meta-webhook.controller';
+import { PortalMetaWebhookService } from './portal-meta-webhook.service';
 
 @Module({
-  imports: [forwardRef(() => AgencyModule)],
+  imports: [forwardRef(() => AgencyModule), ScheduleModule.forRoot()],
   controllers: [
     PortalAuthController,
     PortalSettingsController,
     PortalNotificationController,
     PortalPushController,
     PortalMobileController,
+    PortalCrmController,
+    PortalMetaInsightsController,
+    PortalProductMediaController,
+    PortalMetaWebhookController,
   ],
   providers: [
     PortalAuthService,
@@ -54,6 +68,11 @@ import { PortalSettingsService } from './portal-settings.service';
     PortalNativeDeviceRepository,
     PortalNativePushSenderService,
     PortalMobileService,
+    PortalCareRepository,
+    PortalInboxSyncService,
+    PortalCareService,
+    PortalInboxPollerService,
+    PortalMetaWebhookService,
   ],
   exports: [
     PortalAuthService,

@@ -3,3 +3,6 @@ dist/
 coverage/
 .env
 *.log
+/data/csd-files/
+/data/portal-product-images/
+/data/staff-avatars/

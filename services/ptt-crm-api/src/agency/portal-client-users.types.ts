@@ -1,4 +1,9 @@
-export type PortalClientRole = 'viewer' | 'approver';
+export type PortalClientRole = 'viewer' | 'approver' | 'staff';
+
+export function portalClientRole(raw: unknown): PortalClientRole {
+  if (raw === 'approver' || raw === 'staff') return raw;
+  return 'viewer';
+}
 
 export interface PortalClientUserPublic {
   id: string;

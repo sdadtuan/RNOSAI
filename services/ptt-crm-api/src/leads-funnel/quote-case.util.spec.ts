@@ -60,7 +60,7 @@ describe('buildQuoteCaseView', () => {
       now,
     );
     expect(view?.phase).toBe('bao_gia');
-    expect(view?.expected_role).toBe('Marketing Leader');
+    expect(view?.expected_role).toBe('AM');
     expect(view?.change_note).toBe('Giảm giờ thiết kế');
     expect(view?.timer_label).toBe('Hạn nộp báo giá');
   });
@@ -78,7 +78,7 @@ describe('buildQuoteCaseView', () => {
       now,
     );
     expect(offered?.step_label).toBe('Chuyển Báo Giá');
-    expect(offered?.expected_role).toBe('Marketing Leader');
+    expect(offered?.expected_role).toBe('AM');
     expect(offered?.assignee_name).toBe('Lan');
     expect(offered?.timer_overdue).toBe(false);
     expect(offered?.timer_warning).toBe(false);
@@ -165,7 +165,7 @@ describe('buildQuoteCaseView', () => {
     );
     expect(editing?.phase).toBe('bao_gia');
     expect(editing?.change_note).toBe('Giảm giờ thiết kế');
-    expect(editing?.expected_role).toBe('Marketing Leader');
+    expect(editing?.expected_role).toBe('AM');
 
     const done = buildQuoteCaseView(
       row({
@@ -227,30 +227,26 @@ describe('buildQuoteCaseView', () => {
   });
 });
 
-describe('Marketing Leader quote assignment', () => {
-  it('keeps the Solution owner when they are a Marketing Leader', () => {
+describe('AM quote assignment', () => {
+  it('keeps the Solution owner when they are AM', () => {
     expect(preferredMarketingLeaderId([4, 9], 9)).toBe(9);
     expect(preferredMarketingLeaderId([4, 9], 3)).toBe(4);
     expect(preferredMarketingLeaderId([], 9)).toBeNull();
   });
 
   it('assigns the desk that the quote step actually needs', () => {
-    expect(quoteDeskForPhase('chuyen_bao_gia')).toBe('marketing_leader');
-    expect(quoteDeskForPhase('bao_gia')).toBe('marketing_leader');
+    expect(quoteDeskForPhase('chuyen_bao_gia')).toBe('am');
+    expect(quoteDeskForPhase('bao_gia')).toBe('am');
     expect(quoteDeskForPhase('sale_approve_solution')).toBe('sale');
     expect(quoteDeskForPhase('sale_review')).toBe('sale');
     expect(quoteDeskForPhase('hop_dong')).toBeNull();
     expect(quoteDeskForPhase('trien_khai')).toBeNull();
   });
 
-  it('keeps Sale and Marketing Leader off specialist staff who only share the position code', () => {
-    expect(holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'MKL', job_function: '' })).toBe(true);
-    expect(
-      holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'Marketing Leader', job_function: 'content' }),
-    ).toBe(false);
-    expect(
-      holdsQuoteDesk('marketing_leader', { position_code: 'MKL', job_title: 'Agency Ops', job_function: 'technical' }),
-    ).toBe(false);
+  it('keeps Sale and AM off specialist staff who only share the position code', () => {
+    expect(holdsQuoteDesk('am', { position_code: 'KD-01', job_title: 'Account Manager', job_function: '' })).toBe(true);
+    expect(holdsQuoteDesk('am', { position_code: 'KD-01', job_title: 'KD-01', job_function: 'content' })).toBe(false);
+    expect(holdsQuoteDesk('am', { position_code: 'MKL', job_title: 'MKL', job_function: '' })).toBe(false);
     expect(holdsQuoteDesk('sale', { position_code: 'AE', job_title: 'Account Executive', job_function: 'sales' })).toBe(
       true,
     );

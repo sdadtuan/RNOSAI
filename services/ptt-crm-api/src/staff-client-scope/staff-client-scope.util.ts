@@ -5,6 +5,22 @@ export function isSuperAdminPositionCode(code: string | null | undefined): boole
   return SUPER_ADMIN_CODES.has(String(code).trim().toLowerCase());
 }
 
+/** Compact SUPER-ADMIN grant: one wildcard pair instead of section × action explosion. */
+export const SUPER_ADMIN_WILDCARD = '*';
+
+export function capAllows(
+  caps: Array<{ section?: string; action?: string }> | null | undefined,
+  section: string,
+  action: string,
+): boolean {
+  if (!caps?.length) return false;
+  return caps.some((cap) => {
+    const sec = String(cap.section ?? '');
+    const act = String(cap.action ?? '');
+    return (sec === SUPER_ADMIN_WILDCARD || sec === section) && (act === SUPER_ADMIN_WILDCARD || act === action);
+  });
+}
+
 export function normalizeClientIds(ids: string[] | null | undefined): string[] {
   if (!ids?.length) return [];
   return [...new Set(ids.map((id) => id.trim()).filter(Boolean))].sort();

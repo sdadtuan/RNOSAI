@@ -15,18 +15,19 @@ export function hasPresalesSolutionCap(
 
 export function hasPresalesSolutionEditAccess(
   caps: StaffSectionCap[],
-  opts: { gdkdAssign?: boolean } = {},
+  opts: { gdkdAssign?: boolean; canReceiveSolution?: boolean } = {},
 ): boolean {
   if (hasPresalesSolutionCap(caps, 'edit')) return true;
-  if (opts.gdkdAssign) return true;
+  if (opts.gdkdAssign || opts.canReceiveSolution) return true;
   return false;
 }
 
 export function assertPresalesSolutionCap(
   caps: StaffSectionCap[],
   action: PresalesSolutionCapAction,
-  opts: { gdkdAssign?: boolean; message?: string } = {},
+  opts: { gdkdAssign?: boolean; canReceiveSolution?: boolean; message?: string } = {},
 ): void {
+  if (opts.canReceiveSolution && (action === 'claim' || action === 'release' || action === 'edit')) return;
   if (hasPresalesSolutionCap(caps, action)) return;
   if (opts.gdkdAssign && (action === 'claim' || action === 'release' || action === 'edit')) {
     return;
@@ -38,7 +39,7 @@ export function assertPresalesSolutionCap(
     message:
       opts.message ??
       (action === 'edit'
-        ? 'Giai đoạn Solution/MKT — bạn chỉ theo dõi. Liên hệ Solution hoặc mở /crm/solution/queue.'
+        ? 'Giai đoạn Solution — bạn chỉ theo dõi. Liên hệ AM hoặc mở /crm/solution/queue.'
         : `Thiếu quyền ${PRESALES_SOLUTION_SECTION}.${action}`),
   });
 }
@@ -48,7 +49,7 @@ export function assertCanMutatePresalesConsult(
   caps: StaffSectionCap[],
   handoffStatus: PresalesHandoffStatus,
   presalesStage: string,
-  opts: { gdkdAssign?: boolean } = {},
+  opts: { gdkdAssign?: boolean; canReceiveSolution?: boolean } = {},
 ): void {
   if (presalesStage !== 'consult') return;
   if (!isHandoffActive(handoffStatus) && handoffStatus === '') return;
@@ -65,11 +66,11 @@ export function assertCanMutatePresalesConsult(
 export function assertCanAdvanceConsultToProposal(
   caps: StaffSectionCap[],
   handoffStatus: PresalesHandoffStatus,
-  opts: { gdkdAssign?: boolean } = {},
+  opts: { gdkdAssign?: boolean; canReceiveSolution?: boolean } = {},
 ): void {
   if (!isHandoffActive(handoffStatus) && handoffStatus === '') return;
   if (handoffStatus === 'released') return;
-  if (hasPresalesSolutionCap(caps, 'release') || opts.gdkdAssign) return;
+  if (hasPresalesSolutionCap(caps, 'release') || opts.gdkdAssign || opts.canReceiveSolution) return;
   throw new ForbiddenException({
     error: 'solution_release_required',
     message:

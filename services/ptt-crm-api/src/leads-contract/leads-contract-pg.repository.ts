@@ -58,6 +58,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       notes: String(row.notes ?? ''),
       created_at: row.created_at ? String(row.created_at) : '',
       updated_at: row.updated_at ? String(row.updated_at) : '',
+      created_by: String(row.created_by ?? '').trim(),
     };
   }
 
@@ -197,7 +198,46 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     };
   }
 
+  private async ensureContractCreatedByColumn(): Promise<void> {
+    await this.db.query(
+      `ALTER TABLE crm_contracts ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`,
+    );
+    await this.db.query(
+      `UPDATE crm_contracts c
+       SET created_by = e.actor
+       FROM (
+         SELECT DISTINCT ON (contract_id) contract_id, actor
+         FROM crm_contract_events
+         WHERE event_type = 'draft_created'
+         ORDER BY contract_id, id
+       ) e
+       WHERE e.contract_id = c.id AND COALESCE(c.created_by, '') = ''`,
+    );
+  }
+
+  async gdkdAuthUserIds(): Promise<string[]> {
+    const result = await this.db.query(
+      `SELECT DISTINCT u.id::text AS user_id
+         FROM staff_users u
+         JOIN crm_positions p ON p.id = u.position_id
+        WHERE u.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) IN ('gdkd', 'gdkd-01', 'gdkd01')`,
+    );
+    return result.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
+  }
+
+  async authUserIdByEmail(email: string): Promise<string | null> {
+    const value = String(email ?? '').trim();
+    if (!value) return null;
+    const result = await this.db.query(
+      `SELECT id::text AS user_id FROM staff_users WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1`,
+      [value],
+    );
+    return result.rows[0]?.user_id ? String(result.rows[0].user_id) : null;
+  }
+
   async getContractForLead(leadId: number): Promise<{ contract: ContractRow | null; approval: ContractApprovalRow | null }> {
+    await this.ensureContractCreatedByColumn();
     const contractResult = await this.db.query(
       `SELECT * FROM crm_contracts WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
       [leadId],
@@ -217,6 +257,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
   }
 
   async createDraftContract(leadId: number, body: CreateContractBody, actor: string): Promise<ContractRow> {
+    await this.ensureContractCreatedByColumn();
     const leadResult = await this.db.query(
       `SELECT sqlite_lead_id AS id, full_name, meta_json::text AS meta_json,
               care_stage_current, care_stages_done_json::text AS care_stages_done_json
@@ -254,8 +295,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     const insert = await this.db.query(
       `INSERT INTO crm_contracts (
          customer_id, lead_id, title, status, amount_vnd, service_slug, agency_client_id,
-         billing_type, notes, created_at, updated_at
-       ) VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9::timestamptz, $9::timestamptz)
+         billing_type, notes, created_by, created_at, updated_at
+       ) VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $10, $9::timestamptz, $9::timestamptz)
        RETURNING *`,
       [
         placeholderId,
@@ -267,6 +308,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         inferBillingType(slug),
         noteLine,
         ts,
+        actor.slice(0, 240),
       ],
     );
     const contract = insert.rows[0] as Record<string, unknown>;

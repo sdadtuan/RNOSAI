@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
+import { ReceiveQueueFlags } from '@/components/crm/ReceiveQueueFlags';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
 import { WinWizardSteps } from '@/components/win';
@@ -60,6 +61,7 @@ function AdminOrgUserOnboardPageContent() {
   const [internalCodeLocked, setInternalCodeLocked] = useState(false);
   const [jobTitle, setJobTitle] = useState('');
   const [canReceiveLeads, setCanReceiveLeads] = useState(false);
+  const [canReceiveSolution, setCanReceiveSolution] = useState(false);
 
   const [positionId, setPositionId] = useState<number | ''>('');
   const [functions, setFunctions] = useState<string[]>([]);
@@ -242,6 +244,7 @@ function AdminOrgUserOnboardPageContent() {
           internal_code: internalCode.trim(),
           job_title: jobTitle.trim() || selectedPosition?.name || '',
           can_receive_leads: canReceiveLeads,
+          can_receive_solution: canReceiveSolution,
         },
       });
       setTempPasswordShown(out.temp_password ?? password);
@@ -357,19 +360,14 @@ function AdminOrgUserOnboardPageContent() {
                   </Link>
                 </span>
               </label>
-              <label className="onboard-wizard__field onboard-wizard__field--wide">
-                <span className="onboard-wizard__label">
-                  <input
-                    type="checkbox"
-                    checked={canReceiveLeads}
-                    onChange={(e) => setCanReceiveLeads(e.target.checked)}
-                  />{' '}
-                  Cho phép nhận lead
-                </span>
-                <span className="onboard-wizard__hint">
-                  Chỉ NV có tick này mới hiện khi gán pool dự án PTT.
-                </span>
-              </label>
+              <div className="onboard-wizard__field receive-queue-flags-slot">
+                <ReceiveQueueFlags
+                  canReceiveLeads={canReceiveLeads}
+                  canReceiveSolution={canReceiveSolution}
+                  onLeadsChange={setCanReceiveLeads}
+                  onSolutionChange={setCanReceiveSolution}
+                />
+              </div>
             </div>
           </div>
         ) : null}

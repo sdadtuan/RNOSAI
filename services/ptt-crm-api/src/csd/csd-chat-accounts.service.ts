@@ -17,9 +17,10 @@ import type {
   CsdChatPersonRow,
   CsdChatStaffDirectoryRow,
 } from './csd.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasCsdCap(actor: CsdActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'csd' && c.action === action);
+  return capAllows(actor.caps, 'csd', action);
 }
 
 function normalizeUsername(raw?: string): string {

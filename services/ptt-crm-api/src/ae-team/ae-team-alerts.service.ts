@@ -19,6 +19,7 @@ import {
   scopeFromAccess,
   type AeTeamLeadFact,
 } from './ae-team.util';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 @Injectable()
 export class AeTeamAlertsService {
@@ -162,7 +163,7 @@ export class AeTeamAlertsService {
   private async ownerIds(actor: StaffJwtPayload): Promise<number[]> {
     await this.repo.ensure();
     const me = await this.staffAuth.me(actor);
-    const viewAll = me.caps.some((cap) => cap.section === 'crm_ae_team' && cap.action === 'view_all');
+    const viewAll = capAllows(me.caps, 'crm_ae_team', 'view_all');
     const teamIds = viewAll ? [] : await this.repo.leadTeamIds(actor.sub);
     const scope = scopeFromAccess(viewAll, teamIds);
     if (scope.mode === 'deny') throw this.denied();

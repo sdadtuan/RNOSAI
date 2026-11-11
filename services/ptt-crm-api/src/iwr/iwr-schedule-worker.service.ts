@@ -45,11 +45,11 @@ export class IwrScheduleWorkerService implements OnModuleInit, OnModuleDestroy {
           notify: async (staffId, _eventKey, title, body, entityId) => {
             await this.notify.insert({
               staff_id: staffId,
-              event_key: _eventKey,
-              title_vi: title,
+              event_key: String(_eventKey ?? '').slice(0, 64),
+              title_vi: String(title ?? '').slice(0, 255),
               body_vi: body,
               entity_type: 'iwr_report',
-              entity_id: entityId,
+              entity_id: String(entityId ?? '').slice(0, 64),
               severity: 'info',
             });
           },
@@ -66,6 +66,8 @@ export class IwrScheduleWorkerService implements OnModuleInit, OnModuleDestroy {
         },
         now,
       );
+    } catch {
+      return { ran: 0 };
     } finally {
       this.ticking = false;
     }

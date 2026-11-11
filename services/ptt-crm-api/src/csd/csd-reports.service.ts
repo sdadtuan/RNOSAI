@@ -45,6 +45,7 @@ import {
   TransitionCsdReportInput,
   UpdateCsdReportTemplateInput,
 } from './csd.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const FILE_MAX_BYTES = 104857600;
 
@@ -76,7 +77,7 @@ function emptySections(keys: string[]): Record<string, unknown> {
 }
 
 function hasCsdManage(actor: CsdActor): boolean {
-  return actor.caps.some((c) => c.section === 'csd' && c.action === 'manage');
+  return capAllows(actor.caps, 'csd', 'manage');
 }
 
 function normalizeTemplateSections(raw: unknown): string[] {

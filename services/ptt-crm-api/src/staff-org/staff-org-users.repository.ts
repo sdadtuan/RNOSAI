@@ -16,6 +16,7 @@ import type {
 import type { StaffOrgAuditInput } from './staff-org.types';
 import { membershipLeadIds } from './staff-org-lead.util';
 import { nextInternalCodeFromMax } from './staff-org-internal-code.util';
+import { ensureCrmStaffReceiveColumns } from '../crm-staff/crm-staff-schema.util';
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -40,6 +41,8 @@ function mapUserSummary(row: {
   lead_team_names?: string[] | null;
   position_team_name?: string | null;
   job_functions?: string[];
+  can_receive_leads?: boolean | null;
+  can_receive_solution?: boolean | null;
 }): StaffOrgUserSummary {
   return {
     id: String(row.id),
@@ -56,6 +59,8 @@ function mapUserSummary(row: {
     lead_team_names: row.lead_team_names ?? [],
     position_team_name: row.position_team_name ? String(row.position_team_name) : undefined,
     job_functions: row.job_functions ?? [],
+    can_receive_leads: Boolean(row.can_receive_leads),
+    can_receive_solution: Boolean(row.can_receive_solution),
   };
 }
 
@@ -103,6 +108,8 @@ export class StaffOrgUsersRepository {
              p.code AS position_code,
              pt.name AS position_team_name,
              cs.id AS crm_staff_id,
+             COALESCE(cs.can_receive_leads, FALSE) AS can_receive_leads,
+             COALESCE(cs.can_receive_solution, FALSE) AS can_receive_solution,
              COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
              COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
              COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names,
@@ -115,11 +122,13 @@ export class StaffOrgUsersRepository {
       LEFT JOIN staff_user_teams sut ON sut.user_id = u.id
       LEFT JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
       ${activeFilter}
-      GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id
+      GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id,
+               cs.can_receive_leads, cs.can_receive_solution
       ORDER BY u.active DESC, u.display_name, u.email`;
   }
 
   async listUsers(opts?: { q?: string; includeInactive?: boolean }): Promise<StaffOrgUserSummary[]> {
+    await ensureCrmStaffReceiveColumns(this.db);
     const includeInactive = Boolean(opts?.includeInactive);
     const q = String(opts?.q ?? '').trim().toLowerCase();
     const result = await this.db.query<{
@@ -161,6 +170,7 @@ export class StaffOrgUsersRepository {
   }
 
   async getUserById(userId: string): Promise<StaffOrgUserDetail | null> {
+    await ensureCrmStaffReceiveColumns(this.db);
     const result = await this.db.query<{
       id: string;
       email: string;
@@ -180,6 +190,8 @@ export class StaffOrgUsersRepository {
               p.code AS position_code,
               pt.name AS position_team_name,
               cs.id AS crm_staff_id,
+              COALESCE(cs.can_receive_leads, FALSE) AS can_receive_leads,
+              COALESCE(cs.can_receive_solution, FALSE) AS can_receive_solution,
               COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
               COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
               COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names,
@@ -192,7 +204,8 @@ export class StaffOrgUsersRepository {
        LEFT JOIN staff_user_teams sut ON sut.user_id = u.id
        LEFT JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
        WHERE u.id = $1::uuid
-       GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id`,
+       GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id,
+                cs.can_receive_leads, cs.can_receive_solution`,
       [userId],
     );
     const row = result.rows[0];
@@ -268,6 +281,7 @@ export class StaffOrgUsersRepository {
     profile: NonNullable<CreateStaffOrgUserBody['crm_staff']>,
     positionId: number,
   ): Promise<number> {
+    await ensureCrmStaffReceiveColumns(client);
     const name = String(profile.name ?? profile.display_name ?? email).trim();
     if (!name) throw new BadRequestException({ error: 'crm_staff_name_required' });
 
@@ -295,6 +309,7 @@ export class StaffOrgUsersRepository {
              internal_code = COALESCE(NULLIF($4, ''), internal_code),
              department_id = COALESCE($5, department_id), position_id = $6,
              can_receive_leads = COALESCE($8, can_receive_leads),
+             can_receive_solution = COALESCE($9, can_receive_solution),
              active = TRUE, updated_at = NOW()
          WHERE id = $7`,
         [
@@ -306,6 +321,7 @@ export class StaffOrgUsersRepository {
           positionId,
           id,
           typeof profile.can_receive_leads === 'boolean' ? profile.can_receive_leads : null,
+          typeof profile.can_receive_solution === 'boolean' ? profile.can_receive_solution : null,
         ],
       );
       return id;
@@ -314,8 +330,8 @@ export class StaffOrgUsersRepository {
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO crm_staff (
          name, phone, email, job_title, internal_code, department_id, position_id,
-         can_receive_leads, active, created_at, updated_at, started_on
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, NOW(), NOW(), CURRENT_DATE)
+         can_receive_leads, can_receive_solution, active, created_at, updated_at, started_on
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), NOW(), CURRENT_DATE)
        RETURNING id`,
       [
         name,
@@ -326,6 +342,7 @@ export class StaffOrgUsersRepository {
         departmentId,
         positionId,
         Boolean(profile.can_receive_leads),
+        Boolean(profile.can_receive_solution),
       ],
     );
     return Number(inserted.rows[0]!.id);
@@ -499,6 +516,27 @@ export class StaffOrgUsersRepository {
         );
       }
 
+      if (typeof body.can_receive_leads === 'boolean' || typeof body.can_receive_solution === 'boolean') {
+        await ensureCrmStaffReceiveColumns(client);
+        const flagSets = [];
+        const flagParams = [];
+        let flagIdx = 1;
+        if (typeof body.can_receive_leads === 'boolean') {
+          flagSets.push('can_receive_leads = $' + flagIdx++);
+          flagParams.push(body.can_receive_leads);
+        }
+        if (typeof body.can_receive_solution === 'boolean') {
+          flagSets.push('can_receive_solution = $' + flagIdx++);
+          flagParams.push(body.can_receive_solution);
+        }
+        flagSets.push('updated_at = NOW()');
+        flagParams.push(existing.email);
+        await client.query(
+          'UPDATE crm_staff SET ' + flagSets.join(', ') + ' WHERE lower(trim(email)) = lower(trim($' + flagIdx + '))',
+          flagParams,
+        );
+      }
+
       if (body.team_ids !== undefined && !positionTeamApplied) {
         const teamIds = (body.team_ids ?? []).map(Number).filter((n) => n > 0);
         await this.replaceUserTeams(
@@ -582,6 +620,7 @@ export class StaffOrgUsersRepository {
         `UPDATE crm_staff
          SET active = FALSE,
              can_receive_leads = FALSE,
+             can_receive_solution = FALSE,
              ended_on = CURRENT_DATE,
              updated_at = NOW()
          WHERE id = $1`,

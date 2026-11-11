@@ -396,7 +396,7 @@ export function SolutionCaseDesk({
         <p className="solution-desk__kicker">Hồ sơ Sales đã giao</p>
         <p className="muted">
           {solution?.phase === 'cho_nhan'
-            ? `${solution.assignee_name || 'Marketing Leader'} bấm nhận case Solutions trong 15 phút.`
+            ? `${solution.assignee_name || 'AM'} bấm nhận case Solutions trong 15 phút.`
             : solution?.phase === 'chinh_sua'
               ? 'Chỉnh theo yêu cầu, rồi bấm Trả Sales trong 2 giờ.'
               : handoff === 'with_solution'

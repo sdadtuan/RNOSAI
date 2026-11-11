@@ -162,6 +162,41 @@ export async function staffLogin(email: string, password: string): Promise<Staff
   return body;
 }
 
+export interface PortalClientLoginUser {
+  id: string;
+  email: string;
+  client_id: string;
+  role: 'viewer' | 'approver';
+}
+
+export async function portalClientLogin(
+  email: string,
+  password: string,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  user: PortalClientLoginUser;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await parseJson<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    user: PortalClientLoginUser;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Login failed', res.status);
+  }
+  return body;
+}
+
 export async function sandboxLogin(
   username: string,
   password: string,
@@ -272,16 +307,46 @@ export async function staffRefresh(refreshToken: string): Promise<StaffLoginResp
   return body;
 }
 
+const STAFF_ME_TTL_MS = 30_000;
+type StaffMeCache = {
+  token: string;
+  at: number;
+  value?: StaffMeResponse;
+  inflight?: Promise<StaffMeResponse>;
+};
+let staffMeCache: StaffMeCache | null = null;
+
+export function clearStaffMeCache(): void {
+  staffMeCache = null;
+}
+
 export async function staffMe(token: string): Promise<StaffMeResponse> {
-  const res = await fetch(`${API_BASE}/api/v1/staff/auth/me`, {
-    headers: authHeaders(token),
-    cache: 'no-store',
-  });
-  const body = await parseJson<StaffMeResponse & { error?: string }>(res);
-  if (!res.ok) {
-    throw new ApiError(body.error ?? 'Unauthorized', res.status);
+  const now = Date.now();
+  if (staffMeCache?.token === token && staffMeCache.value && now - staffMeCache.at < STAFF_ME_TTL_MS) {
+    return staffMeCache.value;
   }
-  return body;
+  if (staffMeCache?.token === token && staffMeCache.inflight) {
+    return staffMeCache.inflight;
+  }
+  const inflight = (async () => {
+    const res = await fetch(`${API_BASE}/api/v1/staff/auth/me`, {
+      headers: authHeaders(token),
+      cache: 'no-store',
+    });
+    const body = await parseJson<StaffMeResponse & { error?: string }>(res);
+    if (!res.ok) {
+      throw new ApiError(body.error ?? 'Unauthorized', res.status);
+    }
+    staffMeCache = { token, at: Date.now(), value: body };
+    return body;
+  })();
+  staffMeCache = { token, at: now, inflight };
+  try {
+    return await inflight;
+  } catch (err) {
+    if (staffMeCache?.inflight === inflight) staffMeCache = null;
+    throw err;
+  }
 }
 
 export interface StaffSessionListItem {
@@ -1939,7 +2004,7 @@ export interface LeadFunnelSnapshot {
     solution_case?: {
       phase: 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_phan_hoi';
       step_label: string;
-      expected_role: 'Marketing Leader' | 'Sale';
+      expected_role: 'AM' | 'Sale';
       assignee_staff_id: number | null;
       assignee_name: string;
       revision_note: string;
@@ -1954,7 +2019,7 @@ export interface LeadFunnelSnapshot {
     quote_case?: {
       phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'sale_review' | 'hop_dong' | 'trien_khai';
       step_label: string;
-      expected_role: 'Sale' | 'Marketing Leader' | '';
+      expected_role: 'Sale' | 'AM' | '';
       accept_due_at: string;
       quote_due_at: string;
       change_note: string;
@@ -1987,6 +2052,16 @@ export interface LeadFunnelSnapshot {
       transfer_candidates?: Array<{ id: number; name: string; title?: string }>;
       contract_state?: 'none' | 'draft' | 'signed';
       contract_amount_vnd?: number;
+    } | null;
+    implementation_handoff?: {
+      status: '' | 'pending' | 'claimed';
+      owner_staff_id: number | null;
+      owner_name: string;
+      accept_due_at: string;
+      claimed_at: string;
+      timer_overdue: boolean;
+      step_label: string;
+      expected_role: 'Marketing Leader' | '';
     } | null;
     l2_docs?: {
       service_slug: string;
@@ -2236,6 +2311,42 @@ export interface SolutionQueueRow {
   owner_id: number | null;
   owner_name: string;
   queue_kind?: 'solution' | 'am_rework';
+}
+
+export type ImplementationQueueRow = {
+  lead_id: number;
+  full_name: string;
+  phone: string;
+  service_slug: string;
+  implementation_handoff_status: string;
+  implementation_owner_staff_id: number | null;
+  implementation_owner_name: string;
+  implementation_accept_due_at: string;
+  owner_id: number | null;
+  owner_name: string;
+};
+
+export async function fetchImplementationQueue(
+  token: string,
+  opts: { status?: 'pending' | 'claimed' | 'all'; limit?: number } = {},
+): Promise<{ ok: boolean; rows: ImplementationQueueRow[]; count: number }> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return leadFunnelMutate(token, `/api/v1/leads/presales/implementation-queue${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function claimLeadImplementation(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/claim-implementation`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export async function fetchSolutionQueue(
@@ -3041,6 +3152,7 @@ export interface LeadContractRow {
   signed_on: string;
   notes: string;
   agency_client_id?: string;
+  created_by?: string;
 }
 
 export interface ContractApprovalRow {
@@ -4633,6 +4745,7 @@ export interface CrmStaffRow {
   department: string;
   active: number;
   can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
   reports_to_id?: number | null;
   reports_to_name?: string;
   position_catalog_code?: string;
@@ -5665,6 +5778,7 @@ export async function patchCrmStaff(
     email: string;
     job_title: string;
     can_receive_leads: boolean;
+    can_receive_solution: boolean;
     reports_to_id: number | null;
   }>,
 ): Promise<CrmStaffRow> {
@@ -5898,6 +6012,7 @@ export interface AgencyClient {
   owner_am_id: string | null;
   notes?: string | null;
   channels?: string;
+  portal_logins?: string;
   channel_accounts?: Array<{
     id: string;
     channel: string;
@@ -6097,6 +6212,28 @@ async function agencyMutate<T>(
 
 export async function fetchAgencyStats(token: string): Promise<AgencyStats> {
   return agencyFetch(token, '/api/v1/agency/stats');
+}
+
+export async function fetchMetaBusinessTokenStatus(
+  token: string,
+): Promise<{ configured: boolean; updated_at: string | null }> {
+  return agencyFetch(token, '/api/v1/agency/meta-business-token');
+}
+
+export async function saveMetaBusinessToken(
+  token: string,
+  accessToken: string,
+): Promise<{ ok: true; configured: true; updated_at: string }> {
+  return agencyMutate(token, '/api/v1/agency/meta-business-token', {
+    method: 'PUT',
+    body: JSON.stringify({ access_token: accessToken }),
+  });
+}
+
+export async function fetchMetaBusinessPages(
+  token: string,
+): Promise<{ pages: Array<{ id: string; name: string }>; ad_accounts: Array<{ id: string; name: string }> }> {
+  return agencyFetch(token, '/api/v1/agency/meta-business-token/pages');
 }
 
 export async function fetchAgencyClients(
@@ -6746,7 +6883,7 @@ export async function fetchClientOffboardAudit(
   return agencyFetch(token, `/api/v1/clients/${clientId}/offboard/audit`);
 }
 
-export type PortalClientRole = 'viewer' | 'approver';
+export type PortalClientRole = 'viewer' | 'approver' | 'staff';
 
 export interface PortalClientUser {
   id: string;
@@ -6813,6 +6950,56 @@ export async function resetClientPortalUserPassword(
   return agencyMutate(token, `/api/v1/clients/${clientId}/portal-users/${userId}/reset-password`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export interface PortalClientPage {
+  id: string;
+  client_id: string;
+  channel: 'facebook' | 'zalo' | 'google' | 'tiktok' | 'ad_account';
+  page_id: string;
+  page_name: string;
+  active: boolean;
+  created_at: string;
+}
+
+export async function fetchClientPortalPages(
+  token: string,
+  clientId: string,
+): Promise<{ ok: boolean; client_id: string; pages: PortalClientPage[] }> {
+  return agencyFetch(token, `/api/v1/clients/${clientId}/pages`);
+}
+
+export async function addClientPortalPage(
+  token: string,
+  clientId: string,
+  body: { channel: 'facebook' | 'zalo' | 'google' | 'tiktok'; page_id: string; page_name?: string },
+): Promise<{ ok: boolean; page: PortalClientPage }> {
+  return agencyMutate(token, `/api/v1/clients/${clientId}/pages`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateClientPortalPage(
+  token: string,
+  clientId: string,
+  rowId: string,
+  body: { channel?: 'facebook' | 'zalo' | 'google' | 'tiktok'; page_id?: string; page_name?: string },
+): Promise<{ ok: boolean; page: PortalClientPage }> {
+  return agencyMutate(token, `/api/v1/clients/${clientId}/pages/${encodeURIComponent(rowId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function removeClientPortalPage(
+  token: string,
+  clientId: string,
+  pageId: string,
+): Promise<{ ok: boolean }> {
+  return agencyMutate(token, `/api/v1/clients/${clientId}/pages/${encodeURIComponent(pageId)}`, {
+    method: 'DELETE',
   });
 }
 
@@ -9382,12 +9569,30 @@ export interface CrmLeadLookupOption {
   updated_at: string;
 }
 
+const lookupOptionsCache = new Map<string, { at: number; value?: { options: CrmLeadLookupOption[] }; inflight?: Promise<{ options: CrmLeadLookupOption[] }> }>();
+
 export async function fetchLeadLookupOptions(
   token: string,
   kind?: CrmLeadLookupKind,
 ): Promise<{ options: CrmLeadLookupOption[] }> {
+  const key = `${token}::${kind ?? ''}`;
+  const now = Date.now();
+  const hit = lookupOptionsCache.get(key);
+  if (hit?.value && now - hit.at < STAFF_ME_TTL_MS) return hit.value;
+  if (hit?.inflight) return hit.inflight;
   const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
-  return crmFetch(token, `/api/v1/leads/lookup-options${qs}`);
+  const inflight = crmFetch(token, `/api/v1/leads/lookup-options${qs}`).then((value) => {
+    lookupOptionsCache.set(key, { at: Date.now(), value });
+    return value;
+  });
+  lookupOptionsCache.set(key, { at: now, inflight });
+  try {
+    return await inflight;
+  } catch (err) {
+    const cur = lookupOptionsCache.get(key);
+    if (cur?.inflight === inflight) lookupOptionsCache.delete(key);
+    throw err;
+  }
 }
 
 export async function fetchCrmLeadLookups(
@@ -9994,6 +10199,8 @@ export interface StaffOrgUserSummary {
   position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
+  can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
 }
 
 export interface CreateStaffOrgUserInput {
@@ -10015,6 +10222,7 @@ export interface CreateStaffOrgUserInput {
     internal_code?: string;
     department_id?: number | null;
     can_receive_leads?: boolean;
+    can_receive_solution?: boolean;
   };
 }
 
@@ -10027,6 +10235,8 @@ export interface PatchStaffOrgUserInput {
   password?: string;
   account_kind?: 'staff' | 'guest' | 'contractor';
   expires_at?: string | null;
+  can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
 }
 
 export interface StaffUserEffectiveCaps {

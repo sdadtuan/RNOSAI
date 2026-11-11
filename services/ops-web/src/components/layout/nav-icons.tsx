@@ -544,6 +544,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/owner-weekly': 'report',
   '/crm/ai/query': 'query',
   '/agency': 'agency',
+  '/agency/meta-token': 'agency',
   '/agency/ingest': 'ingest',
   '/agency/notifications': 'bell',
   '/agency/kpi-definitions': 'metric',

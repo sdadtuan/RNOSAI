@@ -12,7 +12,10 @@
     "test": "jest",
     "test:revops": "jest src/revops",
     "test:e2e": "jest --config ./test/jest-e2e.config.js",
-    "p13:catalog-import": "node dist/p13/cli/catalog-import.js"
+    "p13:catalog-import": "node dist/p13/cli/catalog-import.js",
+    "sync:portal-meta-insights-local": "npx ts-node --transpile-only scripts/sync-portal-meta-insights-local.ts",
+    "start:portal-worker": "node --enable-source-maps dist/portal-worker.main.js",
+    "start:portal-worker:dev": "npx --yes ts-node --transpile-only src/portal-worker.main.ts"
   },
   "engines": {
     "node": ">=22.0.0"

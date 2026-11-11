@@ -17,10 +17,17 @@ import { ClientOffboardFollowUpService } from './client-offboard-follow-up.servi
 import { ClientOffboardService } from './client-offboard.service';
 import { PortalClientUsersRepository } from './portal-client-users.repository';
 import { PortalClientUsersService } from './portal-client-users.service';
+import { PortalClientPagesRepository } from './portal-client-pages.repository';
+import { PortalClientPagesService } from './portal-client-pages.service';
 import { OnboardingOrchestratorRepository } from './onboarding-orchestrator.repository';
 import { OnboardingOrchestratorService } from './onboarding-orchestrator.service';
 import { ClientsController } from './clients.controller';
 import { AgencyCampaignWriteInternalController } from './agency-campaign-write-internal.controller';
+import { MetaBusinessTokenController } from './meta-business-token.controller';
+import { MetaBusinessTokenRepository } from './meta-business-token.repository';
+import { MetaBusinessTokenService } from './meta-business-token.service';
+import { PortalMetaInsightsRepository } from './portal-meta-insights.repository';
+import { PortalMetaInsightsService } from './portal-meta-insights.service';
 import {
   StaffAgencyViewGuard,
   StaffFacebookAdsViewGuard,
@@ -43,7 +50,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     forwardRef(() => LeadsContractModule),
     forwardRef(() => ServiceLifecycleModule),
   ],
-  controllers: [ClientsController, AgencyOpsController, AgencyCampaignWriteInternalController],
+  controllers: [ClientsController, AgencyOpsController, AgencyCampaignWriteInternalController, MetaBusinessTokenController],
   providers: [
     AgencyService,
     AgencyRepository,
@@ -53,6 +60,12 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     ClientOffboardService,
     PortalClientUsersRepository,
     PortalClientUsersService,
+    PortalClientPagesRepository,
+    PortalClientPagesService,
+    MetaBusinessTokenRepository,
+    MetaBusinessTokenService,
+    PortalMetaInsightsRepository,
+    PortalMetaInsightsService,
     OnboardingOrchestratorRepository,
     OnboardingOrchestratorService,
     StaffAgencyViewGuard,
@@ -63,6 +76,17 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     StaffAgencyConfigureGuard,
     InternalKeyGuard,
   ],
-  exports: [AgencyService, AgencyRepository, AgencySideEffectsService, ClientOffboardService, OnboardingOrchestratorService],
+  exports: [
+    AgencyService,
+    AgencyRepository,
+    AgencySideEffectsService,
+    ClientOffboardService,
+    OnboardingOrchestratorService,
+    PortalClientPagesService,
+    PortalClientPagesRepository,
+    PortalClientUsersService,
+    MetaBusinessTokenService,
+    PortalMetaInsightsService,
+  ],
 })
 export class AgencyModule {}

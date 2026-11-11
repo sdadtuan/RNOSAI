@@ -35,7 +35,8 @@ export class LeadsContractController {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
   }
 
-  private badRequest(err: unknown): never {
+  private fail(err: unknown): never {
+    if (err instanceof HttpException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     throw new HttpException({ error: msg, message: msg }, HttpStatus.BAD_REQUEST);
   }
@@ -46,7 +47,7 @@ export class LeadsContractController {
     try {
       return this.contracts.getReadiness(id);
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 
@@ -59,45 +60,66 @@ export class LeadsContractController {
   @Post(':id/contract')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  createContract(
+  async createContract(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: CreateContractBody,
-    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
   ) {
     try {
-      return this.contracts.createDraft(id, body, this.actor(req));
+      return await this.contracts.createDraft(
+        id,
+        body,
+        this.actor(req),
+        req.staffUser,
+        req.staffAuthVia === 'internal',
+      );
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 
   @Patch(':id/contract/:contractId')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  patchContract(
+  async patchContract(
     @Param('id', ParseIntPipe) id: number,
     @Param('contractId', ParseIntPipe) contractId: number,
     @Body() body: PatchContractBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
   ) {
     try {
-      return this.contracts.patchContract(contractId, id, body);
+      return await this.contracts.patchContract(
+        contractId,
+        id,
+        body,
+        this.actor(req),
+        req.staffUser,
+        req.staffAuthVia === 'internal',
+      );
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 
   @Post(':id/contract/:contractId/submit')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  submitContract(
+  async submitContract(
     @Param('id', ParseIntPipe) id: number,
     @Param('contractId', ParseIntPipe) contractId: number,
     @Body() body: SubmitContractBody,
-    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
   ) {
     try {
-      return this.contracts.submit(contractId, id, this.actor(req), String(body.notes ?? ''));
+      return await this.contracts.submit(
+        contractId,
+        id,
+        this.actor(req),
+        String(body.notes ?? ''),
+        req.staffUser,
+        req.staffAuthVia === 'internal',
+      );
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 }
@@ -111,7 +133,8 @@ export class ContractsApprovalController {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
   }
 
-  private badRequest(err: unknown): never {
+  private fail(err: unknown): never {
+    if (err instanceof HttpException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     throw new HttpException({ error: msg, message: msg }, HttpStatus.BAD_REQUEST);
   }
@@ -130,7 +153,7 @@ export class ContractsApprovalController {
     try {
       return this.contracts.approve(id, this.actor(req));
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 
@@ -145,7 +168,7 @@ export class ContractsApprovalController {
     try {
       return this.contracts.reject(id, this.actor(req), String(body.decision_notes ?? ''));
     } catch (err) {
-      this.badRequest(err);
+      this.fail(err);
     }
   }
 }

@@ -18,7 +18,12 @@ function source(partial: Partial<SolutionCaseSource> = {}): SolutionCaseSource {
 }
 
 describe('solution work due', () => {
-  it('adds 4 hours inside Monday 08:30–16:00', () => {
+  it('adds 4 hours before the cutoff on Monday (15:00 -> +4h)', () => {
+    const due = solutionWorkDueAt(new Date('2026-11-02T08:00:00.000Z'));
+    expect(due.toISOString()).toBe('2026-11-02T12:00:00.000Z');
+  });
+
+  it('adds 4 hours inside Monday morning after work start', () => {
     const due = solutionWorkDueAt(new Date('2026-11-02T02:00:00.000Z'));
     expect(due.toISOString()).toBe('2026-11-02T06:00:00.000Z');
   });
@@ -28,20 +33,32 @@ describe('solution work due', () => {
     expect(due.toISOString()).toBe('2026-11-02T05:30:00.000Z');
   });
 
-  it('carries leftover working time to the next morning', () => {
-    const due = solutionWorkDueAt(new Date('2026-11-02T07:00:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-03T03:30:00.000Z');
+  it('moves Tuesday after cutoff to Wednesday 11:00', () => {
+    const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'));
+    expect(due.toISOString()).toBe('2026-11-04T04:00:00.000Z');
   });
 
-  it('uses Monday 11:00 after Friday 16:00, Saturday, or Sunday', () => {
-    expect(solutionWorkDueAt(new Date('2026-11-06T09:30:00.000Z')).toISOString()).toBe('2026-11-09T04:00:00.000Z');
-    expect(solutionWorkDueAt(new Date('2026-11-07T03:00:00.000Z')).toISOString()).toBe('2026-11-09T04:00:00.000Z');
-    expect(solutionWorkDueAt(new Date('2026-11-08T03:00:00.000Z')).toISOString()).toBe('2026-11-09T04:00:00.000Z');
+  it('moves Friday after cutoff to Monday 11:00 (same after-cutoff time)', () => {
+    const due = solutionWorkDueAt(new Date('2026-11-06T08:45:00.000Z'));
+    expect(due.toISOString()).toBe('2026-11-09T04:00:00.000Z');
   });
 
-  it('still counts Friday afternoon time before 16:00', () => {
-    const due = solutionWorkDueAt(new Date('2026-11-06T08:00:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-09T04:30:00.000Z');
+  it('moves Saturday (and Sunday) to Monday 11:00', () => {
+    expect(solutionWorkDueAt(new Date('2026-11-07T03:00:00.000Z')).toISOString()).toBe(
+      '2026-11-09T04:00:00.000Z',
+    );
+    expect(solutionWorkDueAt(new Date('2026-11-08T03:00:00.000Z')).toISOString()).toBe(
+      '2026-11-09T04:00:00.000Z',
+    );
+  });
+
+  it('uses passed team settings instead of the defaults', () => {
+    const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'), {
+      cutoffTime: '16:00',
+      beforeCutoffHours: 4,
+      afterCutoffTime: '10:00',
+    });
+    expect(due.toISOString()).toBe('2026-11-03T12:45:00.000Z');
   });
 });
 
@@ -88,7 +105,7 @@ describe('buildSolutionCaseView', () => {
     );
     expect(edit?.phase).toBe('chinh_sua');
     expect(edit?.revision_note).toBe('Đổi kênh');
-    expect(edit?.expected_role).toBe('Marketing Leader');
+    expect(edit?.expected_role).toBe('AM');
 
     const waiting = buildSolutionCaseView(
       source({ handoff_status: 'released', solution_customer_due_at: '2026-11-05T04:00:00.000Z' }),

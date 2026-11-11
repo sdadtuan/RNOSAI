@@ -101,6 +101,8 @@ import {
 import type { B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.service';
 import { LeadsRepository } from '../leads/leads.repository';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { SOLUTION_ACCEPT_MINUTES } from './solution-case.util';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -121,7 +123,24 @@ export class LeadsFunnelService {
     private readonly b2bManualReassign: B2bManualReassignService,
     private readonly leadsRepo: LeadsRepository,
     private readonly aiConfig: AiIntelligenceConfigService,
+    private readonly notifications: StaffNotificationsRepository,
   ) {}
+
+  private async notifyAmSolutionHandoff(leadId: number): Promise<void> {
+    const userIds = await this.pgRepo.solutionDeskAuthUserIds();
+    for (const userId of userIds) {
+      await this.notifications
+        .create({
+          user_id: userId,
+          kind: 'presales_solution',
+          title: 'Case Solutions chờ AM nhận',
+          body: `Lead #${leadId} chờ nhận case Solutions (${SOLUTION_ACCEPT_MINUTES} phút).`,
+          link_href: '/crm/solution/queue',
+          meta_json: { lead_id: leadId },
+        })
+        .catch(() => undefined);
+    }
+  }
 
   async getFunnel(leadId: number): Promise<LeadFunnelSnapshot> {
     const snap = await this.pgRepo.buildSnapshot(leadId, this.config.presalesOnLead);
@@ -154,6 +173,7 @@ export class LeadsFunnelService {
       gdkdAssign: hasGdkdSolutionDesk(me.caps),
       job_functions: me.job_functions ?? [],
       permission_sets: me.permission_sets ?? [],
+      canReceiveSolution: await this.staffAuth.canReceiveSolution(staffUser),
     };
   }
 
@@ -171,11 +191,20 @@ export class LeadsFunnelService {
     const planVal = validatePreliminaryPlan(plan);
     const packDone = hasCompletedSolutionPack(plan);
     const hasHandoff = await this.pgRepo.hasSolutionHandoffActivity(leadId, snap.presales.handed_off_at);
+    let positionCode: string | null = null;
+    if (staffUser) {
+      const me = await this.staffAuth.me(staffUser);
+      positionCode = me.position_code ?? null;
+    }
     return {
       action,
       gdkd_assign: staffCtx.gdkdAssign,
       job_functions: staffCtx.job_functions,
       permission_sets: staffCtx.permission_sets,
+      position_code: positionCode,
+      can_receive_solution: staffUser
+        ? await this.staffAuth.canReceiveSolution(staffUser)
+        : false,
       handoff_status: snap.presales.handoff_status,
       has_handoff_activity: hasHandoff,
       consult_complete: consultComplete || packDone,
@@ -228,12 +257,12 @@ export class LeadsFunnelService {
     if (taskStage && taskStage !== 'consult') return;
     const snap = await this.pgRepo.getPresalesSnapshot(leadId);
     if (!snap) return;
-    const { caps, gdkdAssign } = await this.staffCapContext(staffUser);
+    const { caps, gdkdAssign, canReceiveSolution } = await this.staffCapContext(staffUser);
     assertCanMutatePresalesConsult(
       caps,
       snap.presales.handoff_status,
       snap.presales.stage,
-      { gdkdAssign },
+      { gdkdAssign, canReceiveSolution },
     );
   }
 
@@ -457,8 +486,8 @@ export class LeadsFunnelService {
         snap?.advance.next_stage === 'proposal' &&
         snap.advance.current_stage === 'consult'
       ) {
-        const { caps, gdkdAssign } = await this.staffCapContext(staffUser);
-        assertCanAdvanceConsultToProposal(caps, snap.presales.handoff_status, { gdkdAssign });
+        const { caps, gdkdAssign, canReceiveSolution } = await this.staffCapContext(staffUser);
+        assertCanAdvanceConsultToProposal(caps, snap.presales.handoff_status, { gdkdAssign, canReceiveSolution });
       }
       await this.pgRepo.advancePresales(leadId, {
         confirm: Boolean(body.confirm),
@@ -568,6 +597,33 @@ export class LeadsFunnelService {
         actor,
         staffId,
         staffUser,
+      );
+      void this.notifyAmSolutionHandoff(leadId);
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async listImplementationQueue(status?: string, limit?: number) {
+    const st = String(status ?? 'pending').trim().toLowerCase();
+    const filter =
+      st === 'claimed' || st === 'all' ? (st as 'claimed' | 'all') : 'pending';
+    const rows = await this.pgRepo.listImplementationQueue(filter, limit);
+    return { ok: true, rows, count: rows.length };
+  }
+
+  async claimImplementationHandoff(
+    leadId: number,
+    staffId: number | null,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      await this.pgRepo.claimImplementationHandoff(
+        leadId,
+        staffId,
+        await this.actorIsSuperAdmin(staffUser),
       );
     } catch (err) {
       this.funnelError(err);
@@ -748,7 +804,7 @@ export class LeadsFunnelService {
       throw new ForbiddenException({ error: 'Chỉ CEO được chuyển case báo giá.' });
     }
     if (!Number.isInteger(targetStaffId) || targetStaffId <= 0) {
-      throw new BadRequestException({ error: 'Chọn Marketing Leader để chuyển.' });
+      throw new BadRequestException({ error: 'Chọn AM để chuyển.' });
     }
     try {
       await this.pgRepo.transferQuoteCase(leadId, staffId, targetStaffId);

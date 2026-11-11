@@ -59,13 +59,14 @@ import type {
   WaiveIwrReportInput,
   ReopenIwrReportInput,
 } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const IMMUTABLE: Set<string> = new Set(['acknowledged', 'waived', 'archived']);
 const EDITABLE: Set<string> = new Set(['draft', 'changes_requested']);
 const RAG_VALUES = new Set(['green', 'yellow', 'red', 'gray']);
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function extractRag(report: IwrReportRow): IwrRag | null {

@@ -2,9 +2,10 @@ import { randomBytes } from 'crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IwrW5Repository, signWebhookBody } from './iwr-w5.repository';
 import type { CreateIwrWebhookInput, IwrActor, IwrWebhookRow } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

@@ -353,13 +353,20 @@ export async function requestPublicVideoReviewChanges(
 
 export async function fetchPerformance(
   token: string,
-  params?: { from?: string; to?: string; group_by?: 'day' | 'campaign'; channel?: PerformanceChannel },
+  params?: {
+    from?: string;
+    to?: string;
+    group_by?: 'day' | 'campaign';
+    channel?: PerformanceChannel;
+    account_id?: string;
+  },
 ): Promise<PerformanceListResponse> {
   const qs = new URLSearchParams();
   if (params?.from) qs.set('from', params.from);
   if (params?.to) qs.set('to', params.to);
   if (params?.group_by) qs.set('group_by', params.group_by);
   if (params?.channel) qs.set('channel', params.channel);
+  if (params?.account_id) qs.set('account_id', params.account_id);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/v1/performance${suffix}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -440,6 +447,7 @@ export function performanceExportUrl(params?: {
   to?: string;
   group_by?: 'day' | 'campaign';
   channel?: PerformanceChannel;
+  account_id?: string;
   format?: 'csv' | 'pdf';
 }): string {
   const qs = new URLSearchParams();
@@ -447,6 +455,7 @@ export function performanceExportUrl(params?: {
   if (params?.to) qs.set('to', params.to);
   if (params?.group_by) qs.set('group_by', params.group_by);
   if (params?.channel) qs.set('channel', params.channel);
+  if (params?.account_id) qs.set('account_id', params.account_id);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const ext = params?.format === 'pdf' ? 'export.pdf' : 'export.csv';
   return `${API_BASE}/api/v1/performance/${ext}${suffix}`;
@@ -1522,4 +1531,440 @@ export async function testNativePush(token: string): Promise<NativePushTestRespo
     throw new ApiError(body.error ?? body.message ?? 'Native push test failed', res.status);
   }
   return body;
+}
+
+export interface PortalCrmPage {
+  id: string;
+  channel?: 'facebook' | 'zalo' | 'google' | 'tiktok' | 'ad_account';
+  page_id: string;
+  page_name: string;
+  active: boolean;
+}
+
+export interface PortalCrmWorkspace {
+  ok: boolean;
+  page: PortalCrmPage;
+  lead_store: string;
+  leads: Array<{
+    id: string;
+    full_name: string;
+    phone: string;
+    email: string;
+    campaign_name: string;
+    campaign_id?: string;
+    created_at: string;
+  }>;
+  messages: Array<{ id: string; sender_name: string; body: string; received_at: string }>;
+  reports: Array<{
+    performance_date: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    leads_platform: number;
+  }>;
+  campaigns: Array<{
+    external_campaign_id: string;
+    name: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+  }>;
+  creatives: Array<{ id: string; status: string }>;
+}
+
+export async function fetchPortalCrmPages(token: string): Promise<{ pages: PortalCrmPage[] }> {
+  const res = await fetch(`${API_BASE}/api/portal/crm/pages`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ pages: PortalCrmPage[]; error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? body.message ?? 'Portal pages failed', res.status);
+  return body;
+}
+
+export async function fetchPortalCrmWorkspace(token: string, pageId: string): Promise<PortalCrmWorkspace> {
+  const res = await fetch(`${API_BASE}/api/portal/crm/pages/${encodeURIComponent(pageId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<PortalCrmWorkspace & { error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? body.message ?? 'Portal page failed', res.status);
+  return body;
+}
+
+export interface PortalMetaAdInsightsResponse {
+  ok: boolean;
+  account_id: string;
+  since: string;
+  until: string;
+  kpi: {
+    spend: number;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    ctr: number | null;
+    cpc: number | null;
+    cpm: number | null;
+    leads_platform: number;
+    cpl: number | null;
+    purchases: number;
+    conversion_value: number;
+    roas: number | null;
+  };
+  daily: Array<{ date: string; spend: number; leads_platform: number }>;
+  tables: {
+    campaign: Array<Record<string, unknown>>;
+    adset: Array<Record<string, unknown>>;
+    ad: Array<Record<string, unknown>>;
+  };
+  breakdowns: Record<string, Array<{ value: string; spend: number; impressions: number; clicks: number; leads_platform: number }>>;
+  leads: PortalCrmWorkspace['leads'];
+  sync: {
+    last_synced_at: string | null;
+    last_error: string | null;
+    last_breakdown_warnings?: string | null;
+    last_since?: string | null;
+    last_until?: string | null;
+  };
+}
+
+export async function fetchPortalMetaAdInsights(
+  token: string,
+  accountId: string,
+  params: { since: string; until: string },
+): Promise<PortalMetaAdInsightsResponse> {
+  const q = new URLSearchParams({ since: params.since, until: params.until });
+  const res = await fetch(
+    `${API_BASE}/api/portal/crm/ad-accounts/${encodeURIComponent(accountId)}/insights?${q.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+  );
+  const body = await parseJson<PortalMetaAdInsightsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? body.message ?? 'Insights failed', res.status);
+  return body;
+}
+
+export async function syncPortalMetaAdAccount(
+  token: string,
+  accountId: string,
+  body?: { since?: string; until?: string },
+): Promise<{
+  ok: boolean;
+  account_id: string;
+  since: string;
+  until: string;
+  rows: Record<string, number>;
+  last_synced_at: string | null;
+  error?: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/portal/crm/ad-accounts/${encodeURIComponent(accountId)}/sync`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  const parsed = await parseJson<
+    {
+      ok: boolean;
+      account_id: string;
+      since: string;
+      until: string;
+      rows: Record<string, number>;
+      last_synced_at: string | null;
+      error?: string;
+    } & { error?: string; message?: string }
+  >(res);
+  if (!res.ok) throw new ApiError(parsed.error ?? parsed.message ?? 'Sync failed', res.status);
+  return parsed;
+}
+
+export function portalMetaAdInsightsExportUrl(accountId: string, since: string, until: string, level = 'campaign'): string {
+  const q = new URLSearchParams({ since, until, level });
+  return `${API_BASE}/api/portal/crm/ad-accounts/${encodeURIComponent(accountId)}/insights/export.csv?${q.toString()}`;
+}
+
+export async function createPortalCrmLead(
+  token: string,
+  pageId: string,
+  body: { full_name: string; phone?: string; email?: string; campaign_name?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/portal/crm/pages/${encodeURIComponent(pageId)}/leads`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const parsed = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(parsed.error ?? parsed.message ?? 'Create lead failed', res.status);
+}
+
+export interface PortalProductSpec {
+  price_vnd: number | null;
+  colors: Array<{ name: string; image: string }>;
+  sizes: string[];
+  options: Array<{ name: string; values: string[] }>;
+}
+
+export interface PortalProductRecord {
+  id: string;
+  page_id: string;
+  name: string;
+  image_url: string;
+  detail: string;
+  spec?: PortalProductSpec;
+  active?: boolean;
+}
+
+export function portalMediaUrl(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('/api/')) return `${API_BASE}${url}`;
+  return url;
+}
+
+export interface PortalDeskChannel {
+  id: string;
+  label: string;
+}
+
+export interface PortalDeskPage {
+  id: string;
+  page_id: string;
+  page_name: string;
+  channel: string;
+}
+
+export interface PortalCareCase {
+  id: string;
+  page_id: string;
+  kind: string;
+  title: string;
+  assignee_user_id: string | null;
+  assignee_email: string;
+  status: string;
+  labels: string[];
+  customer_id: string | null;
+  receive_due_at: string;
+  care_due_at: string;
+  created_at: string;
+  snippet?: string;
+  order?: PortalOrderDraft;
+  last_interaction_at?: string;
+  phone?: string;
+  source?: string;
+  answers?: Array<{ name: string; value: string }>;
+  campaign_id?: string;
+  adset_id?: string;
+  ad_id?: string;
+  form_id?: string;
+}
+
+export interface PortalOrderDraft {
+  phone: string;
+  address: string;
+  product_id: string;
+  product_name: string;
+  size: string;
+  color: string;
+  price_vnd: number | null;
+  closed: boolean;
+}
+
+export interface PortalDesk {
+  channels: PortalDeskChannel[];
+  channel: string;
+  pages: PortalDeskPage[];
+  posts: Array<{ id: string; page_id: string; body: string; published_at: string }>;
+  products: PortalProductRecord[];
+  labels: Array<{ id: string; name: string; color: string }>;
+  leads: PortalCareCase[];
+  messages: PortalCareCase[];
+  customers: PortalCareCase[];
+  staff: Array<{ id: string; email: string }>;
+  me: { id: string; role: string };
+  inbox?: {
+    pages: number;
+    withToken: number;
+    leads: number;
+    messages: number;
+    leadNote?: string;
+    messageNote?: string;
+    error?: string;
+  };
+}
+
+export interface PortalCaseDetail {
+  case: PortalCareCase;
+  messages: Array<{ id: string; sender_name: string; body: string; received_at: string; direction: string }>;
+  products: PortalProductRecord[];
+}
+
+async function portalCrm<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}/api/portal/crm${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    cache: 'no-store',
+  });
+  const body = await parseJson<T & { error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? body.message ?? 'Portal CRM failed', res.status);
+  return body;
+}
+
+export function fetchPortalAdsChannels(token: string): Promise<{ channels: Array<{ id: string; label: string }> }> {
+  return portalCrm(token, '/channels');
+}
+
+export interface PortalCrmSummary {
+  leads_today: number;
+  leads_yesterday: number;
+  messages_today: number;
+  messages_yesterday: number;
+  leads_open: number;
+  messages_open: number;
+  spend_today: number;
+  spend_yesterday: number;
+  pages?: Array<{ page_id: string; page_name: string; channel: string }>;
+}
+
+export interface PortalLiveMessage {
+  id: string;
+  page_id: string;
+  sender_name: string;
+  body: string;
+  received_at: string;
+  direction: string;
+}
+
+export interface PortalLiveResponse {
+  server_time: string;
+  messages: PortalLiveMessage[];
+  cases: PortalCareCase[];
+}
+
+export function fetchPortalLive(token: string, since: string): Promise<PortalLiveResponse> {
+  const params = new URLSearchParams();
+  if (since) params.set('since', since);
+  return portalCrm(token, `/live?${params.toString()}`);
+}
+
+export function fetchPortalSummary(token: string): Promise<PortalCrmSummary> {
+  return portalCrm(token, '/summary');
+}
+
+export function fetchPortalStaff(token: string): Promise<{ staff: Array<{ id: string; email: string; active: boolean }> }> {
+  return portalCrm(token, '/staff');
+}
+
+export function createPortalStaff(token: string, email: string, password: string): Promise<void> {
+  return portalCrm(token, '/staff', { method: 'POST', body: JSON.stringify({ email, password }) });
+}
+
+export function setPortalStaffActive(token: string, id: string, active: boolean): Promise<void> {
+  return portalCrm(token, `/staff/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ active }) });
+}
+
+const portalDeskInflight = new Map<string, Promise<PortalDesk>>();
+const portalDeskListeners = new Set<(desk: PortalDesk) => void>();
+
+/** Subscribe to unfiltered desk payloads so sidebar badges stay equal to the visible lists. */
+export function subscribePortalDesk(listener: (desk: PortalDesk) => void): () => void {
+  portalDeskListeners.add(listener);
+  return () => {
+    portalDeskListeners.delete(listener);
+  };
+}
+
+export function fetchPortalDesk(
+  token: string,
+  query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string },
+): Promise<PortalDesk> {
+  const params = new URLSearchParams();
+  if (query.channel) params.set('channel', query.channel);
+  if (query.page_id) params.set('page_id', query.page_id);
+  if (query.day) params.set('day', query.day);
+  if (query.label) params.set('label', query.label);
+  if (query.include_inactive) params.set('include_inactive', query.include_inactive);
+  const qs = params.toString();
+  const key = `${token}|${qs}`;
+  const existing = portalDeskInflight.get(key);
+  if (existing) return existing;
+  const pending = portalCrm<PortalDesk>(token, `/desk${qs ? `?${qs}` : ''}`)
+    .then((desk) => {
+      if (!qs) {
+        for (const listener of portalDeskListeners) listener(desk);
+      }
+      return desk;
+    })
+    .finally(() => {
+      portalDeskInflight.delete(key);
+    });
+  portalDeskInflight.set(key, pending);
+  return pending;
+}
+
+export function fetchPortalCase(token: string, id: string): Promise<PortalCaseDetail> {
+  return portalCrm(token, `/cases/${encodeURIComponent(id)}`);
+}
+
+export function postPortalCase(token: string, id: string, action: string, body?: Record<string, string>): Promise<void> {
+  return portalCrm(token, `/cases/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postPortalPage<T = void>(
+  token: string,
+  pageId: string,
+  action: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  return portalCrm<T>(token, `/pages/${encodeURIComponent(pageId)}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deletePortalProduct(token: string, pageId: string, productId: string): Promise<void> {
+  return portalCrm(token, `/pages/${encodeURIComponent(pageId)}/products/${encodeURIComponent(productId)}`, { method: 'DELETE' });
+}
+
+export function patchPortalProduct(
+  token: string,
+  pageId: string,
+  productId: string,
+  body: {
+    name?: string;
+    detail?: string;
+    price_vnd?: number | null;
+    colors?: Array<{ name: string; image: string }>;
+    sizes?: string[];
+    options?: Array<{ name: string; values: string[] }>;
+    active?: boolean;
+  },
+): Promise<void> {
+  return portalCrm(token, `/pages/${encodeURIComponent(pageId)}/products/${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function uploadPortalProductImage(token: string, file: File): Promise<string> {
+  const body = new FormData();
+  body.set('file', file);
+  const res = await fetch(`${API_BASE}/api/portal/crm/product-images`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const parsed = await parseJson<{ url?: string; error?: string; message?: string }>(res);
+  if (!res.ok || !parsed.url) throw new ApiError(parsed.error ?? parsed.message ?? 'Upload ảnh thất bại', res.status);
+  return parsed.url;
+}
+
+export function postPortalStaff(token: string, email: string, password: string): Promise<void> {
+  return portalCrm(token, '/staff', { method: 'POST', body: JSON.stringify({ email, password }) });
+}
+
+export function postPortalLabel(token: string, name: string): Promise<void> {
+  return portalCrm(token, '/labels', { method: 'POST', body: JSON.stringify({ name }) });
 }

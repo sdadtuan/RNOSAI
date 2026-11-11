@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 
 export interface CrmBoardModuleCard {
   id: string;
@@ -140,7 +141,9 @@ export class CrmBoardService {
 
   async board(staffUser: StaffJwtPayload) {
     const me = await this.staffAuth.me(staffUser);
-    const modules = this.modulesForCaps(me.caps);
+    const modules = isSuperAdminPositionCode(me.position_code)
+      ? this.modulesForCaps(me.caps.concat({ section: '*', action: '*' }))
+      : this.modulesForCaps(me.caps);
     return {
       title: 'CRM Board',
       modules,

@@ -1,8 +1,9 @@
 import { ancestorIds, isOnPath } from './iwr-org.util';
 import type { IwrActor, IwrReportRow, IwrStaffNode } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 export async function canViewIwrReport(

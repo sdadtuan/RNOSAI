@@ -70,6 +70,7 @@ export interface LeadFunnelRow {
 import type { LeadFlowKind } from './lead-flow-kind.util';
 import type { QuoteCaseView, QuoteLateEvent } from './quote-case.util';
 import type { SolutionCaseView } from './solution-case.util';
+import type { ImplementationHandoffView } from './implementation-handoff.util';
 
 export interface LeadFunnelSnapshot {
   lead_id: number;
@@ -217,6 +218,23 @@ export interface PresalesRow {
   contract_created_at: string;
   contract_signed_at: string;
   contract_amount_vnd: number;
+  implementation_handoff_status: string;
+  implementation_owner_staff_id: number | null;
+  implementation_accept_due_at: string;
+  implementation_claimed_at: string;
+}
+
+export interface ImplementationQueueRow {
+  lead_id: number;
+  full_name: string;
+  phone: string;
+  service_slug: string;
+  implementation_handoff_status: string;
+  implementation_owner_staff_id: number | null;
+  implementation_owner_name: string;
+  implementation_accept_due_at: string;
+  owner_id: number | null;
+  owner_name: string;
 }
 
 export interface SolutionQueueRow {
@@ -240,6 +258,7 @@ export interface PresalesSnapshot {
   handoff: PresalesHandoffView;
   solution_case: SolutionCaseView | null;
   quote_case: QuoteCaseView | null;
+  implementation_handoff: ImplementationHandoffView | null;
   l2_docs: PresalesL2DocsView;
   consult_proposal_sla: PresalesConsultProposalSla;
   tasks: Record<string, PresalesTaskRow[]>;

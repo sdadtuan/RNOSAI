@@ -181,11 +181,11 @@ export default function CrmSolutionQueuePage() {
   return (
     <StaffPageShell user={user} onLogout={logout}>
       <PageToolbar
-        title={aeTrackOnly ? 'Theo dõi Solution / chỉnh lại' : 'Hàng chờ Solution/MKT'}
+        title={aeTrackOnly ? 'Theo dõi Solution / chỉnh lại' : 'Hàng chờ Solution (AM)'}
         subtitle={
           aeTrackOnly
-            ? 'Chỉ lead của bạn: đã chuyển Solution/MKT, hoặc AM trả lại cần chỉnh bước trước — chỉ xem, không nhận case.'
-            : 'Lead đã handoff từ Sales — Consult + R5 → trả Sales Báo giá'
+            ? 'Chỉ lead của bạn: đã chuyển Solution/AM, hoặc AM trả lại cần chỉnh bước trước — chỉ xem, không nhận case.'
+            : 'Lead đã handoff từ Sales — AM nhận case Solutions → trả Sales Báo giá'
         }
       />
 

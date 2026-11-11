@@ -22,6 +22,7 @@ import {
   buildMetaAttributionMeta,
   computeUnmappedSpendPct,
 } from '../meta-attribution.util';
+import { normalizePortalPageId } from '../agency/portal-client-pages.util';
 
 @Injectable()
 export class PerformanceService {
@@ -77,9 +78,12 @@ export class PerformanceService {
     const dateFrom = formatDateOnly(start);
     const dateTo = formatDateOnly(end);
 
-    const dbRows = await this.repo.fetchRows(clientId, dateFrom, dateTo, groupBy, channels);
+    const accountFilter = await this.resolveAccountFilter(clientId, query.account_id);
+    const accountIds = accountFilter === 'deny' ? ['__invalid__'] : accountFilter;
+
+    const dbRows = await this.repo.fetchRows(clientId, dateFrom, dateTo, groupBy, channels, accountIds);
     const rows = dbRows.map((row) => this.mapRow(row));
-    const meta = await this.repo.fetchMeta(clientId, channels);
+    const meta = await this.repo.fetchMeta(clientId, channels, accountIds);
     const summary = this.buildSummary(rows, meta);
 
     const totalSpend = summary.total_spend;
@@ -110,6 +114,20 @@ export class PerformanceService {
   private normalizeGroupBy(value: string | undefined): PerformanceGroupBy {
     const group = (value ?? 'day').trim().toLowerCase();
     return group === 'campaign' ? 'campaign' : 'day';
+  }
+
+  /** null = no filter; string[] = filter ids; 'deny' = account not owned by tenant */
+  private async resolveAccountFilter(
+    clientId: string,
+    raw: string | undefined,
+  ): Promise<string[] | null | 'deny'> {
+    const value = raw?.trim();
+    if (!value) return null;
+    const digits = normalizePortalPageId(value, 'ad_account');
+    if (!digits) return 'deny';
+    const owned = await this.repo.clientOwnsAdAccount(clientId, digits);
+    if (!owned) return 'deny';
+    return [digits];
   }
 
   private mapRow(rec: PerformanceDbRow): PerformanceRow {

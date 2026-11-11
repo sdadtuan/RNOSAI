@@ -47,6 +47,7 @@ export type LeadNextActionInput = {
   pendingApproval: boolean;
   submitReady: boolean;
   createReady: boolean;
+  canWriteContract?: boolean;
 };
 
 function hasContact(input: LeadNextActionInput): boolean {
@@ -126,6 +127,15 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
   }
 
   if (input.hasContract && contractStatus === 'draft' && input.submitReady) {
+    if (input.canWriteContract === false) {
+      return {
+        rule: 8,
+        title_vi: 'Chờ AM gửi HĐ',
+        body_vi: 'AM lập hợp đồng rồi gửi GDKD duyệt.',
+        primary: { label_vi: 'Xem hợp đồng', action: 'open_contract_hub' },
+        secondary: [],
+      };
+    }
     return {
       rule: 8,
       title_vi: 'Gửi GDKD duyệt',
@@ -141,7 +151,7 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     (prepStage === 'm3_pre_close' || stage === 'proposal');
   if (m3) {
     const secondary: LeadNextAction['secondary'] =
-      stage === 'proposal' && !input.hasContract
+      stage === 'proposal' && !input.hasContract && input.canWriteContract !== false
         ? [{ label_vi: 'Tạo HĐ draft', action: 'create_contract' }]
         : prep === 'ready'
           ? [{ label_vi: 'Tạo báo giá 3 gói', action: 'apply_offer_ladder' }]
@@ -156,6 +166,15 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
   }
 
   if (stage === 'proposal' && !input.hasContract && !input.dealRoomEnabled && input.createReady) {
+    if (input.canWriteContract === false) {
+      return {
+        rule: 8,
+        title_vi: 'Chờ AM lập hợp đồng',
+        body_vi: 'AM lập HĐ draft rồi gửi GDKD duyệt. Sale chỉ xem.',
+        primary: { label_vi: 'Xem hợp đồng', action: 'open_contract_hub' },
+        secondary: [],
+      };
+    }
     return {
       rule: 8,
       title_vi: 'Tạo HĐ draft',
@@ -172,7 +191,7 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     if (handoff === 'pending') {
       return {
         rule: 7,
-        title_vi: 'Chờ Solution nhận case',
+        title_vi: 'Chờ AM nhận case Solutions',
         body_vi: 'Đã giao queue. Không giao lại — Solution sẽ claim trên /crm/solution/queue.',
         primary: { label_vi: 'Đang chờ nhận…', action: 'wait_handoff' },
         secondary: [{ label_vi: 'Mở Tư vấn', action: 'open_consult' }],

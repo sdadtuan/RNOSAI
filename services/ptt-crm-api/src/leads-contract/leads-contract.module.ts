@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AgencyModule } from '../agency/agency.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { SopModule } from '../sop/sop.module';
@@ -18,6 +19,7 @@ import { ServiceDeliveryNestGuard } from './guards/service-delivery-nest.guard';
   imports: [
     forwardRef(() => AgencyModule),
     StaffAuthModule,
+    StaffNotificationsModule,
     SopModule,
     B2bProjectsModule,
     forwardRef(() => LeadsModule),

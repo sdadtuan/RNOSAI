@@ -5,4 +5,5 @@ export interface LeadContractFlowSummary {
   lifecycleId: number | null;
   lifecycleStage?: string | null;
   agencyClientId?: string | null;
+  createdBy?: string | null;
 }

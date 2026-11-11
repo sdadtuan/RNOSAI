@@ -65,6 +65,41 @@ describe('resolvePresalesSolutionCaps', () => {
     expect(caps.canClaim).toBe(true);
   });
 
+  it('flagged non-AM can claim Solution without the AM cap', () => {
+    const caps = resolvePresalesSolutionCaps({
+      id: '2',
+      email: 'ae@pttads.vn',
+      display_name: 'AE',
+      position_id: 3,
+      position_code: 'ae',
+      can_receive_solution: true,
+      caps: [
+        { section: 'crm_leads', action: 'view' },
+        { section: 'crm_presales_solution', action: 'view' },
+      ],
+    });
+    expect(caps.canClaim).toBe(true);
+    expect(caps.canRelease).toBe(true);
+    expect(caps.isAeTrackOnly).toBe(false);
+  });
+
+  it('unflagged AE cannot claim Solution', () => {
+    const caps = resolvePresalesSolutionCaps({
+      id: '3',
+      email: 'ae2@pttads.vn',
+      display_name: 'AE2',
+      position_id: 3,
+      position_code: 'ae',
+      can_receive_solution: false,
+      caps: [
+        { section: 'crm_leads', action: 'view' },
+        { section: 'crm_presales_solution', action: 'view' },
+      ],
+    });
+    expect(caps.canClaim).toBe(false);
+    expect(caps.isAeTrackOnly).toBe(true);
+  });
+
   it('canViewCrmLeadDetail allows Solution view without crm_leads.view', () => {
     expect(canViewCrmLeadDetail(user([{ section: 'crm_presales_solution', action: 'view' }]))).toBe(
       true,

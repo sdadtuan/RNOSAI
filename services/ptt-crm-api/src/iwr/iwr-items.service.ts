@@ -8,13 +8,14 @@ import {
 import { ancestorIds, isOnPath } from './iwr-org.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import type { IwrActor, IwrItemRefKind, IwrItemRow, IwrReportRow } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 const IMMUTABLE = new Set(['acknowledged', 'waived', 'archived']);
 const EDITABLE = new Set(['draft', 'changes_requested']);
 const REF_KINDS = new Set<IwrItemRefKind>(['csd_ticket', 'lead', 'customer', 'url', 'none']);
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function assertValidUrl(url: string | null | undefined): void {

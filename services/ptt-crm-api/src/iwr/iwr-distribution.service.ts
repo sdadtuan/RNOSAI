@@ -15,9 +15,10 @@ import { IwrDistributionRepository } from './iwr-distribution.repository';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { IwrPolicyService } from './iwr-policy.service';
 import type { IwrActor, IwrCommentRow, IwrDeliveryLogRow, IwrRecipientRow } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 @Injectable()

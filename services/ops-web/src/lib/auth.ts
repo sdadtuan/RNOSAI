@@ -32,6 +32,7 @@ export interface StoredStaffUser {
   locale?: string;
   feature_flags?: { p13_enabled?: boolean };
   ae_team_access?: 'none' | 'lead' | 'all';
+  can_receive_solution?: boolean;
 }
 
 function sharedStore(): Storage | null {

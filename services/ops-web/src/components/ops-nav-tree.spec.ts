@@ -278,7 +278,7 @@ describe('buildNavTree IA', () => {
     expect(labels).not.toContain('Ops Dashboard');
     const agency = tree.find((i) => i.id === 'agency');
     const agencyLabels = agency?.kind === 'parent' ? agency.children.map((c) => c.label) : [];
-    expect(agencyLabels).toEqual(['Agency Hub', 'Thông báo']);
+    expect(agencyLabels).toEqual(['Agency Hub', 'Token Business Manager', 'Thông báo']);
     const iwr = tree.find((i) => i.id === 'iwr');
     const iwrLabels = iwr?.kind === 'parent' ? iwr.children.map((c) => c.label) : [];
     expect(iwrLabels).toEqual(['Báo cáo công việc', 'Hộp thư']);

@@ -18,7 +18,7 @@ describe('team-sla-profiles', () => {
     expect(marketing.marketing.claim_after_hours_time).toBe('09:00');
     expect(marketing.marketing.solution_cutoff_time).toBe('15:30');
     expect(marketing.marketing.solution_after_cutoff_time).toBe('11:00');
-    expect(marketing.marketing.solution_friday_time).toBe('10:00');
+    expect(marketing.marketing).not.toHaveProperty('solution_friday_time');
     expect(marketing.marketing.revision_hours).toBe(2);
 
     expect(estate.calendar.start).toBe('');
@@ -35,5 +35,23 @@ describe('team-sla-profiles', () => {
     expect(teamSlaProfile(next, 'sale_service').sale.claim_in_hours_minutes).toBeNull();
     expect(teamSlaProfile(next, 'sale_service').calendar.start).toBe('09:15');
     expect(teamSlaProfile(next, 'marketing').marketing.solution_cutoff_time).toBe('15:30');
+  });
+
+  it('keeps the 11:00 after-cutoff value and drops the Friday field', () => {
+    const next = normalizeTeamSlaDocument({
+      version: 1,
+      profiles: [
+        {
+          code: 'marketing',
+          marketing: {
+            solution_after_cutoff_time: '11:00',
+            solution_friday_time: '10:00',
+          },
+        },
+      ],
+    });
+    const clocks = teamSlaProfile(next, 'marketing').marketing;
+    expect(clocks.solution_after_cutoff_time).toBe('11:00');
+    expect(clocks).not.toHaveProperty('solution_friday_time');
   });
 });

@@ -22,6 +22,8 @@ export interface PerformancePanelProps {
   subtitle?: string;
   hideChannelColumn?: boolean;
   embedded?: boolean;
+  /** Meta ad account digits (no act_ prefix); omit for all accounts / dashboard overview */
+  accountId?: string;
 }
 
 export function PerformancePanel({
@@ -31,6 +33,7 @@ export function PerformancePanel({
   subtitle,
   hideChannelColumn = false,
   embedded = false,
+  accountId,
 }: PerformancePanelProps) {
   const [windowDays, setWindowDays] = useState<WindowDays>(7);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
@@ -50,6 +53,7 @@ export function PerformancePanel({
           to: range.to,
           group_by: group,
           channel,
+          account_id: accountId,
         });
         setPerformance(data);
       } catch (err) {
@@ -59,7 +63,7 @@ export function PerformancePanel({
         setLoadingPerf(false);
       }
     },
-    [channel],
+    [channel, accountId],
   );
 
   useEffect(() => {
@@ -81,6 +85,7 @@ export function PerformancePanel({
         to: range.to,
         group_by: groupBy,
         channel,
+        account_id: accountId,
         format,
       });
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });

@@ -41,6 +41,7 @@ import {
 } from './agency.types';
 import { OffboardClientBody, OffboardAuditListResponse, OffboardClientResponse } from './client-offboard.types';
 import { PortalClientUsersService } from './portal-client-users.service';
+import { PortalClientPagesService } from './portal-client-pages.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { OnboardingOrchestratorService } from './onboarding-orchestrator.service';
 import {
@@ -67,6 +68,7 @@ export class ClientsController {
     private readonly agency: AgencyService,
     private readonly performance: PerformanceService,
     private readonly portalUsers: PortalClientUsersService,
+    private readonly portalPages: PortalClientPagesService,
     private readonly orchestrator: OnboardingOrchestratorService,
     private readonly serviceLifecycle: ServiceLifecycleService,
     private readonly clientScope: StaffClientScopeService,
@@ -420,5 +422,38 @@ export class ClientsController {
     @Body() body: ResetPortalClientUserPasswordBody,
   ): Promise<ResetPortalClientUserPasswordResponse> {
     return this.portalUsers.resetPassword(id.trim(), userId.trim(), body ?? {});
+  }
+
+  @Get(':id/pages')
+  async listClientPages(@Param('id') id: string) {
+    return this.portalPages.list(id.trim());
+  }
+
+  @Post(':id/pages')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffAgencyWriteGuard)
+  async addClientPage(
+    @Param('id') id: string,
+    @Body() body: { channel?: string; page_id?: string; page_name?: string },
+  ) {
+    const page = await this.portalPages.add(id.trim(), body ?? {});
+    return { ok: true, page };
+  }
+
+  @Patch(':id/pages/:pageId')
+  @UseGuards(StaffAgencyWriteGuard)
+  async updateClientPage(
+    @Param('id') id: string,
+    @Param('pageId') pageId: string,
+    @Body() body: { channel?: string; page_id?: string; page_name?: string },
+  ) {
+    const page = await this.portalPages.update(id.trim(), pageId.trim(), body ?? {});
+    return { ok: true, page };
+  }
+
+  @Delete(':id/pages/:pageId')
+  @UseGuards(StaffAgencyWriteGuard)
+  async removeClientPage(@Param('id') id: string, @Param('pageId') pageId: string) {
+    return this.portalPages.remove(id.trim(), pageId.trim());
   }
 }

@@ -1,4 +1,4 @@
-/** Leads Marketing Leader may see: handed to Solution, or already on Báo giá / Triển Khai. */
+/** Leads MKL may still see (read-only / grandfathered): Solution onward or Triển khai implementation queue. */
 
 export const SOLUTION_ONWARD_STATUSES = [
   'bao_gia',

@@ -82,7 +82,7 @@ export class CsdNotificationsRepository implements OnModuleDestroy {
       [
         CSD_TENANT_ID,
         input.staff_id,
-        input.event_key,
+        String(input.event_key ?? '').slice(0, 64),
         input.title_vi,
         input.body_vi,
         input.entity_type,

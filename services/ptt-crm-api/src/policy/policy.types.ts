@@ -21,6 +21,8 @@ export interface PolicyContext {
   job_functions?: string[];
   permission_sets?: string[];
   gdkd_assign?: boolean;
+  position_code?: string | null;
+  can_receive_solution?: boolean;
   break_glass_active?: boolean;
   break_glass_expired?: boolean;
 }

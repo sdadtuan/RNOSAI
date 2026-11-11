@@ -33,7 +33,6 @@ export type MarketingTeamClocks = {
   solution_cutoff_time: string;
   solution_before_cutoff_hours: number | null;
   solution_after_cutoff_time: string;
-  solution_friday_time: string;
   revision_hours: number | null;
 };
 
@@ -79,7 +78,6 @@ function blankMarketing(): MarketingTeamClocks {
     solution_cutoff_time: '',
     solution_before_cutoff_hours: null,
     solution_after_cutoff_time: '',
-    solution_friday_time: '',
     revision_hours: null,
   };
 }
@@ -108,7 +106,6 @@ function marketingClocks(): MarketingTeamClocks {
     solution_cutoff_time: '15:30',
     solution_before_cutoff_hours: 4,
     solution_after_cutoff_time: '11:00',
-    solution_friday_time: '10:00',
     revision_hours: 2,
   };
 }
@@ -216,7 +213,6 @@ function mergeMarketing(base: MarketingTeamClocks, raw: unknown): MarketingTeamC
       'solution_after_cutoff_time',
       base.solution_after_cutoff_time,
     ),
-    solution_friday_time: pickClock(o, 'solution_friday_time', base.solution_friday_time),
     revision_hours: pickNum(o, 'revision_hours', base.revision_hours),
   };
 }

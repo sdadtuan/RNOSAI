@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import { createAppPgPool, shouldEndLocalPool } from '../config/pg-pool.factory';
 import { AppConfigService } from '../config/app-config.service';
 import {
   computeTokenStatus,
@@ -46,20 +47,22 @@ function computeCpa(spend: number, conversions: number): number | null {
 export class AgencyRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
   private tenantLockedColumn: boolean | null = null;
+  private portalUsersTable: boolean | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
   private get db(): Pool {
     if (!this.pool) {
-      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+      this.pool = createAppPgPool(this.config.databaseUrl);
     }
     return this.pool;
   }
 
   onModuleDestroy(): void {
-    void this.pool?.end();
+    if (shouldEndLocalPool()) void this.pool?.end();
     this.pool = null;
     this.tenantLockedColumn = null;
+    this.portalUsersTable = null;
   }
 
   private async hasTenantLockedColumn(): Promise<boolean> {
@@ -75,6 +78,35 @@ export class AgencyRepository implements OnModuleDestroy {
       this.tenantLockedColumn = false;
     }
     return this.tenantLockedColumn;
+  }
+
+  private async hasPortalUsersTable(): Promise<boolean> {
+    if (this.portalUsersTable !== null) return this.portalUsersTable;
+    try {
+      const result = await this.db.query(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'portal_client_users'
+         LIMIT 1`,
+      );
+      this.portalUsersTable = (result.rowCount ?? 0) > 0;
+    } catch {
+      this.portalUsersTable = false;
+    }
+    return this.portalUsersTable;
+  }
+
+  private async portalLoginsSql(): Promise<{ select: string; join: string }> {
+    if (!(await this.hasPortalUsersTable())) {
+      return { select: `'' AS portal_logins`, join: '' };
+    }
+    return {
+      select: `COALESCE(pu.portal_logins, '') AS portal_logins`,
+      join: `LEFT JOIN LATERAL (
+         SELECT COALESCE(string_agg(pcu.email, ', ' ORDER BY pcu.email), '') AS portal_logins
+         FROM portal_client_users pcu
+         WHERE pcu.client_id = c.id
+       ) pu ON TRUE`,
+    };
   }
 
   async pgReady(): Promise<boolean> {
@@ -126,18 +158,21 @@ export class AgencyRepository implements OnModuleDestroy {
     const tenantLockedExpr = (await this.hasTenantLockedColumn())
       ? 'COALESCE(c.tenant_locked, FALSE) AS tenant_locked'
       : 'FALSE AS tenant_locked';
+    const portalSql = await this.portalLoginsSql();
 
     const result = await this.db.query(
       `SELECT c.id::text, c.code, c.name, c.industry_slug, c.status, c.owner_am_id,
               c.notes, c.created_at, c.updated_at,
               ${tenantLockedExpr},
-              COALESCE(ch.channels, '') AS channels
+              COALESCE(ch.channels, '') AS channels,
+              ${portalSql.select}
        FROM clients c
        LEFT JOIN LATERAL (
          SELECT string_agg(DISTINCT channel, ', ' ORDER BY channel) AS channels
          FROM client_channel_accounts cca
          WHERE cca.client_id = c.id
        ) ch ON TRUE
+       ${portalSql.join}
        WHERE ${clauses.join(' AND ')}
        ORDER BY c.updated_at DESC
        LIMIT $${idx++} OFFSET $${idx}`,
@@ -155,6 +190,7 @@ export class AgencyRepository implements OnModuleDestroy {
       created_at: iso(row.created_at),
       updated_at: iso(row.updated_at),
       channels: row.channels ?? '',
+      portal_logins: row.portal_logins ?? '',
       tenant_locked: Boolean(row.tenant_locked),
     }));
   }
@@ -216,18 +252,21 @@ export class AgencyRepository implements OnModuleDestroy {
     const tenantLockedExpr = (await this.hasTenantLockedColumn())
       ? 'COALESCE(c.tenant_locked, FALSE) AS tenant_locked'
       : 'FALSE AS tenant_locked';
+    const portalSql = await this.portalLoginsSql();
 
     const result = await this.db.query(
       `SELECT c.id::text, c.code, c.name, c.industry_slug, c.status, c.owner_am_id,
               c.notes, c.created_at, c.updated_at,
               ${tenantLockedExpr},
-              COALESCE(ch.channels, '') AS channels
+              COALESCE(ch.channels, '') AS channels,
+              ${portalSql.select}
        FROM clients c
        LEFT JOIN LATERAL (
          SELECT string_agg(DISTINCT channel, ', ' ORDER BY channel) AS channels
          FROM client_channel_accounts cca
          WHERE cca.client_id = c.id
        ) ch ON TRUE
+       ${portalSql.join}
        WHERE ${clauses.join(' AND ')}
        ORDER BY c.updated_at DESC
        LIMIT $${idx++} OFFSET $${idx}`,
@@ -245,6 +284,7 @@ export class AgencyRepository implements OnModuleDestroy {
       created_at: iso(row.created_at),
       updated_at: iso(row.updated_at),
       channels: row.channels ?? '',
+      portal_logins: row.portal_logins ?? '',
       tenant_locked: Boolean(row.tenant_locked),
     }));
   }
@@ -506,10 +546,12 @@ export class AgencyRepository implements OnModuleDestroy {
   }
 
   async clientCounts(): Promise<Record<string, number>> {
-    const result = await this.db.query(`SELECT status, COUNT(*)::int FROM clients GROUP BY status`);
+    const result = await this.db.query(
+      `SELECT status, COUNT(*)::int AS c FROM clients GROUP BY status`,
+    );
     const out: Record<string, number> = {};
     for (const row of result.rows) {
-      out[String(row.status)] = Number(row.c);
+      out[String(row.status)] = Number(row.c ?? 0);
     }
     return out;
   }

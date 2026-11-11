@@ -34,6 +34,9 @@ export type PortalSidebarProps = {
   branding?: PortalSettingsResponse | null;
   seoEnabled?: boolean;
   emailEnabled?: boolean;
+  adsChannelIds?: string[];
+  openLeads?: number;
+  openMessages?: number;
   onToggleSidebar?: () => void;
   sidebarExpanded?: boolean;
 };
@@ -47,6 +50,9 @@ export function PortalSidebar({
   branding,
   seoEnabled = false,
   emailEnabled = false,
+  adsChannelIds = [],
+  openLeads = 0,
+  openMessages = 0,
   onToggleSidebar,
   sidebarExpanded: controlledExpanded,
 }: PortalSidebarProps) {
@@ -86,6 +92,9 @@ export function PortalSidebar({
     seoPending,
     seoEnabled,
     emailEnabled,
+    adsChannelIds,
+    openLeads,
+    openMessages,
   });
 
   const showExpandedNav = sidebarExpanded || isMobileNav;
@@ -155,7 +164,28 @@ export function PortalSidebar({
 
         <nav className={`portal-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>
           {showExpandedNav ? (
-            sections.map((section) => (
+            sections.map((section) => {
+              const only = section.links.length === 1 ? section.links[0] : null;
+              if (only) {
+                return (
+                  <div key={section.id} className={`portal-nav-group is-open${portalNavIsActive(pathname, only.href) ? ' has-active' : ''}`}>
+                    <button
+                      type="button"
+                      className={`portal-nav-link portal-nav-link--button portal-nav-group-header${portalNavIsActive(pathname, only.href) ? ' is-active' : ''}`}
+                      onClick={() => navigateTo(only.href)}
+                    >
+                      <span className="portal-nav-group-icon">
+                        <PortalNavIcon name={portalSectionIcon(section)} />
+                      </span>
+                      <span className="portal-nav-group-label">{section.shortLabel}</span>
+                      {only.badge && only.badge > 0 ? (
+                        <span className="portal-nav-alert">{only.badge > 99 ? '99+' : only.badge}</span>
+                      ) : null}
+                    </button>
+                  </div>
+                );
+              }
+              return (
               <div
                 key={section.id}
                 className={`portal-nav-group is-open${portalSectionHasActive(pathname, section) ? ' has-active' : ''}`}
@@ -175,11 +205,15 @@ export function PortalSidebar({
                       onClick={() => navigateTo(link.href)}
                     >
                       {link.label}
+                      {link.badge && link.badge > 0 ? (
+                        <span className="portal-nav-alert">{link.badge > 99 ? '99+' : link.badge}</span>
+                      ) : null}
                     </button>
                   ))}
                 </div>
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="portal-nav-rail">
               {sections.map((section) => {

@@ -25,6 +25,7 @@ export interface CrmStaffRow {
   position_catalog_code: string;
   has_login?: boolean;
   can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
 }
 
 export interface CrmStaffSummaryMeta {
@@ -40,6 +41,7 @@ export interface PatchCrmStaffBody {
   email?: string;
   job_title?: string;
   can_receive_leads?: boolean;
+  can_receive_solution?: boolean;
   /** null clears the manager; omit to leave unchanged */
   reports_to_id?: number | null;
 }
@@ -129,5 +131,6 @@ export function staffRowForApi(row: Record<string, unknown>): CrmStaffRow {
     position_catalog_code: String(row.position_catalog_code ?? ''),
     has_login: loginEnabled === 1 && loginUsername.length > 0,
     can_receive_leads: Boolean(row.can_receive_leads === true || row.can_receive_leads === 1),
+    can_receive_solution: Boolean(row.can_receive_solution === true || row.can_receive_solution === 1),
   };
 }

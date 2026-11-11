@@ -18,6 +18,7 @@ export function buildAgencyModuleLinks(
 
   return [
     { href: '/agency', label: 'Agency' },
+    { href: '/agency/meta-token', label: 'Token Business Manager' },
     { href: '/agency/ingest', label: 'Ingest' },
     { href: '/agency/jobs', label: 'Jobs' },
     { href: '/agency/notifications', label: `Thông báo${navBadge(agencyUnread)}` },

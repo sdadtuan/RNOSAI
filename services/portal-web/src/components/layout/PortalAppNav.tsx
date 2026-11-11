@@ -21,6 +21,9 @@ export type PortalAppNavProps = {
   branding?: PortalSettingsResponse | null;
   seoEnabled?: boolean;
   emailEnabled?: boolean;
+  adsChannelIds?: string[];
+  openLeads?: number;
+  openMessages?: number;
 };
 
 export function PortalAppNav(props: PortalAppNavProps) {

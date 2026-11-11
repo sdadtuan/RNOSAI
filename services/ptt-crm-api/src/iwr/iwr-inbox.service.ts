@@ -3,9 +3,10 @@ import { descendantIds } from './iwr-org.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { IwrPolicyService } from './iwr-policy.service';
 import type { IwrActor, IwrInboxBox, IwrReportRow, IwrStaffNode, IwrTeamNode } from './iwr.types';
+import { capAllows } from '../staff-client-scope/staff-client-scope.util';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
-  return actor.caps.some((c) => c.section === 'iwr' && c.action === action);
+  return capAllows(actor.caps, 'iwr', action);
 }
 
 function deriveStatus(report: IwrReportRow | null): IwrTeamNode['derived'] {

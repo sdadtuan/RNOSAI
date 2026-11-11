@@ -14,3 +14,10 @@ ptt.db
 ptt.db-wal
 ptt.db-shm
 ptt.db-journal
+.local-dev/
+.tools/
+tmp/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+.local-vps-deploy-look.py

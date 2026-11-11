@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
+import { ensureCrmStaffReceiveColumns } from './crm-staff-schema.util';
 import { LeadIngestRulesRepository } from '../leads/ingest/lead-ingest-rules.repository';
 import { TERMINAL_STAGES, normalizePipelineStage } from '../sales/sales-pipeline.util';
 import {
@@ -225,6 +226,7 @@ export class CrmStaffPgRepository implements OnModuleDestroy {
   }
 
   async patchStaff(staffId: number, body: PatchCrmStaffBody): Promise<CrmStaffRow | null> {
+    await ensureCrmStaffReceiveColumns(this.db);
     const existingResult = await this.db.query(`SELECT * FROM crm_staff WHERE id = $1`, [staffId]);
     const existing = existingResult.rows[0] as Record<string, unknown> | undefined;
     if (!existing) return null;
@@ -245,6 +247,9 @@ export class CrmStaffPgRepository implements OnModuleDestroy {
     if ('can_receive_leads' in body) {
       merged.can_receive_leads = Boolean(body.can_receive_leads);
     }
+    if ('can_receive_solution' in body) {
+      merged.can_receive_solution = Boolean(body.can_receive_solution);
+    }
     if ('reports_to_id' in body) {
       const raw = body.reports_to_id;
       merged.reports_to_id = raw == null || Number(raw) <= 0 ? null : Number(raw);
@@ -254,14 +259,15 @@ export class CrmStaffPgRepository implements OnModuleDestroy {
     await this.db.query(
       `UPDATE crm_staff
        SET name = $1, phone = $2, email = $3, job_title = $4, can_receive_leads = $5,
-           reports_to_id = $6, updated_at = $7
-       WHERE id = $8`,
+           can_receive_solution = $6, reports_to_id = $7, updated_at = $8
+       WHERE id = $9`,
       [
         String(merged.name ?? ''),
         String(merged.phone ?? ''),
         String(merged.email ?? ''),
         String(merged.job_title ?? ''),
         Boolean(merged.can_receive_leads),
+        Boolean(merged.can_receive_solution),
         merged.reports_to_id == null ? null : Number(merged.reports_to_id),
         ts,
         staffId,

@@ -13,6 +13,8 @@ export interface PerformanceQuery {
   date_to?: string;
   group_by?: string;
   channel?: string;
+  /** Meta ad account (digits or act_ prefix); must belong to portal_client_pages ad_account for tenant. */
+  account_id?: string;
 }
 
 export interface PerformanceRow {

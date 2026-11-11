@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   createClientPortalUser,
+  fetchClientPortalPages,
   fetchClientPortalUsers,
   patchClientPortalUser,
   resetClientPortalUserPassword,
+  type PortalClientPage,
   type PortalClientUser,
 } from '@/lib/api';
 
@@ -16,6 +18,13 @@ type Props = {
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
 };
+
+const ID_GROUPS: { id: PortalClientPage['channel']; label: string }[] = [
+  { id: 'facebook', label: 'Page ID' },
+  { id: 'zalo', label: 'Zalo ID' },
+  { id: 'google', label: 'Google' },
+  { id: 'tiktok', label: 'TikTok' },
+];
 
 function fmtDate(value: string | null): string {
   if (!value) return '—';
@@ -41,6 +50,8 @@ function emailDeliveryMessage(
 
 export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, onError }: Props) {
   const [users, setUsers] = useState<PortalClientUser[]>([]);
+  const [pages, setPages] = useState<PortalClientPage[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tableReady, setTableReady] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -48,19 +59,24 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
   const [form, setForm] = useState({
     email: '',
     password: '',
-    role: 'viewer' as 'viewer' | 'approver',
+    role: 'viewer' as 'viewer' | 'approver' | 'staff',
     sendEmail: true,
   });
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const out = await fetchClientPortalUsers(token, clientId);
+      const [out, pageOut] = await Promise.all([
+        fetchClientPortalUsers(token, clientId),
+        fetchClientPortalPages(token, clientId),
+      ]);
       setUsers(out.users ?? []);
+      setPages(pageOut.pages ?? []);
       setTableReady(out.table_ready !== false);
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Tải portal users thất bại');
       setUsers([]);
+      setPages([]);
     } finally {
       setLoading(false);
     }
@@ -79,7 +95,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
     try {
       const body: {
         email: string;
-        role: 'viewer' | 'approver';
+        role: 'viewer' | 'approver' | 'staff';
         password?: string;
         send_email?: boolean;
       } = {
@@ -127,7 +143,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
     }
   }
 
-  async function handleRoleChange(user: PortalClientUser, role: 'viewer' | 'approver') {
+  async function handleRoleChange(user: PortalClientUser, role: 'viewer' | 'approver' | 'staff') {
     if (!canMutate || user.role === role) return;
     setBusy(true);
     onError?.('');
@@ -169,15 +185,13 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
     }
   }
 
+  const selectedUser = users.find((user) => user.id === selectedId) ?? null;
+
   return (
     <div className="portal-users-panel">
       <p className="muted" style={{ marginTop: 0 }}>
-        Tài khoản đăng nhập{' '}
-        <a href="https://portal.pttads.vn/login" target="_blank" rel="noreferrer">
-          portal.pttads.vn
-        </a>
-        . Khi tạo user, hệ thống có thể gửi email template thông tin đăng nhập (cần{' '}
-        <code>PTT_PORTAL_EMAIL_NOTIFY=1</code> + webhook).
+        Account đăng nhập Client CRM của đúng Client này. Đăng nhập cùng trang{' '}
+        <a href="/login">/login</a>.
       </p>
 
       {!tableReady ? (
@@ -218,7 +232,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
 
       {canMutate && tableReady ? (
         <form className="agency-client-edit" onSubmit={(e) => void handleCreate(e)} style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>+ Tạo portal user</h3>
+          <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>+ Tạo account đăng nhập Client CRM</h3>
           <label>
             Email
             <input
@@ -241,9 +255,10 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
           </label>
           <label>
             Vai trò
-            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as 'viewer' | 'approver' }))}>
+            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as 'viewer' | 'approver' | 'staff' }))}>
               <option value="viewer">Viewer — xem báo cáo</option>
               <option value="approver">Approver — xem + duyệt</option>
+              <option value="staff">Nhân viên — xem và nhận Lead, tin nhắn</option>
             </select>
           </label>
           <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -256,7 +271,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
           </label>
           <div>
             <button type="submit" className="btn btn-sm" disabled={busy}>
-              Tạo user
+              Tạo account
             </button>
           </div>
         </form>
@@ -264,7 +279,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
 
       <h3 style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>Danh sách ({users.length})</h3>
       {loading ? <p className="muted">Đang tải…</p> : null}
-      {!loading && users.length === 0 ? <p className="muted">Chưa có portal user cho client này.</p> : null}
+      {!loading && users.length === 0 ? <p className="muted">Chưa có account đăng nhập cho Client này.</p> : null}
       {!loading && users.length > 0 ? (
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ width: '100%', fontSize: '0.9rem' }}>
@@ -279,17 +294,27 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.email}</td>
+                <tr key={user.id} style={selectedId === user.id ? { background: 'rgba(23, 105, 47, 0.08)' } : undefined}>
+                  <td>
+                    <button
+                      type="button"
+                      className="nav-link"
+                      style={{ padding: 0, fontWeight: selectedId === user.id ? 700 : 400 }}
+                      onClick={() => setSelectedId((current) => (current === user.id ? null : user.id))}
+                    >
+                      {user.email}
+                    </button>
+                  </td>
                   <td>
                     {canMutate ? (
                       <select
                         value={user.role}
                         disabled={busy}
-                        onChange={(e) => void handleRoleChange(user, e.target.value as 'viewer' | 'approver')}
+                        onChange={(e) => void handleRoleChange(user, e.target.value as 'viewer' | 'approver' | 'staff')}
                       >
                         <option value="viewer">viewer</option>
                         <option value="approver">approver</option>
+                        <option value="staff">nhân viên</option>
                       </select>
                     ) : (
                       user.role
@@ -323,6 +348,33 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+      {selectedUser ? (
+        <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
+          <h3 style={{ margin: '0 0 0.35rem', fontSize: '1rem' }}>ID của {selectedUser.email}</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Chỉ các ID gắn với Client này. Client khác không thấy bộ ID này.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+            {ID_GROUPS.map((group) => {
+              const rows = pages.filter((page) => (page.channel || 'facebook') === group.id);
+              return (
+                <section key={group.id}>
+                  <strong>{group.label}</strong>
+                  {rows.length === 0 ? <p className="muted">Chưa gắn</p> : null}
+                  <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+                    {rows.map((page) => (
+                      <li key={page.id}>
+                        <code>{page.page_id}</code>
+                        {page.page_name ? ` · ${page.page_name}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>

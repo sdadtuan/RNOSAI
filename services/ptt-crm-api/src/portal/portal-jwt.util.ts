@@ -4,7 +4,7 @@ export interface PortalJwtPayload {
   sub: string;
   email: string;
   client_id: string;
-  role: 'viewer' | 'approver';
+  role: 'viewer' | 'approver' | 'staff';
   typ?: 'access' | 'refresh';
   iat: number;
   exp: number;

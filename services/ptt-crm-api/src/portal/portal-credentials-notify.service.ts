@@ -20,6 +20,7 @@ export interface PortalCredentialsEmailResult {
 const ROLE_LABELS: Record<PortalClientRole, string> = {
   viewer: 'Viewer — xem báo cáo',
   approver: 'Approver — xem và duyệt nội dung',
+  staff: 'Nhân viên — xem và nhận Lead, tin nhắn',
 };
 
 @Injectable()
