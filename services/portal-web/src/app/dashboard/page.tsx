@@ -42,7 +42,7 @@ export default function DashboardPage() {
   );
 }
 
-export function DashboardContent({ token }: { token: string }) {
+function DashboardContent({ token }: { token: string }) {
   const seoEnabled = usePortalSeoNav(token);
   const { pendingEmail } = usePortalEmailNav(token);
   const adsChannelIds = usePortalAdsChannelIds();
