@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
 import {
@@ -12,6 +13,8 @@ import {
 } from '../lead-sla-settings/lead-sla-working-hours.util';
 import { LeadFrSlaRepository } from './lead-fr-sla.repository';
 import { pickRoundRobinLeastOpen } from './lead-sla-reassign.util';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import type {
   FrOnTimeByAm,
   LeadOpsDeskSummary,
@@ -100,6 +103,7 @@ export class LeadSlaDeskService {
   constructor(
     private readonly repo: LeadFrSlaRepository,
     private readonly settings: LeadSlaSettingsService,
+    @Optional() private readonly notifications?: StaffNotificationsRepository,
   ) {}
 
   async summary(now: Date = new Date()): Promise<LeadOpsDeskSummary> {
@@ -309,6 +313,15 @@ export class LeadSlaDeskService {
     return { tab, items: items.slice(0, limit) };
   }
 
+
+  private async notifyLeadAssigned(staffId: number | null | undefined, leadId: number): Promise<void> {
+    const id = Number(staffId);
+    if (!this.notifications || !Number.isFinite(id) || id <= 0) return;
+    await this.notifications
+      .notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId }))
+      .catch(() => undefined);
+  }
+
   async listPool() {
     return this.repo.listPoolCandidates();
   }
@@ -350,6 +363,7 @@ export class LeadSlaDeskService {
       payload.holidays,
     );
     await this.repo.assignFromQueue(leadId, toStaff, fr1Due);
+    await this.notifyLeadAssigned(toStaff, leadId);
     await this.repo.clearFr1BreachOnReassign(leadId);
     await this.repo.insertReassignEvent({
       leadId,
@@ -422,6 +436,7 @@ export class LeadSlaDeskService {
       payload.holidays,
     );
     await this.repo.assignFromQueue(leadId, toStaff, fr1Due);
+    await this.notifyLeadAssigned(toStaff, leadId);
     await this.repo.insertReassignEvent({
       leadId,
       fromStaffId: null,

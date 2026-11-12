@@ -981,10 +981,11 @@ export interface CskhSlaPredictionsResponse {
 
 export async function fetchCskhSlaPredictions(
   token: string,
-  params?: { owner_id?: number },
+  params?: { owner_id?: number; scope?: 'self' | 'all' },
 ): Promise<CskhSlaPredictionsResponse> {
   const qs = new URLSearchParams();
   if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
+  if (params?.scope) qs.set('scope', params.scope);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/crm/cskh-board/sla-predictions${suffix}`, {
     headers: authHeaders(token),
@@ -1652,6 +1653,8 @@ export type LeadFrSlaState = {
   settings_version: number;
   fr1_hours: number;
   assigned_at?: string | null;
+  sales_claimed_at?: string | null;
+  can_claim?: boolean;
   fr1_due_at: string | null;
   first_call_at: string | null;
   fr1_breached: boolean;
@@ -1676,6 +1679,13 @@ export type LeadFrSlaState = {
 
 export async function fetchLeadFrSla(token: string, leadId: number): Promise<LeadFrSlaState> {
   return crmFetch(token, `/api/crm/leads/${leadId}/fr-sla`);
+}
+
+export async function claimLeadSalesReceipt(
+  token: string,
+  leadId: number,
+): Promise<LeadFrSlaState> {
+  return crmFetch(token, `/api/crm/leads/${leadId}/sales-claim`, { method: 'POST' });
 }
 
 export async function logLeadCallAttempt(
@@ -1979,6 +1989,7 @@ export interface PresalesFunnelMetricsResponse {
 
 export interface LeadFunnelSnapshot {
   lead_id: number;
+  presales_ai_configured?: boolean;
   lead_flow_kind: 'spa_operational' | 'b2b_prospect';
   care_pipeline: {
     current_stage_key: string;
@@ -1993,10 +2004,18 @@ export interface LeadFunnelSnapshot {
   presales_care_gate: { complete: boolean; message: string };
   review_queue: { active: boolean; message?: string; hours_waiting?: number | null };
   presales_on_lead_enabled: boolean;
+  intake_sessions?: Array<{
+    id: number;
+    status: string;
+    decision: string;
+    bant_total: number;
+    bant_json?: Record<string, number> | null;
+    updated_at: string;
+  }>;
   presales: {
     presales: { id: number; stage: string; service_slug: string; status: string };
     handoff?: {
-      status: '' | 'pending' | 'with_solution' | 'released';
+      status: '' | 'pending' | 'with_solution' | 'released' | 'returned';
       handed_off_at: string;
       solution_owner_staff_id: number | null;
       solution_owner_name: string;
@@ -2017,9 +2036,9 @@ export interface LeadFunnelSnapshot {
       sla_note: string;
     } | null;
     quote_case?: {
-      phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'sale_review' | 'hop_dong' | 'trien_khai';
+      phase: 'sale_approve_solution' | 'chuyen_bao_gia' | 'bao_gia' | 'ceo_review' | 'sale_review' | 'hop_dong' | 'trien_khai';
       step_label: string;
-      expected_role: 'Sale' | 'AM' | '';
+      expected_role: 'Sale' | 'AM' | 'CEO' | '';
       accept_due_at: string;
       quote_due_at: string;
       change_note: string;
@@ -2304,7 +2323,7 @@ export interface SolutionQueueRow {
   phone: string;
   service_slug: string;
   presales_stage: string;
-  handoff_status: 'pending' | 'with_solution' | 'released' | '';
+  handoff_status: 'pending' | 'with_solution' | 'released' | 'returned' | '';
   handed_off_at: string;
   solution_owner_staff_id: number | null;
   solution_owner_name: string;
@@ -2588,7 +2607,7 @@ export async function saveLeadQuoteSheet(
   leadId: number,
   body: {
     service_codes: string[];
-    lines: Array<{ item_code: string; staff_id: number | null; hours: number; included: boolean }>;
+    lines: Array<{ item_code: string; staff_id: number | null; hours: number; qty?: number; included: boolean }>;
     vat_percent: number;
     promo_percent: number;
   },

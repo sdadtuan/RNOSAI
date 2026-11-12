@@ -9,7 +9,7 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   chot: 'Chốt',
   post_sale: 'Sau bán',
   won: 'Chốt',
-  proposal: 'Báo giá',
+  proposal: 'Đề xuất',
   lost: 'Thất bại',
   nurture: 'Chăm sóc lại',
   pending_cleanup: 'Chờ dọn',
@@ -63,6 +63,110 @@ export function leadStatusLabel(status: string | null | undefined): string {
   const key = normalizeLeadStatus(status);
   return LEAD_STATUS_LABELS[key] ?? LEAD_STATUS_LABELS[status] ?? status.replace(/_/g, ' ');
 }
+
+/**
+ * Extra English / mixed API labels that are not already in LEAD_STATUS_LABELS
+ * (looked up after folding: lower-case, strip diacritics and punctuation).
+ */
+const STATUS_LABEL_FALLBACKS: Record<string, string> = {
+  proposal: 'Đề xuất',
+  'de xuat': 'Đề xuất',
+  won: 'Chốt',
+  'won hd ky': 'Chốt',
+  consult: 'Đang tư vấn',
+  'tu van': 'Đang tư vấn',
+  negotiating: 'Đàm phán',
+  negotiation: 'Đàm phán',
+  lost: 'Thất bại',
+  nurture: 'Chăm sóc lại',
+  nurturing: 'Chăm sóc lại',
+  qualified: 'Đã liên hệ',
+  contacted: 'Đã liên hệ',
+  new: 'Mới',
+  closed: 'Chốt',
+  'closed won': 'Chốt',
+};
+
+function foldStatusKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\u0111/g, 'd')
+    .replace(/\u0110/g, 'd')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[()[\]{}.,;:/\\-]+/g, ' ')
+    .replace(/[_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Known catalog label for a status id or alias; null when not in LEAD_STATUS_LABELS. */
+export function knownLeadStatusLabel(status: string | null | undefined): string | null {
+  if (status == null) return null;
+  const trimmed = String(status).trim();
+  if (!trimmed) return null;
+  const key = normalizeLeadStatus(trimmed);
+  if (Object.prototype.hasOwnProperty.call(LEAD_STATUS_LABELS, key)) {
+    return LEAD_STATUS_LABELS[key]!;
+  }
+  if (Object.prototype.hasOwnProperty.call(LEAD_STATUS_LABELS, trimmed)) {
+    return LEAD_STATUS_LABELS[trimmed]!;
+  }
+  return null;
+}
+
+function fallbackStatusLabel(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const folded = foldStatusKey(String(value));
+  if (!folded) return null;
+  if (Object.prototype.hasOwnProperty.call(STATUS_LABEL_FALLBACKS, folded)) {
+    return STATUS_LABEL_FALLBACKS[folded]!;
+  }
+  const first = folded.split(' ')[0] ?? '';
+  if (first && Object.prototype.hasOwnProperty.call(STATUS_LABEL_FALLBACKS, first)) {
+    return STATUS_LABEL_FALLBACKS[first]!;
+  }
+  return null;
+}
+
+function looksLikeVietnameseDisplay(label: string): boolean {
+  const s = label.trim();
+  if (!s) return false;
+  if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i.test(s)) return false;
+  if (/^(proposal|won|lost|nurture|negotiation|negotiating|qualified|contacted|new|consult|closed)\b/i.test(s)) {
+    return false;
+  }
+  return /[\u00e0\u00e1\u1ea3\u00e3\u1ea1\u0103\u1eb1\u1eaf\u1eb3\u1eb5\u00e2\u1ea7\u1ea5\u1ea9\u1eab\u1ead\u00e8\u00e9\u1ebb\u1ebd\u1eb9\u00ea\u1ec1\u1ebf\u1ec3\u1ec5\u1ec7\u00ec\u00ed\u1ec9\u0129\u1ecb\u00f2\u00f3\u1ecf\u00f5\u1ecd\u00f4\u1ed3\u1ed1\u1ed5\u1ed7\u1ed9\u01a1\u1edd\u1edb\u1edf\u1ee1\u1ee3\u00f9\u00fa\u1ee7\u0169\u1ee5\u01b0\u1eeb\u1ee9\u1eed\u1eef\u1ef1\u1ef3\u00fd\u1ef7\u1ef9\u1ef5\u0111\u00c0\u00c1\u1ea2\u00c3\u1ea0\u0102\u1eb0\u1eae\u1eb2\u1eb4\u00c2\u1ea6\u1ea4\u1ea8\u1eaa\u1eac\u00c8\u00c9\u1eba\u1ebc\u1eb8\u00ca\u1ec0\u1ebe\u1ec2\u1ec4\u1ec6\u00cc\u00cd\u1ec8\u0128\u1eca\u00d2\u00d3\u1ece\u00d5\u1ecc\u00d4\u1ed2\u1ed0\u1ed4\u1ed6\u1ed8\u01a0\u1edc\u1eda\u1ede\u1ee0\u1ee2\u00d9\u00da\u1ee6\u0168\u1ee4\u01af\u1eea\u1ee8\u1eec\u1eee\u1ef0\u1ef2\u00dd\u1ef6\u1ef8\u1ef4\u0110]/.test(s);
+}
+
+/**
+ * Display label for a TRANG THAI picker option.
+ * Prefer LEAD_STATUS_LABELS (via the option id), then a Vietnamese fallback
+ * map, then an already-Vietnamese API label. Never return a raw slug or
+ * English API name such as "Proposal" or "Won (HD ky)".
+ */
+export function leadStatusOptionLabel(
+  id: string | null | undefined,
+  apiLabel?: string | null,
+): string {
+  const fromId = knownLeadStatusLabel(id);
+  if (fromId) return fromId;
+  const fromApiKey = knownLeadStatusLabel(apiLabel);
+  if (fromApiKey) return fromApiKey;
+  const fromFb = fallbackStatusLabel(id) ?? fallbackStatusLabel(apiLabel);
+  if (fromFb) return fromFb;
+  if (apiLabel && looksLikeVietnameseDisplay(apiLabel)) return apiLabel.trim();
+  if (id && looksLikeVietnameseDisplay(id)) return id.trim();
+  return '—';
+}
+
+export function localizeLeadStatusOptions<T extends { id: string; label: string }>(
+  rows: readonly T[],
+): T[] {
+  return rows.map((row) => ({ ...row, label: leadStatusOptionLabel(row.id, row.label) }));
+}
+
 
 export type LeadStatusTone = 'new' | 'active' | 'won' | 'lost' | 'neutral';
 

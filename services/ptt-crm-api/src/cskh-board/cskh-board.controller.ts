@@ -22,6 +22,7 @@ import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
 import { CskhBoardService } from './cskh-board.service';
 import { SlaAlertService } from './sla-alert.service';
+import { slaAlertPredictionScope } from '../leads-funnel/case-staff-notify.util';
 import type { CskhSlaTier } from './cskh-board-sla.util';
 import { CskhBulkAssignBody, CskhBulkRescheduleBody } from './cskh-board.types';
 
@@ -124,23 +125,27 @@ export class CskhBoardController {
   @Get('sla-predictions')
   async slaPredictions(
     @Query('owner_id') ownerId?: string,
+    @Query('scope') scope?: string,
     @Req() req?: Request & { staffUser?: StaffJwtPayload },
   ) {
     const staffUser = req?.staffUser;
-    let viewAll = false;
-    let filterOwner: number | undefined = ownerId ? Number(ownerId) : undefined;
+    let hasAssignCap = false;
+    let selfOwnerId: number | undefined = ownerId ? Number(ownerId) : undefined;
 
     if (staffUser) {
       const me = await this.staffAuth.me(staffUser);
-      viewAll = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
-      if (!viewAll) {
-        filterOwner = (await this.staffAuth.resolveCrmStaffUserId(staffUser)) ?? undefined;
-      }
+      hasAssignCap = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
+      selfOwnerId = (await this.staffAuth.resolveCrmStaffUserId(staffUser)) ?? selfOwnerId;
     }
 
+    const scoped = slaAlertPredictionScope({
+      queryScope: scope,
+      selfOwnerId,
+      hasAssignCap,
+    });
     return this.board.getSlaPredictions({
-      ownerId: filterOwner,
-      viewAll,
+      ownerId: scoped.ownerId,
+      viewAll: scoped.viewAll,
     });
   }
 

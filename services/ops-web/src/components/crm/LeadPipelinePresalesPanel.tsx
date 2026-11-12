@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { LeadFunnelSnapshot } from '@/lib/api';
+import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
+import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 
 export function LeadPipelinePresalesPanel({
   funnel,
@@ -55,7 +57,7 @@ export function LeadPipelinePresalesPanel({
             >
               {serviceOptions.map((item) => (
                 <option key={item.slug} value={item.slug}>
-                  {item.name} ({item.slug})
+                  {intakeServiceLabel(item.slug, item.name)}
                 </option>
               ))}
             </select>
@@ -73,8 +75,14 @@ export function LeadPipelinePresalesPanel({
       {funnel.presales ? (
         <>
           <p>
-            Giai đoạn: <strong>{funnel.presales.presales.stage}</strong> · Dịch vụ:{' '}
-            {funnel.presales.presales.service_slug || '—'}
+            Giai đoạn:{' '}
+            <strong>{presalesStageLabel(funnel.presales.presales.stage)}</strong>
+            {' · '}
+            Dịch vụ:{' '}
+            {intakeServiceLabel(
+              funnel.presales.presales.service_slug,
+              serviceOptions.find((item) => item.slug === funnel.presales?.presales.service_slug)?.name,
+            )}
           </p>
           {showConsultBlock ? (
             <div className="banner banner-info stack-gap" style={{ marginTop: '0.5rem' }}>

@@ -38,6 +38,7 @@ export interface StaffNotificationRow {
   link_href: string | null;
   read: boolean;
   created_at: string;
+  meta_json?: Record<string, unknown> | null;
 }
 
 export async function fetchMyPayslips(token: string): Promise<{ payslips: PayslipRow[]; read_only: boolean }> {

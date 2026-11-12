@@ -20,14 +20,28 @@ describe('PresalesConsultPlanScreen', () => {
         onFunnelChange: () => undefined,
       }),
     );
-    expect(html).toContain('AI viết kế hoạch');
-    expect(html).toContain('Điểm khác biệt');
-    expect(html).toContain('AI gợi ý lại');
+    expect(html).not.toContain('AI viết kế hoạch');
+    expect(html).not.toContain('AI gợi ý lại');
     expect(html).toContain('Facebook Ads');
     expect(html).toContain('Cách chốt đơn');
     expect(html).toContain('Thêm cho file');
     expect(html).not.toContain('Chỉnh sửa trên Tổng quan');
     expect(html).not.toContain('Gửi email');
     expect(html).not.toContain('market_message');
+  });
+
+  it('shows AI draft buttons only when AI is configured', () => {
+    const html = renderToStaticMarkup(
+      createElement(PresalesConsultPlanScreen, {
+        token: 'token',
+        leadId: 7,
+        funnel: { ...funnel, presales_ai_configured: true },
+        canEdit: true,
+        canAiDraft: true,
+        onFunnelChange: () => undefined,
+      }),
+    );
+    expect(html).toContain('Điểm khác biệt');
+    expect(html).toContain('AI gợi ý lại');
   });
 });

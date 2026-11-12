@@ -152,7 +152,7 @@ export function PresalesClientBriefCard({
       if (serverMissing.length > 0) return;
       await onAiDraft();
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'AI điền R5 thất bại');
+      onError?.(err instanceof Error ? err.message : 'AI điền kế hoạch thất bại');
     } finally {
       setSaving(false);
     }
@@ -259,11 +259,11 @@ export function PresalesClientBriefCard({
               disabled={locked || saving || aiBusy || missing.length > 0}
               onClick={() => void onRunAi()}
             >
-              {saving || aiBusy ? 'Đang điền R5…' : 'AI điền R5'}
+              {saving || aiBusy ? 'Đang điền kế hoạch…' : 'AI điền kế hoạch'}
             </button>
           ) : (
             <span className="muted" style={{ fontSize: '0.85rem' }}>
-              Cần quyền <code>crm_mkt_ai.generate</code> để AI điền R5.
+              Cần quyền dùng AI để điền kế hoạch.
             </span>
           )}
         </div>

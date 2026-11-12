@@ -9,6 +9,8 @@ import {
   kanbanColumnsFromSolution,
   leadStatusAtOrAfterConsult,
   leadStatusLabel,
+  leadStatusOptionLabel,
+  localizeLeadStatusOptions,
   leadListFilterOptions,
   leadStatusSearchCallResults,
   leadStatusSearchHandoffs,
@@ -73,7 +75,9 @@ describe('leadStatusSearchOptions', () => {
       'dam_phan',
       'negotiation',
     ]);
-    expect(leadStatusLabel('proposal')).toBe('Báo giá');
+    expect(leadStatusLabel('proposal')).toBe('Đề xuất');
+    expect(leadStatusLabel('bao_gia')).toBe('Báo giá');
+    expect(leadStatusLabel('proposal')).not.toBe(leadStatusLabel('bao_gia'));
     expect(leadStatusLabel('won')).toBe('Chốt');
   });
 
@@ -213,5 +217,74 @@ describe('kanbanColumnsFromSolution', () => {
     expect(bySolution.solution.map((row) => row.id)).toEqual([920685]);
     expect(bySolution.bao_gia.map((row) => row.id)).toEqual([11]);
     expect(kanbanColumnIdForLead({ status: 'negotiation', solution_handoff: 'pending' })).toBe('dang_tu_van');
+  });
+});
+
+describe('leadStatusOptionLabel', () => {
+  it('uses LEAD_STATUS_LABELS for proposal and won, never the English API names', () => {
+    expect(leadStatusOptionLabel('proposal', 'Proposal')).toBe('Đề xuất');
+    expect(leadStatusOptionLabel('won', 'Won (HĐ ký)')).toBe('Chốt');
+    expect(leadStatusOptionLabel('bao_gia', 'Báo giá')).toBe('Báo giá');
+    expect(leadStatusOptionLabel('moi', 'New')).toBe('Mới');
+  });
+
+  it('falls back to a Vietnamese mapping when the id is unknown but the API name is English', () => {
+    expect(leadStatusOptionLabel('something_unknown', 'Proposal')).toBe('Đề xuất');
+    expect(leadStatusOptionLabel('', 'Won (HĐ ký)')).toBe('Chốt');
+    expect(leadStatusOptionLabel(null, 'Proposal')).toBe('Đề xuất');
+  });
+
+  it('never returns a raw slug or English name; unknown values become an em dash', () => {
+    expect(leadStatusOptionLabel('unknown_enum_code', 'unknown_enum_code')).toBe('—');
+    expect(leadStatusOptionLabel('foo-bar-baz', 'Foo Bar')).toBe('—');
+    const label = leadStatusOptionLabel('proposal', 'Proposal');
+    expect(label).not.toMatch(/Proposal/i);
+    expect(label).not.toMatch(/Won \(H/i);
+    expect(label).not.toContain('_');
+  });
+
+  it('keeps an already-Vietnamese API label when the id is not in the catalog', () => {
+    expect(leadStatusOptionLabel('custom_ok', 'Đàm phán')).toBe('Đàm phán');
+  });
+});
+
+describe('localizeLeadStatusOptions', () => {
+  it('rewrites every option label to Vietnamese', () => {
+    const rows = localizeLeadStatusOptions([
+      { id: 'moi', label: 'New' },
+      { id: 'da_lien_he', label: 'Contacted' },
+      { id: 'dang_tu_van', label: 'Consulting' },
+      { id: 'bao_gia', label: 'Báo giá' },
+      { id: 'proposal', label: 'Proposal' },
+      { id: 'dam_phan', label: 'Negotiation' },
+      { id: 'won', label: 'Won (HĐ ký)' },
+      { id: 'lost', label: 'Lost' },
+      { id: 'nurture', label: 'Nurture' },
+    ]);
+    expect(rows.map((r) => r.label)).toEqual([
+      'Mới',
+      'Đã liên hệ',
+      'Đang tư vấn',
+      'Báo giá',
+      'Đề xuất',
+      'Đàm phán',
+      'Chốt',
+      'Thất bại',
+      'Chăm sóc lại',
+    ]);
+    expect(rows.every((r) => !/Proposal|Won \(H|Lost|Nurture|Negotiation|Contacted|Consulting|^New$/.test(r.label))).toBe(true);
+  });
+});
+
+describe('bao_gia vs proposal labels', () => {
+  it('keeps two sequential CRM statuses visually distinct: Bao gia vs De xuat', () => {
+    expect(leadStatusOptionLabel('bao_gia', 'Proposal')).toBe('Báo giá');
+    expect(leadStatusOptionLabel('proposal', 'Proposal')).toBe('Đề xuất');
+    const rows = localizeLeadStatusOptions([
+      { id: 'bao_gia', label: 'Báo giá' },
+      { id: 'proposal', label: 'Proposal' },
+    ]);
+    expect(rows.map((r) => r.label)).toEqual(['Báo giá', 'Đề xuất']);
+    expect(new Set(rows.map((r) => r.label)).size).toBe(2);
   });
 });

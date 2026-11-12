@@ -201,7 +201,7 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
       return {
         rule: 7,
         title_vi: 'Solution đang tư vấn',
-        body_vi: 'Case đã có owner Solution. Mở workspace Tư vấn.',
+        body_vi: 'Case đã có người phụ trách Solutions. Mở không gian Tư vấn.',
         primary: { label_vi: 'Mở Tư vấn', action: 'open_consult' },
         secondary: briefSecondary,
       };
@@ -217,9 +217,9 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     }
     return {
       rule: 7,
-      title_vi: 'Giao Solution/MKT',
+      title_vi: 'SUBMIT FOR SOLUTION',
       body_vi: 'Intake đã Go. Giao queue Solution — Tư vấn là chỗ làm việc, không thay nút giao.',
-      primary: { label_vi: 'Giao Solution/MKT', action: 'handoff_solution' },
+      primary: { label_vi: 'SUBMIT FOR SOLUTION', action: 'handoff_solution' },
       secondary: (
         [
           { label_vi: 'Mở Tư vấn', action: 'open_consult' },

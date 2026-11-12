@@ -148,7 +148,7 @@ export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): 
       return 'Chờ AM bổ sung';
     case 'running':
     case 'pending':
-      return 'Đang prep…';
+      return 'Đang chuẩn bị…';
     case 'failed':
       return 'Prep lỗi';
     default:

@@ -446,7 +446,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.approveQuote(id, await this.userId(req));
+      return await this.funnel.approveQuote(id, await this.userId(req), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -461,7 +461,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.requestQuoteEdits(id, await this.userId(req), String(body?.note ?? ''));
+      return await this.funnel.requestQuoteEdits(id, await this.userId(req), String(body?.note ?? ''), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -556,9 +556,9 @@ export class LeadsFunnelController {
 
   @Get(':id/presales/quote-sheet')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  async getQuoteSheet(@Param('id', ParseIntPipe) id: number, @Query('services') services?: string) {
+  async getQuoteSheet(@Param('id', ParseIntPipe) id: number, @Query('services') services?: string, @Req() req?: Request & { staffUser?: StaffJwtPayload }) {
     try {
-      return await this.funnel.getQuoteSheet(id, services);
+      return await this.funnel.getQuoteSheet(id, services, req?.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -566,9 +566,9 @@ export class LeadsFunnelController {
 
   @Get(':id/presales/quote-sheet/xlsx')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  async quoteSheetXlsx(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+  async quoteSheetXlsx(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }): Promise<StreamableFile> {
     try {
-      const out = await this.funnel.quoteSheetXlsx(id);
+      const out = await this.funnel.quoteSheetXlsx(id, req.staffUser);
       return new StreamableFile(out.buffer, {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: `attachment; filename="${out.filename}"`,
@@ -581,9 +581,9 @@ export class LeadsFunnelController {
 
   @Get(':id/presales/quote-sheet/pdf')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  async quoteSheetPdf(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+  async quoteSheetPdf(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }): Promise<StreamableFile> {
     try {
-      const out = await this.funnel.quoteSheetPdf(id);
+      const out = await this.funnel.quoteSheetPdf(id, req.staffUser);
       return new StreamableFile(out.buffer, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         disposition: `attachment; filename="${out.filename}"`,

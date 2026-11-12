@@ -6,6 +6,7 @@ export interface StaffNotificationRow {
   link_href: string | null;
   read: boolean;
   created_at: string;
+  meta_json?: Record<string, unknown> | null;
 }
 
 export interface CreateStaffNotificationInput {

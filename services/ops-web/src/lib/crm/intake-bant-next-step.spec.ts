@@ -91,7 +91,7 @@ describe('nextBantStep', () => {
     expect(out.code).toBe('consult');
     expect(out.title_vi).toMatch(/Đủ điểm BANT/);
     expect(out.body_vi).toMatch(/chưa phải đủ báo giá/);
-    expect(out.body_vi).toMatch(/Giao Solution/);
+    expect(out.body_vi).toMatch(/SUBMIT FOR SOLUTION/);
     expect(out.cta).toBe('qualify');
   });
 });

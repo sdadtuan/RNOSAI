@@ -1133,7 +1133,7 @@ export function IntakeContent({
       const updated = await completeIntakeSession(access, active.id);
       await loadSessions(access, updated.id);
       await refreshStepperData(access);
-      setMessage('Đã hoàn thành phiên. Giao Solution ở banner phía trên, hoặc quay lại lead.');
+      setMessage('Đã hoàn thành phiên. Bấm SUBMIT FOR SOLUTION ở banner phía trên, hoặc quay lại lead.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hoàn thành thất bại');
     } finally {
@@ -1180,9 +1180,9 @@ export function IntakeContent({
           setFunnelSnap(out.funnel);
           await refreshStepperData(access);
           router.push(`/crm/leads/${leadId}#funnel-presales`);
-          setMessage('Đã giao Solution/MKT — Solution claim trên /crm/solution/queue');
+          setMessage('Đã gửi SUBMIT FOR SOLUTION. Case đang ở hàng đợi Solutions.');
         } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Giao Solution thất bại';
+          const msg = err instanceof Error ? err.message : 'SUBMIT FOR SOLUTION thất bại';
           if (/override/i.test(msg)) {
             const reason = window.prompt('Director override — nhập lý do:');
             if (!reason?.trim()) {
@@ -1196,7 +1196,7 @@ export function IntakeContent({
             setFunnelSnap(retry.funnel);
             await refreshStepperData(access);
             router.push(`/crm/leads/${leadId}#funnel-presales`);
-            setMessage('Đã giao Solution/MKT (override)');
+            setMessage('Đã gửi SUBMIT FOR SOLUTION (override)');
           } else {
             setError(msg);
           }
@@ -1604,7 +1604,7 @@ export function IntakeContent({
                     if (nextStepBanner.action === 'handoff_solution') {
                       void onStepperPrimaryAction({
                         kind: 'handoff_solution',
-                        label: nextStepBanner.cta_label_vi ?? 'Giao Solution/MKT →',
+                        label: nextStepBanner.cta_label_vi ?? 'SUBMIT FOR SOLUTION →',
                         disabled: false,
                         requiresConfirm:
                           Boolean(consultGate?.requires_confirm) ||
@@ -1632,7 +1632,7 @@ export function IntakeContent({
                     </li>
                     <li>
                       Sau Complete: banner <strong>Bước tiếp theo</strong> / Funnel — bấm{' '}
-                      <strong>Giao Solution/MKT</strong> khi gate OK.
+                      <strong>SUBMIT FOR SOLUTION</strong> khi gate OK.
                     </li>
                   </ol>
                 </div>

@@ -12,15 +12,15 @@ export const BANT_FIELD_LABELS: Record<
   },
   need: {
     label: 'Nhu cầu "Need"',
-    hint: 'Điểm đau #1? Hậu quả nếu không giải quyết?',
+    hint: 'Nỗi đau chính là gì? Hậu quả nếu không giải quyết?',
   },
   timeline: {
     label: 'Thời hạn "Timeline"',
-    hint: 'Khi nào cần bắt đầu? Deadline campaign/go-live?',
+    hint: 'Khi nào cần bắt đầu? Hạn chót chiến dịch / go-live?',
   },
   fit: {
     label: 'Độ phù hợp "Fit"',
-    hint: 'Phù hợp ICP PTT? Scope trong năng lực?',
+    hint: 'Phù hợp khách hàng mục tiêu của PTT? Phạm vi trong năng lực?',
   },
   history: {
     label: 'Lịch sử "History"',

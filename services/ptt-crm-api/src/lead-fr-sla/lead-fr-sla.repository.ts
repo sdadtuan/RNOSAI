@@ -51,6 +51,20 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     await this.ensureSchema();
   }
 
+  async claimSalesLead(leadId: number): Promise<string> {
+    await this.ensureSchema();
+    const result = await this.db.query(
+      `UPDATE crm_leads
+       SET sales_claimed_at = COALESCE(sales_claimed_at, NOW()),
+           updated_at = NOW()
+       WHERE sqlite_lead_id = $1
+       RETURNING sales_claimed_at`,
+      [leadId],
+    );
+    const ts = result.rows[0]?.sales_claimed_at;
+    return ts ? new Date(ts).toISOString() : new Date().toISOString();
+  }
+
   private async ensureSchema(): Promise<void> {
     if (!this.schemaReady) {
       this.schemaReady = this.db
@@ -80,7 +94,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
             ADD COLUMN IF NOT EXISTS next_call_at TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS is_hot BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS reassign_count INT NOT NULL DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sla_settings_version INT;
+            ADD COLUMN IF NOT EXISTS sla_settings_version INT,
+            ADD COLUMN IF NOT EXISTS sales_claimed_at TIMESTAMPTZ;
           CREATE TABLE IF NOT EXISTS crm_lead_call_attempts (
             id                  BIGSERIAL PRIMARY KEY,
             lead_id             BIGINT NOT NULL,
@@ -111,7 +126,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     await this.ensureSchema();
     const result = await this.db.query(
       `SELECT sqlite_lead_id, owner_id, status, source,
-              assigned_at, fr1_due_at, first_call_at, fr1_breached,
+              assigned_at, sales_claimed_at, fr1_due_at, first_call_at, fr1_breached,
               hold_until, hold_reason, hold_profile, contact_status,
               call_attempt_count, attempts_since_assign,
               last_call_at, last_call_result, next_call_at,
@@ -317,7 +332,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     await this.ensureReassignSchema();
     const result = await this.db.query(
       `SELECT sqlite_lead_id, owner_id, status, source,
-              assigned_at, fr1_due_at, first_call_at, fr1_breached,
+              assigned_at, sales_claimed_at, fr1_due_at, first_call_at, fr1_breached,
               hold_until, hold_reason, hold_profile, contact_status,
               call_attempt_count, attempts_since_assign,
               last_call_at, last_call_result, meeting_at, callback_at,

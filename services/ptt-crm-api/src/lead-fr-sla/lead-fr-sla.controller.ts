@@ -29,4 +29,13 @@ export class LeadFrSlaController {
   ) {
     return this.service.logCall(Number(id), body, this.actor(req));
   }
+
+  @Post(':id/sales-claim')
+  @UseGuards(StaffLeadsWriteGuard)
+  claimSales(
+    @Param('id') id: string,
+    @Req() req: { staffUser?: StaffJwtPayload },
+  ) {
+    return this.service.claimSalesLead(Number(id), req.staffUser);
+  }
 }

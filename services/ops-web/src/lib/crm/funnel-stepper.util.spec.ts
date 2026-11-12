@@ -259,6 +259,22 @@ describe('resolveActiveStep', () => {
       }),
     ).toBe('consult');
   });
+
+  it('selects proposal (Báo giá) once presales is at proposal or later', () => {
+    expect(
+      resolveActiveStep({
+        funnel: mockFunnel({
+          presales: {
+            presales: { id: 1, stage: 'proposal', service_slug: 'x', status: 'active' },
+            tasks: {},
+            advance: { can_advance_forward: false, block_reason: '', next_stage: '' },
+          },
+        }),
+        consultGate: null,
+        context: 'lead_detail',
+      }),
+    ).toBe('proposal');
+  });
 });
 
 describe('resolvePrimaryAction', () => {
@@ -330,7 +346,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('handoff_solution');
-    expect(action?.label).toContain('Solution');
+    expect(action?.label).toContain('SUBMIT FOR SOLUTION');
 
     const secondary = resolveSecondaryAction({
       funnel: mockFunnel(),
@@ -451,7 +467,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('link');
-    expect(action?.label).toContain('Solution queue');
+    expect(action?.label).toContain('Hàng chờ Solution');
     expect(action?.href).toBe('/crm/solution/queue');
   });
 
@@ -465,7 +481,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('handoff_solution');
-    expect(action?.label).toContain('Giao Solution');
+    expect(action?.label).toContain('SUBMIT FOR SOLUTION');
   });
 
   it('sends the lead back to BANT when the survey is not completed', () => {
@@ -504,7 +520,7 @@ describe('resolveGateStrip', () => {
       },
     });
     const strip = resolveGateStrip('intake_bant', mockGate(), undefined, undefined, funnel, 'intake');
-    expect(strip?.title).toContain('Đã giao Solution');
+    expect(strip?.title).toContain('Đã gửi SUBMIT FOR SOLUTION');
   });
 });
 

@@ -11,17 +11,30 @@ export function LeadStageRecords({
   status,
   intakeSummary,
   serviceSlug,
+  loading = false,
+  pastBant = false,
 }: {
   leadId: number;
   status: string;
   intakeSummary?: IntakeStepSummary | null;
   serviceSlug?: string | null;
+  loading?: boolean;
+  pastBant?: boolean;
 }) {
   const stage = normalizeLeadStatus(status);
   const needsBant = NEEDS_BANT.has(stage);
   const hasBant = Boolean(intakeSummary?.preview || intakeSummary?.latest_completed);
 
   if (!needsBant && !hasBant) {
+    return null;
+  }
+  if (!hasBant && (loading || pastBant) && !needsBant) {
+    return null;
+  }
+  if (!hasBant && loading) {
+    return null;
+  }
+  if (!hasBant && pastBant) {
     return null;
   }
 
@@ -33,6 +46,8 @@ export function LeadStageRecords({
           leadId={leadId}
           serviceSlug={serviceSlug}
           intakeSummary={intakeSummary}
+          loading={loading}
+          pastBant={pastBant}
         />
       </div>
     </section>

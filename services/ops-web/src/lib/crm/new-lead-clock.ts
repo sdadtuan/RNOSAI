@@ -8,6 +8,8 @@ import {
 
 const SAIGON_OFFSET_MS = 7 * 60 * 60 * 1000;
 
+import { addBusinessHours, addBusinessMinutes } from '@/lib/crm/business-hours';
+
 export type NewLeadClockPhase = 'claim' | 'update' | 'done' | 'unset';
 
 export type NewLeadClock = {
@@ -139,6 +141,8 @@ export function resolveNewLeadClock(input: {
   assignedAt?: string | null;
   claimedAt?: string | null;
   firstCallAt?: string | null;
+  /** B2 / first-contact already finished, or lead has moved past Tư vấn. */
+  completed?: boolean;
   now?: Date;
 }): NewLeadClock {
   const now = input.now ?? new Date();
@@ -155,19 +159,21 @@ export function resolveNewLeadClock(input: {
     };
   }
 
-  if (input.firstCallAt) {
+  // Stop both the 15-minute claim clock and the post-claim update clock once
+  // the first call is logged, B2 is done, or the lead has left first-contact.
+  if (input.firstCallAt || input.completed) {
     return {
       phase: 'done',
-      label: 'Đã cập nhật cuộc gọi',
+      label: input.firstCallAt ? 'Đã cập nhật cuộc gọi' : 'Đã hoàn thành liên hệ đầu',
       dueAt: null,
       remainingMs: null,
       overdue: false,
-      detail: 'Đã ghi cuộc gọi. Hạn nhận và hạn cập nhật của lead mới đã đóng.',
+      detail: 'Hạn nhận 15 phút và hạn cập nhật sau khi nhận đã đóng.',
     };
   }
 
   const claimMinutes = profile.sale.claim_in_hours_minutes ?? 15;
-  const updateHours = profile.sale.update_after_claim_hours ?? 1;
+  const updateHours = profile.sale.update_after_claim_hours ?? 2;
   const reassignHours = profile.sale.reassign_after_claim_hours ?? 2;
   const claimed = input.claimedAt ? new Date(input.claimedAt) : null;
 
@@ -186,16 +192,16 @@ export function resolveNewLeadClock(input: {
   }
 
   const updateDue =
-    updateHours > 0 ? new Date(claimed.getTime() + updateHours * 3_600_000) : null;
+    updateHours > 0 ? addBusinessHours(claimed, updateHours) : null;
   const reassignDue =
-    reassignHours > 0 ? new Date(claimed.getTime() + reassignHours * 3_600_000) : null;
+    reassignHours > 0 ? addBusinessHours(claimed, reassignHours) : null;
   return clockOf({
     phase: 'update',
     label: 'Cập nhật sau khi nhận',
     due: updateDue,
     now,
     detail: reassignDue
-      ? `Đã nhận. Cập nhật cuộc gọi trong ${updateHours} giờ. Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignDue.toLocaleString('vi-VN')}).`
-      : `Đã nhận. Cập nhật cuộc gọi trong ${updateHours} giờ.`,
+      ? `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (8:30–16:00, trừ cuối tuần). Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignDue.toLocaleString('vi-VN')}).`
+      : `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (8:30–16:00, trừ cuối tuần).`,
   });
 }

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { PresalesConsultBriefPanel } from '@/components/PresalesConsultBriefPanel';
 import { PresalesConsultPlanScreen } from '@/components/PresalesConsultPlanScreen';
-import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { PresalesL2DocsChecklist } from '@/components/PresalesL2DocsChecklist';
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { WinFieldMask } from '@/components/rbac/WinFieldMask';
@@ -15,8 +14,7 @@ import {
   patchLeadPresalesTask,
   postLeadPresalesConsultPrefill,
   postLeadPresalesTaskAiAssist,
-  postPresalesConsultSlaReminder,
-  type LeadFunnelSnapshot,
+    type LeadFunnelSnapshot,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import {
@@ -207,12 +205,15 @@ export function LeadConsultWorkspace({
     ));
   }
 
+  const aiConfigured = Boolean(funnel?.presales_ai_configured);
+  const aiReady = canAiDraft && aiConfigured;
   const aiDisabled =
     busy ||
     !canEdit ||
     !consultTask ||
     presalesStage !== 'consult' ||
-    consultTask.ai_prompt_key !== 'consult_analysis';
+    consultTask.ai_prompt_key !== 'consult_analysis' ||
+    !aiReady;
 
   return (
     <section
@@ -231,25 +232,12 @@ export function LeadConsultWorkspace({
         <div className="banner banner-info" data-testid="consult-solution-readonly-banner">
           <strong>Giai đoạn Solution — bạn theo dõi, không chỉnh sửa</strong>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-            Consult, L2, AI và KHMKT sơ bộ do Solution/MKT phụ trách. AM tiếp tục sau khi Solution Trả Sales — Báo giá.
+            Kế hoạch tư vấn, hồ sơ khách và kế hoạch marketing sơ bộ do Solutions phụ trách. Sales tiếp tục sau khi Solutions trả về để lập báo giá.
           </p>
         </div>
       ) : null}
 
-      {funnel.presales?.consult_proposal_sla ? (
-        <PresalesConsultSlaBanner
-          sla={funnel.presales.consult_proposal_sla}
-          disabled={busy || !canEdit}
-          busy={busy}
-          onReminder={() =>
-            void run(async () => {
-              const out = await postPresalesConsultSlaReminder(token, leadId, {});
-              applyFunnel(out.funnel);
-              onMessage?.('Đã tạo nhắc SLA trên activity lead');
-            })
-          }
-        />
-      ) : null}
+      {/* SLA 48h Consult → Báo giá: không hiện ở bước Solutions; giữ trên dashboard. */}
 
       {presalesStage === 'consult' ? (
         <>
@@ -305,6 +293,7 @@ export function LeadConsultWorkspace({
                 >
                   {prefillBusy ? 'Prefill…' : 'Prefill từ Lead / Intake'}
                 </button>
+                {aiReady ? (
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
@@ -313,6 +302,7 @@ export function LeadConsultWorkspace({
                 >
                   {aiBusyTaskId != null ? 'AI…' : 'AI ghi chú buổi gặp'}
                 </button>
+                ) : null}
               </div>
             </div>
           </details>
@@ -367,6 +357,7 @@ export function LeadConsultWorkspace({
               >
                 {prefillBusy ? 'Prefill…' : 'Prefill từ Lead/Intake'}
               </button>
+              {aiReady ? (
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
@@ -375,6 +366,7 @@ export function LeadConsultWorkspace({
               >
                 {aiBusyTaskId != null ? 'AI…' : 'AI Hỗ trợ'}
               </button>
+              ) : null}
               <button
                 type="button"
                 className="btn btn-sm btn-primary"

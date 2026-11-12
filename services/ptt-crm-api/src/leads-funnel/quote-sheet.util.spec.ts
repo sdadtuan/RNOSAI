@@ -6,6 +6,7 @@ import {
   parseQuoteServiceCodes,
   quoteCommercial,
   quoteLineAmount,
+  quoteUnitLabel,
   readStoredQuoteSheet,
   type QuoteSheetItem,
   type QuoteSheetStaff,
@@ -136,5 +137,22 @@ describe('quote sheet money', () => {
     expect(plan).toHaveLength(1);
     expect(plan[0]?.lines.map((line) => line.task)).toEqual(['Tiếp nhận handover']);
     expect(plan[0]?.lines[0]).not.toHaveProperty('staff_name');
+  });
+
+  it('translates quantity units and the AM role to Vietnamese labels', () => {
+    expect(quoteUnitLabel('times')).toBe('lần');
+    expect(quoteUnitLabel('month')).toBe('tháng');
+    expect(quoteUnitLabel('shoot_day')).toBe('ngày quay');
+    expect(quoteUnitLabel('lần')).toBe('lần');
+    const view = assembleQuoteSheet({
+      editable: false,
+      services: [],
+      staff,
+      items: [item()],
+      selectedServiceCodes: ['WEB'],
+      overrides: [],
+    });
+    expect(view.groups[0]?.rows[0]?.unit).toBe('lần');
+    expect(view.groups[0]?.rows[0]?.role_label).toBe('AM');
   });
 });

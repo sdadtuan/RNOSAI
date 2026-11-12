@@ -80,6 +80,17 @@ export interface LeadFunnelSnapshot {
   review_queue: ReviewQueuePublicState;
   presales_on_lead_enabled: boolean;
   presales: PresalesSnapshot | null;
+  /** True when the Solutions/consult LLM has an API key. */
+  presales_ai_configured?: boolean;
+  /** Intake BANT sessions for this lead — available to every role that can read the funnel. */
+  intake_sessions?: Array<{
+    id: number;
+    status: string;
+    decision: string;
+    bant_total: number;
+    bant_json?: Record<string, number> | null;
+    updated_at: string;
+  }>;
 }
 
 export interface PresalesTaskRow {
@@ -165,7 +176,7 @@ export interface PresalesFunnelMetricsResponse {
   labels: PresalesFunnelMetricLabels;
 }
 
-export type PresalesHandoffStatus = '' | 'pending' | 'with_solution' | 'released';
+export type PresalesHandoffStatus = '' | 'pending' | 'with_solution' | 'released' | 'returned';
 
 export interface PresalesHandoffView {
   status: PresalesHandoffStatus;
@@ -195,6 +206,7 @@ export interface PresalesRow {
   handed_off_at: string;
   handed_off_by_staff_id: number | null;
   solution_owner_staff_id: number | null;
+  last_solution_owner_staff_id: number | null;
   solution_claimed_at: string;
   solution_released_at: string;
   solution_accept_due_at: string;

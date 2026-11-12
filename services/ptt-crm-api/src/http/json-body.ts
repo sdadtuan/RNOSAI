@@ -4,8 +4,8 @@ import type { INestApplication } from '@nestjs/common';
 export const DEFAULT_JSON_LIMIT = '100kb';
 export const P13_CATALOG_IMPORT_JSON_LIMIT = '5mb';
 export const P13_CATALOG_IMPORT_PATH = '/api/crm/p13/catalog-import';
-/** Solution desk stores up to 5 files × 1.5MB as data URLs inside this PATCH. */
-export const MARKETING_PLAN_JSON_LIMIT = '12mb';
+/** Solution desk stores up to 5 files, 15MB total, as data URLs (~20MB binary*4/3 + JSON). */
+export const MARKETING_PLAN_JSON_LIMIT = '24mb';
 const MARKETING_PLAN_PATCH = /^\/api\/v1\/leads\/\d+\/presales\/marketing-plan\/?$/;
 
 function keepRawBody(req: Request, _res: unknown, buffer: Buffer): void {

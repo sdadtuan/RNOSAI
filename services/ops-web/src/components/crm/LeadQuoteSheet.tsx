@@ -10,6 +10,7 @@ import {
   type LeadQuoteSheet,
   type LeadQuoteSheetRow,
 } from '@/lib/api';
+import { quoteRoleLabel, quoteUnitLabel } from '@/lib/crm/quote-unit-label';
 
 function vnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
@@ -26,6 +27,7 @@ function linesFromSheet(sheet: LeadQuoteSheet) {
       item_code: row.item_code,
       staff_id: row.staff_id,
       hours: row.hours,
+      qty: row.qty,
       included: row.included,
     })),
   );
@@ -35,6 +37,7 @@ export function LeadQuoteSheet({
   token,
   leadId,
   phase,
+  viewerIsSales = false,
   onFunnelChange,
   onMessage,
   onError,
@@ -42,19 +45,23 @@ export function LeadQuoteSheet({
   token: string;
   leadId: number;
   phase: string;
+  viewerIsSales?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
 }) {
-  const visible = phase === 'bao_gia' || phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
+  const ceoApproved = phase === 'hop_dong' || phase === 'trien_khai';
+  const visible =
+    (!viewerIsSales && (phase === 'bao_gia' || phase === 'ceo_review' || phase === 'sale_review')) ||
+    ceoApproved;
   const [sheet, setSheet] = useState<LeadQuoteSheet | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const locked = phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
+  const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
   useEffect(() => {
-    if (!visible || locked) return;
+    if (!visible) return;
     let cancelled = false;
     setLocalError('');
     void fetchLeadQuoteSheet(token, leadId)
@@ -67,7 +74,7 @@ export function LeadQuoteSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, locked, token, leadId, phase]);
+  }, [visible, token, leadId, phase]);
 
   const staffGroups = useMemo(() => {
     const order = ['AE', 'GDKD', 'MKL'];
@@ -109,8 +116,9 @@ export function LeadQuoteSheet({
               hours_per_month: person?.hours_per_month ?? 0,
               hourly_vnd: hourly,
               hours: edit.hours,
+              qty: edit.qty ?? row.qty,
               included: row.chargeable ? edit.included : false,
-              amount_vnd: row.chargeable && edit.included ? Math.round(edit.hours * row.qty * hourly) : 0,
+              amount_vnd: row.chargeable && edit.included ? Math.round(edit.hours * (edit.qty ?? row.qty) * hourly) : 0,
             };
           }),
         })),
@@ -177,7 +185,7 @@ export function LeadQuoteSheet({
       }
       const out = await sendLeadQuoteToSales(token, leadId);
       onFunnelChange(out.funnel);
-      onMessage?.(`Đã gửi báo giá cho Sale. Tổng ${vnd(next.grand_total_vnd)}.`);
+      onMessage?.(`Đã nộp báo giá, chờ CEO duyệt. Tổng ${vnd(next.grand_total_vnd)}.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không gửi được báo giá';
       setLocalError(message);
@@ -187,7 +195,7 @@ export function LeadQuoteSheet({
     }
   }
 
-  const editable = Boolean(sheet?.editable);
+  const editable = Boolean(sheet?.editable) && !viewerIsSales;
   const subtotal = sheet?.groups.reduce(
     (sum, group) => sum + group.rows.reduce((inner, row) => inner + (row.included ? row.amount_vnd : 0), 0),
     0,
@@ -214,32 +222,17 @@ export function LeadQuoteSheet({
     }
   }
 
-  if (locked) {
-    return (
-      <section className="quote-sheet" aria-label="File báo giá">
-        <header className="quote-sheet__head">
-          <p className="solution-desk__kicker">File báo giá</p>
-          <p className="muted">Bảng báo giá được gom vào file Excel và giữ trên lead này.</p>
-        </header>
-        {localError ? (
-          <div className="lead-alert lead-alert--error" role="alert">
-            {localError}
-          </div>
-        ) : null}
-        <div className="solution-desk__actions">
-          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void onDownload()}>
-            Tải Excel báo giá
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="quote-sheet" aria-label="Bảng báo giá">
+    <section id="lead-quote-sheet" className="quote-sheet" aria-label="Bảng báo giá">
       <header className="quote-sheet__head">
         <p className="solution-desk__kicker">Bảng báo giá</p>
-        <p className="muted">Việc nhỏ lấy từ mô tả catalog.</p>
+        <p className="muted">
+            {phase === 'ceo_review' || phase === 'sale_review'
+              ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
+              : ceoApproved
+                ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
+                : 'Chọn dịch vụ, nhân sự và số lượng. Thành tiền = giờ × số lượng × đơn giá giờ.'}
+        </p>
       </header>
       {localError ? (
         <div className="lead-alert lead-alert--error" role="alert">
@@ -270,7 +263,7 @@ export function LeadQuoteSheet({
           })}
         </div>
       ) : null}
-      {sheet && sheet.selected_service_codes.length > 0 ? (
+      {sheet && sheet.selected_service_codes.length > 0 && editable ? (
         <div className="quote-sheet__commercial">
           <label>
             Khuyến mại %
@@ -281,7 +274,7 @@ export function LeadQuoteSheet({
               step={0.5}
               value={promoPercent}
               aria-label="Khuyến mại %"
-              disabled={!editable || busy}
+              disabled={busy}
               onChange={(event) => {
                 const promo_percent = percentOf(Number(event.target.value));
                 setSheet((current) => (current ? { ...current, promo_percent } : current));
@@ -297,7 +290,7 @@ export function LeadQuoteSheet({
               step={0.5}
               value={vatPercent}
               aria-label="VAT %"
-              disabled={!editable || busy}
+              disabled={busy}
               onChange={(event) => {
                 const vat_percent = percentOf(Number(event.target.value));
                 setSheet((current) => (current ? { ...current, vat_percent } : current));
@@ -318,6 +311,7 @@ export function LeadQuoteSheet({
                 <col className="quote-sheet__col-task" />
                 <col className="quote-sheet__col-subtask" />
                 <col className="quote-sheet__col-staff" />
+                <col className="quote-sheet__col-qty" />
                 <col className="quote-sheet__col-amount" />
               </colgroup>
               <thead>
@@ -326,6 +320,7 @@ export function LeadQuoteSheet({
                   <th>Việc</th>
                   <th>Việc nhỏ</th>
                   <th>Nhân sự</th>
+                  <th>Số lượng</th>
                   <th>Thành tiền</th>
                 </tr>
               </thead>
@@ -343,7 +338,7 @@ export function LeadQuoteSheet({
                     </td>
                     <td>
                       <strong>{row.task}</strong>
-                      <span className="muted">{row.role_label}</span>
+                      <span className="muted">{quoteRoleLabel(row.role_label)}</span>
                     </td>
                     <td>{row.subtask || '—'}</td>
                     <td>
@@ -383,6 +378,34 @@ export function LeadQuoteSheet({
                         row.staff_name || '—'
                       )}
                     </td>
+                    <td>
+                      {editable && row.chargeable ? (
+                        <>
+                          <input
+                            type="number"
+                            min={0.01}
+                            max={9999}
+                            step={1}
+                            value={row.qty}
+                            aria-label={`Số lượng ${row.task}`}
+                            disabled={busy}
+                            onChange={(event) => {
+                              const qty = Math.max(0, Number(event.target.value) || 0);
+                              patchRow(row.item_code, {
+                                qty,
+                                amount_vnd: row.included ? Math.round(row.hours * qty * (row.hourly_vnd ?? 0)) : 0,
+                              });
+                            }}
+                          />
+                          {row.unit ? <span className="qt-muted"> {quoteUnitLabel(row.unit)}</span> : null}
+                        </>
+                      ) : (
+                        <>
+                          {row.qty}
+                          {row.unit ? ` ${quoteUnitLabel(row.unit)}` : ''}
+                        </>
+                      )}
+                    </td>
                     <td>{row.included ? vnd(row.amount_vnd) : '—'}</td>
                   </tr>
                 ))}
@@ -402,14 +425,23 @@ export function LeadQuoteSheet({
           <strong>Tổng thanh toán {vnd(grand)}</strong>
         </p>
       ) : null}
-      {editable ? (
+      {editable || canDownload ? (
         <div className="solution-desk__actions">
-          <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
-            Lưu bảng
-          </button>
-          <button type="button" className="btn btn-primary" disabled={busy || !sheet} onClick={() => void onSend()}>
-            Nộp báo giá cho Sale
-          </button>
+          {editable ? (
+            <>
+              <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
+                Lưu bảng
+              </button>
+              <button type="button" className="btn btn-primary" disabled={busy || !sheet} onClick={() => void onSend()}>
+                Nộp báo giá cho CEO
+              </button>
+            </>
+          ) : null}
+          {canDownload ? (
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void onDownload()}>
+              Tải Excel báo giá
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>

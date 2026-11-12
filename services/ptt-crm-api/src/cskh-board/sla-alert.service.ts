@@ -18,12 +18,10 @@ export class SlaAlertService {
 
     return timer(0, 30_000).pipe(
       switchMap(async () => {
-        const me = await this.staffAuth.me(staffUser);
-        const canViewAll = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
-        const ownerId = canViewAll ? undefined : await this.staffAuth.resolveCrmStaffUserId(staffUser);
+        const ownerId = await this.staffAuth.resolveCrmStaffUserId(staffUser);
         const snapshot = await this.board.getSlaPredictions({
           ownerId: ownerId ?? undefined,
-          viewAll: canViewAll,
+          viewAll: false,
         });
         const alerts = filterPredictionsForAlerts(snapshot.items);
         const hash = slaPredictAlertHash(alerts);

@@ -65,6 +65,7 @@ export function QuoteCasePanel({
   leadId,
   funnel,
   viewerIsCeo = false,
+  viewerIsSales = false,
   onFunnelChange,
   onLeadReload,
   onMessage,
@@ -74,6 +75,7 @@ export function QuoteCasePanel({
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   viewerIsCeo?: boolean;
+  viewerIsSales?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onLeadReload: () => Promise<void>;
   onMessage?: (message: string) => void;
@@ -85,8 +87,20 @@ export function QuoteCasePanel({
   const [note, setNote] = useState('');
   const [targetId, setTargetId] = useState('');
   const [localError, setLocalError] = useState('');
+  const [customerAgreed, setCustomerAgreed] = useState(
+    () => Boolean(funnel?.presales?.quote_case) && funnel?.presales?.quote_case?.phase !== 'sale_approve_solution',
+  );
   const timerDue = quote?.timer_due_at ?? '';
   const timerStopped = Boolean(quote?.timer_stopped);
+
+  useEffect(() => {
+    if (quote?.phase && quote.phase !== 'sale_approve_solution') {
+      setCustomerAgreed(true);
+    }
+    if (quote?.phase === 'sale_approve_solution') {
+      setCustomerAgreed(false);
+    }
+  }, [quote?.phase]);
 
   useEffect(() => {
     if (!timerDue || timerStopped) return undefined;
@@ -110,10 +124,12 @@ export function QuoteCasePanel({
       onFunnelChange(out.funnel);
       await onLeadReload();
       onMessage?.(done);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thực hiện được';
       setLocalError(message);
       onError?.(message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -126,21 +142,21 @@ export function QuoteCasePanel({
       : '';
 
   return (
-    <section className="solution-desk" aria-label="Duyệt Solution và báo giá">
+    <section id="quote-case" className="solution-desk" aria-label="Duyệt Solution và báo giá">
       <header className="solution-desk__head">
         <p className="solution-desk__kicker">{quote.step_label || 'Solution đã nộp'}</p>
         {role ? <p className="muted">{role}</p> : null}
       </header>
       {assignee ? <p>{assignee}</p> : null}
-      {quote.timer_stopped ? (
+      {quote.timer_stopped && quote.phase !== 'hop_dong' ? (
         <p className="muted">
           {quote.phase === 'trien_khai'
             ? 'Đồng hồ báo giá đã dừng. Lead đang ở Triển Khai.'
-            : quote.phase === 'hop_dong'
-              ? 'Đồng hồ báo giá đã dừng. Hợp đồng phải chốt và GĐKD duyệt rồi lead mới sang Triển Khai.'
-              : 'Đồng hồ báo giá đã dừng. Đang chờ Sale.'}
+            : quote.phase === 'ceo_review'
+              ? 'Đồng hồ báo giá đã dừng. Đang chờ CEO duyệt.'
+              : 'Đồng hồ báo giá đã dừng.'}
         </p>
-      ) : (
+      ) : quote.timer_stopped ? null : (
         <QuoteDeadline
           label={quote.timer_label}
           dueAt={quote.timer_due_at}
@@ -194,22 +210,25 @@ export function QuoteCasePanel({
       ) : null}
       {quote.change_note ? (
         <p>
-          <strong>Sale yêu cầu chỉnh:</strong> {quote.change_note}
+          <strong>CEO từ chối:</strong> {quote.change_note}
         </p>
       ) : null}
       <div className="solution-desk__actions">
-        {quote.phase === 'sale_approve_solution' ? (
+        {quote.phase === 'sale_approve_solution' && !customerAgreed ? (
           <>
             <button
               type="button"
               className="btn btn-primary"
               disabled={busy}
-              onClick={() =>
+              onClick={() => {
+                setCustomerAgreed(true);
                 void run(
                   () => approveLeadSolution(token, leadId),
-                  'Khách đồng ý Solutions. Sang bước Chuyển Báo Giá.',
-                )
-              }
+                  'Khách đồng ý Solutions. Sang bước Chờ lập báo giá.',
+                ).then((ok) => {
+                  if (!ok) setCustomerAgreed(false);
+                });
+              }}
             >
               Khách đồng ý — Chờ báo giá
             </button>
@@ -248,49 +267,57 @@ export function QuoteCasePanel({
             Nhận Case Báo Giá
           </button>
         ) : null}
-        {quote.phase === 'sale_review' ? (
-          <>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() =>
-                void run(
-                  () => approveLeadQuote(token, leadId),
-                  'Đã Approve báo giá. Lập hợp đồng, GĐKD duyệt xong thì sang Triển Khai.',
-                )
-              }
-            >
-              Approve
-            </button>
-            <label>
-              Ghi chú chỉnh sửa
-              <textarea
-                rows={2}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                aria-label="Ghi chú chỉnh sửa báo giá"
-                placeholder="Bắt buộc khi gửi lại"
-              />
-            </label>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy || note.trim().length < 5}
-              onClick={() =>
-                void run(
-                  () => requestLeadQuoteEdits(token, leadId, note.trim()),
-                  'Đã gửi yêu cầu chỉnh về Marketing Leader. Hạn nộp lại là 2 giờ.',
-                )
-              }
-            >
-              Gửi lại Marketing Leader
-            </button>
-          </>
+        {quote.phase === 'ceo_review' || quote.phase === 'sale_review' ? (
+          viewerIsCeo ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => approveLeadQuote(token, leadId),
+                    'CEO đã duyệt báo giá. Sales có thể xem và tải.',
+                  )
+                }
+              >
+                Duyệt báo giá
+              </button>
+              <label>
+                Lý do từ chối
+                <textarea
+                  rows={2}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  aria-label="Lý do từ chối báo giá"
+                  placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy || note.trim().length < 5}
+                onClick={() =>
+                  void run(
+                    () => requestLeadQuoteEdits(token, leadId, note.trim()),
+                    'Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.',
+                  )
+                }
+              >
+                Từ chối, gửi lại AM
+              </button>
+            </>
+          ) : (
+            <p className="muted">
+              {viewerIsSales
+                ? 'Báo giá đang chờ CEO duyệt. Sales chỉ xem và tải sau khi được duyệt.'
+                : 'Báo giá đã nộp, đang chờ CEO duyệt.'}
+            </p>
+          )
         ) : null}
         {quote.phase === 'hop_dong' ? (
           <>
-            <p>Báo giá đã khóa. File hợp đồng là Word lập từ báo giá đã chốt. Gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Duyệt xong lead sang Triển Khai.</p>
+            <p>CEO đã duyệt báo giá. Sales có thể xem và tải file hợp đồng (Word từ báo giá đã chốt). Gửi GĐKD duyệt trên tab Hợp đồng và Chốt, rồi lead mới sang Triển khai.</p>
             <button
               type="button"
               className="btn btn-primary"

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { B2bAlertStreamService } from './b2b-alert-stream.service';
 import { B2bAlertsController } from './b2b-alerts.controller';
 import { B2bAlertsRepository } from './b2b-alerts.repository';
@@ -52,7 +53,7 @@ import { B2bConversationsRepository } from './b2b-conversations.repository';
 import { B2bConversationsService } from './b2b-conversations.service';
 
 @Module({
-  imports: [StaffAuthModule],
+  imports: [StaffAuthModule, StaffNotificationsModule],
   controllers: [
     B2bProjectsController,
     B2bAlertsController,

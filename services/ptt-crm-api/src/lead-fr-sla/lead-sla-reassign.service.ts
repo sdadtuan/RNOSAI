@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
 import {
@@ -6,6 +6,8 @@ import {
   isWithinWorkingHours,
 } from '../lead-sla-settings/lead-sla-working-hours.util';
 import { LeadFrSlaRepository } from './lead-fr-sla.repository';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import {
   evaluateReassignDecision,
   pickRoundRobinLeastOpen,
@@ -42,6 +44,7 @@ export class LeadSlaReassignService {
   constructor(
     private readonly repo: LeadFrSlaRepository,
     private readonly settings: LeadSlaSettingsService,
+    @Optional() private readonly notifications?: StaffNotificationsRepository,
   ) {}
 
   async run(now: Date = new Date(), opts?: { force?: boolean }): Promise<{
@@ -288,6 +291,11 @@ export class LeadSlaReassignService {
         payload.holidays,
       );
       await this.repo.assignFromQueue(leadId, wouldTo, fr1Due);
+      if (this.notifications) {
+        await this.notifications
+          .notifyStaff(wouldTo, caseStaffNotify({ kind: 'lead_assigned', leadId }))
+          .catch(() => undefined);
+      }
       await this.repo.insertReassignEvent({
         leadId,
         fromStaffId: input.owner_id,

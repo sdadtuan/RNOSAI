@@ -11,8 +11,14 @@ export function showLeadConsultTab(funnel: LeadFunnelSnapshot | null | undefined
 }
 
 export function presalesStageLabel(stage: string | undefined): string {
-  if (stage === 'consult') return 'Tư vấn';
-  if (stage === 'proposal') return 'Báo giá';
-  if (stage === 'lead') return 'Pre Sale';
-  return stage ?? '—';
+  const raw = String(stage ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_');
+  if (!raw) return '—';
+  if (raw === 'consult' || raw === 'tu_van' || raw === 'dang_tu_van') return 'Tư vấn';
+  if (raw === 'proposal' || raw === 'bao_gia' || raw === 'de_xuat' || raw === 'de xuat') return 'Báo giá';
+  if (raw === 'lead' || raw === 'presales_lead' || raw === 'pre_sale' || raw === 'presale') return 'Pre Sale';
+  // Never leak raw enum/slug codes to the UI.
+  return '—';
 }

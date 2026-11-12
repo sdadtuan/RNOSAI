@@ -50,6 +50,22 @@ export function LeadPipelineB2Panel({
     if (highlightAfterCall) setTab('outcome');
   }, [highlightAfterCall]);
 
+  if (b2Done) {
+    return (
+      <div className="lead-b2-workspace lead-b2-workspace--done" id="funnel-b2">
+        <header className="lead-b2-workspace__head">
+          <div className="lead-b2-workspace__titles">
+            <h3>Liên hệ lần đầu (B2)</h3>
+            <p className="lead-b2-workspace__sub">
+              B2 đã xong — hạn nhận 15 phút và hạn cập nhật sau khi nhận đã dừng.
+            </p>
+          </div>
+          <span className="lead-b2-workspace__chip">Đã xong</span>
+        </header>
+      </div>
+    );
+  }
+
   const outcomeBody = (
     <>
       {showOutcome ? (
@@ -131,6 +147,7 @@ export function LeadPipelineB2Panel({
               canWrite={canWriteFr && !inReview}
               variant="embedded"
               status={leadStatus}
+              b2Done={b2Done}
             />
           </div>
 

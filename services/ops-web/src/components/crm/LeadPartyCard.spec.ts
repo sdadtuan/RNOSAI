@@ -31,4 +31,45 @@ describe('LeadPartyCard', () => {
     expect(html).toContain('Mở báo giá');
     expect(html).not.toContain('agency_client_id');
   });
+
+  it('hides the quote button when quoteHref is null', () => {
+    const html = renderToStaticMarkup(
+      createElement(LeadPartyCard, {
+        leadId: 120,
+        value: {
+          company_name: 'Cong ty UAT V5',
+          company_address: '',
+          phone: '0900000120',
+          email: 'uat.v5@local.test',
+          logo_asset_id: '',
+          full_name: 'UAT',
+        },
+        onChange: () => {},
+        quoteHref: null,
+      }),
+    );
+    expect(html).not.toContain('Mở báo giá');
+    expect(html).not.toContain('/crm/proposals/new');
+  });
+
+  it('points the quote button at the in-page sheet hash, never proposals/new', () => {
+    const html = renderToStaticMarkup(
+      createElement(LeadPartyCard, {
+        leadId: 120,
+        value: {
+          company_name: 'Cong ty UAT V5',
+          company_address: '',
+          phone: '0900000120',
+          email: 'uat.v5@local.test',
+          logo_asset_id: '',
+          full_name: 'UAT',
+        },
+        onChange: () => {},
+        quoteHref: '#lead-quote-sheet',
+      }),
+    );
+    expect(html).toContain('Mở báo giá');
+    expect(html).toContain('href="#lead-quote-sheet"');
+    expect(html).not.toContain('/crm/proposals/new');
+  });
 });

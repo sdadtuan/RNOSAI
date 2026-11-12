@@ -19,13 +19,11 @@ export function LeadAttributionChips({
 
   const hasCampaign = Boolean(attribution.campaign_id);
   const hasCpl = attribution.cpl_vnd != null;
+  const hasAnything = hasCampaign || hasCpl || Boolean(attribution.ads_hub_href);
+  if (!hasAnything) return null;
 
   return (
     <div className="lead-attribution-chips" data-testid="lead-attribution-chips">
-      {!hasCampaign && !hasCpl && !attribution.ads_hub_href ? (
-        <span className="muted">Chưa có campaign/CPL — map hub để brief/score giải thích tốt hơn.</span>
-      ) : null}
-
       {hasCampaign && attribution.ads_hub_href ? (
         <Link
           href={attribution.ads_hub_href}

@@ -1,5 +1,6 @@
 'use client';
 
+import { SOLUTION_FILE_MAX_COUNT, solutionFileAddError } from '@/lib/crm/solution-file-limit';
 import { useEffect, useRef, useState } from 'react';
 import {
   fetchLeadPresalesClientBrief,
@@ -43,8 +44,6 @@ const PLAN_FIELDS: Array<{ key: string; label: string; slot: string }> = [
 
 const EMPTY_PLAN: Record<string, string> = Object.fromEntries(PLAN_FIELDS.map((field) => [field.key, '']));
 
-const MKT_FILE_MAX_BYTES = 1_500_000;
-const MKT_FILE_MAX_COUNT = 5;
 
 interface MktAttachment {
   id: string;
@@ -201,13 +200,14 @@ export function PresalesConsultPlanScreen({
     };
   }, [leadId, token]);
 
+  const aiReady = canAiDraft && Boolean(funnel.presales_ai_configured);
   const missing = clientBriefUiMissing({ company_name: company, niche, need, usp, goal, channels });
   const modelLine = clientPlanDraftModelLine(modelName, Boolean(website.trim() || fanpage.trim()));
   const g4 = g4MessagesVi(planValidation);
   const channelState = parseChannelsBrief(channels);
 
   useEffect(() => {
-    if (!factsReady || !canEdit || !canAiDraft || autoSuggestRef.current) return;
+    if (!factsReady || !canEdit || !aiReady || autoSuggestRef.current) return;
     const parsed = parseChannelsBrief(channels);
     if (usp.trim() && goal.trim() && parsed.selected.length > 0) return;
     if (!company.trim() || !niche.trim() || !need.trim()) return;
@@ -215,7 +215,7 @@ export function PresalesConsultPlanScreen({
     void runSuggest('fill-empty');
     // runSuggest reads the facts from this render; re-running after the fill is blocked by autoSuggestRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [factsReady, canEdit, canAiDraft, company, niche, need, usp, goal, channels]);
+  }, [factsReady, canEdit, aiReady, company, niche, need, usp, goal, channels]);
 
   function markDirty(key: string, value: string) {
     setPlan((prev) => ({ ...prev, [key]: value }));
@@ -238,7 +238,7 @@ export function PresalesConsultPlanScreen({
   }
 
   async function runSuggest(mode: 'fill-empty' | 'replace') {
-    if (!canEdit || !canAiDraft || suggesting) return;
+    if (!canEdit || !aiReady || suggesting) return;
     if (!company.trim() || !niche.trim() || !need.trim()) {
       onError?.('Thiếu Công ty, Ngành hoặc Nhu cầu.');
       return;
@@ -341,7 +341,7 @@ export function PresalesConsultPlanScreen({
   }
 
   async function onAi() {
-    if (!canEdit || !canAiDraft || missing.length > 0) return;
+    if (!canEdit || !aiReady || missing.length > 0) return;
     setBusy(true);
     try {
       const factsOk = await persistFacts();
@@ -424,12 +424,14 @@ export function PresalesConsultPlanScreen({
 
   async function onAttachFile(file: File | undefined) {
     if (!file || !canEdit) return;
-    if (file.size > MKT_FILE_MAX_BYTES) {
-      onError?.('File lớn hơn 1.5MB');
-      return;
-    }
-    if (files.length >= MKT_FILE_MAX_COUNT) {
-      onError?.('Tối đa 5 file');
+    const currentTotal = files.reduce((sum, item) => {
+      const comma = item.data_url.indexOf(',');
+      const b64 = comma >= 0 ? item.data_url.slice(comma + 1) : '';
+      return sum + Math.floor((b64.length * 3) / 4);
+    }, 0);
+    const blocked = solutionFileAddError(currentTotal, file.size, files.length);
+    if (blocked) {
+      onError?.(blocked);
       return;
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -499,7 +501,7 @@ export function PresalesConsultPlanScreen({
   }
 
   const showPlan = forcePlan || showPreliminaryMarketingPlan({
-    stage: funnel.presales?.presales.stage,
+    stage: funnel.presales?.presales?.stage,
     handoffStatus: funnel.presales?.handoff?.status,
     quotePhase: funnel.presales?.quote_case?.phase,
   });
@@ -512,17 +514,19 @@ export function PresalesConsultPlanScreen({
         {factField('Nhu cầu', need, storedNeed, setNeed)}
       </div>
 
+      {aiReady ? (
       <div className="consult-facts__toolbar">
         <button
           type="button"
           className="btn btn-sm btn-secondary"
-          disabled={busy || suggesting || !canEdit || !canAiDraft || !company.trim() || !niche.trim() || !need.trim()}
+          disabled={busy || suggesting || !canEdit || !company.trim() || !niche.trim() || !need.trim()}
           onClick={() => void runSuggest('replace')}
         >
           {suggesting ? 'Đang gợi ý…' : 'AI gợi ý lại'}
         </button>
         <p className="client-plan-brief__hint">Điểm khác biệt do AI điền. Mục tiêu và kênh là gợi ý — chọn hoặc sửa trước khi viết kế hoạch.</p>
       </div>
+      ) : null}
 
       <label className="client-plan-brief__field">
         Điểm khác biệt <i className="client-plan-brief__star">*</i>
@@ -651,7 +655,7 @@ export function PresalesConsultPlanScreen({
             void onAttachFile(picked);
           }}
         />
-        <span className="client-plan-brief__hint">Tối đa 5 file, mỗi file 1.5MB. PDF, ảnh, Excel, Word.</span>
+        <span className="client-plan-brief__hint">Tối đa 5 file, tổng dung lượng dưới 15MB. PDF, ảnh, Excel, Word.</span>
         {files.length === 0 ? (
           <span className="muted">Chưa có file.</span>
         ) : (
@@ -680,14 +684,16 @@ export function PresalesConsultPlanScreen({
       {showPlan ? (
         <>
           <div>
+            {aiReady ? (
             <button
               type="button"
               className="btn btn-sm btn-primary"
-              disabled={busy || !canEdit || !canAiDraft || missing.length > 0}
+              disabled={busy || !canEdit || missing.length > 0}
               onClick={() => void onAi()}
             >
               AI viết kế hoạch
             </button>
+            ) : null}
             {missing.length > 0 ? (
               <ul className="client-plan-brief__missing">
                 {missing.map((label) => (
@@ -705,7 +711,7 @@ export function PresalesConsultPlanScreen({
             </div>
           ) : null}
 
-          <h4 style={{ margin: 0 }}>KH Marketing sơ bộ (R5)</h4>
+          <h4 style={{ margin: 0 }}>Kế hoạch marketing sơ bộ</h4>
 
           {PLAN_FIELDS.map((field) => {
             const locked = humanEdited.includes(field.key) || dirty.includes(field.key);

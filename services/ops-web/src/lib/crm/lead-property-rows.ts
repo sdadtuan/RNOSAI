@@ -46,10 +46,10 @@ export function leadPropertyRows(
       ? [{ key: 'channel', label: 'Kênh', value: lead.channel?.trim() || '—' }]
       : []),
     { key: 'project', label: 'Dự án', value: lead.project_code?.trim() || '—' },
-    { key: 'owner', label: 'Owner', value: ownerLabel?.trim() || 'Chưa phân' },
+    { key: 'owner', label: 'Phụ trách', value: ownerLabel?.trim() || 'Chưa phân' },
     { key: 'created', label: 'Ngày tạo', value: created },
     ...(band
-      ? [{ key: 'band', label: 'Band', value: band, tone: lead.ai_band ?? undefined }]
+      ? [{ key: 'band', label: 'Hạng', value: band, tone: lead.ai_band ?? undefined }]
       : []),
   ].filter((row) => !hidden.has(row.key));
 }

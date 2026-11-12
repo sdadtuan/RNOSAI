@@ -30,6 +30,7 @@ describe('exportClientPlan', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
   }
 

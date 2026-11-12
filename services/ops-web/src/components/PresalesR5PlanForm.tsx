@@ -52,9 +52,9 @@ export function PresalesR5PlanForm({
   const modelLine = clientPlanDraftModelLine(aiModel);
   return (
     <div className="stack-gap" id="funnel-presales-r5" style={{ marginTop: '1rem' }}>
-      <h4 style={{ margin: 0 }}>KH Marketing sơ bộ (R5)</h4>
+      <h4 style={{ margin: 0 }}>Kế hoạch marketing sơ bộ</h4>
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-        Bắt buộc trước <strong>Chuyển → Báo giá</strong> (gate G4). Solution sửa rồi lưu. AI không đè
+        Bắt buộc trước <strong>Chuyển → Báo giá</strong>. Solutions sửa rồi lưu. AI không đè
         trường đã sửa.
       </p>
       {showAiDraftBadge ? (

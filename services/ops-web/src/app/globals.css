@@ -2944,7 +2944,7 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .lead-party-card .qt-inp,
-.lead-party-card input,
+.lead-party-card input:not(.sr-only):not([type="file"]),
 .lead-party-card textarea {
   width: 100%;
   padding: 8px 10px;
@@ -2952,6 +2952,35 @@ html.ops-shell-bitrix .win-home__scope {
   border-radius: 8px;
   font: inherit;
   font-weight: 400;
+}
+
+.lead-party-card__file-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.lead-party-card__file-row,
+.solution-desk__file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-weight: 400;
+}
+.lead-party-card input.sr-only[type="file"],
+.solution-desk__submit input.sr-only[type="file"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 .lead-party-card__logo {

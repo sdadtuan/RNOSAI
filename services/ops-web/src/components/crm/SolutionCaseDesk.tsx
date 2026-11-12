@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   claimLeadSolution,
   fetchIntakeDefinitionBySlug,
@@ -29,9 +29,11 @@ import {
 } from '@/lib/crm/solution-pack';
 import { fetchP13Service, fetchP13Services } from '@/lib/p13/api';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
+import {
+  SOLUTION_FILE_MAX_COUNT,
+  solutionFileAddError,
+} from '@/lib/crm/solution-file-limit';
 
-const FILE_MAX_BYTES = 1_500_000;
-const FILE_MAX_COUNT = 5;
 
 type Attachment = { id: string; name: string; mime: string; data_url: string };
 
@@ -49,6 +51,69 @@ function plain(value: string): string {
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function crmField(session: IntakeSessionRow | null, key: string): string {
+  if (!session) return '';
+  const raw = session.answers_json;
+  if (!raw || typeof raw !== 'object') return '';
+  const record = raw as Record<string, unknown>;
+  const fields = record.crm_fields;
+  if (fields && typeof fields === 'object') {
+    const fromFields = plain(String((fields as Record<string, unknown>)[key] ?? ''));
+    if (fromFields) return fromFields;
+  }
+  return plain(String(record[key] ?? ''));
+}
+
+function discoveryNotes(session: IntakeSessionRow | null): string {
+  if (!session?.answers_json || typeof session.answers_json !== 'object') return '';
+  const block = (session.answers_json as Record<string, unknown>).discovery_checklist;
+  if (!block || typeof block !== 'object') return '';
+  return plain(String((block as Record<string, unknown>).notes ?? ''));
+}
+
+function redFlagNotes(session: IntakeSessionRow | null): string {
+  if (!session?.answers_json || typeof session.answers_json !== 'object') return '';
+  const block = (session.answers_json as Record<string, unknown>).red_flags;
+  if (!block || typeof block !== 'object') return '';
+  return plain(String((block as Record<string, unknown>).notes ?? ''));
+}
+
+const WIN_INTEL_LABELS: Record<string, string> = {
+  incumbent: 'Nhà cung cấp hiện tại',
+  competitor: 'Đối thủ',
+  selection_criteria: 'Tiêu chí chọn đối tác',
+  switch_risk: 'Rủi ro khi chuyển đổi',
+};
+
+function winIntelLines(session: IntakeSessionRow | null): Array<{ label: string; answer: string }> {
+  if (!session?.answers_json || typeof session.answers_json !== 'object') return [];
+  const block = (session.answers_json as Record<string, unknown>).win_intel;
+  if (!block || typeof block !== 'object') return [];
+  const out: Array<{ label: string; answer: string }> = [];
+  for (const [key, label] of Object.entries(WIN_INTEL_LABELS)) {
+    const entry = (block as Record<string, unknown>)[key];
+    const answer =
+      entry && typeof entry === 'object'
+        ? plain(String((entry as Record<string, unknown>).answer ?? ''))
+        : plain(String(entry ?? ''));
+    if (answer) out.push({ label, answer });
+  }
+  return out;
+}
+
+function filledCommitments(
+  session: IntakeSessionRow | null,
+): Array<{ label: string; detail: string; deadline: string }> {
+  const rows = session?.commitments_json ?? [];
+  return rows
+    .map((row, index) => ({
+      label: plain(String(row.label ?? '')) || ('Cam kết ' + (index + 1)),
+      detail: plain(String(row.detail ?? '')),
+      deadline: plain(String(row.deadline ?? '')),
+    }))
+    .filter((row) => row.detail);
 }
 
 function intakeNeed(session: IntakeSessionRow | null): string {
@@ -183,6 +248,7 @@ export function SolutionCaseDesk({
   const [serviceName, setServiceName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
   const solution = funnel?.presales?.solution_case;
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
@@ -234,8 +300,6 @@ export function SolutionCaseDesk({
   const companyOnCard = plain(party.company_name || '');
   const sessionCompany = plain(session?.company_name || '');
   const sessionContact = plain(session?.contact_name || '');
-  const showCompany = Boolean(sessionCompany && sessionCompany !== companyOnCard);
-  const showContact = Boolean(sessionContact && sessionContact !== leadName);
   const people = (session?.stakeholders_json ?? []).filter((row) => {
     const name = plain(String(row.name ?? ''));
     return Boolean(name) && name !== leadName;
@@ -255,6 +319,16 @@ export function SolutionCaseDesk({
     return (
       <section className="solution-desk" aria-label="File Solution đã nộp">
         <h3>File Solution đã nộp</h3>
+        <div className="solution-desk__file-row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || handoff !== 'with_solution'}
+            onClick={() => solutionFileInputRef.current?.click()}
+          >
+            Chọn file
+          </button>
+        </div>
         {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : (
@@ -381,7 +455,7 @@ export function SolutionCaseDesk({
       },
     });
     downloadSolutionHtml(html);
-    onMessage?.('Đã đóng gói Solution.html.');
+    onMessage?.('Đã đóng gói hồ sơ Solution.');
   }
 
   const hasSolutionFile = files.some((file) => file.name.trim());
@@ -400,7 +474,7 @@ export function SolutionCaseDesk({
             : solution?.phase === 'chinh_sua'
               ? 'Chỉnh theo yêu cầu, rồi bấm Trả Sales trong 2 giờ.'
               : handoff === 'with_solution'
-                ? 'Đóng gói Solution.html, rồi Trả Sales trong hạn làm việc.'
+                ? 'Đóng gói hồ sơ Solution, rồi trả về Sales trong hạn làm việc.'
                 : 'Đã nộp cho Sales.'}
         </p>
       </header>
@@ -445,38 +519,47 @@ export function SolutionCaseDesk({
         </div>
       ) : null}
 
-      <dl className="solution-desk__facts">
-        {showCompany ? (
+      <div className="solution-desk__block" data-testid="solution-sales-company">
+        <h3>Công ty</h3>
+        <dl className="solution-desk__facts">
           <div>
             <dt>Công ty</dt>
-            <dd>{sessionCompany}</dd>
+            <dd>{sessionCompany || companyOnCard || 'Chưa ghi tên công ty.'}</dd>
           </div>
-        ) : null}
-        {showContact ? (
           <div>
-            <dt>Người khảo sát</dt>
-            <dd>{sessionContact}</dd>
+            <dt>Người liên hệ</dt>
+            <dd>{sessionContact || leadName || '—'}</dd>
           </div>
+          <div>
+            <dt>Dịch vụ</dt>
+            <dd>{serviceSlug ? intakeServiceLabel(serviceSlug) : '—'}</dd>
+          </div>
+          <div>
+            <dt>Quyết định</dt>
+            <dd>
+              {DECISION_LABEL[session?.decision || ''] || session?.decision || '—'}
+              {session?.decision_reason ? ` · ${session.decision_reason}` : ''}
+            </dd>
+          </div>
+        </dl>
+        {people.length > 0 ? (
+          <ul>
+            {people.map((row) => (
+              <li key={`${row.role}-${row.name}`}>
+                {row.role_label || row.role}: {row.name}
+                {row.title ? ` · ${row.title}` : ''}
+              </li>
+            ))}
+          </ul>
         ) : null}
-        <div>
-          <dt>Dịch vụ</dt>
-          <dd>{serviceSlug ? intakeServiceLabel(serviceSlug) : '—'}</dd>
-        </div>
-        <div>
-          <dt>Quyết định</dt>
-          <dd>
-            {DECISION_LABEL[session?.decision || ''] || session?.decision || '—'}
-            {session?.decision_reason ? ` · ${session.decision_reason}` : ''}
-          </dd>
-        </div>
-      </dl>
+      </div>
 
-      <div className="solution-desk__block">
-        <h3>Nhu cầu / điểm đau</h3>
+      <div className="solution-desk__block" data-testid="solution-sales-needs">
+        <h3>Nhu cầu</h3>
         <p>{need || 'Sales chưa ghi nhu cầu.'}</p>
       </div>
 
-      <div className="solution-desk__block">
+      <div className="solution-desk__block" data-testid="solution-sales-items">
         <h3>Hạng mục</h3>
         {items.length === 0 ? (
           <p>Chưa chọn hạng mục.</p>
@@ -492,9 +575,22 @@ export function SolutionCaseDesk({
         )}
       </div>
 
-      {shownAnswers.length > 0 ? (
-        <div className="solution-desk__block">
-          <h3>Câu Sales đã hỏi</h3>
+      <div className="solution-desk__block" data-testid="solution-sales-current">
+        <h3>Hiện trạng</h3>
+        <p>
+          {crmField(session, 'current_state') ||
+            crmField(session, 'current_situation') ||
+            crmField(session, 'as_is') ||
+            (winIntelLines(session).length === 0 && shownAnswers.length === 0
+              ? 'Sales chưa ghi hiện trạng.'
+              : '')}
+        </p>
+        {winIntelLines(session).map((row) => (
+          <p key={row.label}>
+            <strong>{row.label}:</strong> {row.answer}
+          </p>
+        ))}
+        {shownAnswers.length > 0 ? (
           <ul className="solution-desk__answers">
             {shownAnswers.map((line) => (
               <li key={line.question}>
@@ -503,27 +599,13 @@ export function SolutionCaseDesk({
               </li>
             ))}
           </ul>
-        </div>
-      ) : null}
-
-      {people.length > 0 ? (
-        <div className="solution-desk__block">
-          <h3>Người liên quan</h3>
-          <ul>
-            {people.map((row) => (
-              <li key={`${row.role}-${row.name}`}>
-                {row.role_label || row.role}: {row.name}
-                {row.title ? ` · ${row.title}` : ''}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       </div>
       <div className="solution-desk__col">
       <div className="solution-desk__block">
-        <h3>BANT {session?.bant_total ?? 0}/30</h3>
+        <h3>Ngân sách / BANT {session?.bant_total ?? 0}/30</h3>
         <ul className="solution-desk__bant">
           {BANT_KEYS.map((key) => {
             const score = Number(bant[key] ?? 0);
@@ -544,20 +626,60 @@ export function SolutionCaseDesk({
         </ul>
       </div>
 
+      <div className="solution-desk__block" data-testid="solution-sales-notes">
+        <h3>Ghi chú</h3>
+        <p>
+          {crmField(session, 'notes') ||
+            crmField(session, 'sales_notes') ||
+            crmField(session, 'note') ||
+            discoveryNotes(session) ||
+            redFlagNotes(session) ||
+            'Không có ghi chú từ Sales.'}
+        </p>
+      </div>
+
+      <div className="solution-desk__block" data-testid="solution-sales-actions">
+        <h3>Việc cần làm</h3>
+        {filledCommitments(session).length > 0 ? (
+          <ul>
+            {filledCommitments(session).map((row) => (
+              <li key={row.label}>
+                <strong>{row.label}</strong>
+                {row.deadline ? ` · hạn ${row.deadline}` : ''}: {row.detail}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>
+            {crmField(session, 'actions') ||
+              crmField(session, 'next_actions') ||
+              crmField(session, 'action') ||
+              'Không có việc cần làm được ghi.'}
+          </p>
+        )}
+      </div>
+
       <div className="solution-desk__submit">
         <h3>Nộp Solution cho Sales</h3>
-        <p className="muted">PDF, Word, Excel hoặc ảnh. Tối đa 5 file, mỗi file 1.5MB.</p>
+        <p className="muted">PDF, Word, Excel hoặc ảnh. Tối đa 5 file, tổng dung lượng dưới 15MB.</p>
         <input
+          ref={solutionFileInputRef}
+          className="sr-only"
           type="file"
-          aria-label="Tải file Solution"
+          aria-label="Chọn file Solution"
           disabled={busy || handoff !== 'with_solution'}
           onChange={(event) => {
             const picked = event.target.files?.[0];
             event.target.value = '';
             if (!picked) return;
             void run(async () => {
-              if (picked.size > FILE_MAX_BYTES) throw new Error('File lớn hơn 1.5MB');
-              if (files.length >= FILE_MAX_COUNT) throw new Error('Tối đa 5 file');
+              const currentTotal = files.reduce((sum, file) => {
+                const comma = file.data_url.indexOf(',');
+                const b64 = comma >= 0 ? file.data_url.slice(comma + 1) : '';
+                return sum + Math.floor((b64.length * 3) / 4);
+              }, 0);
+              const blocked = solutionFileAddError(currentTotal, picked.size, files.length);
+              if (blocked) throw new Error(blocked);
               const dataUrl = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(String(reader.result ?? ''));
@@ -577,6 +699,16 @@ export function SolutionCaseDesk({
             });
           }}
         />
+        <div className="solution-desk__file-row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || handoff !== 'with_solution'}
+            onClick={() => solutionFileInputRef.current?.click()}
+          >
+            Chọn file
+          </button>
+        </div>
         {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : (

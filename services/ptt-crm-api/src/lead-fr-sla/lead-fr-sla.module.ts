@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { LeadSlaSettingsModule } from '../lead-sla-settings/lead-sla-settings.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { LeadsModule } from '../leads/leads.module';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { LeadFrSlaController } from './lead-fr-sla.controller';
 import { LeadFrSlaRepository } from './lead-fr-sla.repository';
 import { LeadFrSlaService } from './lead-fr-sla.service';
@@ -11,7 +12,7 @@ import { LeadSlaReassignService } from './lead-sla-reassign.service';
 import { LeadSlaReassignWorker } from './lead-sla-reassign.worker';
 
 @Module({
-  imports: [StaffAuthModule, LeadSlaSettingsModule, LeadsModule],
+  imports: [StaffAuthModule, LeadSlaSettingsModule, LeadsModule, StaffNotificationsModule],
   controllers: [LeadFrSlaController, LeadSlaGdkdController],
   providers: [
     LeadFrSlaService,

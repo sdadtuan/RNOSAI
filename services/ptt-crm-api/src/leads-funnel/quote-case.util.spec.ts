@@ -43,8 +43,9 @@ describe('buildQuoteCaseView', () => {
       }),
       now,
     );
-    expect(view?.phase).toBe('sale_review');
-    expect(view?.expected_role).toBe('Sale');
+    expect(view?.phase).toBe('ceo_review');
+    expect(view?.expected_role).toBe('CEO');
+    expect(view?.step_label).toBe('Chờ CEO duyệt');
     expect(view?.timer_stopped).toBe(true);
     expect(view?.timer_due_at).toBe('');
   });
@@ -145,6 +146,7 @@ describe('buildQuoteCaseView', () => {
       now,
     );
     expect(view?.phase).toBe('bao_gia');
+    expect(view?.step_label).toBe('Chờ lập báo giá');
     expect(view?.assignee_staff_id).toBe(8);
     expect(view?.timer_overdue).toBe(true);
     expect(view?.sla_note).toContain('2 giờ');
@@ -164,6 +166,7 @@ describe('buildQuoteCaseView', () => {
       now,
     );
     expect(editing?.phase).toBe('bao_gia');
+    expect(editing?.step_label).toBe('Chỉnh sửa báo giá');
     expect(editing?.change_note).toBe('Giảm giờ thiết kế');
     expect(editing?.expected_role).toBe('AM');
 
@@ -238,7 +241,8 @@ describe('AM quote assignment', () => {
     expect(quoteDeskForPhase('chuyen_bao_gia')).toBe('am');
     expect(quoteDeskForPhase('bao_gia')).toBe('am');
     expect(quoteDeskForPhase('sale_approve_solution')).toBe('sale');
-    expect(quoteDeskForPhase('sale_review')).toBe('sale');
+    expect(quoteDeskForPhase('sale_review')).toBeNull();
+    expect(quoteDeskForPhase('ceo_review')).toBeNull();
     expect(quoteDeskForPhase('hop_dong')).toBeNull();
     expect(quoteDeskForPhase('trien_khai')).toBeNull();
   });

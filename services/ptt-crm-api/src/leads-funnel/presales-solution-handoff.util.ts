@@ -21,12 +21,12 @@ export function leadStatusAfterSolutionHandoff(current: string | null | undefine
   return null;
 }
 
-export const PRESALES_HANDOFF_STATUSES = ['', 'pending', 'with_solution', 'released'] as const;
+export const PRESALES_HANDOFF_STATUSES = ['', 'pending', 'with_solution', 'released', 'returned'] as const;
 export type PresalesHandoffStatus = (typeof PRESALES_HANDOFF_STATUSES)[number];
 
 export function normalizeHandoffStatus(raw: unknown): PresalesHandoffStatus {
   const s = String(raw ?? '').trim();
-  if (s === 'pending' || s === 'with_solution' || s === 'released') return s;
+  if (s === 'pending' || s === 'with_solution' || s === 'released' || s === 'returned') return s;
   return '';
 }
 
@@ -48,5 +48,6 @@ export function handoffBadgeLabel(
     const who = String(ownerName ?? '').trim();
     return who ? `Đang Solutions — ${who}` : 'Đang AM xử lý Solutions';
   }
+  if (status === 'returned') return 'Solutions trả lại Sales — cần bổ sung thông tin';
   return null;
 }

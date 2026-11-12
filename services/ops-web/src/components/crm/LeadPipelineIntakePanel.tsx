@@ -33,6 +33,8 @@ export function LeadPipelineIntakePanel({
   leadId = 0,
   serviceSlug,
   intakeSummary,
+  loading = false,
+  pastBant = false,
 }: {
   leadId?: number;
   serviceSlug?: string | null;
@@ -41,11 +43,15 @@ export function LeadPipelineIntakePanel({
   readOnly?: boolean;
   onSaved?: () => void;
   editRequest?: number;
+  loading?: boolean;
+  /** Lead already passed BANT (handed off / quote) — do not show the empty "create session" CTA. */
+  pastBant?: boolean;
 }) {
   const preview = intakeSummary?.preview;
   const completed = intakeSummary?.latest_completed;
 
   if (!preview && !completed) {
+    if (loading || pastBant) return null;
     return (
       <div className="card-inner" id="funnel-intake-bant">
         <p className="muted" style={{ margin: 0 }}>

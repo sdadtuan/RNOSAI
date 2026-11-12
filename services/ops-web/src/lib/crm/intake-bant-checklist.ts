@@ -29,33 +29,33 @@ export const BANT_CHECKLIST: Record<BantKey, { hint: string; items: BantChecklis
     ],
   },
   need: {
-    hint: 'Pain point #1? Hậu quả nếu không giải quyết?',
+    hint: 'Nỗi đau chính là gì? Hậu quả nếu không giải quyết?',
     items: [
       { score: 1, label: 'Không nêu pain, chỉ “làm marketing dùm”' },
-      { score: 2, label: 'Pain chung chung (“muốn nhiều lead”) không hậu quả' },
+      { score: 2, label: 'Nỗi đau chung chung (“muốn nhiều lead”) không hậu quả' },
       { score: 3, label: 'Có 1 pain cụ thể nhưng chưa đo được / chưa gấp' },
       { score: 4, label: 'Pain rõ + hậu quả (mất lead, mùa vụ, sếp hỏi)' },
-      { score: 5, label: 'Pain #1 + số liệu/KPI + hậu quả nếu chậm' },
+      { score: 5, label: 'Nỗi đau chính + số liệu/KPI + hậu quả nếu chậm' },
     ],
   },
   timeline: {
-    hint: 'Khi nào cần bắt đầu? Deadline campaign/go-live?',
+    hint: 'Khi nào cần bắt đầu? Hạn chót chiến dịch / go-live?',
     items: [
-      { score: 1, label: '“Từ từ”, không deadline, không mùa' },
+      { score: 1, label: '“Từ từ”, không hạn chót, không mùa' },
       { score: 2, label: '“Năm nay” / “khi rảnh”' },
       { score: 3, label: 'Có hướng (Q3, trước Tết) nhưng chưa chốt ngày' },
       { score: 4, label: 'Có mốc go-live / họp board / campaign trong vài tuần–tháng' },
-      { score: 5, label: 'Deadline cứng + lý do (mùa, launch, HĐ agency cũ hết hạn)' },
+      { score: 5, label: 'Hạn chót cứng + lý do (mùa, launch, HĐ agency cũ hết hạn)' },
     ],
   },
   fit: {
-    hint: 'Phù hợp ICP PTT? Scope trong năng lực?',
+    hint: 'Phù hợp khách hàng mục tiêu của PTT? Phạm vi trong năng lực?',
     items: [
       { score: 1, label: 'Ngoài năng lực / ngành PTT không làm / kỳ vọng ảo nặng' },
-      { score: 2, label: 'Scope lệch (vd. muốn app + 50 trang, budget landing)' },
-      { score: 3, label: 'Đúng nhóm dịch vụ nhưng ICP/ngành chưa rõ' },
+      { score: 2, label: 'Phạm vi lệch (vd. muốn app + 50 trang, ngân sách landing)' },
+      { score: 3, label: 'Đúng nhóm dịch vụ nhưng khách hàng mục tiêu / ngành chưa rõ' },
       { score: 4, label: 'Đúng dịch vụ PTT, quy mô/ngành ổn, scope kiểm soát được' },
-      { score: 5, label: 'Đúng ICP, scope rõ, KPI đo được, không red-flag kỳ vọng' },
+      { score: 5, label: 'Đúng khách hàng mục tiêu, phạm vi rõ, KPI đo được, không dấu hiệu rủi ro về kỳ vọng' },
     ],
   },
   history: {

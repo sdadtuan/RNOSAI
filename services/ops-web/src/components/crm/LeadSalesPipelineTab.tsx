@@ -8,6 +8,7 @@ import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadPipelineDoneAccordion } from '@/components/crm/LeadPipelineDoneAccordion';
 import { LeadPipelineSlaStrip } from '@/components/crm/LeadPipelineSlaStrip';
 import { resolveFunnelStepper } from '@/lib/crm/funnel-stepper.util';
+import { salesSafeQuoteAction } from '@/lib/crm/sales-quote-open.util';
 import type {
   FunnelPrimaryAction,
   FunnelStepperInput,
@@ -44,6 +45,8 @@ export function LeadSalesPipelineTab({
   slaState,
   slaDetail,
   leadStatus = null,
+  viewerIsSales = false,
+  quoteSheetVisible = false,
 }: {
   token: string;
   leadId: number;
@@ -74,6 +77,9 @@ export function LeadSalesPipelineTab({
   slaDetail?: string | null;
   /** CRM lead status. Hides receive-SLA controls once the lead is at Tư vấn. */
   leadStatus?: string | null;
+  /** Sales must never follow a CTA onto /crm/proposals/new (403). */
+  viewerIsSales?: boolean;
+  quoteSheetVisible?: boolean;
 }) {
   const router = useRouter();
   const stepperVm = useMemo(() => resolveFunnelStepper(stepperInput), [stepperInput]);
@@ -82,6 +88,10 @@ export function LeadSalesPipelineTab({
     ...stepperVm,
     steps: stepperVm.steps.map((s) => ({ ...s, isActive: s.key === activeStepKey })),
     activeStep: activeStepKey,
+    primaryAction: salesSafeQuoteAction(stepperVm.primaryAction, {
+      isSales: Boolean(viewerIsSales),
+      quoteVisible: Boolean(quoteSheetVisible),
+    }),
   };
   const onB2 = activeStepKey === 'b2';
   const slaDetailNode = onB2 ? (

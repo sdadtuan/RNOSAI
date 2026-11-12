@@ -108,7 +108,7 @@ describe('resolveIntakeNextStepBanner', () => {
       handoffStatus: '',
     });
     expect(banner?.action).toBe('handoff_solution');
-    expect(banner?.cta_label_vi).toMatch(/Giao Solution/);
+    expect(banner?.cta_label_vi).toMatch(/SUBMIT FOR SOLUTION/);
   });
 
   it('queue link when handoff pending', () => {

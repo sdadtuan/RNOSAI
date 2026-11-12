@@ -9,7 +9,6 @@ import { DealRoomL1Panel } from '@/components/deal-room/DealRoomL1Panel';
 import { DealRoomQuotePanel } from '@/components/deal-room/DealRoomQuotePanel';
 import { DealRoomSciPanel } from '@/components/deal-room/DealRoomSciPanel';
 import { DealRoomTeaserPanel } from '@/components/deal-room/DealRoomTeaserPanel';
-import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { fetchLeadDealRoom, staffMe, staffRefresh, type DealRoomSnapshot } from '@/lib/api';
 import {
   clearSession,
@@ -184,9 +183,6 @@ export function DealRoomPage({ leadId }: Props) {
               gates={snapshot.gates}
               g4Messages={snapshot.proposal_gate.messages}
             />
-            {presales?.consult_proposal_sla ? (
-              <PresalesConsultSlaBanner sla={presales.consult_proposal_sla} />
-            ) : null}
             <div className="deal-room-grid">
               <DealRoomConsultPanel
                 done={snapshot.consult_progress.done}

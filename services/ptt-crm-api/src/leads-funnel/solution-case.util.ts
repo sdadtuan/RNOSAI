@@ -1,5 +1,7 @@
 /** Solutions SLA from giai đoạn 3. Quote accept / finish timers stay in quote-case.util. */
 
+import { addBusinessHours } from './business-hours.util';
+
 export const SOLUTION_ACCEPT_MINUTES = 15;
 export const SOLUTION_WORK_HOURS = 4;
 
@@ -128,21 +130,10 @@ function nextWorkingDayAt(parts: IctParts, clockMinutes: number): Date {
 }
 
 /** Before cutoff: add configured hours (clock starts at work start if earlier). After cutoff T2–T6 or weekend: next working day at the after-cutoff time. */
+/** 4 working hours (08:30-16:00 weekdays) from the moment the case is received. */
 export function solutionWorkDueAt(receivedAt: Date, rawSettings?: SolutionWorkDueSettings): Date {
   const settings = resolveSolutionWorkDueSettings(rawSettings);
-  const cutoff = parseClock(settings.cutoffTime, 15 * 60 + 30);
-  const after = parseClock(settings.afterCutoffTime, 11 * 60);
-  const workStart = parseClock(settings.workStartTime, 8 * 60 + 30);
-  const parts = ictParts(receivedAt);
-  const weekend = parts.weekday === 0 || parts.weekday === 6;
-  if (weekend || parts.minutes >= cutoff) {
-    return nextWorkingDayAt(parts, after);
-  }
-  const startAt =
-    parts.minutes < workStart
-      ? ictDate(parts.year, parts.month, parts.day, workStart)
-      : receivedAt;
-  return new Date(startAt.getTime() + settings.beforeCutoffHours * 60 * 60 * 1000);
+  return addBusinessHours(receivedAt, settings.beforeCutoffHours);
 }
 
 function parseTime(raw: string): number | null {

@@ -12,7 +12,7 @@ export const QUOTE_SHEET_ROLE_POSITION: Record<string, string> = {
 };
 
 export const QUOTE_SHEET_ROLE_LABEL: Record<string, string> = {
-  am: 'Account',
+  am: 'AM',
   strategist: 'Chiến lược',
   content: 'Nội dung',
   design: 'Thiết kế',
@@ -23,6 +23,33 @@ export const QUOTE_SHEET_ROLE_LABEL: Record<string, string> = {
   video_production: 'Sản xuất video',
   client: 'Khách hàng',
 };
+
+
+const QUOTE_UNIT_VI: Record<string, string> = {
+  times: 'lần',
+  time: 'lần',
+  month: 'tháng',
+  months: 'tháng',
+  shoot_day: 'ngày quay',
+  day: 'ngày',
+  days: 'ngày',
+  hour: 'giờ',
+  hours: 'giờ',
+  week: 'tuần',
+  weeks: 'tuần',
+  package: 'gói',
+  job: 'hạng mục',
+  item: 'hạng mục',
+  year: 'năm',
+  years: 'năm',
+};
+
+/** Map catalog unit codes to Vietnamese labels shown on the quote sheet and exports. */
+export function quoteUnitLabel(unit: string | null | undefined): string {
+  const raw = String(unit ?? '').trim();
+  if (!raw) return '';
+  return QUOTE_UNIT_VI[raw.toLowerCase()] ?? raw;
+}
 
 export const QUOTE_SHEET_MAX_SERVICES = 4;
 
@@ -62,6 +89,7 @@ export type QuoteSheetLineInput = {
   item_code: string;
   staff_id: number | null;
   hours: number;
+  qty?: number;
   included: boolean;
 };
 
@@ -215,10 +243,13 @@ export function readStoredQuoteSheet(raw: unknown): {
     const staffRaw = row.staff_id;
     const staffId = staffRaw == null || staffRaw === '' ? null : Number(staffRaw);
     const hours = Number(row.hours);
+    const qtyRaw = Number(row.qty);
+    const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.min(Math.round(qtyRaw * 100) / 100, 9999) : undefined;
     lines.push({
       item_code: itemCode,
       staff_id: staffId != null && Number.isFinite(staffId) && staffId > 0 ? Math.trunc(staffId) : null,
       hours: Number.isFinite(hours) ? hours : 0,
+      qty,
       included: row.included !== false,
     });
   }
@@ -267,10 +298,11 @@ export function assembleQuoteSheet(input: {
     const chargeable = item.billable && !item.client_only && item.role_code !== 'client';
     const override = overrideByCode.get(item.code);
     const hours = clampHours(override?.hours ?? item.est_hours, item.est_hours);
+    const qty = clampHours(override?.qty ?? item.qty, item.qty);
     const requestedStaff = override?.staff_id ?? defaultStaffId(item.role_code, input.staff);
     const person = requestedStaff != null ? staffById.get(requestedStaff) ?? null : null;
     const included = chargeable ? (override ? override.included : true) : false;
-    const amount = included ? quoteLineAmount(hours, item.qty, person?.hourly_vnd ?? 0) : 0;
+    const amount = included ? quoteLineAmount(hours, qty, person?.hourly_vnd ?? 0) : 0;
     if (included) {
       includedCount += 1;
       total += amount;
@@ -283,8 +315,8 @@ export function assembleQuoteSheet(input: {
       role_code: item.role_code,
       role_label: QUOTE_SHEET_ROLE_LABEL[item.role_code] ?? item.role_code,
       hours,
-      qty: item.qty,
-      unit: item.unit,
+      qty,
+      unit: quoteUnitLabel(item.unit),
       chargeable,
       staff_id: person?.id ?? null,
       staff_name: person?.name ?? '',

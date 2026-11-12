@@ -37,6 +37,7 @@ import { CopilotContextService } from './copilot-context.service';
 import { SlaAutoTaskService } from './sla-auto-task.service';
 import { LeadPatchFinalizeService } from './lead-patch-finalize.service';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     forwardRef(() => LeadsFunnelModule),
     AdminAuditModule,
     B2bProjectsModule,
+    StaffNotificationsModule,
   ],
   controllers: [LeadsController],
   providers: [

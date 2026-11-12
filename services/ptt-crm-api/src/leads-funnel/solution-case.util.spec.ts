@@ -18,9 +18,9 @@ function source(partial: Partial<SolutionCaseSource> = {}): SolutionCaseSource {
 }
 
 describe('solution work due', () => {
-  it('adds 4 hours before the cutoff on Monday (15:00 -> +4h)', () => {
+  it('adds 4 business hours on Monday 15:00 ICT into Tuesday 11:30 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-02T08:00:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-02T12:00:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-03T04:30:00.000Z');
   });
 
   it('adds 4 hours inside Monday morning after work start', () => {
@@ -33,32 +33,32 @@ describe('solution work due', () => {
     expect(due.toISOString()).toBe('2026-11-02T05:30:00.000Z');
   });
 
-  it('moves Tuesday after cutoff to Wednesday 11:00', () => {
+  it('carries Tuesday 15:45 ICT into Wednesday 12:15 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-04T04:00:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-04T05:15:00.000Z');
   });
 
-  it('moves Friday after cutoff to Monday 11:00 (same after-cutoff time)', () => {
+  it('carries Friday 15:45 ICT into Monday 12:15 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-06T08:45:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-09T04:00:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-09T05:15:00.000Z');
   });
 
-  it('moves Saturday (and Sunday) to Monday 11:00', () => {
+  it('starts Saturday and Sunday at Monday 08:30 then adds 4 business hours', () => {
     expect(solutionWorkDueAt(new Date('2026-11-07T03:00:00.000Z')).toISOString()).toBe(
-      '2026-11-09T04:00:00.000Z',
+      '2026-11-09T05:30:00.000Z',
     );
     expect(solutionWorkDueAt(new Date('2026-11-08T03:00:00.000Z')).toISOString()).toBe(
-      '2026-11-09T04:00:00.000Z',
+      '2026-11-09T05:30:00.000Z',
     );
   });
 
-  it('uses passed team settings instead of the defaults', () => {
+  it('uses beforeCutoffHours from team settings and ignores the old cutoff clock', () => {
     const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'), {
       cutoffTime: '16:00',
       beforeCutoffHours: 4,
       afterCutoffTime: '10:00',
     });
-    expect(due.toISOString()).toBe('2026-11-03T12:45:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-04T05:15:00.000Z');
   });
 });
 

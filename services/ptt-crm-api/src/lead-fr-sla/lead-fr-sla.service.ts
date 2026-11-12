@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
 import { isStatusTransitionAllowed } from '../leads/lead-status-gate.util';
 import { LeadsRepository } from '../leads/leads.repository';
@@ -59,6 +62,7 @@ export class LeadFrSlaService {
     private readonly settings: LeadSlaSettingsService,
     private readonly leads: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   private async caseConfig(): Promise<LeadFrSlaCaseConfig> {
@@ -98,6 +102,23 @@ export class LeadFrSlaService {
     };
   }
 
+  async claimSalesLead(leadId: number, staffUser?: StaffJwtPayload) {
+    const row = await this.repo.getLeadSlaRow(leadId);
+    if (!row) throw new NotFoundException({ error: 'lead_not_found' });
+    const staffId = staffUser
+      ? await this.staffAuth.resolveCrmStaffUserId(staffUser)
+      : null;
+    const isSuper = staffUser ? await this.staffAuth.isSuperAdminUser(staffUser) : false;
+    const ownerId = Number(row.owner_id ?? 0);
+    if (!isSuper && (staffId == null || staffId !== ownerId)) {
+      throw new ForbiddenException({
+        error: 'Chỉ người được giao lead mới nhận được.',
+      });
+    }
+    await this.repo.claimSalesLead(leadId);
+    return this.readSla(leadId);
+  }
+
   async readSla(leadId: number) {
     const row = await this.repo.getLeadSlaRow(leadId);
     if (!row) throw new NotFoundException({ error: 'lead_not_found' });
@@ -116,6 +137,7 @@ export class LeadFrSlaService {
       fr1_channels: payload.fr1_channels,
       reassign_enabled: payload.feature_flags.lead_sla_reassign_enabled,
       assigned_at: snap.assigned_at.toISOString(),
+      sales_claimed_at: asDate(row.sales_claimed_at)?.toISOString() ?? null,
       fr1_due_at: snap.fr1_due_at?.toISOString() ?? null,
       first_call_at: snap.first_call_at?.toISOString() ?? null,
       fr1_breached: snap.fr1_breached,

@@ -55,6 +55,7 @@ describe('generatePresalesMarketingPlanAiDraft', () => {
       {} as never,
       {} as never,
       aiConfig as never,
+      {} as never,
     );
   }
 

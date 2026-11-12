@@ -20,20 +20,22 @@ import type {
   IntakeStepSummary,
   PresalesFunnelStepKey,
 } from '@/lib/crm/funnel-stepper.types';
-import { summarizeLeadIntake } from '@/lib/crm/funnel-stepper.util';
+import { resolveActiveStep, summarizeLeadIntake } from '@/lib/crm/funnel-stepper.util';
+import { resolveLeadQuoteOpenHref } from '@/lib/crm/sales-quote-open.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
-import { isBaoGiaKanbanColumn, normalizeLeadStatus } from '@/lib/crm/lead-status';
+import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
+import { LeadHandoffTimeline } from '@/components/crm/LeadHandoffTimeline';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
 import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
@@ -70,6 +72,7 @@ import {
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
+import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelB2Complete,
@@ -225,6 +228,8 @@ export default function CrmLeadDetailPage() {
   const [desktopTab, setDesktopTab] = useState<LeadWorkspaceDesktopTab>('pipeline');
   const userPickedWorkspaceTab = useRef(false);
   const workspaceTabLeadId = useRef<number | null>(null);
+  const userPickedPipelineStep = useRef(false);
+  const pipelineStepLeadId = useRef<number | null>(null);
   const [pipelineStep, setPipelineStep] = useState<PresalesFunnelStepKey>('b2');
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
@@ -275,6 +280,7 @@ export default function CrmLeadDetailPage() {
   const [party, setParty] = useState<LeadPartyFormValue>(emptyLeadParty());
   const [partySaving, setPartySaving] = useState(false);
   const [quoteHref, setQuoteHref] = useState<string | null>(null);
+  const [salesClaimedAt, setSalesClaimedAt] = useState<string | null>(null);
   const [nbaBusy, setNbaBusy] = useState(false);
   const [b2CallJustPlaced, setB2CallJustPlaced] = useState(false);
   const [cockpitOpen, setCockpitOpen] = useState(false);
@@ -282,7 +288,7 @@ export default function CrmLeadDetailPage() {
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
-  const copilotOn = aiCopilotEnabled();
+  const copilotOn = aiCopilotEnabled() && Boolean(funnelSnap?.presales_ai_configured);
   const solutionCaps = useMemo(() => resolvePresalesSolutionCaps(user), [user]);
 
   const leadFlowKind = useMemo(
@@ -291,7 +297,7 @@ export default function CrmLeadDetailPage() {
       (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : 'b2b_prospect'),
     [lead, funnelSnap, statusOptionsApi?.lead_flow_kind],
   );
-  const statusDropdownOptions = statusOptionsApi?.allowed_next ?? [];
+  const statusDropdownOptions = localizeLeadStatusOptions(statusOptionsApi?.allowed_next ?? []);
   const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
   const quoteStage = normalizeLeadStatus(lead?.status);
@@ -299,13 +305,19 @@ export default function CrmLeadDetailPage() {
   const inBaoGiaColumn = isBaoGiaKanbanColumn(lead?.status);
   const quoteCasePhase = funnelSnap?.presales?.quote_case?.phase ?? '';
   const superAdmin = isSuperAdmin(user);
-  const quoteWithSale = quoteCasePhase === 'sale_review';
+  const salesViewer = isAccountExecutive(user) && !superAdmin;
+  const quoteWithSale = quoteCasePhase === 'ceo_review' || quoteCasePhase === 'sale_review';
   const showLeadQuoteSheet =
-    quoteCasePhase === 'bao_gia' ||
-    quoteCasePhase === 'sale_review' ||
+    ((quoteCasePhase === 'bao_gia' || quoteCasePhase === 'ceo_review' || quoteCasePhase === 'sale_review') &&
+      !salesViewer) ||
     quoteCasePhase === 'hop_dong' ||
     quoteCasePhase === 'trien_khai' ||
     (superAdmin && inBaoGiaColumn);
+  const quoteOpenHref = resolveLeadQuoteOpenHref({
+    isSales: salesViewer,
+    quoteSheetVisible: showLeadQuoteSheet,
+    existingProposalHref: quoteHref,
+  });
   const hourQuoteEdit = inBaoGiaColumn && !quoteWithSale;
   const hourQuoteView =
     quoteWithSale ||
@@ -336,7 +348,59 @@ export default function CrmLeadDetailPage() {
     pipelineTabOn && shouldShowPipelineTab(leadFlowKind) && canViewCrmLeadDetail(user);
   const prepDeepLink = searchParams.get('prep') === '1';
 
-  const nba = useMemo(() => {
+
+  useEffect(() => {
+    if (!lead) {
+      setLeadPageNextHint(null);
+      return;
+    }
+    const viewer = superAdmin
+      ? 'admin'
+      : salesViewer
+        ? 'sales'
+        : isAccountManager(user)
+          ? 'am'
+          : isCeoPosition(user)
+            ? 'ceo'
+            : 'other';
+    const claimed = Boolean(
+      (lead as { sales_claimed_at?: string | null }).sales_claimed_at ||
+        (lead as { claimed_at?: string | null }).claimed_at ||
+        b2Complete ||
+        salesClaimedAt,
+    );
+    const presalesRow = funnelSnap?.presales?.presales as
+      | { solution_revision_note?: string; handoff_status?: string }
+      | undefined;
+    setLeadPageNextHint({
+      claimed,
+      b2Complete,
+      presalesStage,
+      handoffStatus:
+        funnelSnap?.presales?.handoff?.status ?? presalesRow?.handoff_status ?? null,
+      quotePhase: quoteCasePhase || null,
+      quoteRejected: Boolean(funnelSnap?.presales?.quote_case?.change_note),
+      solutionPhase: funnelSnap?.presales?.solution_case?.phase ?? null,
+      revisionNote:
+        funnelSnap?.presales?.solution_case?.revision_note ||
+        presalesRow?.solution_revision_note ||
+        null,
+      viewer,
+    });
+    return () => setLeadPageNextHint(null);
+  }, [
+    lead,
+    b2Complete,
+    presalesStage,
+    funnelSnap,
+    quoteCasePhase,
+    superAdmin,
+    salesViewer,
+    user,
+    salesClaimedAt,
+  ]);
+
+    const nba = useMemo(() => {
     if (!lead) return null;
     return resolveLeadNextAction({
       lmpEnabled: showLmpTab,
@@ -399,9 +463,11 @@ export default function CrmLeadDetailPage() {
 
   const reloadFunnel = useCallback(async (access: string) => {
     if (!showB2bFlow) return;
+    let funnelIntake: IntakeSessionRow[] = [];
     try {
       const snap = await fetchLeadFunnel(access, leadId);
       setFunnelSnap(snap);
+      funnelIntake = (snap.intake_sessions ?? []) as IntakeSessionRow[];
     } catch {
       /* funnel optional until B2 complete */
     }
@@ -410,7 +476,8 @@ export default function CrmLeadDetailPage() {
         fetchIntakeSessions(access, { lead_id: leadId }).catch(() => [] as IntakeSessionRow[]),
         fetchLeadPresalesConsultGate(access, leadId).catch(() => null),
       ]);
-      setIntakeSummary(summarizeLeadIntake(sessions));
+      const merged = sessions.length ? sessions : funnelIntake;
+      setIntakeSummary(summarizeLeadIntake(merged));
       setConsultGate(
         gateOut?.gate ?? {
           ok: false,
@@ -578,15 +645,15 @@ export default function CrmLeadDetailPage() {
         break;
       case 'handoff_solution': {
         if (!token) return;
-        if (typeof window !== 'undefined' && !window.confirm('Xác nhận giao Solution/MKT?')) return;
+        if (typeof window !== 'undefined' && !window.confirm('Xác nhận SUBMIT FOR SOLUTION?')) return;
         setNbaBusy(true);
         setError('');
         try {
           const first = await handoffLeadToSolution(token, leadId, { confirm: true });
           setFunnelSnap(first.funnel);
-          setMessage('Đã giao Solution/MKT');
+          setMessage('Đã gửi SUBMIT FOR SOLUTION');
         } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Giao Solution thất bại';
+          const msg = err instanceof Error ? err.message : 'SUBMIT FOR SOLUTION thất bại';
           if (/override/i.test(msg) && typeof window !== 'undefined') {
             const reason = window.prompt('Director override — nhập lý do:');
             if (!reason?.trim()) {
@@ -599,9 +666,9 @@ export default function CrmLeadDetailPage() {
                 override_reason: reason.trim(),
               });
               setFunnelSnap(retry.funnel);
-              setMessage('Đã giao Solution/MKT (override)');
+              setMessage('Đã gửi SUBMIT FOR SOLUTION (override)');
             } catch (retryErr) {
-              setError(retryErr instanceof Error ? retryErr.message : 'Giao Solution thất bại');
+              setError(retryErr instanceof Error ? retryErr.message : 'SUBMIT FOR SOLUTION thất bại');
             }
           } else {
             setError(msg);
@@ -1035,9 +1102,26 @@ export default function CrmLeadDetailPage() {
       showLmp: showLmpTab,
     });
     setDesktopTab(tab);
+    if (pipelineStepLeadId.current !== leadId) {
+      userPickedPipelineStep.current = false;
+      pipelineStepLeadId.current = leadId;
+    }
     const stepFromQuery = searchParams.get('step') as PresalesFunnelStepKey | null;
-    if (mapped) setPipelineStep(mapped.step);
-    else if (stepFromQuery) setPipelineStep(stepFromQuery);
+    if (mapped) {
+      setPipelineStep(mapped.step);
+    } else if (stepFromQuery) {
+      setPipelineStep(stepFromQuery);
+    } else if (!userPickedPipelineStep.current) {
+      // Follow the live funnel step so a lead already past B2 (Báo giá / Hợp đồng)
+      // does not reopen the stale Liên hệ lần đầu panel with a ticking 15-minute clock.
+      const resolved = resolveActiveStep({
+        funnel: funnelSnap,
+        consultGate,
+        intakeSummary,
+        context: 'lead_detail',
+      });
+      if (resolved) setPipelineStep(resolved);
+    }
   }, [
     showPipelineTab,
     leadId,
@@ -1049,6 +1133,8 @@ export default function CrmLeadDetailPage() {
     showLmpTab,
     leadFlowKind,
     marketingLeader,
+    consultGate,
+    intakeSummary,
   ]);
 
   useEffect(() => {
@@ -1329,6 +1415,7 @@ export default function CrmLeadDetailPage() {
               token={accessToken}
               leadId={leadId}
               phase={quoteCasePhase || 'trien_khai'}
+              viewerIsSales={salesViewer}
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
               onError={setError}
@@ -1518,7 +1605,7 @@ export default function CrmLeadDetailPage() {
               disabled={!hasCap(user, 'crm_leads', 'edit') || partySaving}
               onSave={() => void onSaveParty()}
               saving={partySaving}
-              quoteHref={quoteHref}
+              quoteHref={quoteOpenHref}
             />
           </div>
           {accessToken && lead && !marketingLeader ? (
@@ -1527,9 +1614,21 @@ export default function CrmLeadDetailPage() {
               status={lead.status || status}
               intakeSummary={intakeSummary}
               serviceSlug={presetServiceSlug}
+              loading={!intakeSummary && !funnelSnap}
+              pastBant={Boolean(
+                funnelSnap?.presales?.quote_case ||
+                  funnelSnap?.presales?.handoff?.status === 'pending' ||
+                  funnelSnap?.presales?.handoff?.status === 'with_solution' ||
+                  funnelSnap?.presales?.handoff?.status === 'released' ||
+                  funnelSnap?.presales?.handoff?.status === 'returned' ||
+                  presalesStage === 'consult' ||
+                  presalesStage === 'proposal',
+              )}
             />
           ) : null}
 
+
+          {showB2bFlow ? <LeadHandoffTimeline funnel={funnelSnap} /> : null}
 
           {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
@@ -1559,6 +1658,7 @@ export default function CrmLeadDetailPage() {
               leadId={leadId}
               canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'create')}
               status={lead?.status || status}
+              onClaimed={setSalesClaimedAt}
             />
           ) : null}
 
@@ -1612,7 +1712,7 @@ export default function CrmLeadDetailPage() {
                 <div>
                   <strong>Deal Room</strong>
                   <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                    1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
+                    Một màn hình: kế hoạch tư vấn, kế hoạch marketing và báo giá — chuẩn bị buổi chốt.
                   </p>
                 </div>
                 <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
@@ -1638,6 +1738,7 @@ export default function CrmLeadDetailPage() {
                 leadId={leadId}
                 funnel={funnelSnap}
                 viewerIsCeo={isCeoPosition(user) || superAdmin}
+                viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
                 onLeadReload={async () => {
                   const row = await fetchLead(accessToken, leadId);
@@ -1666,6 +1767,7 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 phase={superAdmin && !quoteCasePhase ? 'bao_gia' : quoteCasePhase}
+                viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}
@@ -1778,7 +1880,10 @@ export default function CrmLeadDetailPage() {
                   scope: 'full_b2b',
                 }}
                 activeStepKey={pipelineStep}
-                onStepChange={setPipelineStep}
+                onStepChange={(key) => {
+                  userPickedPipelineStep.current = true;
+                  setPipelineStep(key);
+                }}
                 onFunnelPrimaryAction={(action) => void onPipelineFunnelPrimaryAction(action)}
                 actionBusy={nbaBusy}
                 serviceSlug={presetServiceSlug}
@@ -1815,6 +1920,8 @@ export default function CrmLeadDetailPage() {
                 }
                 slaDetail={copilotContext?.sla.banner.message ?? null}
                 leadStatus={lead?.status || status}
+                viewerIsSales={salesViewer}
+                quoteSheetVisible={showLeadQuoteSheet}
               />
               </div>
             ) : null}
@@ -1857,7 +1964,7 @@ export default function CrmLeadDetailPage() {
                         <div>
                           <strong>Deal Room</strong>
                           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                            1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
+                            Một màn hình: kế hoạch tư vấn, kế hoạch marketing và báo giá — chuẩn bị buổi chốt.
                           </p>
                         </div>
                         <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">

@@ -78,12 +78,12 @@ export function PresalesR5PreviewPanel({
   }
 
   return (
-    <section className="presales-r5-preview stack-gap" id="funnel-presales-r5-preview" aria-label="R5 preview">
+    <section className="presales-r5-preview stack-gap" id="funnel-presales-r5-preview" aria-label="Xem nhanh kế hoạch marketing">
       <div className="presales-r5-preview__head">
-        <h4 style={{ margin: 0 }}>KH Marketing sơ bộ (R5)</h4>
+        <h4 style={{ margin: 0 }}>Kế hoạch marketing sơ bộ</h4>
         {stage === 'proposal' && onEditR5 ? (
           <button type="button" className="btn btn-sm btn-secondary" onClick={onEditR5}>
-            Sửa R5 →
+            Sửa kế hoạch →
           </button>
         ) : null}
         {stage === 'consult' && onEditR5 ? (
@@ -93,7 +93,7 @@ export function PresalesR5PreviewPanel({
         ) : null}
       </div>
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-        Xem nhanh · gate G4 cần R5 đủ trước <strong>Chuyển → Báo giá</strong>.
+        Xem nhanh — cần đủ kế hoạch marketing trước khi <strong>Chuyển → Báo giá</strong>.
       </p>
       {planValidation.length > 0 ? (
         <ul
@@ -126,7 +126,7 @@ export function PresalesR5PreviewPanel({
         </div>
       ) : g4Clear ? null : (
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Đủ gate G4 rồi mới xuất file gửi khách.
+          Đủ kế hoạch marketing rồi mới xuất file gửi khách.
         </p>
       )}
     </section>

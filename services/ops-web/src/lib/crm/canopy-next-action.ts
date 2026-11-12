@@ -1,3 +1,5 @@
+import type { LeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
+
 /** Sale work that sits above Solution. Marketing Leader does not see these prompts. */
 function isSaleEarlyPath(path: string): boolean {
   return (
@@ -13,13 +15,103 @@ function isSaleEarlyPath(path: string): boolean {
   );
 }
 
+
+function normalize(value: string | null | undefined): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+/** Stage-aware line for the lead-detail chrome banner. */
+export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefined): string {
+  const phase = normalize(hint?.quotePhase);
+  const handoff = normalize(hint?.handoffStatus);
+  const stage = normalize(hint?.presalesStage);
+  const viewer = hint?.viewer ?? 'other';
+  const isAm = viewer === 'am' || viewer === 'admin';
+  const isCeo = viewer === 'ceo' || viewer === 'admin';
+  const isSales = viewer === 'sales';
+
+  if (phase === 'trien_khai') {
+    return 'Bước tiếp: lead đã sang Triển khai.';
+  }
+  if (phase === 'hop_dong') {
+    return isSales
+      ? 'Bước tiếp: xem và tải báo giá đã duyệt; gửi hợp đồng cho GĐKD duyệt.'
+      : 'Bước tiếp: báo giá đã được CEO duyệt — Sales có thể xem và tải.';
+  }
+  if (phase === 'ceo_review' || phase === 'sale_review') {
+    return isCeo
+      ? 'Bước tiếp: duyệt hoặc từ chối báo giá (kèm lý do nếu từ chối).'
+      : 'Bước tiếp: chờ CEO duyệt báo giá.';
+  }
+  if (phase === 'bao_gia' || phase === 'chuyen_bao_gia') {
+    if (hint?.quoteRejected && isAm) {
+      return 'Bước tiếp: chỉnh báo giá theo lý do CEO từ chối, rồi gửi lại.';
+    }
+    return isAm
+      ? 'Bước tiếp: hoàn thiện bảng báo giá rồi gửi CEO duyệt.'
+      : 'Bước tiếp: chờ AM lập báo giá (hạn 2 giờ làm việc).';
+  }
+  if (handoff === 'released' || stage === 'proposal') {
+    return isAm
+      ? 'Bước tiếp: khách đã đồng ý — lập báo giá trong 2 giờ làm việc.'
+      : 'Bước tiếp: khách đã đồng ý — chờ AM lập báo giá.';
+  }
+  const hasRevision = Boolean(String(hint?.revisionNote ?? '').trim());
+  const returned =
+    handoff === 'returned' ||
+    handoff === 'returned_to_sales' ||
+    handoff === 'return' ||
+    (hasRevision &&
+      phase !== 'trien_khai' &&
+      phase !== 'hop_dong' &&
+      phase !== 'ceo_review' &&
+      phase !== 'sale_review' &&
+      phase !== 'bao_gia' &&
+      phase !== 'chuyen_bao_gia' &&
+      handoff !== 'with_solution' &&
+      handoff !== 'released' &&
+      handoff !== 'pending');
+  if (returned) {
+    const reason = String(hint?.revisionNote ?? '').trim();
+    return reason
+      ? `Bước tiếp: Solutions đã trả lại case — bổ sung thông tin theo lý do: ${reason}. Rồi gửi lại.`
+      : 'Bước tiếp: Solutions đã trả lại case — bổ sung thông tin theo yêu cầu, rồi gửi lại.';
+  }
+  if (handoff === 'with_solution') {
+    return isAm
+      ? 'Bước tiếp: hoàn thiện Solution và trả về Sales trong hạn làm việc.'
+      : 'Bước tiếp: Solutions đang xử lý case — bạn chỉ xem.';
+  }
+  if (handoff === 'pending') {
+    return isAm
+      ? 'Bước tiếp: nhận case Solutions trên hàng chờ.'
+      : 'Bước tiếp: đã gửi SUBMIT FOR SOLUTION — chờ Solutions nhận case.';
+  }
+  if (hint?.b2Complete) {
+    if (stage === 'consult' || stage === 'lead') {
+      return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
+    }
+    return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
+  }
+  if (hint?.claimed) {
+    return 'Bước tiếp: liên hệ khách và hoàn thành bước Liên hệ lần đầu (B2).';
+  }
+  return 'Bước tiếp: nhận lead trong 15 phút.';
+}
+
+
 /** P2 — one next-action line per workspace path (Pipedrive-style). */
 export function nextActionFor(
   pathname: string,
-  options?: { hideSaleEarly?: boolean },
+  options?: { hideSaleEarly?: boolean; leadHint?: LeadPageNextHint | null },
 ): string | null {
   const path = String(pathname ?? '').split('?')[0] || '/';
-  if (options?.hideSaleEarly && isSaleEarlyPath(path)) return null;
+  if (options?.hideSaleEarly && isSaleEarlyPath(path)) {
+    if (path.startsWith('/crm/leads/') && path !== '/crm/leads' && options?.leadHint) {
+      return nextActionForLeadDetail(options.leadHint);
+    }
+    return null;
+  }
 
   if (path === '/crm/b2b/leads' || path === '/crm/leads') {
     return 'Bước tiếp: gọi lead Nóng trong giờ làm việc — mở card hoặc Inbox.';
@@ -28,7 +120,8 @@ export function nextActionFor(
     return 'Bước tiếp: chọn Dự án PTT, lưu lead, rồi gọi trong 15 phút.';
   }
   if (path.startsWith('/crm/leads/') && path !== '/crm/leads') {
-    return 'Bước tiếp: Intake BANT hoặc chuyển giai đoạn trên funnel — một CTA xanh.';
+    if (options?.leadHint) return nextActionForLeadDetail(options.leadHint);
+    return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
   }
   if (path.startsWith('/crm/b2b-inbox')) {
     return 'Bước tiếp: mở thread Nóng, trả lời, rồi cập nhật trạng thái lead.';

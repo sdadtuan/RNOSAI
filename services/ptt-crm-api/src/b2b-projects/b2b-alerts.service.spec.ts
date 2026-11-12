@@ -4,7 +4,7 @@ describe('B2bAlertsService', () => {
   it('B2B-17 does not insert for outsider', async () => {
     const repo = { insertAlerts: jest.fn() };
     const push = { send: jest.fn() };
-    const svc = new B2bAlertsService(repo as never, push as never);
+    const svc = new B2bAlertsService(repo as never, push as never, { notifyStaff: jest.fn() } as never);
     await svc.fanoutArrival({
       lead: { flowKind: 'b2b_prospect', ownerId: 10, projectId: 'p', score: 80, leadId: 1 },
       inHours: true,
@@ -25,7 +25,7 @@ describe('B2bAlertsService', () => {
   it('B2B-16 inserts urgent alert for hot owner', async () => {
     const repo = { insertAlerts: jest.fn() };
     const push = { send: jest.fn() };
-    const svc = new B2bAlertsService(repo as never, push as never);
+    const svc = new B2bAlertsService(repo as never, push as never, { notifyStaff: jest.fn() } as never);
     await svc.fanoutArrival({
       lead: { flowKind: 'b2b_prospect', ownerId: 10, projectId: 'p', score: 80, leadId: 2 },
       inHours: true,

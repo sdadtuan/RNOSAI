@@ -36,7 +36,7 @@ export type QuoteDesk = 'sale' | 'am';
 /** Who must act on this quote step. Hợp đồng and Triển Khai are not reassigned here. */
 export function quoteDeskForPhase(phase: QuoteCasePhase): QuoteDesk | null {
   if (phase === 'chuyen_bao_gia' || phase === 'bao_gia') return 'am';
-  if (phase === 'sale_approve_solution' || phase === 'sale_review') return 'sale';
+  if (phase === 'sale_approve_solution') return 'sale';
   return null;
 }
 
@@ -92,6 +92,7 @@ export type QuoteCasePhase =
   | 'sale_approve_solution'
   | 'chuyen_bao_gia'
   | 'bao_gia'
+  | 'ceo_review'
   | 'sale_review'
   | 'hop_dong'
   | 'trien_khai';
@@ -99,7 +100,7 @@ export type QuoteCasePhase =
 export interface QuoteCaseView {
   phase: QuoteCasePhase;
   step_label: string;
-  expected_role: 'Sale' | 'AM' | '';
+  expected_role: 'Sale' | 'AM' | 'CEO' | '';
   accept_due_at: string;
   quote_due_at: string;
   change_note: string;
@@ -231,12 +232,12 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
     stepLabel = 'Hợp đồng';
     expected = 'AM';
   } else if (sentBack) {
-    phase = 'sale_review';
-    stepLabel = 'Báo giá chờ Sale';
-    expected = 'Sale';
+    phase = 'ceo_review';
+    stepLabel = 'Chờ CEO duyệt';
+    expected = 'CEO';
   } else if (accepted) {
     phase = 'bao_gia';
-    stepLabel = 'Báo giá';
+    stepLabel = note ? 'Chỉnh sửa báo giá' : 'Chờ lập báo giá';
     expected = 'AM';
   } else if (approved) {
     phase = 'chuyen_bao_gia';
@@ -246,7 +247,7 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
 
   const acceptDue = String(row.quote_accept_due_at ?? '').trim();
   const quoteDue = String(row.quote_due_at ?? '').trim();
-  const timerStopped = phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
+  const timerStopped = phase === 'ceo_review' || phase === 'hop_dong' || phase === 'trien_khai';
   let timerLabel = '';
   let timerDue = '';
   if (!timerStopped && phase === 'chuyen_bao_gia') {

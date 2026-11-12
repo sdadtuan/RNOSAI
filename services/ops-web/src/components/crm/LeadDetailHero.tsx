@@ -122,7 +122,7 @@ export function LeadDetailHero({
                 <span className="lead-detail-hero__meta-value">{lead.source || '—'}</span>
               </span>
               <span className="lead-detail-hero__meta-item">
-                <span className="lead-detail-hero__meta-label">Owner</span>
+                <span className="lead-detail-hero__meta-label">Phụ trách</span>
                 <span className="lead-detail-hero__meta-value">{ownerLabel || 'Chưa phân'}</span>
               </span>
               <span className="lead-detail-hero__meta-item">

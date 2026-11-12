@@ -25,6 +25,7 @@ import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { shouldRequestImageFlags } from '@/lib/crm/cp-image-sop.flags';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
+import { useLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
 import { isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
 import { winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import {
@@ -289,6 +290,7 @@ export function OpsNav({
 }: OpsNavProps) {
   const phoneSheet = variant === 'phone';
   const pathname = usePathname();
+  const leadHint = useLeadPageNextHint();
   const router = useRouter();
   const [navUser, setNavUser] = useState<StoredStaffUser | null>(user);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -444,7 +446,7 @@ export function OpsNav({
       }),
     [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread, imageSopEnabled],
   );
-  const nextAction = nextActionFor(pathname, { hideSaleEarly: isMarketingLeader(sidebarUser) });
+  const nextAction = nextActionFor(pathname, { hideSaleEarly: isMarketingLeader(sidebarUser), leadHint });
 
   useEffect(() => {
     if (navReady) return;

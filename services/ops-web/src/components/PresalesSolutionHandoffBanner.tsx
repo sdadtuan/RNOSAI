@@ -34,7 +34,7 @@ export function PresalesSolutionHandoffBanner({
       <p style={{ margin: '0.35rem 0 0' }}>{text}</p>
       {readOnly ? (
         <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-          Bạn theo dõi — không chỉnh Consult/R5. Solution trả Sales khi sẵn sàng Báo giá.
+          Bạn chỉ xem — không chỉnh kế hoạch tư vấn. Solutions sẽ trả về Sales khi sẵn sàng lập báo giá.
         </p>
       ) : null}
       <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>

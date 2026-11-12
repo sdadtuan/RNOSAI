@@ -25,10 +25,11 @@ describe('leadPropertyRows', () => {
       'created',
       'band',
     ]);
+    expect(rows.find((r) => r.key === 'owner')?.label).toBe('Phụ trách');
     expect(rows.find((r) => r.key === 'owner')?.value).toBe('Lan');
     expect(rows.find((r) => r.key === 'band')).toEqual({
       key: 'band',
-      label: 'Band',
+      label: 'Hạng',
       value: 'Nóng',
       tone: 'hot',
     });

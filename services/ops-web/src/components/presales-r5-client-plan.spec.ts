@@ -34,7 +34,7 @@ describe('PresalesClientBriefCard', () => {
     expect(html).toContain('Khách của họ là ai');
     expect(html).toContain('PTT_MKT_AI_MODEL');
     expect(html).toContain('gpt-4o-mini');
-    expect(html).toContain('AI điền R5');
+    expect(html).toContain('AI điền kế hoạch');
     expect(html.match(/client-plan-brief__star/g)).toHaveLength(3);
     expect(html).not.toContain('Gửi email');
   });
@@ -56,7 +56,7 @@ describe('PresalesR5PreviewPanel export', () => {
       }),
     );
     expect(html).not.toContain('Tạo file gửi khách');
-    expect(html).toContain('Đủ gate G4 rồi mới xuất file gửi khách.');
+    expect(html).toContain('Đủ kế hoạch marketing rồi mới xuất file gửi khách.');
     expect(html).toContain('Chỉnh sửa trên Tổng quan →');
     expect(html).not.toContain('Gửi email');
   });
@@ -81,7 +81,7 @@ describe('PresalesR5PreviewPanel export', () => {
       }),
     );
     expect(html).toContain('Tạo file gửi khách');
-    expect(html).not.toContain('Đủ gate G4 rồi mới xuất file gửi khách.');
+    expect(html).not.toContain('Đủ kế hoạch marketing rồi mới xuất file gửi khách.');
     expect(html).not.toContain('Gửi email');
   });
 });

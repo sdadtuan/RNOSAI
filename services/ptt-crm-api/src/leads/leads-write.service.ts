@@ -3,7 +3,9 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
@@ -38,6 +40,8 @@ import { LeadsRepository } from './leads.repository';
 import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 
 @Injectable()
 export class LeadsWriteService {
@@ -58,7 +62,34 @@ export class LeadsWriteService {
     private readonly leadsRepo: LeadsRepository,
     private readonly assignmentLog: CrmLeadsPgRepository,
     private readonly leadSlaSettings: LeadSlaSettingsService,
+    @Optional() private readonly notifications?: StaffNotificationsRepository,
   ) {}
+
+
+  private readonly notifyLogger = new Logger(LeadsWriteService.name);
+
+  private async notifyLeadAssigned(staffId: number | null | undefined, leadId: number): Promise<void> {
+    const id = Number(staffId);
+    if (!this.notifications) {
+      this.notifyLogger.error(
+        `lead_assigned notify skipped: StaffNotificationsRepository not injected (lead=${leadId}, staff=${staffId})`,
+      );
+      return;
+    }
+    if (!Number.isFinite(id) || id <= 0) {
+      this.notifyLogger.warn(
+        `lead_assigned notify skipped: invalid staff id ${String(staffId)} (lead=${leadId})`,
+      );
+      return;
+    }
+    try {
+      await this.notifications.notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId }));
+    } catch (err) {
+      this.notifyLogger.error(
+        `lead_assigned notify failed lead=${leadId} staff=${id}: ${err instanceof Error ? err.stack || err.message : err}`,
+      );
+    }
+  }
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
     if (!body.full_name?.trim()) {
@@ -143,6 +174,10 @@ export class LeadsWriteService {
           assigned_by: 'auto_assign',
         });
         await this.leadSlaSettings.applyFr1OnNewAssign(lead.id).catch(() => undefined);
+        // Always notify the owner. B2B fanout may also alert project staff; a missing
+        // project-staff membership (or a transient enriched.b2b_project_id) must not
+        // swallow the owner's «Lead mới được giao» bell.
+        await this.notifyLeadAssigned(lead.owner_id, lead.id);
       }
       await this.scoreAsync.enqueueAfterLeadCreated({
         leadId: lead.id,
@@ -330,6 +365,9 @@ export class LeadsWriteService {
           });
         }
         await this.leadSlaSettings.applyFr1OnNewAssign(leadId).catch(() => undefined);
+        if (result.assigned || b2bManual) {
+          await this.notifyLeadAssigned(body.owner_id, leadId);
+        }
       }
       if (result.status_changed && body.status !== undefined) {
         await this.conversionFx.enqueueConversionEval({

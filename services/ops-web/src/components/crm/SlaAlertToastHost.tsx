@@ -56,7 +56,7 @@ export function SlaAlertToastHost({ user }: { user: StoredStaffUser | null }) {
       if (!token || cancelled) return;
       inFlight = true;
       try {
-        const data = await fetchCskhSlaPredictions(token);
+        const data = await fetchCskhSlaPredictions(token, { scope: 'self' });
         if (!cancelled) pushAlerts(data.items);
       } catch (err) {
         if (isApiUnauthorized(err)) stopAfterUnauthorized(token);

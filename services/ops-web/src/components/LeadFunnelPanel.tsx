@@ -24,6 +24,7 @@ import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePane
 import { LeadPipelinePresalesPanel } from '@/components/crm/LeadPipelinePresalesPanel';
 import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
 import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import {
@@ -88,7 +89,7 @@ export function mergePresalesServiceOptions(
   for (const item of catalog ?? []) {
     const slug = String(item.slug ?? '').trim();
     if (!slug) continue;
-    bySlug.set(slug, { slug, name: String(item.name ?? slug).trim() || slug });
+    bySlug.set(slug, { slug, name: intakeServiceLabel(slug, item.name) });
   }
   return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
@@ -253,7 +254,7 @@ export function LeadFunnelPanel({
 
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
-  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
+  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user) && funnel?.presales_ai_configured);
   const prepChip = prepStatus ? prepStatusChipLabel(prepStatus) : null;
 
   async function run(action: () => Promise<void>, refreshContract = false) {
@@ -402,7 +403,9 @@ export function LeadFunnelPanel({
         draft={taskDrafts[task.id] ?? {}}
         disabled={busy || !canEdit}
         showAiAssist={
-          funnel.presales!.presales.stage === 'consult' && task.ai_prompt_key === 'consult_analysis'
+          Boolean(funnel.presales_ai_configured) &&
+          funnel.presales!.presales.stage === 'consult' &&
+          task.ai_prompt_key === 'consult_analysis'
         }
         aiBusy={aiBusyTaskId === task.id}
         onAiAssist={(taskId, formData) =>

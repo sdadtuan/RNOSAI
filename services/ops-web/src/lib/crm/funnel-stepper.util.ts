@@ -1,4 +1,5 @@
 import type { LeadFunnelSnapshot } from '@/lib/api';
+import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
 import { funnelB2Complete, funnelPresalesStage, funnelServiceSlug } from '@/lib/crm/funnel-snapshot.util';
 import type { PresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
@@ -77,7 +78,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate) {
     return {
       kind: 'none',
-      label: 'Giao Solution/AM →',
+      label: 'SUBMIT FOR SOLUTION →',
       disabled: true,
       blockReason: 'Đang tải gate…',
     };
@@ -86,7 +87,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate.ok || consultGate.level === 'block') {
     return {
       kind: 'handoff_solution',
-      label: 'Giao Solution/AM →',
+      label: 'SUBMIT FOR SOLUTION →',
       disabled: true,
       blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện giao Solution',
       requiresOverride: consultGate.requires_override,
@@ -96,7 +97,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
   return {
     kind: 'handoff_solution',
-    label: requiresConfirm ? 'Giao Solution/AM (xác nhận) →' : 'Giao Solution/AM →',
+    label: requiresConfirm ? 'SUBMIT FOR SOLUTION (xác nhận) →' : 'SUBMIT FOR SOLUTION →',
     disabled: false,
     requiresConfirm,
   };
@@ -224,22 +225,7 @@ export function resolveGateStrip(
   funnel?: LeadFunnelSnapshot | null,
   context?: FunnelStepperContext,
 ): FunnelGateStripViewModel | null {
-  if (
-    activeStep === 'consult' &&
-    consultProposalSla &&
-    (consultProposalSla.sla_state === 'warning' || consultProposalSla.sla_state === 'breach')
-  ) {
-    return {
-      tone: consultProposalSla.sla_state === 'breach' ? 'block' : 'warn',
-      gateKind: 'sla',
-      title:
-        consultProposalSla.sla_state === 'breach'
-          ? 'SLA 48h Consult → Báo giá — Quá hạn'
-          : 'SLA 48h Consult → Báo giá — Sắp hết hạn',
-      messages: [consultProposalSla.message],
-      scrollAnchor: '#funnel-presales',
-    };
-  }
+  // Bước Solutions không hiện thông báo SLA 48h Consult → Báo giá.
 
   if (activeStep === 'consult' && proposalGate) {
     const tone = proposalGate.ok && proposalGate.level === 'ok' ? 'ok' : 'block';
@@ -267,8 +253,8 @@ export function resolveGateStrip(
       return {
         tone: 'ok',
         gateKind: 'consult',
-        title: 'Đã giao Solution/MKT',
-        messages: ['Lead đang chờ Solution nhận case — theo dõi queue hoặc Lead detail.'],
+        title: 'Đã gửi SUBMIT FOR SOLUTION',
+        messages: ['Lead đang chờ Solutions nhận case — theo dõi hàng chờ hoặc trang chi tiết lead.'],
         scrollAnchor: '#funnel-presales',
       };
     }
@@ -277,7 +263,7 @@ export function resolveGateStrip(
         tone: 'ok',
         gateKind: 'consult',
         title: 'Solution đang tư vấn',
-        messages: ['Case đã có owner Solution — mở workspace Tư vấn trên Lead.'],
+        messages: ['Case đã có người phụ trách Solutions — mở không gian Tư vấn trên lead.'],
         scrollAnchor: '#funnel-presales',
       };
     }
@@ -285,7 +271,7 @@ export function resolveGateStrip(
       tone: 'ok',
       gateKind: 'consult',
       title: 'Đã chuyển Tư vấn',
-      messages: ['Lead đã qua Khảo sát BANT — tiếp tục trên Lead detail.'],
+      messages: ['Lead đã qua khảo sát BANT — tiếp tục trên trang chi tiết lead.'],
       scrollAnchor: '#funnel-presales',
     };
   }
@@ -301,10 +287,10 @@ export function resolveGateStrip(
 
   const title =
     tone === 'ok'
-      ? 'Sẵn sàng chuyển Tư vấn "Consult"'
+      ? 'Sẵn sàng chuyển Tư vấn'
       : tone === 'warn'
-        ? 'Cần xem xét trước Tư vấn "Consult"'
-        : 'Chưa đủ điều kiện Tư vấn "Consult"';
+        ? 'Cần xem xét trước khi chuyển Tư vấn'
+        : 'Chưa đủ điều kiện chuyển Tư vấn';
 
   return {
     tone,
@@ -367,7 +353,7 @@ export function resolvePrimaryAction(input: {
       if (status === 'pending') {
         return {
           kind: 'link',
-          label: 'Solution queue →',
+          label: 'Hàng chờ Solution →',
           disabled: false,
           href: '/crm/solution/queue',
         };
@@ -450,9 +436,9 @@ export function resolvePrimaryAction(input: {
       if (!(solutionCaps?.canHandoff ?? true)) {
         return {
           kind: 'none',
-          label: 'Giao Solution/AM →',
+          label: 'SUBMIT FOR SOLUTION →',
           disabled: true,
-          blockReason: 'Chỉ AM Sales mới giao Solution/MKT',
+          blockReason: 'Chỉ Sales được bấm SUBMIT FOR SOLUTION',
         };
       }
       return handoff;
@@ -473,7 +459,7 @@ export function resolvePrimaryAction(input: {
     if (status === 'pending') {
       return {
         kind: 'link',
-        label: solutionCaps?.canView ? 'Solution queue →' : 'Theo dõi Solution',
+        label: solutionCaps?.canView ? 'Hàng chờ Solution →' : 'Theo dõi Solution',
         disabled: false,
         href: '/crm/solution/queue',
       };
@@ -488,7 +474,7 @@ export function resolvePrimaryAction(input: {
     if (status === 'with_solution' && !solutionCaps?.canEditConsult) {
       return {
         kind: 'anchor',
-        label: 'Theo dõi Solution (read-only)',
+        label: 'Theo dõi Solution (chỉ xem)',
         disabled: false,
         anchor: '#funnel-presales',
       };
@@ -522,7 +508,7 @@ export function resolvePrimaryAction(input: {
     }
     return {
       kind: 'anchor',
-      label: status === 'with_solution' ? 'Mở workspace Consult' : 'Mở task Consult',
+      label: status === 'with_solution' ? 'Mở không gian Tư vấn' : 'Mở việc Tư vấn',
       disabled: false,
       anchor: '#funnel-presales',
     };
@@ -533,7 +519,7 @@ export function resolvePrimaryAction(input: {
     if (advance?.next_stage && advance.can_advance_forward) {
       return {
         kind: 'advance_presales',
-        label: `Chuyển → ${advance.next_stage}`,
+        label: `Chuyển → ${presalesStageLabel(advance.next_stage)}`,
         disabled: false,
       };
     }

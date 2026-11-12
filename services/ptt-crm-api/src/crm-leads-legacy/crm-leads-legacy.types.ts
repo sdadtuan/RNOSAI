@@ -77,7 +77,7 @@ export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   task: 'Công việc',
   reminder: 'Nhắc việc',
   system: 'Hệ thống',
-  solution_handoff: 'Giao Solution/MKT',
+  solution_handoff: 'SUBMIT FOR SOLUTION',
   solution_claimed: 'Solution nhận case',
   solution_released: 'Solution trả Sales',
   deal_room_pack_exported: 'Deal Room — Export Pack PDF',

@@ -7,6 +7,8 @@ import {
 } from './b2b-alert.util';
 import { B2bAlertsRepository } from './b2b-alerts.repository';
 import { B2bStaffPushSender } from './b2b-staff-push.sender';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import type { B2bLeadScopeRow } from './b2b-visibility.util';
 
 function alertTitle(kind: AlertKind, score: number | null): string {
@@ -21,6 +23,7 @@ export class B2bAlertsService {
   constructor(
     private readonly repo: B2bAlertsRepository,
     private readonly push: B2bStaffPushSender,
+    private readonly notifications: StaffNotificationsRepository,
   ) {}
 
   async fanoutArrival(input: {
@@ -42,6 +45,10 @@ export class B2bAlertsService {
       })),
     );
     for (const p of planned) {
+      if (p.kind === 'assigned' || p.kind === 'assigned_hot') {
+        const payload = caseStaffNotify({ kind: 'lead_assigned', leadId: input.lead.leadId });
+        await this.notifications.notifyStaff(p.staffId, payload);
+      }
       await this.push.send({
         staffId: p.staffId,
         title: alertTitle(p.kind, input.lead.score),

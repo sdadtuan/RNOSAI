@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
   deleteLeadPartyLogo,
@@ -51,6 +51,8 @@ export function LeadPartyCard({
 }) {
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const [pickedLogoName, setPickedLogoName] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [thumbUrl, setThumbUrl] = useState('');
 
   useEffect(() => {
@@ -184,21 +186,37 @@ export function LeadPartyCard({
           disabled={disabled}
         />
       </label>
-      <label>
-        Logo (PNG/JPEG/WebP, ≤ 2 MB)
+      <div className="lead-party-card__file-picker">
+        <span>Logo (PNG/JPEG/WebP, ≤ 2 MB)</span>
         <input
-          className="qt-inp"
+          ref={logoInputRef}
+          className="sr-only"
           name="logo"
           type="file"
           accept="image/png,image/jpeg,image/webp"
           disabled={disabled || logoBusy || !leadId}
+          aria-label="Chọn file logo"
           onChange={(event) => {
             const file = event.target.files?.[0] ?? null;
             event.target.value = '';
+            setPickedLogoName(file?.name ?? '');
             void onLogo(file);
           }}
         />
-      </label>
+        <div className="lead-party-card__file-row">
+          <button
+            type="button"
+            className="qt-btn"
+            disabled={disabled || logoBusy || !leadId}
+            onClick={() => logoInputRef.current?.click()}
+          >
+            {logoBusy ? 'Đang tải…' : 'Chọn file'}
+          </button>
+          <span className="qt-muted">
+            {pickedLogoName || (value.logo_asset_id ? 'Đã có logo' : 'Chưa chọn file')}
+          </span>
+        </div>
+      </div>
       </div>
       {value.logo_asset_id && leadId ? (
         <div className="lead-party-card__logo">
