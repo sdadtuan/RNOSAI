@@ -10,6 +10,15 @@ import {
   type PortalMetaAdInsightsResponse,
 } from '@/lib/api';
 import { fmtDate, fmtNumber, fmtPct, fmtVnd } from '@/lib/format';
+import {
+  receivedDay,
+  countInRange,
+  groupCountByDay,
+  groupCountByCampaign,
+  LEAD_RECEIVED_LABEL,
+  LEAD_RECEIVED_TIP,
+  LEAD_PLATFORM_TIP,
+} from '@/lib/portal/dashboard-range';
 
 const ALL_ACCOUNTS_VALUE = 'all';
 type RangePreset = 7 | 14 | 30 | 90 | 'custom';
@@ -54,11 +63,16 @@ function countLeadsByCampaignId(leads: PortalMetaAdInsightsResponse['leads']): M
 }
 
 function formatAdAccountOption(page: PortalCrmPage): string {
-  const name = page.page_name?.trim() || page.page_id;
-  return `${name} · act_${page.page_id}`;
+  return page.page_name?.trim() || 'Tài khoản quảng cáo';
 }
 
 type TableTab = 'campaign' | 'adset' | 'ad' | 'breakdown';
+
+type ReceivedLead = {
+  created_at?: string;
+  last_interaction_at?: string;
+  campaign_id?: string | null;
+};
 
 type PortalCrmAdsLeadReportProps = {
   token: string;
@@ -68,6 +82,10 @@ type PortalCrmAdsLeadReportProps = {
   adAccounts?: PortalCrmPage[];
   adAccountsLoaded?: boolean;
   canSync?: boolean;
+  /** Shared dashboard range — hides the local date picker when set. */
+  range?: { since: string; until: string };
+  rangeLabel?: string;
+  receivedLeads?: ReceivedLead[];
 };
 
 export function PortalCrmAdsLeadReport({
@@ -78,6 +96,9 @@ export function PortalCrmAdsLeadReport({
   adAccounts: controlledAccounts,
   adAccountsLoaded = false,
   canSync = false,
+  range: controlledRange,
+  rangeLabel,
+  receivedLeads,
 }: PortalCrmAdsLeadReportProps) {
   const [localAccounts, setLocalAccounts] = useState<PortalCrmPage[]>([]);
   const [localAccountsLoaded, setLocalAccountsLoaded] = useState(false);
@@ -99,11 +120,12 @@ export function PortalCrmAdsLeadReport({
   const setAccountId = onAccountIdChange ?? setLocalAccountId;
 
   const range = useMemo(() => {
+    if (controlledRange) return controlledRange;
     if (rangePreset === 'custom') {
       return { since: customSince, until: customUntil };
     }
     return rangeEndingToday(rangePreset);
-  }, [rangePreset, customSince, customUntil]);
+  }, [controlledRange, rangePreset, customSince, customUntil]);
 
   const customRangeInvalid = useMemo(() => {
     if (rangePreset !== 'custom') return null;
@@ -194,8 +216,17 @@ export function PortalCrmAdsLeadReport({
     }
   };
 
-  const leadsByDay = useMemo(() => countLeadsByDay(insights?.leads ?? []), [insights]);
-  const leadsByCampaign = useMemo(() => countLeadsByCampaignId(insights?.leads ?? []), [insights]);
+  const leadsByDay = useMemo(() => {
+    if (receivedLeads) return groupCountByDay(receivedLeads, range.since, range.until, receivedDay);
+    return countLeadsByDay(insights?.leads ?? []);
+  }, [receivedLeads, insights, range.since, range.until]);
+  const leadsByCampaign = useMemo(() => {
+    if (receivedLeads) return groupCountByCampaign(receivedLeads, range.since, range.until, receivedDay);
+    return countLeadsByCampaignId(insights?.leads ?? []);
+  }, [receivedLeads, insights, range.since, range.until]);
+  const receivedTotal = receivedLeads
+    ? countInRange(receivedLeads, range.since, range.until, receivedDay)
+    : (insights?.leads.length ?? 0);
 
   const dailyRows = useMemo(() => {
     if (!insights) return [];
@@ -219,7 +250,7 @@ export function PortalCrmAdsLeadReport({
       .join(' ');
   }, [dailyRows]);
 
-  const portalLeadTotal = insights?.leads.length ?? 0;
+  const portalLeadTotal = receivedTotal;
   const kpi = insights?.kpi;
   const syncMeta = insights?.sync;
 
@@ -247,7 +278,7 @@ export function PortalCrmAdsLeadReport({
         <div className="performance-panel__intro">
           <h3 className="performance-panel__title">Báo cáo Meta Ads</h3>
           <p className="muted performance-panel__meta">
-            Tài khoản quảng cáo · KPI, spend theo ngày, chiến dịch / ad set / ad · lead portal theo campaign_id
+            Chi tiêu, lead và hiệu quả theo ngày và theo chiến dịch.
           </p>
         </div>
         <div className="portal-crm-ads-lead-report__toolbar">
@@ -263,6 +294,10 @@ export function PortalCrmAdsLeadReport({
               </select>
             </label>
           ) : null}
+          {controlledRange ? (
+            <p className="muted portal-crm-ads-lead-report__range-label">{rangeLabel}</p>
+          ) : (
+          <>
           <label className="portal-crm-ads-lead-report__page-pick">
             <span className="muted">Khoảng ngày</span>
             <select
@@ -295,12 +330,14 @@ export function PortalCrmAdsLeadReport({
               </label>
             </>
           ) : null}
+          </>
+          )}
           {canSync && accountId && accountId !== ALL_ACCOUNTS_VALUE ? (
             <button type="button" className="btn btn-secondary btn-sm" disabled={syncing || loading} onClick={() => void onSync()}>
               {syncing ? 'Đang đồng bộ…' : 'Đồng bộ ngay'}
             </button>
           ) : null}
-          {accountId && accountId !== ALL_ACCOUNTS_VALUE ? (
+          {!embedded && accountId && accountId !== ALL_ACCOUNTS_VALUE ? (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -317,10 +354,10 @@ export function PortalCrmAdsLeadReport({
                     a.click();
                     URL.revokeObjectURL(a.href);
                   })
-                  .catch(() => setError('Export CSV thất bại'));
+                  .catch(() => setError('Tải CSV thất bại'));
               }}
             >
-              Export CSV
+              Tải CSV
             </button>
           ) : null}
         </div>
@@ -328,106 +365,129 @@ export function PortalCrmAdsLeadReport({
 
       {syncMeta?.last_synced_at ? (
         <p className="muted portal-crm-ads-lead-report__sync">
-          Đồng bộ lần cuối: {fmtDate(syncMeta.last_synced_at.slice(0, 10))}
-          {syncMeta.last_synced_at.length > 10 ? ` ${syncMeta.last_synced_at.slice(11, 19)}` : ''}
+          Đồng bộ lần cuối:{' '}
+          {(() => {
+            const d = new Date(syncMeta.last_synced_at);
+            if (Number.isNaN(d.getTime())) return fmtDate(syncMeta.last_synced_at.slice(0, 10));
+            return d.toLocaleString('vi-VN', {
+              timeZone: 'Asia/Saigon',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+          })()}
         </p>
       ) : null}
       {syncMeta?.last_error ? <p className="error">Lỗi đồng bộ: {syncMeta.last_error}</p> : null}
       {syncMeta?.last_breakdown_warnings ? (
         <p className="muted portal-crm-ads-lead-report__sync">
-          Một số breakdown không được Graph hỗ trợ cho tài khoản này (không ảnh hưởng KPI chính).
+          Một số phân tích không khả dụng cho tài khoản này (không ảnh hưởng chỉ số chính).
         </p>
       ) : null}
       {rangeValidationError ? <p className="error">{rangeValidationError}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-      {loading ? <p className="muted">Đang tải workspace CRM…</p> : null}
+      {loading && !insights && !error ? <p className="muted">Đang tải báo cáo…</p> : null}
       {showEmpty ? <p className="muted">Chưa gán tài khoản quảng cáo — liên hệ PTT để gán.</p> : null}
 
-      {!loading && insights && kpi ? (
+      {insights && kpi ? (
         <>
           <div className="portal-crm-ads-lead-report__kpis">
             <div className="portal-crm-ads-lead-report__kpi">
-              <span className="muted">Spend</span>
+              <span className="muted">Chi tiêu</span>
               <strong>{fmtVnd(kpi.spend)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
             </div>
             <div className="portal-crm-ads-lead-report__kpi">
-              <span className="muted">Impressions</span>
+              <span className="muted">Hiển thị</span>
               <strong>{fmtNumber(kpi.impressions)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
             </div>
             {kpi.reach > 0 ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">Reach</span>
+                <span className="muted">Tiếp cận</span>
                 <strong>{fmtNumber(kpi.reach)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
             <div className="portal-crm-ads-lead-report__kpi">
-              <span className="muted">Clicks</span>
+              <span className="muted">Lượt nhấp</span>
               <strong>{fmtNumber(kpi.clicks)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
             </div>
             {kpi.ctr != null ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">CTR</span>
+                <span className="muted" title="Tỷ lệ nhấp — số nhấp chia cho số lần hiển thị">CTR</span>
                 <strong>{fmtPct(kpi.ctr)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
             {kpi.cpc != null ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">CPC</span>
+                <span className="muted" title="Chi phí trên mỗi lượt nhấp">CPC</span>
                 <strong>{fmtVnd(kpi.cpc)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
             {kpi.cpm != null ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">CPM</span>
+                <span className="muted" title="Chi phí trên 1.000 lần hiển thị">CPM</span>
                 <strong>{fmtVnd(kpi.cpm)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
-            <div className="portal-crm-ads-lead-report__kpi">
-              <span className="muted">Lead nền tảng</span>
+            <div className="portal-crm-ads-lead-report__kpi" data-testid="ads-leads-platform">
+              <span className="muted" title={LEAD_PLATFORM_TIP}>Lead nền tảng</span>
               <strong>{fmtNumber(kpi.leads_platform)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
             </div>
-            {portalLeadTotal > 0 ? (
-              <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">Lead portal</span>
-                <strong>{fmtNumber(portalLeadTotal)}</strong>
-              </div>
-            ) : null}
+            <div className="portal-crm-ads-lead-report__kpi" data-testid="ads-leads-received">
+              <span className="muted" title={LEAD_RECEIVED_TIP}>{LEAD_RECEIVED_LABEL}</span>
+              <strong>{fmtNumber(portalLeadTotal)}</strong>
+              {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
+            </div>
             {kpi.cpl != null ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">CPL</span>
+                <span className="muted" title="Chi phí trên mỗi lead">CPL</span>
                 <strong>{fmtVnd(kpi.cpl)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
             {kpi.purchases > 0 ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">Purchases</span>
+                <span className="muted">Lượt mua</span>
                 <strong>{fmtNumber(kpi.purchases)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
             {kpi.roas != null && kpi.roas > 0 ? (
               <div className="portal-crm-ads-lead-report__kpi">
-                <span className="muted">ROAS</span>
+                <span className="muted" title="Tỷ lệ doanh thu trên chi phí quảng cáo">ROAS</span>
                 <strong>{kpi.roas.toFixed(2)}</strong>
+                {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
           </div>
 
-          <h4 className="portal-crm-ads-lead-report__subtitle">Spend theo ngày</h4>
+          <h4 className="portal-crm-ads-lead-report__subtitle">Chi tiêu theo ngày</h4>
           {dailyRows.length === 0 ? (
-            <p className="muted">Chưa có spend trong khoảng đã chọn — thử Đồng bộ ngay.</p>
+            <p className="muted">Chưa có chi tiêu trong khoảng đã chọn — thử Đồng bộ ngay.</p>
           ) : (
             <>
-              <svg className="portal-crm-ads-lead-report__chart" viewBox="0 0 320 84" role="img" aria-label="Biểu đồ spend">
-                <path d={chartPoints} fill="none" stroke="var(--accent, #2563eb)" strokeWidth="2" />
-              </svg>
+              {dailyRows.length >= 2 && chartPoints ? (
+                <svg className="portal-crm-ads-lead-report__chart" viewBox="0 0 320 84" role="img" aria-label="Biểu đồ chi tiêu">
+                  <path d={chartPoints} fill="none" stroke="var(--accent, #2563eb)" strokeWidth="2" />
+                </svg>
+              ) : null}
               <div className="portal-crm-ads-lead-report__table-wrap">
                 <table className="portal-crm-ads-lead-report__table">
                   <thead>
                     <tr>
                       <th>Ngày</th>
-                      <th>Spend</th>
+                      <th>Chi tiêu</th>
                       <th>Lead nền tảng</th>
-                      <th>Lead portal</th>
+                      <th>{LEAD_RECEIVED_LABEL}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -454,7 +514,7 @@ export function PortalCrmAdsLeadReport({
                 className={tableTab === tab ? 'active' : ''}
                 onClick={() => setTableTab(tab)}
               >
-                {tab === 'campaign' ? 'Chiến dịch' : tab === 'adset' ? 'Ad set' : tab === 'ad' ? 'Ad' : 'Breakdown'}
+                {tab === 'campaign' ? 'Chiến dịch' : tab === 'adset' ? 'Nhóm quảng cáo' : tab === 'ad' ? 'Quảng cáo' : 'Phân tích'}
               </button>
             ))}
           </div>
@@ -462,26 +522,26 @@ export function PortalCrmAdsLeadReport({
           {tableTab === 'breakdown' ? (
             <>
               <label className="portal-crm-ads-lead-report__page-pick">
-                <span className="muted">Loại breakdown</span>
+                <span className="muted">Loại phân tích</span>
                 <select value={breakdownType} onChange={(e) => setBreakdownType(e.target.value)}>
-                  <option value="age">age</option>
-                  <option value="gender">gender</option>
-                  <option value="publisher_platform">publisher_platform</option>
-                  <option value="platform_position">platform_position</option>
-                  <option value="region">region</option>
+                  <option value="age">Tuổi</option>
+                  <option value="gender">Giới tính</option>
+                  <option value="publisher_platform">Nền tảng</option>
+                  <option value="platform_position">Vị trí</option>
+                  <option value="region">Khu vực</option>
                 </select>
               </label>
               {breakdownRows.length === 0 ? (
-                <p className="muted">Chưa có breakdown — đồng bộ lại hoặc loại này chưa được Graph hỗ trợ.</p>
+                <p className="muted">Chưa có phân tích — đồng bộ lại hoặc loại này chưa được nền tảng hỗ trợ.</p>
               ) : (
                 <div className="portal-crm-ads-lead-report__table-wrap">
                   <table className="portal-crm-ads-lead-report__table">
                     <thead>
                       <tr>
                         <th>Giá trị</th>
-                        <th>Spend</th>
-                        <th>Impressions</th>
-                        <th>Clicks</th>
+                        <th>Chi tiêu</th>
+                        <th>Hiển thị</th>
+                        <th>Lượt nhấp</th>
                         <th>Lead nền tảng</th>
                       </tr>
                     </thead>
@@ -501,21 +561,21 @@ export function PortalCrmAdsLeadReport({
               )}
             </>
           ) : tableRows.length === 0 ? (
-            <p className="muted">Chưa có dữ liệu ở mức {tableTab}.</p>
+            <p className="muted">Chưa có dữ liệu ở mức {tableTab === 'campaign' ? 'chiến dịch' : tableTab === 'adset' ? 'nhóm quảng cáo' : 'quảng cáo'}.</p>
           ) : (
             <div className="portal-crm-ads-lead-report__table-wrap">
               <table className="portal-crm-ads-lead-report__table">
                 <thead>
                   <tr>
                     <th>Tên</th>
-                    <th>ID</th>
-                    <th>Spend</th>
-                    <th>Impressions</th>
-                    <th>Clicks</th>
-                    <th>CTR</th>
+                    <th>Mã</th>
+                    <th>Chi tiêu</th>
+                    <th>Hiển thị</th>
+                    <th>Lượt nhấp</th>
+                    <th title="Tỷ lệ nhấp — số nhấp chia cho số lần hiển thị">CTR</th>
                     <th>Lead nền tảng</th>
-                    <th>Lead portal</th>
-                    <th>CPL</th>
+                    <th>{LEAD_RECEIVED_LABEL}</th>
+                    <th title="Chi phí trên mỗi lead">CPL</th>
                   </tr>
                 </thead>
                 <tbody>

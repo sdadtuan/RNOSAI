@@ -1,11 +1,10 @@
 import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { PortalClientPagesRepository } from '../agency/portal-client-pages.repository';
-import { MetaBusinessTokenService } from '../agency/meta-business-token.service';
 import { portalCrmCareEnabled } from '../agency/portal-client-pages.util';
-import { fetchFacebookLeadFromGraph, metaConfigFromEnv, verifyFacebookSignature } from '../webhooks/meta-webhook.parser';
+import { metaConfigFromEnv, verifyFacebookSignature } from '../webhooks/meta-webhook.parser';
 import { PortalCareRepository } from './portal-care.repository';
-import { graphLeadRowToPulled, parsePortalMetaMessagingPayload } from './portal-meta-webhook.parser';
+import { parsePortalMetaMessagingPayload } from './portal-meta-webhook.parser';
 import { portalMetaWebhookVerifyToken, verifyMetaHubSubscribe } from './portal-inbox-poller.util';
 
 function flattenQuery(query: Record<string, unknown>): Record<string, string> {
@@ -24,7 +23,6 @@ export class PortalMetaWebhookService {
   constructor(
     private readonly repo: PortalCareRepository,
     private readonly pages: PortalClientPagesRepository,
-    private readonly meta: MetaBusinessTokenService,
   ) {}
 
   async handleGet(req: Request): Promise<{ status: number; body: string; contentType: string }> {
@@ -39,6 +37,10 @@ export class PortalMetaWebhookService {
     return { status: 200, body: 'ok', contentType: 'text/plain' };
   }
 
+  /**
+   * Lightweight ingest: verify, persist messages/comments/postbacks, enqueue leadgen.
+   * Heavy Graph fetches run in the portal-worker process.
+   */
   async handlePost(req: Request): Promise<{ status: number; body: Record<string, unknown> }> {
     if (!portalCrmCareEnabled()) {
       return { status: 200, body: { ok: true, skipped: 'module_disabled' } };
@@ -61,12 +63,13 @@ export class PortalMetaWebhookService {
     }
 
     await this.repo.ensure();
+    await this.repo.ensureWebhookJobs();
     await this.pages.ensure();
-    const { messages, leadHints } = parsePortalMetaMessagingPayload(payload);
-    const pageTokens = await this.meta.pageTokens();
+    const { messages, comments, leadHints } = parsePortalMetaMessagingPayload(payload);
     const touchedClients = new Set<string>();
     let msgCount = 0;
-    let leadCount = 0;
+    let commentCount = 0;
+    let leadQueued = 0;
 
     for (const item of messages) {
       const pageId = item.page_id;
@@ -79,26 +82,45 @@ export class PortalMetaWebhookService {
       touchedClients.add(clientId);
     }
 
+    for (const item of comments) {
+      const pageId = item.page_id || item.comment.page_id;
+      if (!pageId) continue;
+      const binding = await this.pages.findByChannelPage('facebook', pageId);
+      if (!binding?.active) continue;
+      await this.repo.upsertPageComment(binding.client_id, item.comment);
+      commentCount += 1;
+      touchedClients.add(binding.client_id);
+    }
+
     for (const hint of leadHints) {
       const pageId = hint.page_id;
       if (!pageId || !hint.leadgen_id) continue;
       const binding = await this.pages.findByChannelPage('facebook', pageId);
       if (!binding?.active) continue;
-      const clientId = binding.client_id;
-      const token = pageTokens.get(pageId) ?? '';
-      const configWithToken = { ...config, pageAccessToken: token };
-      const row = await fetchFacebookLeadFromGraph(hint.leadgen_id, configWithToken);
-      const pulled = graphLeadRowToPulled(hint.leadgen_id, row);
-      await this.repo.upsertPageLead(clientId, pageId, pulled);
-      leadCount += 1;
-      touchedClients.add(clientId);
+      const queued = await this.repo.enqueueWebhookJob({
+        jobType: 'leadgen',
+        idempotencyKey: `leadgen:${pageId}:${hint.leadgen_id}`,
+        payload: {
+          page_id: pageId,
+          client_id: binding.client_id,
+          leadgen_id: hint.leadgen_id,
+          form_id: hint.form_id,
+        },
+      });
+      if (queued) leadQueued += 1;
+      touchedClients.add(binding.client_id);
     }
 
     for (const clientId of touchedClients) {
       await this.repo.syncCases(clientId);
     }
 
-    this.log.log(`portal-meta-webhook messages=${msgCount} leads=${leadCount} clients=${touchedClients.size}`);
-    return { status: 200, body: { ok: true, messages: msgCount, leads: leadCount } };
+    this.log.log(
+      `portal-meta-webhook messages=${msgCount} comments=${commentCount} lead_jobs=${leadQueued} clients=${touchedClients.size}`,
+    );
+    return {
+      status: 200,
+      body: { ok: true, messages: msgCount, comments: commentCount, lead_jobs: leadQueued },
+    };
   }
 }

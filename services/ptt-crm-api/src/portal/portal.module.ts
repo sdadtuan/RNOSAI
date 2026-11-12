@@ -34,6 +34,9 @@ import { PortalInboxPollerService } from './portal-inbox-poller.service';
 import { PortalInboxSyncService } from './portal-inbox-sync.service';
 import { PortalMetaWebhookController } from './portal-meta-webhook.controller';
 import { PortalMetaWebhookService } from './portal-meta-webhook.service';
+import { PortalPosController, PortalPosWebhookController } from './pos/portal-pos.controller';
+import { PortalPosService } from './pos/portal-pos.service';
+import { PortalPosRepository } from './pos/portal-pos.repository';
 
 @Module({
   imports: [forwardRef(() => AgencyModule), ScheduleModule.forRoot()],
@@ -47,6 +50,8 @@ import { PortalMetaWebhookService } from './portal-meta-webhook.service';
     PortalMetaInsightsController,
     PortalProductMediaController,
     PortalMetaWebhookController,
+    PortalPosController,
+    PortalPosWebhookController,
   ],
   providers: [
     PortalAuthService,
@@ -73,6 +78,8 @@ import { PortalMetaWebhookService } from './portal-meta-webhook.service';
     PortalCareService,
     PortalInboxPollerService,
     PortalMetaWebhookService,
+    PortalPosRepository,
+    PortalPosService,
   ],
   exports: [
     PortalAuthService,

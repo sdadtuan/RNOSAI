@@ -109,6 +109,9 @@ export class PortalInboxSyncService {
         await this.repo.touchInboxPolled(clientId, page.page_id, pageError);
       }
     }
+    if (hadNew) {
+      await this.repo.syncCases(clientId);
+    }
     if (pages.length > 0 && withToken === 0 && !error) {
       error =
         this.meta.getLastPageTokenError() ||

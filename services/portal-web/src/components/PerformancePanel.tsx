@@ -11,6 +11,7 @@ import {
   type PerformanceListResponse,
 } from '@/lib/api';
 import { dateRangeEndingYesterday, fmtDate, fmtNumber, fmtPct, fmtVnd } from '@/lib/format';
+import { LEAD_MAPPED_LABEL, LEAD_MAPPED_TIP } from '@/lib/portal/dashboard-range';
 
 type WindowDays = 7 | 30;
 type GroupBy = 'day' | 'campaign';
@@ -24,6 +25,9 @@ export interface PerformancePanelProps {
   embedded?: boolean;
   /** Meta ad account digits (no act_ prefix); omit for all accounts / dashboard overview */
   accountId?: string;
+  /** When set (dashboard), drives the fetch and hides the local T-7/T-30 toggle. */
+  range?: { from: string; to: string };
+  rangeLabel?: string;
 }
 
 export function PerformancePanel({
@@ -34,6 +38,8 @@ export function PerformancePanel({
   hideChannelColumn = false,
   embedded = false,
   accountId,
+  range: controlledRange,
+  rangeLabel,
 }: PerformancePanelProps) {
   const [windowDays, setWindowDays] = useState<WindowDays>(7);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
@@ -42,15 +48,18 @@ export function PerformancePanel({
   const [error, setError] = useState('');
   const [exportBusy, setExportBusy] = useState<'csv' | 'pdf' | null>(null);
 
+  const range = controlledRange ?? dateRangeEndingYesterday(windowDays);
+  const activeRangeLabel = rangeLabel ?? (controlledRange ? '' : `T-${windowDays}`);
+
   const loadPerformance = useCallback(
-    async (authToken: string, days: WindowDays, group: GroupBy) => {
+    async (authToken: string, group: GroupBy) => {
       setLoadingPerf(true);
       setError('');
-      const range = dateRangeEndingYesterday(days);
+      const window = controlledRange ?? dateRangeEndingYesterday(windowDays);
       try {
         const data = await fetchPerformance(authToken, {
-          from: range.from,
-          to: range.to,
+          from: window.from,
+          to: window.to,
           group_by: group,
           channel,
           account_id: accountId,
@@ -58,27 +67,31 @@ export function PerformancePanel({
         setPerformance(data);
       } catch (err) {
         setPerformance(null);
-        setError(err instanceof Error ? err.message : 'Không tải được performance');
+        setError(err instanceof Error ? err.message : 'Không tải được dữ liệu hiệu quả');
       } finally {
         setLoadingPerf(false);
       }
     },
-    [channel, accountId],
+    [channel, accountId, controlledRange, windowDays],
   );
 
   useEffect(() => {
     if (!token) {
       return;
     }
-    void loadPerformance(token, windowDays, groupBy);
-  }, [token, windowDays, groupBy, loadPerformance]);
+    void loadPerformance(token, groupBy);
+  }, [token, groupBy, loadPerformance]);
 
   const summary = performance?.summary;
-  const range = dateRangeEndingYesterday(windowDays);
 
   async function handleExport(format: 'csv' | 'pdf') {
     setExportBusy(format);
     setError('');
+    if (format === 'pdf') {
+      window.print();
+      setExportBusy(null);
+      return;
+    }
     try {
       const url = performanceExportUrl({
         from: range.from,
@@ -90,17 +103,17 @@ export function PerformancePanel({
       });
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
-        throw new Error(`Export ${format} failed (${res.status})`);
+        throw new Error(`Không tải được tệp (${res.status})`);
       }
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = objectUrl;
-      anchor.download = format === 'pdf' ? 'portal-performance.pdf' : 'portal-performance.csv';
+      anchor.download = 'hieu-qua-quang-cao.csv';
       anchor.click();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export thất bại');
+      setError(err instanceof Error ? err.message : 'Tải tệp thất bại');
     } finally {
       setExportBusy(null);
     }
@@ -122,15 +135,17 @@ export function PerformancePanel({
           ) : null}
         </div>
         <div className="performance-panel__toolbar">
-          <SegmentedControl
-            label="Khoảng"
-            value={windowDays === 7 ? 't7' : 't30'}
-            onChange={(value) => setWindowDays(value === 't7' ? 7 : 30)}
-            options={[
-              { id: 't7', label: 'T-7' },
-              { id: 't30', label: 'T-30' },
-            ]}
-          />
+          {controlledRange ? null : (
+            <SegmentedControl
+              label="Khoảng"
+              value={windowDays === 7 ? 't7' : 't30'}
+              onChange={(value) => setWindowDays(value === 't7' ? 7 : 30)}
+              options={[
+                { id: 't7', label: 'T-7' },
+                { id: 't30', label: 'T-30' },
+              ]}
+            />
+          )}
           <SegmentedControl
             label="Nhóm"
             value={groupBy}
@@ -147,7 +162,7 @@ export function PerformancePanel({
               disabled={exportBusy !== null || loadingPerf}
               onClick={() => void handleExport('csv')}
             >
-              {exportBusy === 'csv' ? 'Đang export…' : 'Export CSV'}
+              {exportBusy === 'csv' ? 'Đang tải…' : 'Tải CSV'}
             </button>
             <button
               type="button"
@@ -155,7 +170,7 @@ export function PerformancePanel({
               disabled={exportBusy !== null || loadingPerf}
               onClick={() => void handleExport('pdf')}
             >
-              {exportBusy === 'pdf' ? 'Đang export…' : 'PDF (stub)'}
+              {exportBusy === 'pdf' ? 'Đang mở…' : 'Tải PDF'}
             </button>
           </div>
         </div>
@@ -164,29 +179,35 @@ export function PerformancePanel({
       {summary ? (
         <div className="kpi-tile-grid performance-panel__summary">
           <div className="kpi-tile">
-            <p className="kpi-tile__label">Tổng spend</p>
+            <p className="kpi-tile__label">Tổng chi tiêu</p>
             <p className="kpi-tile__value">{fmtVnd(summary.total_spend)}</p>
+            {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
           </div>
-          <div className="kpi-tile">
-            <p className="kpi-tile__label">Leads CRM</p>
+          <div className="kpi-tile" data-testid="perf-leads-mapped">
+            <p className="kpi-tile__label" title={LEAD_MAPPED_TIP}>{LEAD_MAPPED_LABEL}</p>
             <p className="kpi-tile__value">{fmtNumber(summary.total_leads_crm)}</p>
+            {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
           </div>
           <div className="kpi-tile">
             <p className="kpi-tile__label">CPL trung bình</p>
             <p className="kpi-tile__value">{summary.avg_cpl != null ? fmtVnd(summary.avg_cpl) : '—'}</p>
+            {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
           </div>
           <div className={`kpi-tile${summary.over_target_rows > 0 ? ' kpi-tile--critical' : ''}`}>
-            <p className="kpi-tile__label">Vượt target CPL</p>
-            <p className="kpi-tile__value">{fmtNumber(summary.over_target_rows)} hàng</p>
+            <p className="kpi-tile__label">Vượt CPL mục tiêu</p>
+            <p className="kpi-tile__value">{fmtNumber(summary.over_target_rows)}</p>
+            {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
           </div>
           <div className="kpi-tile">
-            <p className="kpi-tile__label">Chiến dịch tracked</p>
+            <p className="kpi-tile__label">Chiến dịch đang theo dõi</p>
             <p className="kpi-tile__value">{fmtNumber(summary.campaigns_tracked)}</p>
+            {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
           </div>
           {performance.unmapped_spend_pct != null ? (
             <div className="kpi-tile">
-              <p className="kpi-tile__label">Unmapped spend</p>
+              <p className="kpi-tile__label">Chi tiêu chưa gắn chiến dịch</p>
               <p className="kpi-tile__value">{fmtPct(performance.unmapped_spend_pct)}</p>
+              {activeRangeLabel ? <p className="kpi-tile__hint muted">{activeRangeLabel}</p> : null}
             </div>
           ) : null}
         </div>
@@ -194,12 +215,12 @@ export function PerformancePanel({
 
       {error ? <p className="error">{error}</p> : null}
       {loadingPerf ? (
-        <p className="muted">Đang tải performance…</p>
+        <p className="muted">Đang tải dữ liệu hiệu quả…</p>
       ) : performance && performance.rows.length === 0 ? (
         <div className="portal-empty-state">
-          <p className="portal-empty-state__title">Chưa có dữ liệu trong khoảng T-{windowDays}</p>
+          <p className="portal-empty-state__title">Chưa có dữ liệu trong khoảng {activeRangeLabel || ('T-' + String(windowDays))}</p>
           <p className="muted portal-empty-state__hint">
-            Insights có thể chưa sync hoặc chưa map Hub campaign. Liên hệ AM nếu cần hỗ trợ.
+            Dữ liệu có thể chưa đồng bộ hoặc chưa gắn chiến dịch. Liên hệ AM nếu cần hỗ trợ.
           </p>
         </div>
       ) : performance ? (

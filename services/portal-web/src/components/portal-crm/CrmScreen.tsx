@@ -12,6 +12,7 @@ import {
   fetchPortalCase,
   fetchPortalDesk,
   postPortalCase,
+  postPortalCaseNotes,
   postPortalPage,
   type PortalCareCase,
   type PortalCaseDetail,
@@ -247,8 +248,8 @@ function CrmBody({
         <header className="portal-crm__head">
           <div>
             <h2>Lead</h2>
-            <p>Danh sách lead trên Page đang gắn. Dữ liệu Page cũ vẫn được giữ, không hiện ở đây.</p>
-            {refreshedAt ? <p className="muted">Cập nhật lúc {saigonRefreshLabel(refreshedAt)}</p> : null}
+            <p className="portal-crm__sub">Lead trên các Page đang gắn.</p>
+            {refreshedAt ? <p className="muted portal-crm__refresh">Cập nhật lúc {saigonRefreshLabel(refreshedAt)}</p> : null}
             {syncNote ? <p className="muted">{syncNote}</p> : null}
           </div>
         </header>
@@ -261,10 +262,16 @@ function CrmBody({
           busy={busy}
           loading={!desk && !error}
           error={error}
+          token={token}
+          labels={desk?.labels ?? []}
+          messages={desk?.messages ?? []}
           onOpen={async (id) => {
             setDetail(await fetchPortalCase(token, id));
           }}
           onAct={(id, action, body) => void run(() => postPortalCase(token, id, action, body))}
+          onNotes={(id, notes) => void run(async () => {
+            await postPortalCaseNotes(token, id, notes);
+          })}
         />
       </div>
     );

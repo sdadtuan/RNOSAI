@@ -9,6 +9,7 @@ import {
   leadEmail,
   leadPhone,
   paginateRows,
+  uniqueLeadTags,
   sortLeadsByRecent,
   type LeadTableRow,
 } from './portal-leads-table.util';
@@ -96,6 +97,11 @@ describe('portal leads table', () => {
     expect(leadEmail(row({ id: '1', answers: [{ name: 'email', value: 'a@x.com' }] }))).toBe('a@x.com');
     expect(humanizeLeadFieldLabel('ngân_sách_hàng_tháng?')).toBe('Ngân sách hàng tháng?');
     expect(humanizeLeadFieldLabel('phone_number')).toBe('Số điện thoại');
+    expect(humanizeLeadFieldLabel('Campaign')).toBe('Chiến dịch');
+    expect(humanizeLeadFieldLabel('Ad set')).toBe('Nhóm quảng cáo');
+    expect(humanizeLeadFieldLabel('Ad')).toBe('Quảng cáo');
+    expect(humanizeLeadFieldLabel('campaign_name')).toBe('Chiến dịch');
+    expect(humanizeLeadFieldLabel('adset_name')).toBe('Nhóm quảng cáo');
     expect(humanizeLeadFieldValue('20_-_50_triệu')).toBe('20 - 50 triệu');
     expect(formatLeadPhoneDisplay('+84901234567')).toBe('0901234567');
     expect(formatLeadPhoneDisplay('+84 901 234 567')).toBe('0901234567');
@@ -104,4 +110,28 @@ describe('portal leads table', () => {
       'Doanh nghiệp của anh/chị đang hoạt động trong lĩnh vực nào:',
     );
   });
+
+  it('keeps tag names on a TEST-titled lead so the table can render chips (no DB)', () => {
+    const testLead = {
+      id: 'test-lead-only',
+      title: 'TEST lead — QA tag',
+      labels: ['TEST'],
+      page_id: 'p1',
+      status: 'waiting_receive',
+    } as any;
+    const realLead = {
+      id: 'real',
+      title: 'Anhhoa Vo',
+      labels: [],
+      page_id: 'p1',
+      status: 'waiting_receive',
+    } as any;
+    expect(uniqueLeadTags([testLead, realLead])).toEqual(['TEST']);
+    const filtered = filterLeadRows([testLead, realLead], { ...EMPTY_LEAD_FILTERS, tag: 'TEST' });
+    expect(filtered.map((r) => r.id)).toEqual(['test-lead-only']);
+    expect(filtered[0].labels).toEqual(['TEST']);
+    // real lead is not in the TEST-tag filter and was not mutated
+    expect(realLead.labels).toEqual([]);
+  });
+
 });

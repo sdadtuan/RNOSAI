@@ -78,9 +78,9 @@ export class PortalCrmController {
   }
 
   @Post('cases/:id/label')
-  label(@PortalUser() user: PortalJwtPayload, @Param('id') id: string, @Body() body: { name?: string }) {
+  label(@PortalUser() user: PortalJwtPayload, @Param('id') id: string, @Body() body: { name?: string; color?: string }) {
     this.assertEnabled();
-    return this.care.stickLabel(user, id, String(body?.name ?? ''));
+    return this.care.stickLabel(user, id, String(body?.name ?? ''), String(body?.color ?? ''));
   }
 
   @Post('cases/:id/customer')
@@ -161,9 +161,9 @@ export class PortalCrmController {
   }
 
   @Post('labels')
-  addLabel(@PortalUser() user: PortalJwtPayload, @Body() body: { name?: string }) {
+  addLabel(@PortalUser() user: PortalJwtPayload, @Body() body: { name?: string; color?: string }) {
     this.assertEnabled();
-    return this.care.addLabel(user, String(body?.name ?? ''));
+    return this.care.addLabel(user, String(body?.name ?? ''), String(body?.color ?? ''));
   }
 
   @Get('staff')
@@ -219,6 +219,126 @@ export class PortalCrmController {
     }
     const lead = await this.pages.createLead(user.client_id, pageId, body ?? {});
     return { ok: true, lead };
+  }
+
+  @Post('cases/:id/read')
+  markRead(@PortalUser() user: PortalJwtPayload, @Param('id') id: string) {
+    this.assertEnabled();
+    return this.care.markRead(user, id);
+  }
+
+  @Post('cases/:id/notes')
+  saveNotes(@PortalUser() user: PortalJwtPayload, @Param('id') id: string, @Body() body: { notes?: string }) {
+    this.assertEnabled();
+    return this.care.saveNotes(user, id, String(body?.notes ?? ''));
+  }
+
+  @Post('cases/:id/create-lead')
+  createLeadFromCase(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body() body: { full_name?: string; phone?: string; email?: string },
+  ) {
+    this.assertEnabled();
+    return this.care.createLeadFromCase(user, id, body ?? {});
+  }
+
+  @Get('quick-replies')
+  listQuickReplies(@PortalUser() user: PortalJwtPayload) {
+    this.assertEnabled();
+    return this.care.listQuickReplies(user);
+  }
+
+  @Post('quick-replies')
+  addQuickReply(
+    @PortalUser() user: PortalJwtPayload,
+    @Body() body: { shortcut?: string; title?: string; body?: string },
+  ) {
+    this.assertEnabled();
+    return this.care.addQuickReply(user, body ?? {});
+  }
+
+  @Patch('quick-replies/:id')
+  updateQuickReply(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body() body: { shortcut?: string; title?: string; body?: string; sort_order?: number },
+  ) {
+    this.assertEnabled();
+    return this.care.updateQuickReply(user, id, body ?? {});
+  }
+
+  @Delete('quick-replies/:id')
+  removeQuickReply(@PortalUser() user: PortalJwtPayload, @Param('id') id: string) {
+    this.assertEnabled();
+    return this.care.removeQuickReply(user, id);
+  }
+
+  @Post('quick-replies/reorder')
+  reorderQuickReplies(@PortalUser() user: PortalJwtPayload, @Body() body: { ids?: string[] }) {
+    this.assertEnabled();
+    return this.care.reorderQuickReplies(user, Array.isArray(body?.ids) ? body.ids : []);
+  }
+
+  @Get('inbox-settings')
+  inboxSettings(@PortalUser() user: PortalJwtPayload) {
+    this.assertEnabled();
+    return this.care.inboxSettings(user);
+  }
+
+  @Patch('inbox-settings')
+  saveInboxSettings(
+    @PortalUser() user: PortalJwtPayload,
+    @Body() body: { auto_hide_phone_comments?: boolean },
+  ) {
+    this.assertEnabled();
+    return this.care.saveInboxSettings(user, body?.auto_hide_phone_comments === true);
+  }
+
+  @Get('comments')
+  comments(
+    @PortalUser() user: PortalJwtPayload,
+    @Query('page_id') pageId?: string,
+    @Query('sync') sync?: string,
+  ) {
+    this.assertEnabled();
+    return this.care.comments(user, { page_id: pageId, sync });
+  }
+
+  @Post('comments/:id/reply')
+  replyToComment(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body() body: { text?: string; mode?: string },
+  ) {
+    this.assertEnabled();
+    return this.care.replyToComment(user, id, body ?? {});
+  }
+
+  @Post('comments/:id/hide')
+  hideComment(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body() body: { hidden?: boolean },
+  ) {
+    this.assertEnabled();
+    return this.care.hideComment(user, id, body?.hidden !== false);
+  }
+
+  @Post('comments/:id/create-lead')
+  createLeadFromComment(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body() body: { full_name?: string; phone?: string; email?: string },
+  ) {
+    this.assertEnabled();
+    return this.care.createLeadFromComment(user, id, body ?? {});
+  }
+
+  @Get('inbox-report')
+  inboxReport(@PortalUser() user: PortalJwtPayload, @Query('range') range?: string) {
+    this.assertEnabled();
+    return this.care.inboxReport(user, String(range ?? 'today'));
   }
 
   private assertEnabled(): void {

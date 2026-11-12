@@ -28,6 +28,7 @@ export type PulledMessage = {
   body: string;
   received_at: string;
   direction: 'in' | 'out';
+  attachments: Array<{ type: string; url: string; mime_type: string; name: string }>;
 };
 
 export type FacebookInboxCursors = {
@@ -58,7 +59,16 @@ type GraphLead = {
   campaign_id?: string;
   form_id?: string;
 };
-type GraphAttachment = { mime_type?: string; sticker_id?: number };
+type GraphAttachment = {
+  mime_type?: string;
+  sticker_id?: number;
+  name?: string;
+  type?: string;
+  file_url?: string;
+  url?: string;
+  image_data?: { url?: string; preview_url?: string };
+  video_data?: { url?: string };
+};
 type GraphMessage = {
   id?: string;
   message?: string;
@@ -258,9 +268,33 @@ function fieldValue(fields: GraphField[] | undefined, names: string[]): string {
   return String(hit?.values?.[0] ?? '').trim();
 }
 
+
+function messageAttachments(message: GraphMessage): PulledMessage['attachments'] {
+  const out: PulledMessage['attachments'] = [];
+  for (const item of message.attachments?.data ?? []) {
+    const url = String(
+      item.image_data?.url ?? item.image_data?.preview_url ?? item.video_data?.url ?? item.file_url ?? item.url ?? '',
+    ).trim();
+    if (!url) continue;
+    const mime = String(item.mime_type ?? '');
+    const isImage = /^image\//i.test(mime) || Boolean(item.image_data) || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+    out.push({
+      type: isImage ? 'image' : String(item.type ?? mime ?? 'file'),
+      url,
+      mime_type: mime,
+      name: String(item.name ?? '').slice(0, 200),
+    });
+  }
+  return out;
+}
+
 function messageBody(message: GraphMessage): string {
   const text = String(message.message ?? '').trim();
+  const files = messageAttachments(message);
+  const urls = files.filter((item) => item.type === 'image').map((item) => item.url);
+  if (text && urls.length) return `${text.slice(0, 3500)}\n${urls.join('\n')}`.slice(0, 4000);
   if (text) return text.slice(0, 4000);
+  if (urls.length) return urls.join('\n').slice(0, 4000);
   const attachments = message.attachments?.data ?? [];
   if (!attachments.length) return '';
   const hasSticker = attachments.some((item) => item.sticker_id != null);
@@ -309,13 +343,14 @@ function mapThreadMessages(
       body,
       received_at: String(message.created_time ?? ''),
       direction: fromId && fromId !== pageId ? 'in' : 'out',
+      attachments: messageAttachments(message),
     });
   }
   return messages;
 }
 
 const CONV_FIELDS =
-  'participants,messages.limit(12){id,message,from,created_time,attachments}';
+  'participants,messages.limit(12){id,message,from,created_time,attachments{mime_type,name,image_data,file_url,video_data,url}}';
 const LEAD_FIELDS = 'id,created_time,field_data,ad_id,adset_id,campaign_id,form_id';
 
 async function pullLeads(

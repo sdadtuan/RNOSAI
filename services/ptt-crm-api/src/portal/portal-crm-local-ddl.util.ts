@@ -1,23 +1,19 @@
 import { Logger } from '@nestjs/common';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
 
-const SQL_BASENAME = '00_portal_crm_local.sql';
+const SQL_FILES = ['00_portal_crm_local.sql', '02_portal_inbox_pancake.sql', '03_portal_inbox_comments.sql', '04_portal_pos.sql'];
 
-let sqlCache: string | null = null;
 let ensurePromise: Promise<void> | null = null;
 let applied = false;
 
-export function portalCrmLocalSqlPath(): string {
-  return join(__dirname, 'sql', SQL_BASENAME);
+export function portalCrmLocalSqlPath(basename = '00_portal_crm_local.sql'): string {
+  return join(__dirname, 'sql', basename);
 }
 
-export function loadPortalCrmLocalSql(): string {
-  if (!sqlCache) {
-    sqlCache = readFileSync(portalCrmLocalSqlPath(), 'utf8');
-  }
-  return sqlCache;
+export function loadPortalCrmLocalSql(basename = '00_portal_crm_local.sql'): string {
+  return readFileSync(portalCrmLocalSqlPath(basename), 'utf8');
 }
 
 /** Idempotent portal CRM schema — single in-process run; further callers await the same promise. */
@@ -27,21 +23,26 @@ export async function ensurePortalCrmLocalSchema(db: Pool, log: Logger, caller: 
     return;
   }
   if (!ensurePromise) {
-    log.log(`[portal-crm-ddl] applying ${SQL_BASENAME} (caller=${caller})`);
-    const sql = loadPortalCrmLocalSql();
-    ensurePromise = db
-      .query(sql)
-      .then(() => {
-        applied = true;
-        log.log(`[portal-crm-ddl] ${SQL_BASENAME} applied OK`);
-      })
-      .catch((err: unknown) => {
-        ensurePromise = null;
-        log.error(`[portal-crm-ddl] ${SQL_BASENAME} failed (caller=${caller})`, err);
-        throw err;
-      });
+    log.log(`[portal-crm-ddl] applying ${SQL_FILES.join(', ')} (caller=${caller})`);
+    ensurePromise = (async () => {
+      for (const file of SQL_FILES) {
+        const path = portalCrmLocalSqlPath(file);
+        if (!existsSync(path)) {
+          log.warn(`[portal-crm-ddl] ${file} not found at ${path}; skipped`);
+          continue;
+        }
+        const sql = readFileSync(path, 'utf8');
+        await db.query(sql);
+        log.log(`[portal-crm-ddl] ${file} applied OK`);
+      }
+      applied = true;
+    })().catch((err: unknown) => {
+      ensurePromise = null;
+      log.error(`[portal-crm-ddl] schema apply failed (caller=${caller})`, err);
+      throw err;
+    });
   } else {
-    log.debug(`[portal-crm-ddl] waiting for in-flight ${SQL_BASENAME} (caller=${caller})`);
+    log.debug(`[portal-crm-ddl] waiting for in-flight schema apply (caller=${caller})`);
   }
   await ensurePromise;
 }

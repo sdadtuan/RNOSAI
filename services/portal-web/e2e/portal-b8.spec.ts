@@ -51,7 +51,7 @@ test.describe('Portal B8 — CPL delta + attribution', () => {
     await page.getByRole('link', { name: /meta \(facebook\)/i }).click();
     await expect(page).toHaveURL(/\/meta/);
 
-    await expect(page.getByRole('columnheader', { name: /CPL Δ/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('columnheader', { name: /Chênh lệch CPL/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('columnheader', { name: /^Map$/i })).toBeVisible();
 
     await page.getByRole('button', { name: /theo chiến dịch/i }).click();

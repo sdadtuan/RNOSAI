@@ -72,7 +72,7 @@ export function PortalAiReportSummary({ token }: PortalAiReportSummaryProps) {
               <strong>{fmtVnd(data.kpis.total_spend)}</strong>
             </div>
             <div className="portal-ai-summary__kpi">
-              <span className="muted">Lead CRM</span>
+              <span className="muted">Lead</span>
               <strong>{fmtNumber(data.kpis.total_leads_crm)}</strong>
             </div>
             <div className="portal-ai-summary__kpi">
@@ -88,7 +88,7 @@ export function PortalAiReportSummary({ token }: PortalAiReportSummaryProps) {
               </strong>
             </div>
             <div className="portal-ai-summary__kpi">
-              <span className="muted">Unmapped</span>
+              <span className="muted">Chi tiêu chưa gắn</span>
               <strong>{fmtPct(data.kpis.unmapped_spend_pct)}</strong>
             </div>
           </div>

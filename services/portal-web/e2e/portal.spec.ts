@@ -33,7 +33,7 @@ test.describe('Client portal E2E', () => {
     await expect(page.getByText(/Meta Performance \(Facebook \/ Instagram\)/i)).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByRole('columnheader', { name: /CPL Δ/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('columnheader', { name: /Chênh lệch CPL/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /^Duyệt$/i })).toHaveCount(0);
   });
 

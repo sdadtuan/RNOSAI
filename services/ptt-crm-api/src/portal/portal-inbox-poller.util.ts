@@ -36,11 +36,11 @@ export function portalMetaInsightsPollIntervalMs(): number {
   return Math.min(6 * 3_600_000, Math.max(15 * 60_000, ms));
 }
 
-/** Reuse a just-fetched inbox/leads sync for 2–5 minutes (default 3). */
+/** Reuse a just-fetched Graph inbox/leads sync for 10-30 minutes (default 15). Webhook is the live path; sync=1 is fallback only. */
 export function portalOnDemandTtlMs(): number {
-  const raw = Number(process.env.PTT_PORTAL_ON_DEMAND_TTL_MS ?? 180_000);
-  const ms = Number.isFinite(raw) ? raw : 180_000;
-  return Math.min(300_000, Math.max(120_000, ms));
+  const raw = Number(process.env.PTT_PORTAL_ON_DEMAND_TTL_MS ?? 900_000);
+  const ms = Number.isFinite(raw) ? raw : 900_000;
+  return Math.min(1_800_000, Math.max(600_000, ms));
 }
 
 /** Insights change slowly; refresh at most hourly unless overridden (15 min – 6 h). */

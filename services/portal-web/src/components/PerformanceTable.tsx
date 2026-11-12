@@ -45,30 +45,30 @@ function PerformanceRowCard({
           ) : null}
         </div>
         {row.hub_mapped ? (
-          <span className="map-badge map-badge--ok">Mapped</span>
+          <span className="map-badge map-badge--ok">Đã gắn</span>
         ) : (
-          <span className="map-badge map-badge--warn">Chưa map</span>
+          <span className="map-badge map-badge--warn">Chưa gắn</span>
         )}
       </div>
       <dl className="perf-mobile-card__metrics">
         <div>
-          <dt>Spend</dt>
+          <dt>Chi tiêu</dt>
           <dd>{fmtVnd(row.spend)}</dd>
         </div>
         <div>
-          <dt>Leads CRM</dt>
+          <dt>Lead</dt>
           <dd>{fmtNumber(row.leads_crm)}</dd>
         </div>
         <div>
-          <dt>CPL</dt>
+          <dt title="Chi phí trên mỗi lead">CPL</dt>
           <dd className={overTarget ? 'over-target' : undefined}>{fmtVnd(row.cpl)}</dd>
         </div>
         <div>
-          <dt>Target CPL</dt>
+          <dt title="CPL mục tiêu">CPL mục tiêu</dt>
           <dd>{fmtVnd(row.target_cpl_vnd)}</dd>
         </div>
         <div>
-          <dt>CPL Δ</dt>
+          <dt title="Chênh lệch so với CPL mục tiêu">Chênh lệch CPL</dt>
           <dd className={deltaOver || overTarget ? 'over-target' : undefined}>
             {row.cpl_delta_vnd != null ? (
               <>
@@ -81,7 +81,7 @@ function PerformanceRowCard({
           </dd>
         </div>
         <div>
-          <dt>ROAS</dt>
+          <dt title="Tỷ lệ doanh thu trên chi phí quảng cáo">ROAS</dt>
           <dd>{row.roas_stub ? '—' : (row.roas?.toFixed(2) ?? '—')}</dd>
         </div>
       </dl>
@@ -91,7 +91,7 @@ function PerformanceRowCard({
 
 export function PerformanceTable({ rows, groupBy, hideChannel = false }: PerformanceTableProps) {
   if (rows.length === 0) {
-    return <p className="muted">Không có dữ liệu performance trong khoảng thời gian đã chọn.</p>;
+    return <p className="muted">Không có dữ liệu hiệu quả trong khoảng thời gian đã chọn.</p>;
   }
 
   return (
@@ -103,13 +103,13 @@ export function PerformanceTable({ rows, groupBy, hideChannel = false }: Perform
               {groupBy === 'day' && <th>Ngày</th>}
               {!hideChannel && <th>Kênh</th>}
               <th>Chiến dịch</th>
-              <th>Map</th>
-              <th className="num">Spend</th>
-              <th className="num">Leads CRM</th>
-              <th className="num">CPL</th>
-              <th className="num">Target CPL</th>
-              <th className="num">CPL Δ</th>
-              <th className="num">ROAS</th>
+              <th>Gắn</th>
+              <th className="num">Chi tiêu</th>
+              <th className="num">Lead</th>
+              <th className="num" title="Chi phí trên mỗi lead">CPL</th>
+              <th className="num" title="CPL mục tiêu">CPL mục tiêu</th>
+              <th className="num" title="Chênh lệch so với CPL mục tiêu">Chênh lệch CPL</th>
+              <th className="num" title="Tỷ lệ doanh thu trên chi phí quảng cáo">ROAS</th>
             </tr>
           </thead>
           <tbody>
@@ -132,12 +132,12 @@ export function PerformanceTable({ rows, groupBy, hideChannel = false }: Perform
                   </td>
                   <td>
                     {row.hub_mapped ? (
-                      <span className="map-badge map-badge--ok" title="Đã map Hub campaign">
-                        Mapped
+                      <span className="map-badge map-badge--ok" title="Đã gắn chiến dịch trên Hub">
+                        Đã gắn
                       </span>
                     ) : (
-                      <span className="map-badge map-badge--warn" title="Chưa map Hub — CPL có thể thiếu chính xác">
-                        Chưa map
+                      <span className="map-badge map-badge--warn" title="Chưa gắn chiến dịch trên Hub — CPL có thể thiếu chính xác">
+                        Chưa gắn
                       </span>
                     )}
                   </td>

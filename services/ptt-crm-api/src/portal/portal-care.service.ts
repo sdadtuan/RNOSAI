@@ -14,6 +14,8 @@ import { PortalCareRepository, psidFromMessageThreadKey } from './portal-care.re
 import {
   careDueAt,
   careListFilterForUser,
+  displayVnPhone,
+  extractContacts,
   filterCasesForPortalList,
   filterVisiblePages,
   nextAssignee,
@@ -31,6 +33,12 @@ import {
 } from './portal-inbox-poller.util';
 import { shouldPauseGraph } from './portal-graph-usage';
 import { PortalInboxSyncService, type PortalInboxIngestResult } from './portal-inbox-sync.service';
+import {
+  commentsToAutoHide,
+  hideFacebookComment,
+  pullFacebookComments,
+  replyFacebookComment,
+} from './portal-page-comments.util';
 
 export type { PortalInboxIngestResult } from './portal-inbox-sync.service';
 
@@ -46,7 +54,9 @@ function liveSince(raw?: string): Date {
 @Injectable()
 export class PortalCareService {
   private readonly inboxAt = new Map<string, number>();
+  private readonly commentsAt = new Map<string, number>();
   private readonly ingestFlights = new KeyedSingleFlight();
+  private readonly commentFlights = new KeyedSingleFlight();
   private readonly inboxStat = new Map<
     string,
     { pages: number; withToken: number; leads: number; messages: number; leadNote: string; messageNote: string; error: string }
@@ -141,7 +151,7 @@ export class PortalCareService {
     const pageId = query.page_id && pages.some((page) => page.page_id === query.page_id) ? query.page_id : '';
     const filter = { pageId: pageId || undefined, day: query.day, label: query.label, ...careListFilterForUser(user) };
     const includeInactive = user.role !== 'staff' && query.include_inactive === '1';
-    const [leads, messages, customers, posts, products, labels, staff] = await Promise.all([
+    const [leads, messages, customers, posts, products, labels, staff, quickReplies] = await Promise.all([
       this.repo.listCases(user.client_id, { ...filter, kind: 'lead' }),
       this.repo.listCases(user.client_id, { ...filter, kind: 'message' }),
       this.repo.listCustomers(user.client_id, filter),
@@ -149,6 +159,7 @@ export class PortalCareService {
       this.repo.listProducts(user.client_id, pageId || undefined, { includeInactive }),
       this.repo.listLabels(user.client_id),
       this.repo.listStaff(user.client_id),
+      this.repo.listQuickReplies(user.client_id),
     ]);
     const pageIds = new Set(pages.map((page) => page.page_id));
     const onChannel = <T extends { page_id: string }>(rows: T[]) => rows.filter((row) => pageIds.has(row.page_id));
@@ -164,6 +175,7 @@ export class PortalCareService {
       messages: filterCasesForPortalList(messages, user, pageIds),
       customers: filterCasesForPortalList(customers, user, pageIds),
       staff,
+      quick_replies: quickReplies,
       me: { id: user.sub, role: user.role },
       inbox:
         this.inboxStat.get(user.client_id) ?? {
@@ -189,7 +201,112 @@ export class PortalCareService {
         : Promise.resolve([]),
       this.repo.listProducts(user.client_id, row.page_id),
     ]);
-    return { ok: true, case: row, messages, products };
+    const threadText = messages.map((item) => item.body).join('\n');
+    const detected = extractContacts(`${row.snippet || ''}\n${row.order.phone}\n${threadText}\n${row.phone || ''}\n${row.notes || ''}`);
+    const linkedLeads = await this.repo.findLeadsByPhones(user.client_id, [
+      ...detected.phones,
+      row.order.phone,
+      row.phone,
+    ].filter(Boolean));
+    return {
+      ok: true,
+      case: row,
+      messages,
+      products,
+      psid,
+      detected: {
+        phones: detected.phones.map(displayVnPhone),
+        emails: detected.emails,
+      },
+      linked_leads: linkedLeads,
+    };
+  }
+
+  async markRead(user: PortalJwtPayload, caseId: string) {
+    const row = await this.requireActor(user, caseId);
+    await this.repo.markRead(row.id, user.sub);
+    return { ok: true };
+  }
+
+  async saveNotes(user: PortalJwtPayload, caseId: string, notes: string) {
+    const row = await this.requireActor(user, caseId);
+    const value = String(notes ?? '').trim().slice(0, 4000);
+    await this.repo.saveNotes(row.id, value);
+    return { ok: true, notes: value };
+  }
+
+  async createLeadFromCase(
+    user: PortalJwtPayload,
+    caseId: string,
+    body: { full_name?: string; phone?: string; email?: string },
+  ) {
+    const row = await this.requireActor(user, caseId);
+    const phone = displayVnPhone(String(body.phone ?? '').trim()).slice(0, 32);
+    if (!phone) throw new BadRequestException({ error: 'Cần số điện thoại để tạo Lead.' });
+    const fullName = String(body.full_name ?? row.title ?? '').trim().slice(0, 200) || 'Khách hộp thư';
+    const email = String(body.email ?? '').trim().slice(0, 200);
+    const lead = await this.repo.insertInboxLead(user.client_id, row.page_id, {
+      external_id: `inbox:${row.id}`,
+      full_name: fullName,
+      phone,
+      email,
+    });
+    await this.repo.syncCases(user.client_id);
+    return { ok: true, lead };
+  }
+
+  async listQuickReplies(user: PortalJwtPayload) {
+    await this.repo.ensure();
+    const items = await this.repo.listQuickReplies(user.client_id);
+    return { ok: true, quick_replies: items };
+  }
+
+  async addQuickReply(user: PortalJwtPayload, body: { shortcut?: string; title?: string; body?: string }) {
+    await this.repo.ensure();
+    const shortcut = this.normalizeShortcut(body.shortcut);
+    const text = String(body.body ?? '').trim().slice(0, 2000);
+    if (!text) throw new BadRequestException({ error: 'Cần nội dung mẫu.' });
+    const title = String(body.title ?? '').trim().slice(0, 80) || shortcut;
+    const item = await this.repo.insertQuickReply(user.client_id, { shortcut, title, body: text });
+    return { ok: true, quick_reply: item };
+  }
+
+  async updateQuickReply(
+    user: PortalJwtPayload,
+    id: string,
+    body: { shortcut?: string; title?: string; body?: string; sort_order?: number },
+  ) {
+    await this.repo.ensure();
+    const patch: { shortcut?: string; title?: string; body?: string; sort_order?: number } = {};
+    if (body.shortcut !== undefined) patch.shortcut = this.normalizeShortcut(body.shortcut);
+    if (body.title !== undefined) patch.title = String(body.title ?? '').trim().slice(0, 80);
+    if (body.body !== undefined) {
+      const text = String(body.body ?? '').trim().slice(0, 2000);
+      if (!text) throw new BadRequestException({ error: 'Cần nội dung mẫu.' });
+      patch.body = text;
+    }
+    if (body.sort_order !== undefined) patch.sort_order = Number(body.sort_order);
+    const item = await this.repo.updateQuickReply(user.client_id, id, patch);
+    if (!item) throw new NotFoundException({ error: 'quick_reply_not_found' });
+    return { ok: true, quick_reply: item };
+  }
+
+  async removeQuickReply(user: PortalJwtPayload, id: string) {
+    await this.repo.ensure();
+    const removed = await this.repo.deleteQuickReply(user.client_id, id);
+    if (!removed) throw new NotFoundException({ error: 'quick_reply_not_found' });
+    return { ok: true };
+  }
+
+  private normalizeShortcut(raw: unknown): string {
+    const shortcut = String(raw ?? '')
+      .trim()
+      .replace(/^\/+/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '')
+      .slice(0, 40);
+    if (!shortcut) throw new BadRequestException({ error: 'Cần phím tắt, ví dụ “chao”.' });
+    return shortcut;
   }
 
   async receive(user: PortalJwtPayload, caseId: string) {
@@ -202,9 +319,12 @@ export class PortalCareService {
   async assign(user: PortalJwtPayload, caseId: string, userId: string) {
     this.requireManager(user);
     const targetId = userId.trim();
-    if (!targetId) throw new BadRequestException({ error: 'user_id_required' });
     const row = await this.requireCase(user, caseId);
     if (row.status === 'purchased') throw new BadRequestException({ error: 'already_purchased' });
+    if (!targetId) {
+      await this.repo.unassign(row.id);
+      return { ok: true, unassigned: true };
+    }
     const target = await this.repo.findActiveClientUser(user.client_id, targetId);
     if (!target) throw new NotFoundException({ error: 'user_not_found' });
     const now = new Date();
@@ -226,11 +346,14 @@ export class PortalCareService {
     return { ok: true };
   }
 
-  async stickLabel(user: PortalJwtPayload, caseId: string, name: string) {
+  async stickLabel(user: PortalJwtPayload, caseId: string, name: string, color = '') {
     const row = await this.requireActor(user, caseId);
     const label = name.trim().slice(0, 40);
     if (!label) throw new BadRequestException({ error: 'label_required' });
     const labels = row.labels.includes(label) ? row.labels.filter((item) => item !== label) : [...row.labels, label];
+    if (!row.labels.includes(label)) {
+      await this.repo.insertLabel(user.client_id, label, color);
+    }
     await this.repo.setLabels(row.id, labels);
     return { ok: true, labels };
   }
@@ -438,13 +561,14 @@ export class PortalCareService {
     return { ok: true, url: `/api/portal/crm/media/${name}` };
   }
 
-  async addLabel(user: PortalJwtPayload, name: string) {
+  async addLabel(user: PortalJwtPayload, name: string, color = '') {
     this.requireManager(user);
     const label = name.trim().slice(0, 40);
     if (!label) throw new BadRequestException({ error: 'label_required' });
     await this.repo.ensure();
-    await this.repo.insertLabel(user.client_id, label);
-    return { ok: true };
+    await this.repo.insertLabel(user.client_id, label, color);
+    const labels = await this.repo.listLabels(user.client_id);
+    return { ok: true, labels };
   }
 
   async addStaff(user: PortalJwtPayload, email: string, password: string) {
@@ -514,6 +638,200 @@ export class PortalCareService {
     return { ok: true, user: { id: updated.id, email: updated.email, active: updated.active } };
   }
 
+
+  async reorderQuickReplies(user: PortalJwtPayload, ids: string[]) {
+    await this.repo.ensure();
+    const clean = ids.map((id) => String(id).trim()).filter(Boolean);
+    if (!clean.length) throw new BadRequestException({ error: 'ids_required' });
+    await this.repo.reorderQuickReplies(user.client_id, clean);
+    const items = await this.repo.listQuickReplies(user.client_id);
+    return { ok: true, quick_replies: items };
+  }
+
+  async inboxSettings(user: PortalJwtPayload) {
+    await this.repo.ensure();
+    const settings = await this.repo.getInboxSettings(user.client_id);
+    return { ok: true, ...settings };
+  }
+
+  async saveInboxSettings(user: PortalJwtPayload, autoHide: boolean) {
+    this.requireManager(user);
+    await this.repo.ensure();
+    const settings = await this.repo.saveInboxSettings(user.client_id, Boolean(autoHide), user.email);
+    return { ok: true, ...settings };
+  }
+
+  async comments(
+    user: PortalJwtPayload,
+    query: { page_id?: string; sync?: string },
+  ) {
+    await this.prepare(user.client_id);
+    if (query.sync === '1' || query.sync === 'true') {
+      await this.ingestComments(user.client_id);
+    }
+    const pageId = String(query.page_id ?? '').trim();
+    const [posts, comments, sync, settings] = await Promise.all([
+      this.repo.listFbPosts(user.client_id, pageId || undefined),
+      this.repo.listComments(user.client_id, pageId || undefined),
+      this.repo.getCommentSyncState(user.client_id),
+      this.repo.getInboxSettings(user.client_id),
+    ]);
+    const pages = await this.visiblePages(user.client_id);
+    const pageIds = new Set(pages.map((page) => page.page_id));
+    return {
+      ok: true,
+      posts: posts.filter((row) => pageIds.has(row.page_id)),
+      comments: comments.filter((row) => pageIds.has(row.page_id)),
+      pages: pages.map((page) => ({ page_id: page.page_id, page_name: page.page_name })),
+      permission_error: sync.permission_error,
+      error: sync.last_error,
+      last_synced_at: sync.last_synced_at,
+      settings,
+    };
+  }
+
+  private async ingestComments(clientId: string): Promise<void> {
+    if (shouldPauseGraph()) return;
+    const ttl = portalOnDemandTtlMs();
+    if (shouldReuseFreshSync(this.commentsAt.get(clientId), Date.now(), ttl)) return;
+    await this.commentFlights.run(clientId, async () => {
+      if (shouldPauseGraph()) return;
+      if (shouldReuseFreshSync(this.commentsAt.get(clientId), Date.now(), ttl)) return;
+      const pages = (await this.visiblePages(clientId)).filter((page) => page.channel === 'facebook');
+      const tokens = await this.meta.pageTokens();
+      const settings = await this.repo.getInboxSettings(clientId);
+      let permissionError = '';
+      let lastError = '';
+      for (const page of pages) {
+        const token = tokens.get(page.page_id);
+        if (!token) continue;
+        if (shouldPauseGraph()) break;
+        const pulled = await pullFacebookComments(page.page_id, token);
+        if (pulled.permissionError && !permissionError) permissionError = pulled.permissionError;
+        if (pulled.error && !pulled.permissionError && !lastError) lastError = pulled.error;
+        for (const post of pulled.posts) {
+          await this.repo.upsertFbPost(clientId, post);
+        }
+        for (const comment of pulled.comments) {
+          await this.repo.upsertPageComment(clientId, comment);
+        }
+        // Auto-hide only when the client setting is ON. Default is OFF.
+        // Guarded by Graph backoff. Do not invoke this path in live tests against real comments.
+        if (settings.auto_hide_phone_comments) {
+          for (const comment of commentsToAutoHide(pulled.comments)) {
+            if (shouldPauseGraph()) break;
+            const hidden = await hideFacebookComment(comment.comment_id, token, true);
+            if (hidden.ok) await this.repo.markCommentHidden(clientId, comment.comment_id, true);
+            else if (hidden.error && !lastError) lastError = hidden.error;
+            if (hidden.permissionNeeded && !permissionError) {
+              permissionError =
+                'Token chưa có quyền ẩn bình luận (pages_manage_engagement). Tắt tự ẩn hoặc xin quyền này trên Meta App.';
+            }
+          }
+        }
+      }
+      if (pages.length > 0 && pages.every((page) => !tokens.get(page.page_id)) && !lastError) {
+        lastError = this.meta.getLastPageTokenError() || 'Page đã gắn nhưng chưa có token để đọc bình luận.';
+      }
+      await this.repo.saveCommentSyncState(clientId, {
+        last_error: lastError,
+        permission_error: permissionError,
+        synced: true,
+      });
+      this.commentsAt.set(clientId, Date.now());
+    });
+  }
+
+  async replyToComment(
+    user: PortalJwtPayload,
+    commentId: string,
+    input: { text?: string; mode?: string },
+  ) {
+    const row = await this.requireComment(user, commentId);
+    const text = String(input.text ?? '').trim().slice(0, 2000);
+    if (!text) throw new BadRequestException({ error: 'Cần nội dung trả lời.' });
+    const mode = input.mode === 'private' ? 'private' : 'public';
+    const token = (await this.meta.pageTokens()).get(row.page_id);
+    if (!token) throw new BadRequestException({ error: 'Page chưa có token để trả lời bình luận.' });
+    const sent = await replyFacebookComment(row.comment_id, token, text, mode);
+    if (!sent.ok) throw new BadRequestException({ error: sent.error, permission: sent.permissionNeeded });
+    await this.repo.markCommentReplied(user.client_id, row.comment_id);
+    return { ok: true, id: sent.id, mode };
+  }
+
+  async hideComment(user: PortalJwtPayload, commentId: string, hidden: boolean) {
+    const row = await this.requireComment(user, commentId);
+    const token = (await this.meta.pageTokens()).get(row.page_id);
+    if (!token) throw new BadRequestException({ error: 'Page chưa có token để ẩn bình luận.' });
+    const result = await hideFacebookComment(row.comment_id, token, hidden);
+    if (!result.ok) throw new BadRequestException({ error: result.error, permission: result.permissionNeeded });
+    await this.repo.markCommentHidden(user.client_id, row.comment_id, hidden);
+    return { ok: true, is_hidden: hidden };
+  }
+
+  async createLeadFromComment(
+    user: PortalJwtPayload,
+    commentId: string,
+    body: { full_name?: string; phone?: string; email?: string },
+  ) {
+    const row = await this.requireComment(user, commentId);
+    const phone = displayVnPhone(String(body.phone ?? '').trim()).slice(0, 32);
+    if (!phone) throw new BadRequestException({ error: 'Cần số điện thoại để tạo Lead.' });
+    const fullName = String(body.full_name ?? row.from_name ?? '').trim().slice(0, 200) || 'Khách bình luận';
+    const email = String(body.email ?? '').trim().slice(0, 200);
+    const lead = await this.repo.insertInboxLead(user.client_id, row.page_id, {
+      external_id: `comment:${row.comment_id}`,
+      full_name: fullName,
+      phone,
+      email,
+    });
+    await this.repo.syncCases(user.client_id);
+    return { ok: true, lead };
+  }
+
+  async inboxReport(user: PortalJwtPayload, range: string) {
+    await this.repo.ensure();
+    const days = range === '7d' || range === '7' ? 7 : 1;
+    const start = this.rangeStart(days);
+    const report = await this.repo.inboxReport(user.client_id, start, careListFilterForUser(user));
+    // Use every stored Page (including inactive) so the report can show names, not raw ids.
+    const allPages = await this.pages.listForPortal(user.client_id);
+    const names = new Map(allPages.map((page) => [page.page_id, String(page.page_name || '').trim()]));
+    const pageLabel = (pageId: string, stored?: string) => {
+      const name = (stored || names.get(pageId) || '').trim();
+      if (name && name !== pageId && !/^\d{8,}$/.test(name)) return name;
+      const tail = String(pageId || '').slice(-4);
+      return tail ? `Page …${tail}` : 'Page';
+    };
+    return {
+      ok: true,
+      range: days === 7 ? '7d' : 'today',
+      range_start: start.toISOString(),
+      by_page: report.by_page.map((row) => ({ ...row, page_name: pageLabel(row.page_id) })),
+      by_staff: report.by_staff,
+    };
+  }
+
+  private rangeStart(days: number): Date {
+    const now = new Date();
+    const tzNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const startLocal = new Date(tzNow.getFullYear(), tzNow.getMonth(), tzNow.getDate(), 0, 0, 0, 0);
+    if (days > 1) startLocal.setDate(startLocal.getDate() - (days - 1));
+    // interpret that wall-clock as Asia/Ho_Chi_Minh (UTC+7)
+    return new Date(startLocal.getTime() - (tzNow.getTime() - now.getTime()));
+  }
+
+  private async requireComment(user: PortalJwtPayload, commentId: string) {
+    await this.repo.ensure();
+    const row = await this.repo.findComment(user.client_id, commentId.trim());
+    if (!row) throw new NotFoundException({ error: 'comment_not_found' });
+    const pages = await this.visiblePages(user.client_id);
+    if (!pages.some((page) => page.page_id === row.page_id)) {
+      throw new ForbiddenException({ error: 'page_not_visible' });
+    }
+    return row;
+  }
+
   private async visiblePages(clientId: string): Promise<PortalClientPage[]> {
     const allPages = await this.pages.listForPortal(clientId);
     return filterVisiblePages(allPages);
@@ -534,6 +852,7 @@ export class PortalCareService {
       if (shouldPauseGraph()) return;
       if (shouldReuseFreshSync(this.inboxAt.get(clientId), Date.now(), ttl)) return;
       await this.pullFacebookInbox(clientId, { fromUserDesk: true });
+      await this.rebalance(clientId);
       this.inboxAt.set(clientId, Date.now());
     });
   }

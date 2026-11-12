@@ -4,7 +4,7 @@ import { createAppPgPool, shouldEndLocalPool } from '../config/pg-pool.factory';
 import { AppConfigService } from '../config/app-config.service';
 import { ensurePortalCrmLocalSchema } from './portal-crm-local-ddl.util';
 import { parseProductSpec, type ProductSpec } from './portal-product.util';
-import { appendAssigneeWhere, type PortalCareListFilter } from './portal-care.util';
+import { appendAssigneeWhere, deriveInboxFlags, type PortalCareListFilter } from './portal-care.util';
 
 export type CareCaseRow = {
   id: string;
@@ -34,6 +34,15 @@ export type CareCaseRow = {
   adset_id: string;
   ad_id: string;
   form_id: string;
+  notes: string;
+  last_read_at: string;
+  last_direction: string;
+  last_inbound_at: string;
+  unread: boolean;
+  unreplied: boolean;
+  last_viewed_by: string | null;
+  last_viewed_at: string;
+  last_viewed_email: string;
 };
 
 export type OrderDraft = {
@@ -98,6 +107,21 @@ function mapCase(row: Record<string, unknown>): CareCaseRow {
     adset_id: String(row.adset_id ?? ''),
     ad_id: String(row.ad_id_lead ?? row.ad_id ?? ''),
     form_id: String(row.form_id ?? ''),
+    notes: String(row.notes ?? ''),
+    last_read_at: iso(row.last_read_at),
+    last_direction: String(row.last_direction ?? ''),
+    last_inbound_at: iso(row.last_inbound_at),
+    ...deriveInboxFlags({
+      kind: String(row.kind),
+      status: String(row.status ?? ''),
+      last_direction: String(row.last_direction ?? ''),
+      last_inbound_at: iso(row.last_inbound_at),
+      last_read_at: iso(row.last_read_at),
+      received_at: iso(row.received_at),
+    }),
+    last_viewed_by: row.last_viewed_by ? String(row.last_viewed_by) : null,
+    last_viewed_at: iso(row.last_viewed_at),
+    last_viewed_email: String(row.last_viewed_email ?? ''),
   };
 }
 
@@ -109,6 +133,26 @@ export function psidFromMessageThreadKey(pageId: string, threadKey: string): str
   if (!tail || tail.startsWith('_name:')) return '';
   if (!/^\d+$/.test(tail)) return '';
   return tail;
+}
+
+function parseAttachments(value: unknown): Array<{ type: string; url: string; mime_type: string; name: string }> {
+  let raw = value;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { raw = []; }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return { type: '', url: '', mime_type: '', name: '' };
+      const row = item as Record<string, unknown>;
+      return {
+        type: String(row.type ?? 'file'),
+        url: String(row.url ?? ''),
+        mime_type: String(row.mime_type ?? ''),
+        name: String(row.name ?? ''),
+      };
+    })
+    .filter((item) => item.url);
 }
 
 function parseOrder(value: unknown): OrderDraft {
@@ -264,16 +308,39 @@ export class PortalCareRepository implements OnModuleDestroy {
   async upsertPageMessage(
     clientId: string,
     pageId: string,
-    input: { external_id: string; sender_name: string; sender_psid?: string; body: string; received_at: string; direction: 'in' | 'out' },
+    input: {
+      external_id: string;
+      sender_name: string;
+      sender_psid?: string;
+      body: string;
+      received_at: string;
+      direction: 'in' | 'out';
+      attachments?: Array<{ type: string; url: string; mime_type: string; name: string }>;
+    },
   ): Promise<void> {
     const psid = String(input.sender_psid ?? '').slice(0, 64);
+    const attachments = JSON.stringify(input.attachments ?? []);
     await this.db.query(
-      `INSERT INTO portal_page_messages (client_id, page_id, external_message_id, sender_name, sender_psid, body, received_at, direction)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW()), $8)
+      `INSERT INTO portal_page_messages (client_id, page_id, external_message_id, sender_name, sender_psid, body, received_at, direction, attachments)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW()), $8, COALESCE($9::jsonb, '[]'::jsonb))
        ON CONFLICT (page_id, external_message_id) WHERE external_message_id <> ''
-       DO UPDATE SET sender_psid = EXCLUDED.sender_psid
-       WHERE portal_page_messages.sender_psid = '' AND EXCLUDED.sender_psid <> ''`,
-      [clientId, pageId, input.external_id, input.sender_name, psid, input.body, input.received_at || null, input.direction],
+       DO UPDATE SET
+         sender_psid = CASE
+           WHEN portal_page_messages.sender_psid = '' AND EXCLUDED.sender_psid <> '' THEN EXCLUDED.sender_psid
+           ELSE portal_page_messages.sender_psid
+         END,
+         attachments = CASE
+           WHEN (portal_page_messages.attachments IS NULL OR portal_page_messages.attachments = '[]'::jsonb)
+                AND EXCLUDED.attachments <> '[]'::jsonb
+             THEN EXCLUDED.attachments
+           ELSE portal_page_messages.attachments
+         END,
+         body = CASE
+           WHEN (portal_page_messages.body IN ('', '[sticker]', '[ảnh/sticker]')) AND EXCLUDED.body <> ''
+             THEN EXCLUDED.body
+           ELSE portal_page_messages.body
+         END`,
+      [clientId, pageId, input.external_id, input.sender_name, psid, input.body, input.received_at || null, input.direction, attachments],
     );
     await this.touchCustomerInteraction(clientId, pageId, {
       psid,
@@ -694,8 +761,12 @@ export class PortalCareRepository implements OnModuleDestroy {
       where.push(`c.kind = $${values.length}`);
     }
     appendAssigneeWhere(where, values, filter.assigneeUserId, 'c');
+    const orderBy =
+      filter.kind === 'message'
+        ? 'last_interaction_at DESC NULLS LAST, c.created_at DESC'
+        : 'c.created_at DESC';
     const result = await this.db.query(
-      `${this.caseSelect()} WHERE ${where.join(' AND ')} ORDER BY c.created_at DESC LIMIT 200`,
+      `${this.caseSelect()} WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT 200`,
       values,
     );
     return result.rows.map((row) => mapCase(row as Record<string, unknown>));
@@ -737,6 +808,534 @@ export class PortalCareRepository implements OnModuleDestroy {
       id,
       labels,
     ]);
+  }
+
+  async markRead(id: string, userId?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_care_cases
+       SET last_read_at = NOW(),
+           last_viewed_at = NOW(),
+           last_viewed_by = COALESCE($2::uuid, last_viewed_by),
+           updated_at = NOW()
+       WHERE id = $1::uuid`,
+      [id, userId || null],
+    );
+  }
+
+  async unassign(id: string): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_care_cases
+       SET assignee_user_id = NULL, assigned_at = NULL, receive_due_at = NULL, updated_at = NOW()
+       WHERE id = $1::uuid AND status <> 'purchased'`,
+      [id],
+    );
+  }
+
+  async saveNotes(id: string, notes: string): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_care_cases SET notes = $2, updated_at = NOW() WHERE id = $1::uuid`,
+      [id, notes],
+    );
+  }
+
+  async findLeadsByPhones(
+    clientId: string,
+    phones: string[],
+  ): Promise<Array<{ id: string; page_id: string; full_name: string; phone: string; email: string; created_at: string; campaign_name: string }>> {
+    const cleaned = [...new Set(phones.map((item) => item.replace(/\D/g, '')).filter((item) => item.length >= 8))];
+    if (!cleaned.length) return [];
+    const variants = new Set<string>();
+    for (const phone of cleaned) {
+      variants.add(phone);
+      if (phone.startsWith('0')) {
+        variants.add(`84${phone.slice(1)}`);
+        variants.add(`+84${phone.slice(1)}`);
+      } else if (phone.startsWith('84')) {
+        variants.add(`0${phone.slice(2)}`);
+        variants.add(`+${phone}`);
+      }
+    }
+    const result = await this.db.query(
+      `SELECT id::text, page_id, full_name, phone, email, created_at, campaign_name
+       FROM portal_page_leads
+       WHERE client_id = $1::uuid
+         AND regexp_replace(phone, '[^0-9]', '', 'g') = ANY($2::text[])
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [clientId, [...variants]],
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      page_id: String(row.page_id),
+      full_name: String(row.full_name ?? ''),
+      phone: String(row.phone ?? ''),
+      email: String(row.email ?? ''),
+      created_at: iso(row.created_at),
+      campaign_name: String(row.campaign_name ?? ''),
+    }));
+  }
+
+  async insertInboxLead(
+    clientId: string,
+    pageId: string,
+    input: { external_id: string; full_name: string; phone: string; email: string },
+  ): Promise<{ id: string; full_name: string; phone: string; email: string; created_at: string }> {
+    const result = await this.db.query(
+      `INSERT INTO portal_page_leads (client_id, page_id, external_lead_id, full_name, phone, email, campaign_name)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, 'Hộp thư')
+       ON CONFLICT (page_id, external_lead_id) WHERE external_lead_id <> '' DO UPDATE SET
+         full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), portal_page_leads.full_name),
+         phone = COALESCE(NULLIF(EXCLUDED.phone, ''), portal_page_leads.phone),
+         email = COALESCE(NULLIF(EXCLUDED.email, ''), portal_page_leads.email)
+       RETURNING id::text, full_name, phone, email, created_at`,
+      [clientId, pageId, input.external_id, input.full_name, input.phone, input.email],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) {
+      return { id: '', full_name: input.full_name, phone: input.phone, email: input.email, created_at: '' };
+    }
+    return {
+      id: String(row.id),
+      full_name: String(row.full_name ?? ''),
+      phone: String(row.phone ?? ''),
+      email: String(row.email ?? ''),
+      created_at: iso(row.created_at),
+    };
+  }
+
+  async listQuickReplies(
+    clientId: string,
+  ): Promise<Array<{ id: string; shortcut: string; title: string; body: string; sort_order: number }>> {
+    await this.db.query(
+      `INSERT INTO portal_quick_replies (client_id, shortcut, title, body, sort_order)
+       SELECT $1::uuid, shortcut, title, body, sort_order
+       FROM (VALUES
+         ('chao', 'Chào khách', 'Xin chào, PTT hỗ trợ bạn ạ. Bạn cần mình tư vấn gì ạ?', 1),
+         ('sdt', 'Xin số điện thoại', 'Bạn vui lòng để lại số điện thoại, mình sẽ liên hệ tư vấn ngay ạ.', 2),
+         ('camon', 'Cảm ơn', 'Cảm ơn bạn đã liên hệ. Mình luôn sẵn sàng hỗ trợ thêm khi bạn cần ạ.', 3),
+         ('baogia', 'Báo giá', 'Mình gửi thông tin và báo giá cho bạn ngay ạ. Bạn đang quan tâm dịch vụ nào?', 4)
+       ) AS seed(shortcut, title, body, sort_order)
+       ON CONFLICT (client_id, shortcut) DO NOTHING`,
+      [clientId],
+    );
+    const result = await this.db.query(
+      `SELECT id::text, shortcut, title, body, sort_order
+       FROM portal_quick_replies
+       WHERE client_id = $1::uuid
+       ORDER BY sort_order ASC, created_at ASC`,
+      [clientId],
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      shortcut: String(row.shortcut ?? ''),
+      title: String(row.title ?? ''),
+      body: String(row.body ?? ''),
+      sort_order: Number(row.sort_order ?? 0),
+    }));
+  }
+
+  async insertQuickReply(
+    clientId: string,
+    input: { shortcut: string; title: string; body: string },
+  ): Promise<{ id: string; shortcut: string; title: string; body: string; sort_order: number }> {
+    const result = await this.db.query(
+      `INSERT INTO portal_quick_replies (client_id, shortcut, title, body, sort_order)
+       VALUES (
+         $1::uuid, $2, $3, $4,
+         COALESCE((SELECT MAX(sort_order) + 1 FROM portal_quick_replies WHERE client_id = $1::uuid), 1)
+       )
+       ON CONFLICT (client_id, shortcut) DO UPDATE SET
+         title = EXCLUDED.title,
+         body = EXCLUDED.body,
+         updated_at = NOW()
+       RETURNING id::text, shortcut, title, body, sort_order`,
+      [clientId, input.shortcut, input.title, input.body],
+    );
+    const row = result.rows[0];
+    return {
+      id: String(row.id),
+      shortcut: String(row.shortcut),
+      title: String(row.title),
+      body: String(row.body),
+      sort_order: Number(row.sort_order ?? 0),
+    };
+  }
+
+  async updateQuickReply(
+    clientId: string,
+    id: string,
+    input: { shortcut?: string; title?: string; body?: string; sort_order?: number },
+  ): Promise<{ id: string; shortcut: string; title: string; body: string; sort_order: number } | null> {
+    const result = await this.db.query(
+      `UPDATE portal_quick_replies
+       SET shortcut = COALESCE(NULLIF($3, ''), shortcut),
+           title = COALESCE($4, title),
+           body = COALESCE($5, body),
+           sort_order = COALESCE($6, sort_order),
+           updated_at = NOW()
+       WHERE client_id = $1::uuid AND id = $2::uuid
+       RETURNING id::text, shortcut, title, body, sort_order`,
+      [clientId, id, input.shortcut ?? '', input.title ?? null, input.body ?? null, input.sort_order ?? null],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      shortcut: String(row.shortcut),
+      title: String(row.title),
+      body: String(row.body),
+      sort_order: Number(row.sort_order ?? 0),
+    };
+  }
+
+  async deleteQuickReply(clientId: string, id: string): Promise<boolean> {
+    const result = await this.db.query(
+      `DELETE FROM portal_quick_replies WHERE client_id = $1::uuid AND id = $2::uuid`,
+      [clientId, id],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async reorderQuickReplies(clientId: string, ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i += 1) {
+      await this.db.query(
+        `UPDATE portal_quick_replies SET sort_order = $3, updated_at = NOW()
+         WHERE client_id = $1::uuid AND id = $2::uuid`,
+        [clientId, ids[i], i + 1],
+      );
+    }
+  }
+
+  async getInboxSettings(clientId: string): Promise<{ auto_hide_phone_comments: boolean }> {
+    const result = await this.db.query(
+      `SELECT auto_hide_phone_comments FROM portal_inbox_settings WHERE client_id = $1::uuid LIMIT 1`,
+      [clientId],
+    );
+    return { auto_hide_phone_comments: result.rows[0]?.auto_hide_phone_comments === true };
+  }
+
+  async saveInboxSettings(
+    clientId: string,
+    autoHide: boolean,
+    updatedBy: string,
+  ): Promise<{ auto_hide_phone_comments: boolean }> {
+    const result = await this.db.query(
+      `INSERT INTO portal_inbox_settings (client_id, auto_hide_phone_comments, updated_by, updated_at)
+       VALUES ($1::uuid, $2, $3, NOW())
+       ON CONFLICT (client_id) DO UPDATE SET
+         auto_hide_phone_comments = EXCLUDED.auto_hide_phone_comments,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()
+       RETURNING auto_hide_phone_comments`,
+      [clientId, autoHide, updatedBy.slice(0, 200)],
+    );
+    return { auto_hide_phone_comments: result.rows[0]?.auto_hide_phone_comments === true };
+  }
+
+  async getCommentSyncState(
+    clientId: string,
+  ): Promise<{ last_synced_at: string; last_error: string; permission_error: string }> {
+    const result = await this.db.query(
+      `SELECT last_synced_at, last_error, permission_error FROM portal_comment_sync WHERE client_id = $1::uuid LIMIT 1`,
+      [clientId],
+    );
+    const row = result.rows[0];
+    return {
+      last_synced_at: iso(row?.last_synced_at),
+      last_error: String(row?.last_error ?? ''),
+      permission_error: String(row?.permission_error ?? ''),
+    };
+  }
+
+  async saveCommentSyncState(
+    clientId: string,
+    input: { last_error?: string; permission_error?: string; synced?: boolean },
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO portal_comment_sync (client_id, last_synced_at, last_error, permission_error, updated_at)
+       VALUES ($1::uuid, CASE WHEN $4 THEN NOW() ELSE NULL END, $2, $3, NOW())
+       ON CONFLICT (client_id) DO UPDATE SET
+         last_synced_at = CASE WHEN $4 THEN NOW() ELSE portal_comment_sync.last_synced_at END,
+         last_error = EXCLUDED.last_error,
+         permission_error = EXCLUDED.permission_error,
+         updated_at = NOW()`,
+      [clientId, String(input.last_error ?? '').slice(0, 500), String(input.permission_error ?? '').slice(0, 500), Boolean(input.synced)],
+    );
+  }
+
+  async upsertFbPost(
+    clientId: string,
+    input: { page_id: string; post_id: string; message: string; permalink: string; picture: string; created_time: string },
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO portal_fb_posts (client_id, page_id, post_id, message, permalink, picture, created_time, updated_at)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
+       ON CONFLICT (client_id, post_id) DO UPDATE SET
+         message = EXCLUDED.message,
+         permalink = EXCLUDED.permalink,
+         picture = CASE WHEN EXCLUDED.picture <> '' THEN EXCLUDED.picture ELSE portal_fb_posts.picture END,
+         created_time = COALESCE(EXCLUDED.created_time, portal_fb_posts.created_time),
+         updated_at = NOW()`,
+      [clientId, input.page_id, input.post_id, input.message, input.permalink, input.picture, input.created_time || null],
+    );
+  }
+
+  async upsertPageComment(
+    clientId: string,
+    input: {
+      page_id: string;
+      post_id: string;
+      comment_id: string;
+      parent_id: string;
+      from_name: string;
+      from_id: string;
+      message: string;
+      created_time: string;
+      is_hidden: boolean;
+      replied: boolean;
+      can_hide: boolean;
+      can_reply: boolean;
+      can_reply_privately: boolean;
+    },
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO portal_page_comments (
+         client_id, page_id, post_id, comment_id, parent_id, from_name, from_id, message,
+         created_time, is_hidden, replied, can_hide, can_reply, can_reply_privately, updated_at
+       ) VALUES (
+         $1::uuid, $2, $3, $4, $5, $6, $7, $8,
+         COALESCE($9::timestamptz, NOW()), $10, $11, $12, $13, $14, NOW()
+       )
+       ON CONFLICT (client_id, comment_id) DO UPDATE SET
+         from_name = COALESCE(NULLIF(EXCLUDED.from_name, ''), portal_page_comments.from_name),
+         from_id = COALESCE(NULLIF(EXCLUDED.from_id, ''), portal_page_comments.from_id),
+         message = EXCLUDED.message,
+         is_hidden = EXCLUDED.is_hidden,
+         replied = portal_page_comments.replied OR EXCLUDED.replied,
+         can_hide = EXCLUDED.can_hide,
+         can_reply = EXCLUDED.can_reply,
+         can_reply_privately = EXCLUDED.can_reply_privately,
+         updated_at = NOW()`,
+      [
+        clientId,
+        input.page_id,
+        input.post_id,
+        input.comment_id,
+        input.parent_id,
+        input.from_name,
+        input.from_id,
+        input.message,
+        input.created_time || null,
+        input.is_hidden,
+        input.replied,
+        input.can_hide,
+        input.can_reply,
+        input.can_reply_privately,
+      ],
+    );
+  }
+
+  async markCommentHidden(clientId: string, commentId: string, hidden: boolean): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_page_comments SET is_hidden = $3, updated_at = NOW()
+       WHERE client_id = $1::uuid AND comment_id = $2`,
+      [clientId, commentId, hidden],
+    );
+  }
+
+  async markCommentReplied(clientId: string, commentId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_page_comments SET replied = TRUE, updated_at = NOW()
+       WHERE client_id = $1::uuid AND comment_id = $2`,
+      [clientId, commentId],
+    );
+  }
+
+  async findComment(clientId: string, commentId: string): Promise<{
+    comment_id: string; page_id: string; post_id: string; from_name: string; from_id: string; message: string; is_hidden: boolean;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT comment_id, page_id, post_id, from_name, from_id, message, is_hidden
+       FROM portal_page_comments WHERE client_id = $1::uuid AND comment_id = $2 LIMIT 1`,
+      [clientId, commentId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      comment_id: String(row.comment_id),
+      page_id: String(row.page_id),
+      post_id: String(row.post_id),
+      from_name: String(row.from_name ?? ''),
+      from_id: String(row.from_id ?? ''),
+      message: String(row.message ?? ''),
+      is_hidden: row.is_hidden === true,
+    };
+  }
+
+  async listFbPosts(
+    clientId: string,
+    pageId?: string,
+  ): Promise<Array<{ post_id: string; page_id: string; message: string; permalink: string; picture: string; created_time: string }>> {
+    const values: unknown[] = [clientId];
+    let pageSql = '';
+    if (pageId) {
+      values.push(pageId);
+      pageSql = ` AND page_id = $2`;
+    }
+    const result = await this.db.query(
+      `SELECT post_id, page_id, message, permalink, picture, created_time
+       FROM portal_fb_posts
+       WHERE client_id = $1::uuid${pageSql}
+       ORDER BY created_time DESC NULLS LAST
+       LIMIT 50`,
+      values,
+    );
+    return result.rows.map((row) => ({
+      post_id: String(row.post_id),
+      page_id: String(row.page_id),
+      message: String(row.message ?? ''),
+      permalink: String(row.permalink ?? ''),
+      picture: String(row.picture ?? ''),
+      created_time: iso(row.created_time),
+    }));
+  }
+
+  async listComments(
+    clientId: string,
+    pageId?: string,
+  ): Promise<Array<{
+    comment_id: string; page_id: string; post_id: string; parent_id: string; from_name: string; from_id: string;
+    message: string; created_time: string; is_hidden: boolean; replied: boolean; can_hide: boolean; can_reply: boolean; can_reply_privately: boolean;
+  }>> {
+    const values: unknown[] = [clientId];
+    let pageSql = '';
+    if (pageId) {
+      values.push(pageId);
+      pageSql = ` AND page_id = $2`;
+    }
+    const result = await this.db.query(
+      `SELECT comment_id, page_id, post_id, parent_id, from_name, from_id, message, created_time,
+              is_hidden, replied, can_hide, can_reply, can_reply_privately
+       FROM portal_page_comments
+       WHERE client_id = $1::uuid${pageSql}
+       ORDER BY created_time DESC
+       LIMIT 400`,
+      values,
+    );
+    return result.rows.map((row) => ({
+      comment_id: String(row.comment_id),
+      page_id: String(row.page_id),
+      post_id: String(row.post_id),
+      parent_id: String(row.parent_id ?? ''),
+      from_name: String(row.from_name ?? ''),
+      from_id: String(row.from_id ?? ''),
+      message: String(row.message ?? ''),
+      created_time: iso(row.created_time),
+      is_hidden: row.is_hidden === true,
+      replied: row.replied === true,
+      can_hide: row.can_hide !== false,
+      can_reply: row.can_reply !== false,
+      can_reply_privately: row.can_reply_privately !== false,
+    }));
+  }
+
+  async inboxReport(
+    clientId: string,
+    rangeStart: Date,
+    filter?: { assigneeUserId?: string },
+  ): Promise<{
+    by_page: Array<{ page_id: string; new_conversations: number; unreplied: number; avg_first_response_sec: number | null; phones_collected: number }>;
+    by_staff: Array<{ user_id: string; email: string; new_conversations: number; unreplied: number; avg_first_response_sec: number | null; phones_collected: number }>;
+  }> {
+    const values: unknown[] = [clientId, rangeStart.toISOString()];
+    let assignee = '';
+    if (filter?.assigneeUserId) {
+      values.push(filter.assigneeUserId);
+      assignee = ` AND c.assignee_user_id = $${values.length}::uuid`;
+    }
+    const base = `
+      WITH cases AS (
+        SELECT c.id, c.page_id, c.assignee_user_id, COALESCE(u.email, '') AS email,
+               c.created_at, c.order_draft,
+               first_in.received_at AS first_in_at,
+               first_out.received_at AS first_out_at,
+               last_msg.direction AS last_direction,
+               phones.phone_hit
+        FROM portal_care_cases c
+        LEFT JOIN portal_client_users u ON u.id = c.assignee_user_id
+        LEFT JOIN LATERAL (
+          SELECT m.received_at FROM portal_page_messages m
+          WHERE m.client_id = c.client_id AND m.page_id = c.page_id AND c.kind = 'message'
+            AND ${this.messageMatchSql('m')} AND m.direction <> 'out'
+          ORDER BY m.received_at ASC LIMIT 1
+        ) first_in ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT m.received_at FROM portal_page_messages m
+          WHERE m.client_id = c.client_id AND m.page_id = c.page_id AND c.kind = 'message'
+            AND ${this.messageMatchSql('m')} AND m.direction = 'out'
+          ORDER BY m.received_at ASC LIMIT 1
+        ) first_out ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT m.direction FROM portal_page_messages m
+          WHERE m.client_id = c.client_id AND m.page_id = c.page_id AND c.kind = 'message'
+            AND ${this.messageMatchSql('m')}
+          ORDER BY m.received_at DESC LIMIT 1
+        ) last_msg ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT EXISTS (
+            SELECT 1 FROM portal_page_messages m
+            WHERE m.client_id = c.client_id AND m.page_id = c.page_id AND c.kind = 'message'
+              AND ${this.messageMatchSql('m')}
+              AND m.body ~ '(0|\\\\+?84)[1-9][0-9]{8,9}'
+          ) OR COALESCE(c.order_draft->>'phone', '') <> '' AS phone_hit
+        ) phones ON TRUE
+        WHERE c.client_id = $1::uuid AND c.kind = 'message' ${assignee}
+      )
+    `;
+    const pageRes = await this.db.query(
+      `${base}
+       SELECT page_id,
+              COUNT(*) FILTER (WHERE COALESCE(first_in_at, created_at) >= $2::timestamptz)::int AS new_conversations,
+              COUNT(*) FILTER (WHERE last_direction = 'in')::int AS unreplied,
+              AVG(EXTRACT(EPOCH FROM (first_out_at - first_in_at)))
+                FILTER (WHERE first_in_at IS NOT NULL AND first_out_at IS NOT NULL AND first_out_at >= first_in_at)
+                AS avg_first_response_sec,
+              COUNT(*) FILTER (WHERE phone_hit AND COALESCE(first_in_at, created_at) >= $2::timestamptz)::int AS phones_collected
+       FROM cases
+       GROUP BY page_id`,
+      values,
+    );
+    const staffRes = await this.db.query(
+      `${base}
+       SELECT COALESCE(assignee_user_id::text, '') AS user_id,
+              COALESCE(NULLIF(email, ''), 'Chưa gán') AS email,
+              COUNT(*) FILTER (WHERE COALESCE(first_in_at, created_at) >= $2::timestamptz)::int AS new_conversations,
+              COUNT(*) FILTER (WHERE last_direction = 'in')::int AS unreplied,
+              AVG(EXTRACT(EPOCH FROM (first_out_at - first_in_at)))
+                FILTER (WHERE first_in_at IS NOT NULL AND first_out_at IS NOT NULL AND first_out_at >= first_in_at)
+                AS avg_first_response_sec,
+              COUNT(*) FILTER (WHERE phone_hit AND COALESCE(first_in_at, created_at) >= $2::timestamptz)::int AS phones_collected
+       FROM cases
+       GROUP BY assignee_user_id, email`,
+      values,
+    );
+    const mapRow = (row: Record<string, unknown>) => ({
+      new_conversations: Number(row.new_conversations ?? 0),
+      unreplied: Number(row.unreplied ?? 0),
+      avg_first_response_sec:
+        row.avg_first_response_sec == null || Number.isNaN(Number(row.avg_first_response_sec))
+          ? null
+          : Math.round(Number(row.avg_first_response_sec)),
+      phones_collected: Number(row.phones_collected ?? 0),
+    });
+    return {
+      by_page: pageRes.rows.map((row) => ({ page_id: String(row.page_id), ...mapRow(row as Record<string, unknown>) })),
+      by_staff: staffRes.rows.map((row) => ({
+        user_id: String(row.user_id ?? ''),
+        email: String(row.email ?? ''),
+        ...mapRow(row as Record<string, unknown>),
+      })),
+    };
   }
 
   async confirmCustomer(row: CareCaseRow): Promise<string> {
@@ -865,17 +1464,17 @@ export class PortalCareRepository implements OnModuleDestroy {
     clientId: string,
     pageId: string,
     input: { psid: string; senderName: string },
-  ): Promise<Array<{ id: string; sender_name: string; body: string; received_at: string; direction: string }>> {
+  ): Promise<Array<{ id: string; sender_name: string; body: string; received_at: string; direction: string; attachments: Array<{ type: string; url: string; mime_type: string; name: string }> }>> {
     const psid = String(input.psid ?? '').trim();
     const senderName = String(input.senderName ?? '').trim();
     const result = await this.db.query(
       psid
-        ? `SELECT id::text, sender_name, body, received_at, direction
+        ? `SELECT id::text, sender_name, body, received_at, direction, COALESCE(attachments, '[]'::jsonb) AS attachments
            FROM portal_page_messages
            WHERE client_id = $1::uuid AND page_id = $2 AND sender_psid = $3
            ORDER BY received_at ASC
            LIMIT 100`
-        : /* tạm: chỉ khi chưa có PSID */ `SELECT id::text, sender_name, body, received_at, direction
+        : /* tạm: chỉ khi chưa có PSID */ `SELECT id::text, sender_name, body, received_at, direction, COALESCE(attachments, '[]'::jsonb) AS attachments
            FROM portal_page_messages
            WHERE client_id = $1::uuid AND page_id = $2 AND lower(sender_name) = lower($3)
            ORDER BY received_at ASC
@@ -888,6 +1487,7 @@ export class PortalCareRepository implements OnModuleDestroy {
       body: String(row.body ?? ''),
       received_at: iso(row.received_at),
       direction: String(row.direction ?? 'in'),
+      attachments: parseAttachments(row.attachments),
     }));
   }
 
@@ -1057,51 +1657,65 @@ export class PortalCareRepository implements OnModuleDestroy {
     return result.rows.map((row) => ({ id: String(row.id), name: String(row.name), color: String(row.color) }));
   }
 
-  async insertLabel(clientId: string, name: string): Promise<void> {
+  async insertLabel(clientId: string, name: string, color = ''): Promise<void> {
+    const safe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color) ? color : '#1877f2';
     await this.db.query(
-      `INSERT INTO portal_page_labels (client_id, name) VALUES ($1::uuid, $2)
-       ON CONFLICT (client_id, name) DO NOTHING`,
-      [clientId, name],
+      `INSERT INTO portal_page_labels (client_id, name, color) VALUES ($1::uuid, $2, $3)
+       ON CONFLICT (client_id, name) DO UPDATE SET
+         color = CASE WHEN $3 <> '#1877f2' THEN EXCLUDED.color ELSE portal_page_labels.color END`,
+      [clientId, name, safe],
     );
   }
 
+  private messageMatchSql(alias = 'm'): string {
+    return `(
+      (${alias}.sender_psid <> '' AND c.thread_key = 'mess:' || c.page_id || ':' || ${alias}.sender_psid)
+      OR (${alias}.sender_psid = '' AND lower(${alias}.sender_name) = lower(c.title))
+      OR c.thread_key = 'mess:' || c.page_id || ':' || lower(${alias}.sender_name)
+    )`;
+  }
+
   private caseSelect(): string {
+    const match = this.messageMatchSql('m');
     return `SELECT c.id, c.page_id, c.channel, c.kind, c.thread_key, c.title,
                    c.assignee_user_id, COALESCE(u.email, '') AS assignee_email, c.status, c.labels, c.customer_id,
                    c.assigned_at, c.receive_due_at, c.received_at, c.care_started_at, c.care_due_at, c.created_at, c.order_draft,
-                   COALESCE(
-                     (SELECT MAX(m.received_at) FROM portal_page_messages m
-                       WHERE m.client_id = c.client_id AND m.page_id = c.page_id
-                         AND c.kind = 'message'
-                         AND (
-                           (m.sender_psid <> '' AND c.thread_key = 'mess:' || c.page_id || ':' || m.sender_psid)
-                           OR (m.sender_psid = '' AND lower(m.sender_name) = lower(c.title))
-                           OR c.thread_key = 'mess:' || c.page_id || ':' || lower(m.sender_name)
-                         )),
-                     l.created_at
-                   ) AS last_interaction_at,
+                   c.notes, c.last_read_at,
+                   c.last_viewed_by, c.last_viewed_at, COALESCE(v.email, '') AS last_viewed_email,
+                   COALESCE(last_msg.received_at, l.created_at) AS last_interaction_at,
+                   last_msg.body AS snippet,
+                   COALESCE(last_msg.direction, '') AS last_direction,
+                   last_in.received_at AS last_inbound_at,
                    COALESCE(NULLIF(l.phone, ''), '') AS phone,
                    COALESCE(NULLIF(l.campaign_name, ''), '') AS source,
                    COALESCE(l.field_data, '[]'::jsonb) AS answers,
                    COALESCE(l.campaign_id, '') AS campaign_id,
                    COALESCE(l.adset_id, '') AS adset_id,
                    COALESCE(l.ad_id, '') AS ad_id_lead,
-                   COALESCE(l.form_id, '') AS form_id,
-                   (SELECT m.body FROM portal_page_messages m
-                     WHERE m.client_id = c.client_id AND m.page_id = c.page_id
-                       AND c.kind = 'message'
-                       AND (
-                         (m.sender_psid <> '' AND c.thread_key = 'mess:' || c.page_id || ':' || m.sender_psid)
-                         OR (m.sender_psid = '' AND lower(m.sender_name) = lower(c.title))
-                         OR c.thread_key = 'mess:' || c.page_id || ':' || lower(m.sender_name)
-                       )
-                     ORDER BY m.received_at DESC LIMIT 1) AS snippet
+                   COALESCE(l.form_id, '') AS form_id
             FROM portal_care_cases c
             LEFT JOIN portal_client_users u ON u.id = c.assignee_user_id
+            LEFT JOIN portal_client_users v ON v.id = c.last_viewed_by
             LEFT JOIN portal_page_leads l
               ON c.kind = 'lead'
              AND l.client_id = c.client_id
-             AND c.thread_key = 'lead:' || l.id::text`;
+             AND c.thread_key = 'lead:' || l.id::text
+            LEFT JOIN LATERAL (
+              SELECT m.body, m.direction, m.received_at
+              FROM portal_page_messages m
+              WHERE m.client_id = c.client_id AND m.page_id = c.page_id
+                AND c.kind = 'message' AND ${match}
+              ORDER BY m.received_at DESC
+              LIMIT 1
+            ) last_msg ON TRUE
+            LEFT JOIN LATERAL (
+              SELECT m.received_at
+              FROM portal_page_messages m
+              WHERE m.client_id = c.client_id AND m.page_id = c.page_id
+                AND c.kind = 'message' AND m.direction <> 'out' AND ${match}
+              ORDER BY m.received_at DESC
+              LIMIT 1
+            ) last_in ON TRUE`;
   }
 
   private customerCaseSelect(): string {
@@ -1234,6 +1848,81 @@ export class PortalCareRepository implements OnModuleDestroy {
          AND c.kind = 'message'
          AND lower(c.title) = lower($3)`,
       [clientId, pageId, sender],
+    );
+  }
+
+  async ensureWebhookJobs(): Promise<void> {
+    await this.db.query(`
+CREATE TABLE IF NOT EXISTS portal_meta_webhook_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_type text NOT NULL,
+  payload jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  idempotency_key text NOT NULL,
+  attempts integer NOT NULL DEFAULT 0,
+  last_error text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS portal_meta_webhook_jobs_idem_uidx
+  ON portal_meta_webhook_jobs (idempotency_key);
+CREATE INDEX IF NOT EXISTS portal_meta_webhook_jobs_pending_idx
+  ON portal_meta_webhook_jobs (status, created_at)
+  WHERE status = 'pending';
+`);
+  }
+
+  async enqueueWebhookJob(input: {
+    jobType: string;
+    idempotencyKey: string;
+    payload: Record<string, unknown>;
+  }): Promise<boolean> {
+    const result = await this.db.query(
+      `INSERT INTO portal_meta_webhook_jobs (job_type, payload, idempotency_key)
+       VALUES ($1, $2::jsonb, $3)
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING id`,
+      [input.jobType, JSON.stringify(input.payload), input.idempotencyKey],
+    );
+    return Boolean(result.rowCount);
+  }
+
+  async claimWebhookJobs(limit = 10): Promise<Array<{ id: string; job_type: string; payload: Record<string, unknown> }>> {
+    const cap = Math.min(50, Math.max(1, Number(limit) || 10));
+    const result = await this.db.query(
+      `WITH next AS (
+         SELECT id FROM portal_meta_webhook_jobs
+          WHERE status = 'pending'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1
+       )
+       UPDATE portal_meta_webhook_jobs j
+          SET status = 'working', attempts = j.attempts + 1, updated_at = NOW()
+         FROM next
+        WHERE j.id = next.id
+       RETURNING j.id::text, j.job_type, j.payload`,
+      [cap],
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      job_type: String(row.job_type),
+      payload: row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>) : {},
+    }));
+  }
+
+  async finishWebhookJob(id: string, status: 'done' | 'error', lastError = ''): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_meta_webhook_jobs
+          SET status = CASE
+                WHEN $2 = 'done' THEN 'done'
+                WHEN attempts >= 8 THEN 'error'
+                ELSE 'pending'
+              END,
+              last_error = $3,
+              updated_at = NOW()
+        WHERE id = $1::uuid`,
+      [id, status, String(lastError ?? '').slice(0, 400)],
     );
   }
 }

@@ -1,4 +1,4 @@
-﻿import {
+import {
   InboxPollOverlapLock,
   KeyedSingleFlight,
   portalInboxPollEnabled,
@@ -60,11 +60,11 @@ describe('portal-inbox-poller.util', () => {
     expect(portalInboxPollIntervalMs()).toBe(300_000);
   });
 
-  it('clamps on-demand TTL to 2–5 minutes and insights TTL to 15 min – 6 h', () => {
+  it('clamps on-demand TTL to 10-30 minutes and insights TTL to 15 min - 6 h', () => {
     process.env.PTT_PORTAL_ON_DEMAND_TTL_MS = '1000';
-    expect(portalOnDemandTtlMs()).toBe(120_000);
-    process.env.PTT_PORTAL_ON_DEMAND_TTL_MS = '240000';
-    expect(portalOnDemandTtlMs()).toBe(240_000);
+    expect(portalOnDemandTtlMs()).toBe(600_000);
+    process.env.PTT_PORTAL_ON_DEMAND_TTL_MS = '900000';
+    expect(portalOnDemandTtlMs()).toBe(900_000);
     process.env.PTT_PORTAL_INSIGHTS_ON_DEMAND_TTL_MS = '1000';
     expect(portalInsightsOnDemandTtlMs()).toBe(15 * 60_000);
   });

@@ -46,17 +46,17 @@ export function PendingApprovalsWidget({
       <ul className="portal-widget__links">
         {creativePending > 0 ? (
           <li>
-            <Link href="/creatives">Creative inbox — {creativePending} chờ duyệt</Link>
+            <Link href="/creatives">Sáng tạo chờ duyệt — {creativePending} mục</Link>
           </li>
         ) : null}
         {emailPending > 0 ? (
           <li>
-            <Link href="/email/approvals">Email approvals — {emailPending} chờ duyệt</Link>
+            <Link href="/email/approvals">Email chờ duyệt — {emailPending} mục</Link>
           </li>
         ) : null}
         {seoPending > 0 ? (
           <li>
-            <Link href="/seo/content">SEO content review — {seoPending} chờ review</Link>
+            <Link href="/seo/content">Nội dung SEO chờ duyệt — {seoPending} mục</Link>
           </li>
         ) : null}
       </ul>

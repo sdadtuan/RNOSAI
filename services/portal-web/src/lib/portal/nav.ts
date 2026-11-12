@@ -56,7 +56,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
       id: 'overview',
       label: 'Tổng quan',
       shortLabel: 'Home',
-      links: [{ href: '/dashboard', label: 'Performance tổng hợp' }],
+      links: [{ href: '/dashboard', label: 'Tổng quan' }],
     },
   ];
 
@@ -82,9 +82,27 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
       },
       {
         id: 'products',
-        label: 'Sản Phẩm',
-        shortLabel: 'Sản Phẩm',
-        links: [{ href: '/products', label: 'Sản Phẩm' }],
+        label: 'Sản phẩm',
+        shortLabel: 'Sản phẩm',
+        links: [{ href: '/products', label: 'Sản phẩm' }],
+      },
+      {
+        id: 'orders',
+        label: 'Đơn hàng',
+        shortLabel: 'Đơn hàng',
+        links: [{ href: '/crm/orders', label: 'Đơn hàng' }],
+      },
+      {
+        id: 'sales',
+        label: 'Báo cáo bán hàng',
+        shortLabel: 'Báo cáo',
+        links: [{ href: '/crm/sales', label: 'Báo cáo bán hàng' }],
+      },
+      {
+        id: 'shipping',
+        label: 'Cài đặt vận chuyển',
+        shortLabel: 'Vận chuyển',
+        links: [{ href: '/crm/shipping', label: 'Cài đặt vận chuyển' }],
       },
     );
   }
@@ -121,7 +139,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
       label: 'SEO / AEO',
       shortLabel: 'SEO',
       links: [
-        { href: '/seo', label: 'SEO dashboard' },
+        { href: '/seo', label: 'SEO' },
         { href: '/seo/reports', label: 'SEO reports' },
         {
           href: '/seo/content',
@@ -133,7 +151,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
   }
 
   if (emailEnabled) {
-    const emailLinks: PortalNavLink[] = [{ href: '/email', label: 'Email dashboard' }];
+    const emailLinks: PortalNavLink[] = [{ href: '/email', label: 'Email' }];
     if (user?.role === 'approver') {
       emailLinks.push({
         href: '/email/approvals',
@@ -178,30 +196,55 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
 }
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Performance tổng hợp',
+  '/dashboard': 'Tổng quan',
   '/crm': 'Tổng quan',
   '/crm/leads': 'Lead',
   '/crm/messages': 'Tin nhắn',
   '/crm/customers': 'Khách hàng',
   '/crm/customers/leads': 'Khách hàng',
   '/crm/customers/messages': 'Khách hàng',
-  '/meta': 'Meta Performance',
-  '/google': 'Google Performance',
-  '/zalo': 'Zalo Performance',
+  '/meta': 'Hiệu quả Meta',
+  '/google': 'Hiệu quả Google',
+  '/zalo': 'Hiệu quả Zalo',
   '/creatives': 'Creative inbox',
   '/notifications': 'Thông báo',
   '/settings': 'Cài đặt',
-  '/products': 'Sản Phẩm',
+  '/products': 'Sản phẩm',
+  '/crm/orders': 'Đơn hàng',
+  '/crm/sales': 'Báo cáo bán hàng',
+  '/crm/shipping': 'Cài đặt vận chuyển',
   '/seo': 'SEO / AEO',
   '/seo/reports': 'SEO Reports',
   '/seo/content': 'SEO Content review',
-  '/email': 'Email dashboard',
+  '/email': 'Email',
   '/email/approvals': 'Email approvals',
   '/service-delivery': 'Triển khai dịch vụ',
   '/research': 'Báo cáo nghiên cứu',
 };
 
+type TitleListener = () => void;
+const titleListeners = new Set<TitleListener>();
+let titleOverride: string | null = null;
+
+export function setPortalTitleOverride(title: string | null): void {
+  titleOverride = title;
+  titleListeners.forEach((fn) => fn());
+}
+
+export function subscribePortalTitle(listener: TitleListener): () => void {
+  titleListeners.add(listener);
+  return () => {
+    titleListeners.delete(listener);
+  };
+}
+
+export function currentPortalTitle(pathname: string): string {
+  return titleOverride || portalPageTitle(pathname);
+}
+
 export function portalPageTitle(pathname: string): string {
+  if (pathname === '/crm/orders/new') return 'Tạo đơn';
+  if (pathname.startsWith('/crm/orders/') && pathname !== '/crm/orders') return 'Chi tiết đơn hàng';
   if (pathname.startsWith('/email/campaigns/')) return 'Campaign performance';
   if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'SEO content detail';
   if (pathname.startsWith('/research/') && pathname !== '/research') return 'Báo cáo nghiên cứu';

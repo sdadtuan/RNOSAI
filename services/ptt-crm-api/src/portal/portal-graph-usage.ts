@@ -46,6 +46,18 @@ export function classifyGraphPath(pathOrUrl: string): string {
   if (raw.includes('/conversations')) return 'conversations';
   if (raw.includes('/messages')) return 'messages';
   if (raw.includes('/insights')) return 'insights';
+  if (
+    raw.includes('/published_posts') ||
+    raw.includes('/posts?') ||
+    raw.includes('/posts&') ||
+    /\/posts$/.test(raw) ||
+    raw.includes('/feed')
+  ) {
+    return 'posts';
+  }
+  if (raw.includes('/comments') || raw.includes('/private_replies') || raw.includes('is_hidden')) {
+    return 'comments';
+  }
   return 'other';
 }
 

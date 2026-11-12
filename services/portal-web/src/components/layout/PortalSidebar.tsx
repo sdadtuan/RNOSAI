@@ -227,8 +227,8 @@ export function PortalSidebar({
                     <button
                       type="button"
                       className="portal-nav-rail-btn"
-                      title={section.shortLabel}
-                      aria-label={section.shortLabel}
+                      title={section.label}
+                      aria-label={section.label}
                       aria-expanded={open}
                       onClick={() => setFlyoutSection((prev) => (prev === section.id ? null : section.id))}
                     >

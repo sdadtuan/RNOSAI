@@ -115,3 +115,68 @@ export function filterCasesForPortalList<T extends { page_id: string; assignee_u
   const pages = visiblePageIds instanceof Set ? visiblePageIds : new Set(visiblePageIds);
   return rows.filter((row) => pages.has(row.page_id) && staffCanViewCareCase(user, row.assignee_user_id));
 }
+
+export type InboxFlagInput = {
+  kind: string;
+  status: string;
+  last_direction: string;
+  last_inbound_at: string;
+  last_read_at: string;
+  received_at: string;
+};
+
+/** Unread / unreplied derived from last inbound, last_read_at, and existing care status. */
+export function deriveInboxFlags(row: InboxFlagInput): { unread: boolean; unreplied: boolean } {
+  const unreplied = row.kind === 'message' && row.last_direction === 'in';
+  if (row.kind !== 'message' || !row.last_inbound_at) {
+    return { unread: false, unreplied };
+  }
+  const inbound = Date.parse(row.last_inbound_at);
+  if (!Number.isFinite(inbound)) return { unread: false, unreplied };
+  if (row.last_read_at) {
+    const readAt = Date.parse(row.last_read_at);
+    return { unread: Number.isFinite(readAt) && inbound > readAt, unreplied };
+  }
+  if (row.status === 'waiting_receive') return { unread: true, unreplied };
+  if (row.received_at) {
+    const received = Date.parse(row.received_at);
+    return { unread: Number.isFinite(received) && inbound > received, unreplied };
+  }
+  return { unread: false, unreplied };
+}
+
+const PHONE_RE = /(?:\+?84|0)[\s.-]*[1-9](?:[\s.-]*\d){8,9}/g;
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+/** Display a VN mobile as 0xxxxxxxxx (strip +84 and separators). */
+export function displayVnPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return raw.trim();
+  let n = digits;
+  if (n.startsWith('84') && n.length >= 11) n = `0${n.slice(2)}`;
+  else if (!n.startsWith('0') && n.length >= 9) n = `0${n}`;
+  return n;
+}
+
+export function extractContacts(text: string): { phones: string[]; emails: string[] } {
+  const phones: string[] = [];
+  const emails: string[] = [];
+  const seenPhone = new Set<string>();
+  const seenEmail = new Set<string>();
+  const src = String(text ?? '');
+  for (const match of src.match(PHONE_RE) ?? []) {
+    const shown = displayVnPhone(match);
+    if (shown.length >= 9 && !seenPhone.has(shown)) {
+      seenPhone.add(shown);
+      phones.push(shown);
+    }
+  }
+  for (const match of src.match(EMAIL_RE) ?? []) {
+    const email = match.toLowerCase();
+    if (!seenEmail.has(email)) {
+      seenEmail.add(email);
+      emails.push(email);
+    }
+  }
+  return { phones, emails };
+}

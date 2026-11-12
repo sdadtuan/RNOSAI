@@ -1,8 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { PortalSettingsResponse } from '@/lib/api';
-import { portalPageTitle } from '@/lib/portal/nav';
+import { currentPortalTitle, subscribePortalTitle } from '@/lib/portal/nav';
 import type { StoredUser } from '@/lib/auth';
 
 type PortalTopBarProps = {
@@ -28,8 +29,18 @@ export function PortalTopBar({
   sidebarExpanded,
 }: PortalTopBarProps) {
   const pathname = usePathname();
-  const pageTitle = portalPageTitle(pathname);
+  const [pageTitle, setPageTitle] = useState(() => currentPortalTitle(pathname));
   const displayName = branding?.display_name ?? branding?.client_name ?? 'Client Portal';
+
+  useEffect(() => {
+    const apply = () => {
+      const next = currentPortalTitle(pathname);
+      setPageTitle(next);
+      document.title = next === 'Tổng quan' || next.includes('Portal') ? next : `${next} · Portal`;
+    };
+    apply();
+    return subscribePortalTitle(apply);
+  }, [pathname]);
 
   return (
     <header className="portal-topbar">

@@ -1753,6 +1753,15 @@ export interface PortalCareCase {
   adset_id?: string;
   ad_id?: string;
   form_id?: string;
+  notes?: string;
+  last_read_at?: string;
+  last_direction?: string;
+  last_inbound_at?: string;
+  unread?: boolean;
+  unreplied?: boolean;
+  last_viewed_by?: string | null;
+  last_viewed_at?: string;
+  last_viewed_email?: string;
 }
 
 export interface PortalOrderDraft {
@@ -1766,6 +1775,25 @@ export interface PortalOrderDraft {
   closed: boolean;
 }
 
+
+export interface PortalQuickReply {
+  id: string;
+  shortcut: string;
+  title: string;
+  body: string;
+  sort_order: number;
+}
+
+export interface PortalLinkedLead {
+  id: string;
+  page_id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  created_at: string;
+  campaign_name: string;
+}
+
 export interface PortalDesk {
   channels: PortalDeskChannel[];
   channel: string;
@@ -1777,6 +1805,7 @@ export interface PortalDesk {
   messages: PortalCareCase[];
   customers: PortalCareCase[];
   staff: Array<{ id: string; email: string }>;
+  quick_replies?: PortalQuickReply[];
   me: { id: string; role: string };
   inbox?: {
     pages: number;
@@ -1791,8 +1820,11 @@ export interface PortalDesk {
 
 export interface PortalCaseDetail {
   case: PortalCareCase;
-  messages: Array<{ id: string; sender_name: string; body: string; received_at: string; direction: string }>;
+  messages: Array<{ id: string; sender_name: string; body: string; received_at: string; direction: string; attachments?: Array<{ type: string; url: string; mime_type: string; name: string }> }>;
   products: PortalProductRecord[];
+  psid?: string;
+  detected?: { phones: string[]; emails: string[] };
+  linked_leads?: PortalLinkedLead[];
 }
 
 async function portalCrm<T>(token: string, path: string, init?: RequestInit): Promise<T> {
@@ -1911,6 +1943,192 @@ export function postPortalCase(token: string, id: string, action: string, body?:
   return portalCrm(token, `/cases/${encodeURIComponent(id)}/${action}`, {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function fetchPortalQuickReplies(
+  token: string,
+): Promise<{ ok: boolean; quick_replies: PortalQuickReply[] }> {
+  return portalCrm(token, '/quick-replies');
+}
+
+export function postPortalQuickReply(
+  token: string,
+  body: { shortcut: string; title?: string; body: string },
+): Promise<{ ok: boolean; quick_reply: PortalQuickReply }> {
+  return portalCrm(token, '/quick-replies', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function patchPortalQuickReply(
+  token: string,
+  id: string,
+  body: { shortcut?: string; title?: string; body?: string; sort_order?: number },
+): Promise<{ ok: boolean; quick_reply: PortalQuickReply }> {
+  return portalCrm(token, `/quick-replies/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deletePortalQuickReply(token: string, id: string): Promise<{ ok: boolean }> {
+  return portalCrm(token, `/quick-replies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function postPortalCaseNotes(
+  token: string,
+  id: string,
+  notes: string,
+): Promise<{ ok: boolean; notes: string }> {
+  return portalCrm(token, `/cases/${encodeURIComponent(id)}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
+export function postPortalCaseRead(token: string, id: string): Promise<{ ok: boolean }> {
+  return portalCrm(token, `/cases/${encodeURIComponent(id)}/read`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function postPortalCaseCreateLead(
+  token: string,
+  id: string,
+  body: { full_name?: string; phone?: string; email?: string },
+): Promise<{ ok: boolean; lead: PortalLinkedLead }> {
+  return portalCrm(token, `/cases/${encodeURIComponent(id)}/create-lead`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export interface PortalFbPost {
+  post_id: string;
+  page_id: string;
+  message: string;
+  permalink: string;
+  picture: string;
+  created_time: string;
+}
+
+export interface PortalPageComment {
+  comment_id: string;
+  page_id: string;
+  post_id: string;
+  parent_id: string;
+  from_name: string;
+  from_id: string;
+  message: string;
+  created_time: string;
+  is_hidden: boolean;
+  replied: boolean;
+  can_hide: boolean;
+  can_reply: boolean;
+  can_reply_privately: boolean;
+}
+
+export interface PortalCommentsResponse {
+  ok: boolean;
+  posts: PortalFbPost[];
+  comments: PortalPageComment[];
+  pages: Array<{ page_id: string; page_name: string }>;
+  permission_error?: string;
+  error?: string;
+  last_synced_at?: string;
+  settings?: { auto_hide_phone_comments: boolean };
+}
+
+export function fetchPortalComments(
+  token: string,
+  query: { page_id?: string; sync?: boolean | string } = {},
+): Promise<PortalCommentsResponse> {
+  const params = new URLSearchParams();
+  if (query.page_id) params.set('page_id', query.page_id);
+  if (query.sync === true || query.sync === '1' || query.sync === 'true') params.set('sync', '1');
+  const qs = params.toString();
+  return portalCrm(token, `/comments${qs ? `?${qs}` : ''}`);
+}
+
+export function postPortalCommentReply(
+  token: string,
+  commentId: string,
+  body: { text: string; mode: 'public' | 'private' },
+): Promise<{ ok: boolean; id?: string }> {
+  return portalCrm(token, `/comments/${encodeURIComponent(commentId)}/reply`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postPortalCommentHide(
+  token: string,
+  commentId: string,
+  hidden: boolean,
+): Promise<{ ok: boolean; is_hidden: boolean }> {
+  return portalCrm(token, `/comments/${encodeURIComponent(commentId)}/hide`, {
+    method: 'POST',
+    body: JSON.stringify({ hidden }),
+  });
+}
+
+export function postPortalCommentCreateLead(
+  token: string,
+  commentId: string,
+  body: { full_name?: string; phone?: string; email?: string },
+): Promise<{ ok: boolean; lead: PortalLinkedLead }> {
+  return portalCrm(token, `/comments/${encodeURIComponent(commentId)}/create-lead`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchPortalInboxSettings(
+  token: string,
+): Promise<{ ok: boolean; auto_hide_phone_comments: boolean }> {
+  return portalCrm(token, '/inbox-settings');
+}
+
+export function patchPortalInboxSettings(
+  token: string,
+  autoHide: boolean,
+): Promise<{ ok: boolean; auto_hide_phone_comments: boolean }> {
+  return portalCrm(token, '/inbox-settings', {
+    method: 'PATCH',
+    body: JSON.stringify({ auto_hide_phone_comments: autoHide }),
+  });
+}
+
+export interface PortalInboxReportRow {
+  page_id?: string;
+  page_name?: string;
+  user_id?: string;
+  email?: string;
+  new_conversations: number;
+  unreplied: number;
+  avg_first_response_sec: number | null;
+  phones_collected: number;
+}
+
+export interface PortalInboxReport {
+  ok: boolean;
+  range: string;
+  range_start: string;
+  by_page: PortalInboxReportRow[];
+  by_staff: PortalInboxReportRow[];
+}
+
+export function fetchPortalInboxReport(token: string, range: 'today' | '7d'): Promise<PortalInboxReport> {
+  return portalCrm(token, `/inbox-report?range=${encodeURIComponent(range)}`);
+}
+
+export function postPortalQuickRepliesReorder(
+  token: string,
+  ids: string[],
+): Promise<{ ok: boolean; quick_replies: PortalQuickReply[] }> {
+  return portalCrm(token, '/quick-replies/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
   });
 }
 

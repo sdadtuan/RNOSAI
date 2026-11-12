@@ -12,6 +12,7 @@ import { ConfigModule } from './config/config.module';
 import { PortalCareRepository } from './portal/portal-care.repository';
 import { PortalInboxPollerService } from './portal/portal-inbox-poller.service';
 import { PortalInboxSyncService } from './portal/portal-inbox-sync.service';
+import { PortalMetaWebhookWorkerService } from './portal/portal-meta-webhook-worker.service';
 
 /** Inbox + leadgen + Meta insights only — no HTTP, no AgencyModule graph. */
 @Module({
@@ -28,6 +29,7 @@ import { PortalInboxSyncService } from './portal/portal-inbox-sync.service';
     PortalMetaInsightsRepository,
     PortalMetaInsightsService,
     PortalMetaInsightsPollerService,
+    PortalMetaWebhookWorkerService,
   ],
 })
 export class PortalWorkerModule {}

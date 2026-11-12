@@ -9,12 +9,19 @@ import {
   type PortalNotificationSummaryResponse,
   type PerformanceListResponse,
 } from '@/lib/api';
-import { dateRangeEndingYesterday, fmtNumber, fmtVnd } from '@/lib/format';
+import { fmtNumber, fmtVnd } from '@/lib/format';
 import { usePortalEmailNav } from '@/hooks/usePortalEmailNav';
 import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
+import {
+  fmtDateDmy,
+  type DashboardRange,
+  LEAD_MAPPED_LABEL,
+  LEAD_MAPPED_TIP,
+} from '@/lib/portal/dashboard-range';
 
 type DashboardKpiStripProps = {
   token: string;
+  range: DashboardRange;
 };
 
 type KpiState = {
@@ -25,7 +32,7 @@ type KpiState = {
   loading: boolean;
 };
 
-export function DashboardKpiStrip({ token }: DashboardKpiStripProps) {
+export function DashboardKpiStrip({ token, range }: DashboardKpiStripProps) {
   const seoEnabled = usePortalSeoNav(token);
   const { emailEnabled, pendingEmail } = usePortalEmailNav(token);
   const [state, setState] = useState<KpiState>({
@@ -40,7 +47,6 @@ export function DashboardKpiStrip({ token }: DashboardKpiStripProps) {
     let cancelled = false;
     async function load() {
       setState((prev) => ({ ...prev, loading: true }));
-      const range = dateRangeEndingYesterday(7);
       try {
         const [performance, summary] = await Promise.all([
           fetchPerformance(token, { from: range.from, to: range.to, group_by: 'day' }),
@@ -74,7 +80,7 @@ export function DashboardKpiStrip({ token }: DashboardKpiStripProps) {
     return () => {
       cancelled = true;
     };
-  }, [token, seoEnabled, emailEnabled, pendingEmail]);
+  }, [token, seoEnabled, emailEnabled, pendingEmail, range.from, range.to]);
 
   if (state.loading) {
     return (
@@ -92,38 +98,41 @@ export function DashboardKpiStrip({ token }: DashboardKpiStripProps) {
   const summary = state.performance?.summary;
   const creativePending = state.summary?.pending_creatives ?? 0;
   const unread = state.summary?.unread ?? 0;
-  const workflowPending =
-    creativePending + state.emailPending + state.seoPending;
+  const workflowPending = creativePending + state.emailPending + state.seoPending;
   const overTarget = summary?.over_target_rows ?? 0;
   const freshness = state.performance?.data_freshness?.through_date;
 
   return (
     <div className="dashboard-kpi-block" data-testid="dashboard-kpi-strip">
       <div className="kpi-tile-grid">
-        <div className="kpi-tile">
-          <p className="kpi-tile__label">Tổng spend (T-7)</p>
+        <div className="kpi-tile" data-testid="kpi-spend">
+          <p className="kpi-tile__label">Tổng chi tiêu</p>
           <p className="kpi-tile__value">{summary ? fmtVnd(summary.total_spend) : '—'}</p>
-          {freshness ? <p className="kpi-tile__hint muted">Cập nhật {freshness}</p> : null}
+          <p className="kpi-tile__hint muted">{range.label}</p>
+          {freshness ? <p className="kpi-tile__hint muted">Cập nhật {fmtDateDmy(freshness)}</p> : null}
         </div>
-        <div className="kpi-tile">
-          <p className="kpi-tile__label">Leads CRM</p>
-          <p className="kpi-tile__value">{summary ? fmtNumber(summary.total_leads_crm) : '—'}</p>
-          <p className="kpi-tile__hint muted">
-            {summary ? `${fmtNumber(summary.campaigns_tracked)} chiến dịch` : 'Chưa có dữ liệu'}
+        <div className="kpi-tile" data-testid="kpi-leads-mapped">
+          <p className="kpi-tile__label" title={LEAD_MAPPED_TIP}>
+            {LEAD_MAPPED_LABEL}
           </p>
+          <p className="kpi-tile__value">{summary ? fmtNumber(summary.total_leads_crm) : '—'}</p>
+          <p className="kpi-tile__hint muted">{range.label}</p>
         </div>
         <div className="kpi-tile">
-          <p className="kpi-tile__label">CPL trung bình</p>
+          <p className="kpi-tile__label" title="Chi phí trên mỗi lead gắn được chiến dịch">
+            CPL trung bình
+          </p>
           <p className="kpi-tile__value">{summary?.avg_cpl != null ? fmtVnd(summary.avg_cpl) : '—'}</p>
+          <p className="kpi-tile__hint muted">{range.label}</p>
         </div>
         <Link
           href="/creatives"
           className={`kpi-tile-link${creativePending > 0 ? ' kpi-tile-link--alert' : ''}`}
         >
           <div className={`kpi-tile${creativePending > 0 ? ' kpi-tile--warning' : ''}`}>
-            <p className="kpi-tile__label">Creative chờ duyệt</p>
+            <p className="kpi-tile__label">Sáng tạo chờ duyệt</p>
             <p className="kpi-tile__value">{fmtNumber(creativePending)}</p>
-            <p className="kpi-tile__hint muted">Mở inbox →</p>
+            <p className="kpi-tile__hint muted">Xem sáng tạo →</p>
           </div>
         </Link>
         <Link
@@ -137,14 +146,14 @@ export function DashboardKpiStrip({ token }: DashboardKpiStripProps) {
           </div>
         </Link>
         <div className={`kpi-tile${overTarget > 0 ? ' kpi-tile--critical' : ''}`}>
-          <p className="kpi-tile__label">Vượt target CPL</p>
+          <p className="kpi-tile__label">Vượt CPL mục tiêu</p>
           <p className="kpi-tile__value">{fmtNumber(overTarget)}</p>
-          <p className="kpi-tile__hint muted">Hàng performance T-7</p>
+          <p className="kpi-tile__hint muted">{range.label}</p>
         </div>
       </div>
       {workflowPending > 0 ? (
         <p className="dashboard-kpi-block__note muted">
-          {workflowPending} mục cần xử lý (creative / email / SEO)
+          {workflowPending} mục cần xử lý (sáng tạo / email / SEO)
         </p>
       ) : null}
     </div>
