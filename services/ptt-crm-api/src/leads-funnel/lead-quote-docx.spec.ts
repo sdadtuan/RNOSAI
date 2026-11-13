@@ -110,14 +110,17 @@ describe('lead quote docx', () => {
       amountVnd: view.grand_total_vnd,
     });
     const xml = await documentXml(docx);
-    expect(xml).toContain('HỢP ĐỒNG CUNG CẤP DỊCH VỤ');
-    expect(xml).toContain('Điều 1. Các bên');
+    expect(xml).toContain('HỢP ĐỒNG DỊCH VỤ MARKETING');
+    expect(xml).toContain('ĐIỀU 1. ĐỊNH NGHĨA VÀ GIẢI THÍCH');
     expect(xml).toContain('ĐẠI DIỆN BÊN A');
     expect(xml).toContain('ĐẠI DIỆN BÊN B');
-    expect(xml).toContain('Điều 2. Phạm vi công việc');
-    expect(xml).toContain('Đã ký');
+    expect(xml).toContain('ĐIỀU 2. PHẠM VI DỊCH VỤ');
     expect(xml).toContain('Tiếp nhận handover');
-    expect(xml).not.toContain('An');
-    expect(xml).not.toContain('Account Executive');
+    expect(xml).toContain('Công ty Lan');
+    const visible = xml.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&');
+    expect(visible).not.toContain('360 Auto Detailing');
+    expect(visible).not.toContain('HỢP ĐỒNG CUNG CẤP DỊCH VỤ');
+    expect(visible).not.toMatch(/(^|[^A-Za-zÀ-ỹ])An([^A-Za-zÀ-ỹ]|$)/);
+    expect(visible).not.toContain('Account Executive');
   });
 });

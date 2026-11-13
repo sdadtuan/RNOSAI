@@ -106,6 +106,7 @@ import {
   grandfatheredMarketingLeaderOwner,
 } from './presales-solution-desk.util';
 import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
+import { formatPttContractNo } from './ptt-contract-template';
 import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
 import {
   QUOTE_DELIVERY_HOURS_CODE,
@@ -2845,9 +2846,32 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
     const view = await this.assembledQuoteSheet(snap.presales.id, false);
     const contact = await this.getLeadPlanContact(leadId);
-    const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
+    const name = await this.db.query(
+      `SELECT full_name, meta_json FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
     const person = String(name.rows[0]?.full_name ?? '').trim();
+    const meta = leadMetaRecord(name.rows[0]?.meta_json);
+    const partyMeta = pickContractPartyMeta(meta);
     const client = contact.company_name || person || `Lead ${leadId}`;
+    const amId =
+      Number(snap.presales.quote_assignee_staff_id) ||
+      Number(snap.presales.solution_owner_staff_id) ||
+      Number(snap.presales.last_solution_owner_staff_id) ||
+      0;
+    let amName = '';
+    if (amId > 0) {
+      const am = await this.db.query(`SELECT name FROM crm_staff WHERE id = $1 LIMIT 1`, [amId]);
+      amName = String(am.rows[0]?.name ?? '').trim();
+    }
+    const signAt = snap.presales.quote_approved_at || snap.presales.contract_created_at;
+    const signDate = signAt ? new Date(signAt) : new Date();
+    const safeSign = Number.isNaN(signDate.getTime()) ? new Date() : signDate;
+    const contractNo = formatPttContractNo(
+      leadId,
+      partyMeta.brand || client,
+      safeSign.getFullYear(),
+    );
     const contract = await this.db.query(
       `SELECT c.amount_vnd, c.status, c.signed_on, a.status AS approval_status
          FROM crm_contracts c
@@ -2878,15 +2902,22 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         : Number(snap.presales.contract_amount_vnd) || view.grand_total_vnd;
     const buffer = await renderLeadContractDocx(view, {
       client,
-      contactName: person && person !== client ? person : '',
+      contactName: partyMeta.representative || (person && person !== client ? person : person) || client,
       address: contact.address,
       phone: contact.phone,
       email: contact.email,
-      contractNo: `HĐ-${leadId}`,
+      taxId: partyMeta.taxId,
+      representativeTitle: partyMeta.title,
+      brand: partyMeta.brand || client,
+      amName,
+      contractNo,
       statusLabel,
       createdLabel: contractDateLabel(snap.presales.quote_approved_at || snap.presales.contract_created_at),
       signedLabel: approved ? contractDateLabel(row?.signed_on || snap.presales.contract_signed_at) : '',
       amountVnd,
+      leadId,
+      signDate: safeSign,
+      startDate: safeSign,
     });
     return { filename: `hop-dong-${leadId}.docx`, buffer };
   }
@@ -3578,6 +3609,31 @@ function contractDateLabel(value: string | null | undefined): string {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(ms));
+}
+
+
+function pickContractPartyMeta(meta: Record<string, unknown> | null): {
+  taxId: string;
+  title: string;
+  brand: string;
+  representative: string;
+} {
+  const get = (...keys: string[]): string => {
+    if (!meta) return '';
+    for (const key of keys) {
+      const raw = meta[key];
+      if (raw == null) continue;
+      const s = String(raw).trim();
+      if (s) return s;
+    }
+    return '';
+  };
+  return {
+    taxId: get('tax_code', 'tax_id', 'mst', 'ma_so_thue', 'cccd', 'id_number', 'taxCode'),
+    title: get('title', 'chuc_danh', 'position', 'job_title', 'representative_title', 'chucDanh'),
+    brand: get('brand', 'thuong_hieu', 'brand_name', 'trade_name', 'thuongHieu'),
+    representative: get('representative', 'nguoi_dai_dien', 'legal_representative', 'nguoiDaiDien'),
+  };
 }
 
 function leadMetaRecord(raw: unknown): Record<string, unknown> | null {
