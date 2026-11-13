@@ -40,13 +40,17 @@ export class LeadMeetingPrepInputResolver {
         ? (meta.form_data as Record<string, unknown>)
         : {};
 
+    const columnCompany = String(row.company_name ?? '').trim();
     let companyName =
+      columnCompany ||
       pickString(meta, 'company_name', 'company', 'business_name', 'page_name') ||
       pickString(formData, 'company_name', 'company', 'business_name', 'ten_cong_ty', 'cong_ty');
     if (companyName) {
-      sources.company_name = pickString(meta, 'company_name', 'company')
-        ? 'meta_json'
-        : 'form_data';
+      sources.company_name = columnCompany
+        ? 'lead_column'
+        : pickString(meta, 'company_name', 'company')
+          ? 'meta_json'
+          : 'form_data';
     }
 
     const industry = pickString(meta, 'industry', 'industry_slug');

@@ -145,7 +145,7 @@ export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): 
     case 'awaiting_entity_choice':
       return 'Cần chọn DN';
     case 'awaiting_am_input':
-      return 'Chờ AM bổ sung';
+      return 'Chờ bổ sung tên công ty';
     case 'running':
     case 'pending':
       return 'Đang chuẩn bị…';

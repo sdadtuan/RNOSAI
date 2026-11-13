@@ -32,7 +32,7 @@ const STATUS_LABEL_VI: Record<LeadMeetingPrepStatus, string> = {
   pending: 'Đang xếp hàng',
   running: 'Đang xử lý',
   awaiting_entity_choice: 'Cần chọn doanh nghiệp',
-  awaiting_am_input: 'Chờ AM bổ sung',
+  awaiting_am_input: 'Chờ bổ sung tên công ty',
   ready: 'Sẵn sàng',
   failed: 'Lỗi',
   skipped: 'Bỏ qua',
@@ -60,6 +60,22 @@ export class LeadMeetingPrepService {
 
     let row = await this.repo.getByLeadId(leadId);
     const terminal = ['chot', 'lost', 'won'].includes(String(ctx.status ?? '').trim().toLowerCase());
+    if (row?.status === 'awaiting_am_input') {
+      const resolvedNow = this.inputResolver.resolve(ctx);
+      if (!resolvedNow.needs_am_input && !resolvedNow.skip_reason) {
+        try {
+          await this.enqueue.enqueueForStage({
+            leadId,
+            clientId: ctx.client_id,
+            prepStage: row.prep_stage ?? 'm1_first_strike',
+            force: true,
+          });
+          row = (await this.repo.getByLeadId(leadId)) ?? row;
+        } catch {
+          /* still return the current row if enqueue fails */
+        }
+      }
+    }
     if (!row) {
       const resolved = this.inputResolver.resolve(ctx);
       return {

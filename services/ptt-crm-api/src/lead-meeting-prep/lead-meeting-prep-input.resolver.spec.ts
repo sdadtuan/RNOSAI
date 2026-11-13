@@ -10,6 +10,7 @@ describe('LeadMeetingPrepInputResolver', () => {
     full_name: 'Nguyen Van A',
     phone: '0900123456',
     email: 'a@example.com',
+    company_name: null,
     status: 'moi',
     source: 'web',
     channel: 'manual',
@@ -20,6 +21,16 @@ describe('LeadMeetingPrepInputResolver', () => {
       industry: 'BDS',
       notes: 'Can tang lead',
     },
+  });
+
+  it('resolves company from the lead column after Sales saves the name', () => {
+    const row = baseRow();
+    row.company_name = 'Công ty PTT Demo';
+    row.meta_json = {};
+    const out = resolver.resolve(row);
+    expect(out.input.company_name).toBe('Công ty PTT Demo');
+    expect(out.sources_map.company_name).toBe('lead_column');
+    expect(out.needs_am_input).toBeUndefined();
   });
 
   it('resolves company from meta_json', () => {

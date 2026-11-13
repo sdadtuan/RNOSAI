@@ -50,7 +50,7 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
   async getLeadContext(leadId: number): Promise<LeadPrepContextRow | null> {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id AS lead_id,
-              l.full_name, l.phone, l.email, l.status, l.source, l.channel,
+              l.full_name, l.phone, l.email, l.company_name, l.status, l.source, l.channel,
               l.agency_client_id::text AS client_id,
               l.is_duplicate,
               COALESCE(l.meta_json, '{}'::jsonb) AS meta_json
@@ -65,6 +65,7 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
       full_name: row.full_name,
       phone: row.phone,
       email: row.email,
+      company_name: row.company_name ? String(row.company_name) : null,
       status: row.status,
       source: row.source,
       channel: row.channel,

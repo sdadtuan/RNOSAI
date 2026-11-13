@@ -38,6 +38,7 @@ export interface LeadPrepContextRow {
   full_name: string | null;
   phone: string | null;
   email: string | null;
+  company_name: string | null;
   status: string | null;
   source: string | null;
   channel: string | null;

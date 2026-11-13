@@ -19,7 +19,7 @@ const SKIP_REASON_MESSAGE_VI: Record<string, string> = {
 };
 
 const STATUS_MESSAGE_VI: Record<string, string> = {
-  awaiting_am_input: 'Chờ AM bổ sung thông tin công ty',
+  awaiting_am_input: 'Chờ bổ sung tên công ty',
   skipped: 'Prep bỏ qua',
   pending: 'Đang xếp hàng',
   running: 'Đang xử lý',
@@ -48,6 +48,6 @@ export function lmpStatusMessageVi(
 }
 
 export function lmpStatusLabelVi(status: string): string {
-  if (status === 'awaiting_am_input') return 'Chờ AM bổ sung';
+  if (status === 'awaiting_am_input') return 'Chờ bổ sung tên công ty';
   return STATUS_MESSAGE_VI[status] ?? status;
 }
