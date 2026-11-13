@@ -1,3 +1,4 @@
+import './portal-shell.css';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
@@ -24,7 +25,7 @@ export function PortalPublicShell({
         <div className="portal-public-shell__brand">
           <span className="portal-sidebar-brand-mark">PTT</span>
           <div>
-            <strong>PTT Client Portal</strong>
+            <strong>PTT Portal</strong>
             <span className="muted">Khách hàng doanh nghiệp</span>
           </div>
         </div>

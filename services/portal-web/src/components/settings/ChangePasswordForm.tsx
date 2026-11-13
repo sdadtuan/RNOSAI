@@ -66,7 +66,6 @@ export function ChangePasswordForm({ token, email }: ChangePasswordFormProps) {
             value={next}
             onChange={(e) => setNext(e.target.value)}
             required
-            minLength={8}
           />
         </div>
         <div className="field">
@@ -78,7 +77,6 @@ export function ChangePasswordForm({ token, email }: ChangePasswordFormProps) {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
-            minLength={8}
           />
         </div>
         {error ? <p className="error">{error}</p> : null}

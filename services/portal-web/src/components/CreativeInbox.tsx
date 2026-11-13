@@ -40,7 +40,7 @@ export function CreativeInbox({ rows, token, canApprove, focusCreativeId, onAppr
       <div className="card portal-empty-state">
         <p className="portal-empty-state__title">Không có creative đang chờ duyệt</p>
         <p className="muted portal-empty-state__hint">
-          AM sẽ gửi creative mới qua workflow Launch QA khi sẵn sàng.
+          AM sẽ gửi nội dung sáng tạo mới khi sẵn sàng.
         </p>
       </div>
     );
@@ -141,7 +141,7 @@ export function CreativeInbox({ rows, token, canApprove, focusCreativeId, onAppr
             </div>
             {confirmId === row.id ? (
               <div className="portal-approval-panel">
-                <p>Xác nhận duyệt creative này? Hành động sẽ đồng bộ Launch QA.</p>
+                <p>Xác nhận duyệt nội dung sáng tạo này?</p>
                 <div className="portal-approval-panel__actions">
                   <button
                     type="button"

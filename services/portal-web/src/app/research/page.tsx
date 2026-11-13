@@ -32,7 +32,7 @@ const PORTAL_THEME_ANALYTICS_BANNER =
 export default function PortalResearchListPage() {
   return (
     <PortalPageShell
-      breadcrumb={[{ label: 'Client Portal', href: '/dashboard' }, { label: 'Nghiên cứu' }]}
+      breadcrumb={[{ label: 'Cổng khách hàng', href: '/dashboard' }, { label: 'Nghiên cứu' }]}
     >
       {({ token }) => <ResearchListContent token={token} />}
     </PortalPageShell>

@@ -12,7 +12,7 @@ import {
 
 export default function PortalEmailApprovalsPage() {
   return (
-    <EmailPortalShell title="Email approvals" subtitle="Campaign chờ phê duyệt trước khi gửi">
+    <EmailPortalShell title="Duyệt email" subtitle="Chiến dịch chờ phê duyệt trước khi gửi">
       {({ token, user, emailEnabled }) =>
         emailEnabled ? (
           <EmailApprovalsContent token={token} isApprover={user.role === 'approver'} />

@@ -10,6 +10,7 @@ import {
   approveCreative,
   fetchCreativeHistory,
   fetchPendingCreatives,
+  portalFriendlyError,
   rejectCreative,
   type CreativeRow,
 } from '@/lib/api';
@@ -29,8 +30,8 @@ function CreativesPageContent() {
   return (
     <PortalPageShell
       breadcrumb={[
-        { label: 'Client Portal', href: '/dashboard' },
-        { label: 'Creative inbox' },
+        { label: 'Cổng khách hàng', href: '/dashboard' },
+        { label: 'Duyệt sáng tạo' },
       ]}
     >
       {({ token, user }) => (
@@ -137,7 +138,7 @@ function CreativesContent(props: {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Không tải được danh sách creative');
+          setError(portalFriendlyError(err, 'Không tải được danh sách sáng tạo. Vui lòng thử lại sau.'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -154,8 +155,8 @@ function CreativesContent(props: {
   return (
     <div className="page-card">
       <PageToolbar
-        title="Creative inbox"
-        subtitle="Duyệt hoặc từ chối creative từ AM — đồng bộ Launch QA"
+        title="Duyệt sáng tạo"
+        subtitle="Duyệt hoặc từ chối nội dung sáng tạo do AM gửi"
       />
 
       <div className="portal-kpi-strip">

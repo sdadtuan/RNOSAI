@@ -21,7 +21,7 @@ export default function PortalServiceDeliveryPage() {
   return (
     <PortalPageShell
       breadcrumb={[
-        { label: 'Client Portal', href: '/dashboard' },
+        { label: 'Cổng khách hàng', href: '/dashboard' },
         { label: 'Triển khai dịch vụ' },
       ]}
     >

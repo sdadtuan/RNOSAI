@@ -11,26 +11,31 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!canManage) return;
     const out = await fetchPortalStaff(token);
     setStaff(out.staff ?? []);
-  }, [token, canManage]);
+  }, [token]);
 
   useEffect(() => {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : 'Không tải được nhân viên'));
   }, [load]);
 
-  if (!canManage) return null;
-
   return (
     <section>
       <h2>Nhân viên</h2>
-      <p className="muted">Tài khoản nhận Lead và tin nhắn của Client này.</p>
+      <p className="muted">Tài khoản nhận lead và tin nhắn của khách hàng này.</p>
+      {!canManage ? (
+        <p className="muted">Bạn chỉ có quyền xem danh sách — chỉ quản trị viên mới thêm hoặc tắt nhân viên.</p>
+      ) : null}
       {error ? <p className="error">{error}</p> : null}
+      {canManage ? (
       <form
         className="portal-crm__staff"
         onSubmit={(e) => {
           e.preventDefault();
+          if (password.length < 8) {
+            setError('Mật khẩu nhân viên tối thiểu 8 ký tự.');
+            return;
+          }
           setBusy(true);
           setError('');
           void createPortalStaff(token, email.trim(), password)
@@ -44,9 +49,10 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
         }}
       >
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email nhân viên" required />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Mật khẩu" minLength={8} required />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Mật khẩu (tối thiểu 8 ký tự)" required />
         <button className="btn btn-sm" type="submit" disabled={busy}>Tạo nhân viên</button>
       </form>
+      ) : null}
       {staff.length === 0 ? <p className="muted">Chưa có nhân viên.</p> : null}
       <ul className="portal-crm__list">
         {staff.map((item) => (
@@ -55,6 +61,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
               {item.email}
               <span className="muted"> · {item.active ? 'Đang nhận việc' : 'Đã tắt'}</span>
             </span>
+            {canManage ? (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -69,6 +76,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
             >
               {item.active ? 'Tắt' : 'Bật'}
             </button>
+            ) : null}
           </li>
         ))}
       </ul>

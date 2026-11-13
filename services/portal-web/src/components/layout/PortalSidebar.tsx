@@ -1,16 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import type { PortalSettingsResponse } from '@/lib/api';
 import {
   buildPortalNavSections,
   portalNavIsActive,
   portalSectionHasActive,
-  type PortalNavSection,
 } from '@/lib/portal/nav';
+import { useNavTransition } from '@/lib/portal/nav-transition';
 import type { StoredUser } from '@/lib/auth';
-import { PortalNavIcon, portalLinkIcon, portalSectionIcon } from './portal-nav-icons';
+import { PortalNavIcon, portalSectionIcon } from './portal-nav-icons';
 
 const SIDEBAR_STORAGE_KEY = 'portal-sidebar-expanded';
 
@@ -56,10 +55,8 @@ export function PortalSidebar({
   onToggleSidebar,
   sidebarExpanded: controlledExpanded,
 }: PortalSidebarProps) {
-  const pathname = usePathname();
-  const router = useRouter();
+  const { startNavigation, prefetchAll, displayPath } = useNavTransition();
   const [internalExpanded, setInternalExpanded] = useState(false);
-  const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
 
   const sidebarExpanded = controlledExpanded ?? internalExpanded;
@@ -80,10 +77,6 @@ export function PortalSidebar({
     applyShellClasses(expanded);
   }, [controlledExpanded]);
 
-  useEffect(() => {
-    setFlyoutSection(null);
-  }, [pathname]);
-
   const sections = buildPortalNavSections({
     user,
     pendingCount,
@@ -97,8 +90,19 @@ export function PortalSidebar({
     openMessages,
   });
 
+  const menuHrefKey = sections.map((section) => section.links.map((link) => link.href).join(',')).join('|');
+  const menuHrefs = useMemo(
+    () => menuHrefKey.split('|').flatMap((group) => (group ? group.split(',') : [])).filter(Boolean),
+    [menuHrefKey],
+  );
+
+  useEffect(() => {
+    const id = window.setTimeout(() => prefetchAll(menuHrefs), 350);
+    return () => window.clearTimeout(id);
+  }, [prefetchAll, menuHrefs]);
+
   const showExpandedNav = sidebarExpanded || isMobileNav;
-  const displayName = branding?.display_name ?? branding?.client_name ?? 'Client Portal';
+  const displayName = branding?.display_name ?? branding?.client_name ?? 'Cổng khách hàng';
 
   function toggleSidebar() {
     if (onToggleSidebar) {
@@ -111,13 +115,15 @@ export function PortalSidebar({
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
       }
       applyShellClasses(next);
-      if (!next) setFlyoutSection(null);
       return next;
     });
   }
 
+  function sectionHomeHref(section: { links: Array<{ href: string }> }): string | null {
+    return section.links[0]?.href ?? null;
+  }
+
   function navigateTo(href: string) {
-    setFlyoutSection(null);
     if (isMobileNav && sidebarExpanded) {
       if (onToggleSidebar) {
         onToggleSidebar();
@@ -126,14 +132,10 @@ export function PortalSidebar({
         applyShellClasses(false);
       }
     }
-    if (!portalNavIsActive(pathname, href)) {
-      router.push(href);
+    if (!portalNavIsActive(displayPath, href)) {
+      startNavigation(href);
     }
   }
-
-  const drawerSection: PortalNavSection | null = flyoutSection
-    ? sections.find((section) => section.id === flyoutSection) ?? null
-    : null;
 
   return (
     <>
@@ -158,7 +160,7 @@ export function PortalSidebar({
           )}
           <div className="portal-sidebar-brand-text">
             <strong>{displayName}</strong>
-            <span>Client portal</span>
+            <span>Cổng khách hàng</span>
           </div>
         </div>
 
@@ -168,10 +170,10 @@ export function PortalSidebar({
               const only = section.links.length === 1 ? section.links[0] : null;
               if (only) {
                 return (
-                  <div key={section.id} className={`portal-nav-group is-open${portalNavIsActive(pathname, only.href) ? ' has-active' : ''}`}>
+                  <div key={section.id} className={`portal-nav-group is-open${portalNavIsActive(displayPath, only.href) ? ' has-active' : ''}`}>
                     <button
                       type="button"
-                      className={`portal-nav-link portal-nav-link--button portal-nav-group-header${portalNavIsActive(pathname, only.href) ? ' is-active' : ''}`}
+                      className={`portal-nav-link portal-nav-link--button portal-nav-group-header${portalNavIsActive(displayPath, only.href) ? ' is-active' : ''}`}
                       onClick={() => navigateTo(only.href)}
                     >
                       <span className="portal-nav-group-icon">
@@ -188,7 +190,7 @@ export function PortalSidebar({
               return (
               <div
                 key={section.id}
-                className={`portal-nav-group is-open${portalSectionHasActive(pathname, section) ? ' has-active' : ''}`}
+                className={`portal-nav-group is-open${portalSectionHasActive(displayPath, section) ? ' has-active' : ''}`}
               >
                 <div className="portal-nav-group-header portal-nav-group-header--static">
                   <span className="portal-nav-group-icon">
@@ -201,7 +203,7 @@ export function PortalSidebar({
                     <button
                       key={link.href}
                       type="button"
-                      className={`portal-nav-link portal-nav-link--button${portalNavIsActive(pathname, link.href) ? ' is-active' : ''}`}
+                      className={`portal-nav-link portal-nav-link--button${portalNavIsActive(displayPath, link.href) ? ' is-active' : ''}`}
                       onClick={() => navigateTo(link.href)}
                     >
                       {link.label}
@@ -217,23 +219,22 @@ export function PortalSidebar({
           ) : (
             <div className="portal-nav-rail">
               {sections.map((section) => {
-                const active = portalSectionHasActive(pathname, section);
-                const open = flyoutSection === section.id;
+                const active = portalSectionHasActive(displayPath, section);
+                const href = sectionHomeHref(section);
                 return (
                   <div
                     key={section.id}
-                    className={`portal-nav-rail-item${active ? ' is-active' : ''}${open ? ' is-open' : ''}`}
+                    className={`portal-nav-rail-item${active ? ' is-active' : ''}`}
                   >
                     <button
                       type="button"
                       className="portal-nav-rail-btn"
-                      title={section.label}
                       aria-label={section.label}
-                      aria-expanded={open}
-                      onClick={() => setFlyoutSection((prev) => (prev === section.id ? null : section.id))}
+                      onClick={() => { if (href) navigateTo(href); }}
                     >
                       <PortalNavIcon name={portalSectionIcon(section)} />
                     </button>
+                    <span className="portal-nav-rail-tip" aria-hidden="true">{section.shortLabel}</span>
                   </div>
                 );
               })}
@@ -254,39 +255,6 @@ export function PortalSidebar({
         </div>
       </aside>
 
-      {!showExpandedNav && drawerSection ? (
-        <>
-          <button
-            type="button"
-            className="portal-nav-drawer-backdrop"
-            aria-label="Đóng menu"
-            onClick={() => setFlyoutSection(null)}
-          />
-          <nav className="portal-nav-drawer" aria-label={drawerSection.shortLabel}>
-            <div className="portal-nav-drawer-head">
-              <strong>{drawerSection.label}</strong>
-              <button type="button" className="portal-nav-drawer-close" onClick={() => setFlyoutSection(null)}>
-                ×
-              </button>
-            </div>
-            <div className="portal-nav-drawer-links">
-              {drawerSection.links.map((link) => (
-                <button
-                  key={link.href}
-                  type="button"
-                  className={`portal-nav-drawer-link${portalNavIsActive(pathname, link.href) ? ' is-active' : ''}`}
-                  onClick={() => navigateTo(link.href)}
-                >
-                  <span className="portal-nav-drawer-link-icon">
-                    <PortalNavIcon name={portalLinkIcon(link.href)} />
-                  </span>
-                  <span>{link.label}</span>
-                </button>
-              ))}
-            </div>
-          </nav>
-        </>
-      ) : null}
     </>
   );
 }

@@ -8,7 +8,7 @@ import { portalSeoPendingContent } from '@/lib/api';
 export default function SeoContentPage() {
   return (
     <SeoPortalShell
-      title="SEO Content review"
+      title="Duyệt nội dung SEO"
       subtitle="Nội dung chờ phê duyệt từ client"
     >
       {({ token, user, seoEnabled }) =>

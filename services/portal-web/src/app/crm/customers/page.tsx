@@ -29,7 +29,7 @@ function CustomersInner() {
   }
 
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/crm' }, { label: 'Khách hàng' }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: 'Khách hàng' }]}>
       {({ token, user }) => (
         <>
           <div className="pos-tabs">

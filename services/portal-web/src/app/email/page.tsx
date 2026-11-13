@@ -8,7 +8,7 @@ export default function PortalEmailDashboardPage() {
   return (
     <EmailPortalShell
       title="Email dashboard"
-      subtitle="Campaign performance và approvals"
+      subtitle="Hiệu quả chiến dịch và phê duyệt"
       actions={
         <Link href="/email/approvals" className="btn btn-secondary btn-sm">
           Approval inbox →

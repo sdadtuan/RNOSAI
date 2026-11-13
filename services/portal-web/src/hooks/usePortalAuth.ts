@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { portalMe, portalRefresh, isTenantArchivedError } from '@/lib/api';
+import { portalMe, portalRefresh, isTenantArchivedError, ApiError } from '@/lib/api';
 import {
   accessTokenExpiringSoon,
   clearSession,
@@ -78,8 +78,18 @@ export function usePortalAuth() {
           router.replace('/archived');
           return;
         }
-        clearSession();
-        router.replace('/login');
+        // Only a 401 (invalid / expired session) logs the user out.
+        // A 403 is a permission denial and must not clear the JWT.
+        // 5xx and network errors also keep the cached session.
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401) {
+          clearSession();
+          router.replace('/login');
+          return;
+        }
+        if (cached) {
+          setUser(cached);
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);

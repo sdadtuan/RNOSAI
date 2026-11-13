@@ -5,23 +5,20 @@ import { PortalPublicShell } from '@/components/layout';
 export const metadata: Metadata = {
   title: 'Chính sách quyền riêng tư — PTT Portal',
   description:
-    'Chính sách quyền riêng tư cho ứng dụng và portal PTT dành cho khách hàng doanh nghiệp (RNOS-M3 draft).',
+    'Chính sách quyền riêng tư cho ứng dụng và cổng khách hàng PTT dành cho khách hàng doanh nghiệp.',
   robots: { index: true, follow: true },
 };
 
-const LEGAL_ENTITY = process.env.NEXT_PUBLIC_PTT_LEGAL_ENTITY_NAME ?? '[Tên pháp nhân PTT — Legal cập nhật]';
-const COMPANY_ADDRESS = process.env.NEXT_PUBLIC_PTT_COMPANY_ADDRESS ?? '[Địa chỉ công ty — Legal cập nhật]';
-const DATA_REGION = process.env.NEXT_PUBLIC_PTT_DATA_REGION ?? '[Region VPS — Legal xác nhận]';
+const LEGAL_ENTITY = process.env.NEXT_PUBLIC_PTT_LEGAL_ENTITY_NAME ?? 'PTT Advertising Solutions Company Limited';
+const COMPANY_ADDRESS = process.env.NEXT_PUBLIC_PTT_COMPANY_ADDRESS ?? 'Số 240 Hải Thượng Lãn Ông, Khu phố 26, Phường Chợ Lớn, Thành phố Hồ Chí Minh, Việt Nam';
+const DATA_REGION = process.env.NEXT_PUBLIC_PTT_DATA_REGION ?? 'máy chủ Vultr (Singapore)';
 const PRIVACY_EMAIL = process.env.NEXT_PUBLIC_PTT_PRIVACY_EMAIL ?? 'privacy@pttads.vn';
 const EFFECTIVE_DATE = '2026-08-01';
-const DRAFT_VERSION = 'v0.1';
-
 export default function PrivacyPage() {
   return (
     <PortalPublicShell
-      badge={`Bản nháp ${DRAFT_VERSION} · Legal review pending`}
       title="Chính sách quyền riêng tư"
-      subtitle={`PTT Portal · vn.pttads.portal · Hiệu lực dự kiến: ${EFFECTIVE_DATE}`}
+      subtitle={`PTT Portal · Hiệu lực: ${EFFECTIVE_DATE}`}
       footer={
         <>
           <p style={{ margin: 0 }}>
@@ -203,8 +200,8 @@ export default function PrivacyPage() {
         <section>
           <h2>9. Thay đổi chính sách</h2>
           <p>
-            Chúng tôi có thể cập nhật chính sách; phiên bản mới đăng tại URL này với ngày hiệu lực. Bản nháp hiện tại
-            chờ rà soát Legal (NĐ 13/2023/NĐ-CP) trước listing App Store / Play Store.
+            Chúng tôi có thể cập nhật chính sách; phiên bản mới được đăng tại địa chỉ này kèm ngày hiệu lực.
+            Chính sách tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.
           </p>
         </section>
       </div>

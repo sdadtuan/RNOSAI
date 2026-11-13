@@ -5,7 +5,7 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'PTT Client Portal',
+    name: 'Cổng khách hàng PTT',
     short_name: 'PTT Portal',
     description: 'Duyệt creative, email và xem KPI client',
     start_url: '/dashboard',

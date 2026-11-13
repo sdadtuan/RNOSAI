@@ -55,7 +55,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     {
       id: 'overview',
       label: 'Tổng quan',
-      shortLabel: 'Home',
+      shortLabel: 'Trang chủ',
       links: [{ href: '/dashboard', label: 'Tổng quan' }],
     },
   ];
@@ -122,7 +122,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     links: [
       {
         href: '/creatives',
-        label: `Creative inbox${badgeSuffix(pendingCount)}`,
+        label: `Duyệt sáng tạo${badgeSuffix(pendingCount)}`,
         badge: pendingCount,
       },
       {
@@ -140,10 +140,10 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
       shortLabel: 'SEO',
       links: [
         { href: '/seo', label: 'SEO' },
-        { href: '/seo/reports', label: 'SEO reports' },
+        { href: '/seo/reports', label: 'Báo cáo SEO' },
         {
           href: '/seo/content',
-          label: `SEO review${badgeSuffix(seoPending)}`,
+          label: `Duyệt nội dung SEO${badgeSuffix(seoPending)}`,
           badge: seoPending,
         },
       ],
@@ -155,7 +155,7 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     if (user?.role === 'approver') {
       emailLinks.push({
         href: '/email/approvals',
-        label: `Email approvals${badgeSuffix(emailPending)}`,
+        label: `Duyệt email${badgeSuffix(emailPending)}`,
         badge: emailPending,
       });
     }
@@ -206,7 +206,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/meta': 'Hiệu quả Meta',
   '/google': 'Hiệu quả Google',
   '/zalo': 'Hiệu quả Zalo',
-  '/creatives': 'Creative inbox',
+  '/creatives': 'Duyệt sáng tạo',
   '/notifications': 'Thông báo',
   '/settings': 'Cài đặt',
   '/products': 'Sản phẩm',
@@ -214,10 +214,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/sales': 'Báo cáo bán hàng',
   '/crm/shipping': 'Cài đặt vận chuyển',
   '/seo': 'SEO / AEO',
-  '/seo/reports': 'SEO Reports',
-  '/seo/content': 'SEO Content review',
+  '/seo/reports': 'Báo cáo SEO',
+  '/seo/content': 'Duyệt nội dung SEO',
   '/email': 'Email',
-  '/email/approvals': 'Email approvals',
+  '/email/approvals': 'Duyệt email',
   '/service-delivery': 'Triển khai dịch vụ',
   '/research': 'Báo cáo nghiên cứu',
 };
@@ -245,10 +245,10 @@ export function currentPortalTitle(pathname: string): string {
 export function portalPageTitle(pathname: string): string {
   if (pathname === '/crm/orders/new') return 'Tạo đơn';
   if (pathname.startsWith('/crm/orders/') && pathname !== '/crm/orders') return 'Chi tiết đơn hàng';
-  if (pathname.startsWith('/email/campaigns/')) return 'Campaign performance';
-  if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'SEO content detail';
+  if (pathname.startsWith('/email/campaigns/')) return 'Hiệu quả chiến dịch';
+  if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'Chi tiết nội dung SEO';
   if (pathname.startsWith('/research/') && pathname !== '/research') return 'Báo cáo nghiên cứu';
-  return PAGE_TITLES[pathname] ?? 'Client Portal';
+  return PAGE_TITLES[pathname] ?? 'Cổng khách hàng';
 }
 
 export function portalNavIsActive(pathname: string, href: string): boolean {

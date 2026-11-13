@@ -121,7 +121,7 @@ function messageImages(
 export function PortalInbox() {
   const [crumb, setCrumb] = useState('Tin nhắn');
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/crm' }, { label: crumb }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: crumb }]}>
       {({ token }) => (
         <InboxBody token={token} onMainTab={(tab) => setCrumb(tab === 'comments' ? 'Bình luận' : 'Tin nhắn')} />
       )}

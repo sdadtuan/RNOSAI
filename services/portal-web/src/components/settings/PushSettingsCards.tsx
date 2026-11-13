@@ -39,7 +39,7 @@ export function CapacitorNativePushCard({ token }: { token: string }) {
 
   return (
     <SettingsSection
-      title="Native push (RNOS-M3 Capacitor)"
+      title="Thông báo đẩy trên ứng dụng"
       description={`App shell ${platform} — FCM/APNs qua device token (tách khỏi Web Push PWA).`}
     >
       {forceUpdate ? (
@@ -100,7 +100,7 @@ export function PushNotificationCard({ token }: { token: string }) {
 
   if (!supported) {
     return (
-      <SettingsSection title="Thông báo đẩy (RNOS-M2)">
+      <SettingsSection title="Thông báo đẩy">
         <p className="muted">Trình duyệt không hỗ trợ Web Push hoặc PWA chưa bật.</p>
       </SettingsSection>
     );
@@ -108,7 +108,7 @@ export function PushNotificationCard({ token }: { token: string }) {
 
   return (
     <SettingsSection
-      title="Thông báo đẩy (RNOS-M2)"
+      title="Thông báo đẩy"
       description="Nhận alert creative/email cần duyệt khi Portal chạy nền hoặc đã cài PWA."
     >
       <p className="muted">Quyền hiện tại: {permission}</p>

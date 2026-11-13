@@ -1,3 +1,4 @@
+import './portal-shell.css';
 import type { ReactNode } from 'react';
 
 type PortalAuthShellProps = {
@@ -14,7 +15,7 @@ export function PortalAuthShell({ badge, title, subtitle, children, footer }: Po
       <div className="portal-auth-shell__brand">
         <span className="portal-sidebar-brand-mark">PTT</span>
         <div>
-          <strong>PTT Client Portal</strong>
+          <strong>PTT Portal</strong>
           <span className="muted">Xem hiệu quả & duyệt creative</span>
         </div>
       </div>

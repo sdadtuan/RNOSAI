@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { PortalSettingsResponse } from '@/lib/api';
-import { currentPortalTitle, subscribePortalTitle } from '@/lib/portal/nav';
+import { currentPortalTitle, portalPageTitle, subscribePortalTitle } from '@/lib/portal/nav';
+import { useNavTransition } from '@/lib/portal/nav-transition';
 import type { StoredUser } from '@/lib/auth';
 
 type PortalTopBarProps = {
@@ -29,18 +30,21 @@ export function PortalTopBar({
   sidebarExpanded,
 }: PortalTopBarProps) {
   const pathname = usePathname();
-  const [pageTitle, setPageTitle] = useState(() => currentPortalTitle(pathname));
-  const displayName = branding?.display_name ?? branding?.client_name ?? 'Client Portal';
+  const { pending } = useNavTransition();
+  const [, setTitleTick] = useState(0);
+  const displayName = branding?.display_name ?? branding?.client_name ?? 'Cổng khách hàng';
+  // Derive on render (no stale liveTitle) so the h1 never flashes the previous page
+  // when pending clears and pathname has already updated.
+  const pageTitle = pending
+    ? pending.title || portalPageTitle(pending.href)
+    : currentPortalTitle(pathname);
+
+  useEffect(() => subscribePortalTitle(() => setTitleTick((n) => n + 1)), []);
 
   useEffect(() => {
-    const apply = () => {
-      const next = currentPortalTitle(pathname);
-      setPageTitle(next);
-      document.title = next === 'Tổng quan' || next.includes('Portal') ? next : `${next} · Portal`;
-    };
-    apply();
-    return subscribePortalTitle(apply);
-  }, [pathname]);
+    const next = pageTitle;
+    document.title = next === 'Tổng quan' || next.includes('Portal') ? next : `${next} · Portal`;
+  }, [pageTitle]);
 
   return (
     <header className="portal-topbar">

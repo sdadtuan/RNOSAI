@@ -6054,3 +6054,341 @@ a.pos-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .portal-crm-ads-lead-report__kpi [title] {
   cursor: help;
 }
+
+/* ---- portal sidebar nav contrast (hover/active/focus) ---- */
+/* Hover fill must stay a light tint so dark labels and icons stay readable.
+   --accent-hover is that tint; --primary-700 is the ink color, not the fill. */
+.portal-sidebar .portal-nav-link:hover,
+.portal-sidebar .portal-nav-link:focus-visible,
+.portal-sidebar .portal-nav-drawer-link:hover,
+.portal-sidebar .portal-nav-drawer-link:focus-visible,
+.portal-sidebar .portal-nav-rail-btn:hover,
+.portal-sidebar .portal-nav-rail-btn:focus-visible,
+.portal-sidebar .portal-nav-rail-item.is-open .portal-nav-rail-btn {
+  background: var(--accent-hover);
+  color: var(--primary-700);
+}
+
+.portal-sidebar .portal-nav-link:hover .portal-nav-group-label,
+.portal-sidebar .portal-nav-link:hover .portal-nav-group-icon,
+.portal-sidebar .portal-nav-link:hover svg,
+.portal-sidebar .portal-nav-link:focus-visible .portal-nav-group-label,
+.portal-sidebar .portal-nav-link:focus-visible .portal-nav-group-icon,
+.portal-sidebar .portal-nav-link:focus-visible svg,
+.portal-sidebar .portal-nav-link.is-active .portal-nav-group-label,
+.portal-sidebar .portal-nav-link.is-active .portal-nav-group-icon,
+.portal-sidebar .portal-nav-link.is-active svg,
+.portal-sidebar .portal-nav-drawer-link:hover svg,
+.portal-sidebar .portal-nav-drawer-link:focus-visible svg,
+.portal-sidebar .portal-nav-drawer-link.is-active svg,
+.portal-sidebar .portal-nav-rail-btn:hover svg,
+.portal-sidebar .portal-nav-rail-btn:focus-visible svg,
+.portal-sidebar .portal-nav-rail-item.is-open .portal-nav-rail-btn svg,
+.portal-sidebar .portal-nav-rail-item.is-active .portal-nav-rail-btn svg {
+  color: var(--primary-700);
+  opacity: 1;
+}
+
+.portal-sidebar .portal-nav-link.is-active,
+.portal-sidebar .portal-nav-drawer-link.is-active,
+.portal-sidebar .portal-nav-rail-item.is-active .portal-nav-rail-btn {
+  color: var(--primary-700);
+}
+
+/* ===== leftover polish 2026-11-13: mobile overflow, pills, product drawer ===== */
+/* Do not change --accent-hover or .portal-nav-link:hover (light fill). */
+
+html,
+body {
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  .portal-page,
+  .portal-main,
+  main,
+  .pos,
+  .portal-crm,
+  .tram-inbox,
+  .portal-shell,
+  .portal-shell-main {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Product drawer sits above the mobile bottom nav (nav is z-index 9990)
+     so the thumbnail and form actions are never covered. */
+  .pos-drawer {
+    z-index: 10050;
+  }
+
+  .pos-drawer__panel {
+    padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
+    max-height: 100dvh;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .pos-drawer__media {
+    margin: 12px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    max-width: 100%;
+  }
+
+  .pos-drawer__media .pos-thumb,
+  .pos-drawer__panel .pos-thumb {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  .pos-drawer__media .pos-input {
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 12rem;
+  }
+
+  /* Inbox filter pills: scroll inside the row, never the page.
+     .is-measure is a hidden yardstick — clip it so it cannot expand
+     document scrollWidth; height 0 so width auditors ignore it. */
+  .tram-inbox__pills-wrap {
+    position: relative;
+    max-width: 100%;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .tram-inbox__filters--lock {
+    overflow: hidden !important;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .tram-inbox__filters--lock .tram-inbox__pills,
+  .tram-inbox__pills-wrap > .tram-inbox__pills:not(.is-measure) {
+    display: flex;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    background-image:
+      linear-gradient(to right, #fff 40%, rgba(255, 255, 255, 0)),
+      linear-gradient(to right, rgba(15, 23, 42, 0.14), rgba(255, 255, 255, 0)),
+      linear-gradient(to left, #fff 40%, rgba(255, 255, 255, 0)),
+      linear-gradient(to left, rgba(15, 23, 42, 0.16), rgba(255, 255, 255, 0));
+    background-position: left center, left center, right center, right center;
+    background-repeat: no-repeat;
+    background-size: 24px 100%, 12px 100%, 24px 100%, 12px 100%;
+    background-attachment: local, scroll, local, scroll;
+  }
+
+  .tram-inbox__pills.is-measure {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+    width: max-content;
+    flex-wrap: nowrap;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+/* Collapsed rail: hover label only (pointer-events: none). Click must navigate,
+   never open a blocking flyout. Light hover fill is unchanged above. */
+.portal-sidebar.portal-sidebar--rail {
+  overflow: visible;
+}
+
+.portal-nav-rail-tip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  display: none;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  background: #14301c;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 4px 14px rgba(15, 36, 24, 0.18);
+}
+
+.portal-nav-rail-item:hover .portal-nav-rail-tip,
+.portal-nav-rail-item:focus-within .portal-nav-rail-tip {
+  display: block;
+}
+
+/* ---- Immediate nav feedback (progress bar + route skeletons) ---- */
+.portal-nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 200;
+  pointer-events: none;
+  overflow: hidden;
+  background: transparent;
+}
+.portal-nav-progress__bar {
+  height: 100%;
+  width: 35%;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent, #2f5d32);
+  animation: portal-nav-progress-slide 1.05s ease-in-out infinite;
+}
+@keyframes portal-nav-progress-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(380%); }
+}
+
+.portal-route-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 280px;
+}
+.portal-route-skeleton__status {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted, #667066);
+}
+.portal-skeleton-bone {
+  display: block;
+  background: linear-gradient(90deg, #e8ebe8 0%, #f4f6f4 50%, #e8ebe8 100%);
+  background-size: 200% 100%;
+  animation: portal-skeleton-pulse 1.2s ease-in-out infinite;
+  border-radius: 6px;
+  min-height: 12px;
+}
+@keyframes portal-skeleton-pulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.portal-skeleton-bone--search { height: 36px; width: min(320px, 60%); }
+.portal-skeleton-bone--btn { height: 36px; width: 110px; }
+.portal-skeleton-bone--th { height: 12px; width: 72%; }
+.portal-skeleton-bone--td { height: 12px; width: 80%; }
+.portal-skeleton-bone--avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.portal-skeleton-bone--line { height: 12px; width: 70%; }
+.portal-skeleton-bone--short { width: 42%; }
+.portal-skeleton-bone--wide { width: 90%; }
+.portal-skeleton-bone--block { height: 88px; width: 100%; }
+.portal-skeleton-bone--kpi { height: 28px; width: 48%; margin-top: 8px; }
+.portal-skeleton-bone--chart { height: 180px; width: 100%; margin: 12px 0; }
+.portal-skeleton-bone--label { height: 12px; width: 160px; }
+.portal-skeleton-bone--input { height: 36px; width: min(420px, 100%); }
+
+.portal-skeleton-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.portal-skeleton-thead,
+.portal-skeleton-tr {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.portal-skeleton-thead {
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px 8px 0 0;
+}
+.portal-skeleton-tr {
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.portal-skeleton-table {
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.portal-skeleton-inbox {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 16px;
+  min-height: 420px;
+}
+.portal-skeleton-inbox__list {
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+.portal-skeleton-inbox__item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.portal-skeleton-inbox__meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.portal-skeleton-inbox__thread {
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fff;
+}
+.portal-skeleton-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.portal-skeleton-card {
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  min-height: 110px;
+}
+.portal-skeleton-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 640px;
+}
+.portal-skeleton-settings__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.portal-skeleton-default {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (max-width: 768px) {
+  .portal-skeleton-inbox { grid-template-columns: 1fr; }
+}

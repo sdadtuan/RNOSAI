@@ -526,6 +526,9 @@
   min-height: 2rem;
   max-height: 2rem;
   flex: none;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .tram-inbox__filters--lock .tram-inbox__pills {
   display: flex;
@@ -535,9 +538,11 @@
   height: 2rem;
   min-height: 2rem;
   max-height: 2rem;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   flex: none;
-  scrollbar-width: none;
+  max-width: 100%;
+  scrollbar-width: thin;
 }
 .tram-inbox__filters--lock .tram-inbox__pills::-webkit-scrollbar { display: none; }
 .tram-inbox__filters--lock .tram-inbox__pill {
@@ -554,9 +559,9 @@
   pointer-events: none;
   left: 0;
   top: 0;
-  height: auto;
-  max-height: none;
-  overflow: visible;
+  height: 0;
+  max-height: 0;
+  overflow: hidden;
   width: max-content;
   flex-wrap: nowrap;
 }

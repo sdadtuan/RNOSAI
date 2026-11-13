@@ -80,7 +80,7 @@ export function EmailPortalShell({
     <PortalPageShell
       breadcrumb={
         breadcrumb ?? [
-          { label: 'Client Portal', href: '/dashboard' },
+          { label: 'Cổng khách hàng', href: '/dashboard' },
           { label: 'Email', href: '/email' },
           { label: title },
         ]

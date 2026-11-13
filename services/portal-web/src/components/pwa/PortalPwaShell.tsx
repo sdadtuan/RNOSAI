@@ -65,7 +65,7 @@ export function PortalPwaShell() {
   return (
     <div className="portal-pwa-install-banner" role="region" aria-label="Cài Portal PWA">
       <p>
-        <strong>Cài PTT Portal</strong> — duyệt creative/email nhanh trên điện thoại (RNOS-M2).
+        <strong>Cài PTT Portal</strong> — duyệt nội dung và email nhanh trên điện thoại.
       </p>
       <div className="portal-pwa-install-banner__actions">
         <button type="button" className="btn btn-sm" onClick={() => void onInstallClick()}>

@@ -100,7 +100,7 @@ export function CrmScreen({
   const title =
     view === 'leads' ? 'Lead' : view === 'messages' ? 'Tin nhắn' : 'Khách hàng';
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/crm' }, { label: title }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: title }]}>
       {({ token, user }) => (
         <CrmBody
           token={token}

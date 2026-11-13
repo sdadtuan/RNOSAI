@@ -8,7 +8,7 @@ export default function ArchivedPage() {
   return (
     <PortalPublicShell
       narrow
-      badge="Client archived"
+      badge="Tài khoản đã đóng"
       title="Portal đã đóng"
       subtitle="Tài khoản client này đã được offboard — không thể đăng nhập hay làm mới phiên. Liên hệ AM PTT nếu cần hỗ trợ."
       footer={

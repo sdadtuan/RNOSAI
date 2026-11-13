@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './portal-tables.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'PTT Client Portal',
-  description: 'Campaign performance and approvals for PTT agency clients',
-  applicationName: 'PTT Client Portal',
+  title: 'Cổng khách hàng PTT',
+  description: 'Xem hiệu quả chiến dịch và duyệt nội dung cho khách hàng PTT',
+  applicationName: 'Cổng khách hàng PTT',
   appleWebApp: {
     capable: true,
     title: 'PTT Portal',

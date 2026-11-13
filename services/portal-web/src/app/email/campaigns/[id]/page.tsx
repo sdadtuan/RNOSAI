@@ -12,10 +12,10 @@ export default function PortalEmailCampaignStatsPage() {
 
   return (
     <EmailPortalShell
-      title="Campaign performance"
+      title="Hiệu quả chiến dịch"
       subtitle={`Campaign #${campaignId}`}
       breadcrumb={[
-        { label: 'Client Portal', href: '/dashboard' },
+        { label: 'Cổng khách hàng', href: '/dashboard' },
         { label: 'Email', href: '/email' },
         { label: 'Campaign stats' },
       ]}

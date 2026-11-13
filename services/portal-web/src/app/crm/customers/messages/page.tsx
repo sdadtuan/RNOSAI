@@ -1,12 +1,5 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 export default function PortalCustomerMessagesRedirectPage() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/crm/customers?source=message');
-  }, [router]);
-  return null;
+  redirect('/crm/customers?source=message');
 }

@@ -20,7 +20,7 @@ type SettingsPortalShellProps = {
 
 export function SettingsPortalShell({
   title = 'Cài đặt',
-  subtitle = 'Thông báo, nhân viên, branding portal và bảo mật tài khoản',
+  subtitle = 'Thông báo, nhân viên, thương hiệu và bảo mật tài khoản',
   breadcrumb,
   children,
 }: SettingsPortalShellProps) {
@@ -28,7 +28,7 @@ export function SettingsPortalShell({
     <PortalPageShell
       breadcrumb={
         breadcrumb ?? [
-          { label: 'Client Portal', href: '/dashboard' },
+          { label: 'Cổng khách hàng', href: '/dashboard' },
           { label: 'Cài đặt' },
         ]
       }

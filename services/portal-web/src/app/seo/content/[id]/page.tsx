@@ -31,7 +31,7 @@ export default function SeoContentDetailPage() {
     <SeoPortalShell
       title="Chi tiết nội dung"
       breadcrumb={[
-        { label: 'Client Portal', href: '/dashboard' },
+        { label: 'Cổng khách hàng', href: '/dashboard' },
         { label: 'SEO / AEO', href: '/seo' },
         { label: 'Content review', href: '/seo/content' },
         { label: `#${contentId}` },

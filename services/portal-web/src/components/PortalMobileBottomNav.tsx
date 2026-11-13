@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useNavTransition } from '@/lib/portal/nav-transition';
 import type { ReactNode } from 'react';
 import {
   PortalNavIconAlerts,
@@ -39,24 +40,25 @@ export function PortalMobileBottomNav({
   isApprover = false,
 }: Props) {
   const pathname = usePathname();
+  const { startNavigation, displayPath } = useNavTransition();
 
   const items: NavItem[] = [
     {
       href: '/dashboard',
-      label: 'Home',
+      label: 'Trang chủ',
       icon: <PortalNavIconHome className="portal-mobile-bottom-nav__icon" />,
       match: (p) => p === '/dashboard' || p === '/',
     },
     {
       href: '/creatives',
-      label: 'Creative',
+      label: 'Duyệt',
       icon: <PortalNavIconCreative className="portal-mobile-bottom-nav__icon" />,
       badge: pendingCreatives,
       match: (p) => p.startsWith('/creatives'),
     },
     {
       href: '/notifications',
-      label: 'Alerts',
+      label: 'Thông báo',
       icon: <PortalNavIconAlerts className="portal-mobile-bottom-nav__icon" />,
       badge: notificationUnread,
       match: (p) => p.startsWith('/notifications'),
@@ -66,7 +68,7 @@ export function PortalMobileBottomNav({
   if (emailEnabled && isApprover) {
     items.push({
       href: '/email/approvals',
-      label: 'Email',
+      label: 'Thư',
       icon: <PortalNavIconEmail className="portal-mobile-bottom-nav__icon" />,
       badge: emailPending,
       match: (p) => p.startsWith('/email/approvals'),
@@ -75,7 +77,7 @@ export function PortalMobileBottomNav({
 
   items.push({
     href: '/settings',
-    label: 'Settings',
+    label: 'Cài đặt',
     icon: <PortalNavIconSettings className="portal-mobile-bottom-nav__icon" />,
     match: (p) => p.startsWith('/settings'),
   });
@@ -83,11 +85,16 @@ export function PortalMobileBottomNav({
   return (
     <nav className="portal-mobile-bottom-nav" aria-label="Điều hướng mobile">
       {items.map((item) => {
-        const active = item.match(pathname);
+        const active = item.match(displayPath || pathname);
         return (
           <Link
             key={item.href}
             href={item.href}
+            prefetch
+            onClick={(event) => {
+              event.preventDefault();
+              startNavigation(item.href);
+            }}
             className={`portal-mobile-bottom-nav__item${active ? ' portal-mobile-bottom-nav__item--active' : ''}`}
           >
             {item.icon}

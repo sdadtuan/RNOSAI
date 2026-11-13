@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import type { PortalSettingsResponse } from '@/lib/api';
 import type { StoredUser } from '@/lib/auth';
 import {
@@ -29,7 +29,7 @@ export type PortalAppNavProps = {
 export function PortalAppNav(props: PortalAppNavProps) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const expanded = readSidebarExpanded();
     setSidebarExpanded(expanded);
     applyShellClasses(expanded);

@@ -44,7 +44,7 @@ function categoryLabel(category: string): string {
 export default function NotificationsPage() {
   return (
     <PortalPageShell
-      breadcrumb={[{ label: 'Client Portal', href: '/dashboard' }, { label: 'Thông báo' }]}
+      breadcrumb={[{ label: 'Cổng khách hàng', href: '/dashboard' }, { label: 'Thông báo' }]}
     >
       {({ token }) => <NotificationsContent token={token} />}
     </PortalPageShell>

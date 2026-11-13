@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { PortalMobileBottomNav } from '@/components/PortalMobileBottomNav';
 import { PortalAppNav, PortalPage, type BreadcrumbItem } from '@/components/layout';
 import {
@@ -14,11 +14,13 @@ import {
   type PortalNotificationSummaryResponse,
   type PortalSettingsResponse,
 } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { usePortalEmailNav } from '@/hooks/usePortalEmailNav';
 import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
 import { applyPortalBranding, clearPortalBranding } from '@/lib/portal/branding';
 import { PortalAdsChannelProvider } from '@/lib/portal/ads-channels';
+import { usePortalChrome } from '@/components/PersistentPortalChrome';
 
 interface PortalPageShellProps {
   children: (ctx: {
@@ -31,15 +33,33 @@ interface PortalPageShellProps {
   width?: 'default' | 'wide' | 'narrow';
 }
 
+/** Page body only. Sidebar / topbar live in PersistentPortalChrome so they do not remount on navigation. */
 export function PortalPageShell({ children, breadcrumb, width = 'wide' }: PortalPageShellProps) {
+  const chrome = usePortalChrome();
+  if (chrome) {
+    return (
+      <PortalPage breadcrumb={breadcrumb} width={width}>
+        {chrome.sessionWarning ? <p className="badge portal-session-warning">{chrome.sessionWarning}</p> : null}
+        {children({
+          token: chrome.token,
+          user: chrome.user,
+          branding: chrome.branding,
+          refreshBranding: chrome.refreshBranding,
+        })}
+      </PortalPage>
+    );
+  }
+  // Fallback if a page is rendered outside the persistent chrome (should not happen).
+  return <LegacyPortalPageShell breadcrumb={breadcrumb} width={width}>{children}</LegacyPortalPageShell>;
+}
+
+function LegacyPortalPageShell({ children, breadcrumb, width = 'wide' }: PortalPageShellProps) {
   const { user, token, loading, sessionWarning, logout } = usePortalAuth();
   const seoEnabled = usePortalSeoNav(token);
   const { emailEnabled, pendingEmail } = usePortalEmailNav(token);
   const [pendingCount, setPendingCount] = useState(0);
   const [seoPending, setSeoPending] = useState(0);
-  const [notificationSummary, setNotificationSummary] = useState<PortalNotificationSummaryResponse | null>(
-    null,
-  );
+  const [notificationSummary, setNotificationSummary] = useState<PortalNotificationSummaryResponse | null>(null);
   const [branding, setBranding] = useState<PortalSettingsResponse | null>(null);
   const [adsChannelIds, setAdsChannelIds] = useState<string[] | null>(null);
   const [openLeads, setOpenLeads] = useState(0);
@@ -58,7 +78,7 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
   useEffect(() => {
     if (branding) {
       applyPortalBranding(branding);
-      return () => clearPortalBranding();
+      return;
     }
     clearPortalBranding();
   }, [branding]);
@@ -99,7 +119,7 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
   if (loading || !user || !token) {
     return (
       <main className="portal-page portal-page--wide">
-        <p className="muted">Đang tải…</p>
+        <p className="muted">Đang tải.</p>
       </main>
     );
   }

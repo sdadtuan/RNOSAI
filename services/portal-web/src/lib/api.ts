@@ -145,12 +145,51 @@ export class ApiError extends Error {
 }
 
 export function isTenantArchivedError(err: unknown): boolean {
-  if (!(err instanceof ApiError)) return false;
-  return err.message === 'tenant_archived' || err.status === 403;
+  if (!err || typeof err !== 'object') return false;
+  const anyErr = err as { message?: string; status?: number; code?: string; error?: string };
+  const msg = String(anyErr.message ?? anyErr.error ?? anyErr.code ?? '');
+  // A 403 alone is a permission denial — never treat it as "tenant archived".
+  return (
+    msg === 'tenant_archived' ||
+    anyErr.code === 'tenant_archived' ||
+    anyErr.error === 'tenant_archived' ||
+    /\btenant_archived\b/.test(msg)
+  );
+}
+
+/** Map raw API / English errors to a friendly Vietnamese message. */
+export function portalFriendlyError(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback;
+  const raw = (err.message || '').trim();
+  const mapped: Record<string, string> = {
+    'Internal server error': 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
+    'Internal Server Error': 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.',
+    'Creative inbox fetch failed': 'Không tải được danh sách sáng tạo. Vui lòng thử lại.',
+    'Creative history fetch failed': 'Không tải được lịch sử duyệt. Vui lòng thử lại.',
+    'Performance fetch failed': 'Không tải được dữ liệu hiệu quả. Vui lòng thử lại.',
+    'Settings fetch failed': 'Không tải được cài đặt. Vui lòng thử lại.',
+    'Notifications fetch failed': 'Không tải được thông báo. Vui lòng thử lại.',
+    'Login failed': 'Đăng nhập thất bại. Kiểm tra email và mật khẩu.',
+    'Unauthorized': 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+    'Forbidden': 'Bạn không có quyền thực hiện thao tác này.',
+    'approver_only': 'Chỉ quản trị viên mới thực hiện được thao tác này.',
+    'tenant_archived': 'Tài khoản khách hàng này đã được đóng.',
+    'Invalid JSON response': 'Máy chủ trả về dữ liệu không hợp lệ. Vui lòng thử lại.',
+    'VAPID key fetch failed': 'Không tải được cấu hình thông báo đẩy.',
+    'Mobile config fetch failed': 'Không tải được cấu hình ứng dụng.',
+    'Network Error': 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.',
+    'Failed to fetch': 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.',
+  };
+  if (mapped[raw]) return mapped[raw];
+  if (/internal server|fetch failed|not found|bad request|unauthorized|forbidden/i.test(raw)
+      && !/[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(raw)) {
+    return fallback;
+  }
+  return raw || fallback;
 }
 
 export function tenantArchivedMessage(): string {
-  return 'Client đã archived — portal không còn truy cập được.';
+  return 'Tài khoản khách hàng này đã được đóng — không thể truy cập cổng khách hàng.';
 }
 
 async function parseJson<T>(res: Response): Promise<T> {
@@ -161,7 +200,7 @@ async function parseJson<T>(res: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new ApiError('Invalid JSON response', res.status);
+    throw new ApiError('Máy chủ trả về dữ liệu không hợp lệ', res.status);
   }
 }
 
@@ -173,7 +212,7 @@ export async function portalLogin(email: string, password: string): Promise<Logi
   });
   const body = await parseJson<LoginResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Login failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Đăng nhập thất bại. Kiểm tra email và mật khẩu.', res.status);
   }
   return body;
 }
@@ -374,7 +413,7 @@ export async function fetchPerformance(
   });
   const body = await parseJson<PerformanceListResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Performance fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được dữ liệu hiệu quả', res.status);
   }
   return body;
 }
@@ -389,7 +428,7 @@ export async function fetchCreativeHistory(
   });
   const body = await parseJson<CreativeHistoryResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Creative history fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được lịch sử duyệt', res.status);
   }
   return body;
 }
@@ -413,7 +452,7 @@ export async function fetchPortalSettings(token: string): Promise<PortalSettings
   });
   const body = await parseJson<PortalSettingsResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Settings fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được cài đặt', res.status);
   }
   return body;
 }
@@ -498,7 +537,7 @@ export async function fetchPendingCreatives(token: string): Promise<CreativePend
   });
   const body = await parseJson<CreativePendingResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Creative inbox fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được danh sách sáng tạo', res.status);
   }
   return body;
 }
@@ -887,7 +926,7 @@ export async function fetchPortalNotifications(
   });
   const body = await parseJson<PortalNotificationListResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Notifications fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được thông báo', res.status);
   }
   return body;
 }
@@ -1190,7 +1229,7 @@ export async function fetchPortalPushVapidPublicKey(): Promise<PortalPushVapidRe
   const res = await fetch(`${API_BASE}/api/v1/portal/push/vapid-public-key`, { cache: 'no-store' });
   const body = await parseJson<PortalPushVapidResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'VAPID key fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được cấu hình thông báo đẩy', res.status);
   }
   return body;
 }
@@ -1288,7 +1327,7 @@ export async function fetchMobileConfig(appVersion?: string): Promise<MobileConf
   });
   const body = await parseJson<MobileConfigResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Mobile config fetch failed', res.status);
+    throw new ApiError(body.error ?? body.message ?? 'Không tải được cấu hình ứng dụng', res.status);
   }
   return body;
 }

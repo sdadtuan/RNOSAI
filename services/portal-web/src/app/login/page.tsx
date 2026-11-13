@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FormEvent, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PortalAuthShell } from '@/components/layout';
-import { isTenantArchivedError, portalLogin } from '@/lib/api';
+import { isTenantArchivedError, portalFriendlyError, portalLogin } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 
 function LoginPageContent() {
@@ -32,7 +32,7 @@ function LoginPageContent() {
         router.replace('/archived');
         return;
       }
-      setError(err instanceof Error ? err.message : 'Đăng nhập thất bại');
+      setError(portalFriendlyError(err, 'Đăng nhập thất bại. Kiểm tra email và mật khẩu.'));
     } finally {
       setLoading(false);
     }
@@ -40,7 +40,7 @@ function LoginPageContent() {
 
   return (
     <PortalAuthShell
-      badge="Client Portal"
+      badge="Cổng khách hàng"
       title="Đăng nhập"
       subtitle="Xem CPL / spend và duyệt creative cho chiến dịch của bạn"
       footer={
@@ -51,9 +51,11 @@ function LoginPageContent() {
           <p className="muted portal-auth-shell__link-row">
             <Link href="/privacy">Chính sách quyền riêng tư</Link>
           </p>
-          <p className="muted portal-auth-shell__dev-hint">
-            Dev: <code>approver@demo.local</code> / <code>demo123</code>
-          </p>
+          {process.env.NODE_ENV === 'development' ? (
+            <p className="muted portal-auth-shell__dev-hint">
+              Dev: <code>approver@demo.local</code> / <code>demo123</code>
+            </p>
+          ) : null}
         </>
       }
     >

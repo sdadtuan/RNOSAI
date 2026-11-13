@@ -80,7 +80,7 @@ export function SeoPortalShell({
     <PortalPageShell
       breadcrumb={
         breadcrumb ?? [
-          { label: 'Client Portal', href: '/dashboard' },
+          { label: 'Cổng khách hàng', href: '/dashboard' },
           { label: 'SEO / AEO', href: '/seo' },
           { label: title },
         ]

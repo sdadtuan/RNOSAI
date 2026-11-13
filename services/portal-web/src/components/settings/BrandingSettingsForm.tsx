@@ -69,16 +69,15 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
 
   return (
     <SettingsSection
-      title="Branding & liên hệ AM"
+      title="Thương hiệu & liên hệ AM"
       description="Logo, tên hiển thị và màu accent áp dụng trên sidebar và nút CTA."
     >
       {!settings?.table_ready ? (
         <p className="portal-callout portal-callout--warn">
-          Bảng <code>portal_client_settings</code> chưa apply — hiển thị tên client mặc định. Chạy DDL
-          v3-portal-settings trên PG.
+          Chưa thể lưu thương hiệu lúc này. Vui lòng liên hệ AM PTT để được hỗ trợ.
         </p>
       ) : null}
-      {!canEdit ? <p className="muted">Chỉ role approver được chỉnh branding.</p> : null}
+      {!canEdit ? <p className="muted">Chỉ quản trị viên mới được chỉnh thương hiệu.</p> : null}
 
       <div className="settings-branding-preview" aria-hidden="true">
         <span
@@ -86,7 +85,7 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
           style={{ background: previewAccent }}
         />
         <div className="settings-branding-preview__meta">
-          <strong>{displayName.trim() || settings?.client_name || 'Client Portal'}</strong>
+          <strong>{displayName.trim() || settings?.client_name || 'Cổng khách hàng'}</strong>
           <span className="muted">Accent preview · {previewAccent}</span>
         </div>
         {logoUrl.trim() ? (
@@ -167,9 +166,6 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
           </button>
         ) : null}
       </form>
-      <p className="muted settings-form__footnote">
-        PDF export performance hiện ở dạng stub — báo cáo đầy đủ sẽ có ở Phase 4.
-      </p>
     </SettingsSection>
   );
 }

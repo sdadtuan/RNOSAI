@@ -5,7 +5,7 @@ import { PortalPageShell } from '@/components/PortalPageShell';
 
 export default function PortalCrmPage() {
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/crm' }, { label: 'Tổng quan' }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: 'Tổng quan' }]}>
       {({ token }) => <DashboardContent token={token} />}
     </PortalPageShell>
   );

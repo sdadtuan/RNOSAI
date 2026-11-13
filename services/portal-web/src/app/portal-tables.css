@@ -1,0 +1,88 @@
+/* Wide tables scroll inside their container; the page itself must not overflow. */
+.portal-table-wrap,
+.portal-table-stack,
+.privacy-table-wrap,
+.pos-card.portal-table-wrap,
+.pos-card:has(> table),
+.page-card:has(> table),
+.page-card:has(table.pos-table),
+.portal-crm:has(table),
+.pos-table-wrap,
+.portal-table-scroll,
+.portal-data-table-wrap,
+.portal-leads-pk__table-wrap {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.portal-table-wrap > table,
+.portal-table-stack > table,
+.privacy-table-wrap > table,
+.pos-card > table.pos-table,
+.pos-table-wrap > table,
+.portal-table-scroll > table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+@media (max-width: 900px) {
+  .pos-card,
+  .page-card,
+  .settings-card,
+  .portal-page,
+  .portal-main,
+  main,
+  .pos,
+  .portal-crm,
+  .tram-inbox {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* The table (or its wrap) is the scrollport so the page does not grow.
+     A fade on the trailing edge is the visible "scroll for more" hint. */
+  .pos-table-wrap,
+  .portal-table-scroll,
+  .portal-data-table-wrap,
+  .portal-leads-pk__table-wrap,
+  .privacy-table-wrap,
+  .portal-table-wrap,
+  table.pos-table,
+  table.portal-data-table,
+  table.privacy-table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background-image:
+      linear-gradient(to right, #fff 40%, rgba(255, 255, 255, 0)),
+      linear-gradient(to right, rgba(15, 23, 42, 0.16), rgba(255, 255, 255, 0)),
+      linear-gradient(to left, #fff 40%, rgba(255, 255, 255, 0)),
+      linear-gradient(to left, rgba(15, 23, 42, 0.18), rgba(255, 255, 255, 0));
+    background-position: left center, left center, right center, right center;
+    background-repeat: no-repeat;
+    background-size: 28px 100%, 14px 100%, 28px 100%, 14px 100%;
+    background-attachment: local, scroll, local, scroll;
+  }
+
+  .pos-table-wrap::after,
+  .portal-table-scroll::after,
+  .portal-data-table-wrap::after,
+  .portal-leads-pk__table-wrap::after,
+  .privacy-table-wrap::after {
+    content: "Vuốt ngang để xem thêm";
+    display: block;
+    position: sticky;
+    left: 0;
+    font-size: 0.6875rem;
+    line-height: 1.3;
+    color: var(--muted, #64748b);
+    padding: 0.3rem 0.6rem 0.45rem;
+    background: #fff;
+    text-align: right;
+    pointer-events: none;
+  }
+}

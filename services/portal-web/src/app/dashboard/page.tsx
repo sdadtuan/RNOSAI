@@ -5,7 +5,7 @@ import { DashboardContent } from '@/components/dashboard/DashboardContent';
 
 export default function DashboardPage() {
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/crm' }, { label: 'Tổng quan' }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: 'Tổng quan' }]}>
       {({ token }) => <DashboardContent token={token} />}
     </PortalPageShell>
   );

@@ -1,3 +1,4 @@
+import './portal-shell.css';
 import Link from 'next/link';
 
 export type BreadcrumbItem = {
