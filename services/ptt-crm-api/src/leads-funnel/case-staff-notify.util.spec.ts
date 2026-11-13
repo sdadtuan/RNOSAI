@@ -24,7 +24,8 @@ describe('caseStaffNotify', () => {
       leadId: 99,
       reason: 'Thiếu ngân sách và quyết định viên',
     });
-    expect(n.title).toBe('Solutions trả lại — cần bổ sung thông tin');
+    expect(n.title).toBe('AM trả về Sales — cần bổ sung Brief');
+    expect(n.body).toContain('AM trả về');
     expect(n.body).toContain('Lead #99');
     expect(n.body).toContain('Thiếu ngân sách và quyết định viên');
     expect(n.link_href).toBe('/crm/leads/99');
@@ -66,8 +67,8 @@ describe('caseStaffNotify', () => {
 
   it('tells the original AM that the case is theirs again', () => {
     const n = caseStaffNotify({ kind: 'auto_reclaim_solution', leadId: 3 });
-    expect(n.title).toContain('giao lại');
-    expect(n.body).toContain('4');
+    expect(n.title).toContain('Submit to AM lại');
+    expect(n.body).toContain('giao cho Marketing');
     expect(n.link_href).toBe('/crm/leads/3');
   });
 
@@ -85,6 +86,42 @@ describe('caseStaffNotify', () => {
     });
     expect(quote.body).toContain('Giá chưa đúng');
     expect(quote.kind).toBe('presales_quote');
+  });
+});
+
+describe('new-flow handoff notifies', () => {
+  it('notifies AM when Sales submits the Brief', () => {
+    const n = caseStaffNotify({ kind: 'submitted_to_am', leadId: 44 });
+    expect(n.title).toBe('Sales đã Submit to AM — Chờ Solutions');
+    expect(n.body).toContain('giao cho Marketing');
+    expect(n.link_href).toBe('/crm/leads/44');
+    expect(n.body).not.toMatch(/BANT|SUBMIT FOR SOLUTION|nhận case/i);
+  });
+
+  it('notifies the Marketing Leader when AM assigns the case', () => {
+    const n = caseStaffNotify({ kind: 'assigned_to_marketing', leadId: 44 });
+    expect(n.title).toContain('giao Case Solutions');
+    expect(n.body).toContain('Deadline');
+    expect(n.link_href).toBe('/crm/leads/44');
+  });
+
+  it('tells Sales that Marketing released the Solution', () => {
+    const n = caseStaffNotify({ kind: 'release_to_sales', leadId: 44 });
+    expect(n.title).toBe('Solution đã nộp — Chờ báo giá');
+    expect(n.body).toContain('Marketing đã nộp Solution');
+    expect(n.body).not.toContain('AM đã nộp');
+  });
+
+  it('tells the AM to draft the quote after Marketing releases', () => {
+    const n = caseStaffNotify({ kind: 'released_to_am', leadId: 44 });
+    expect(n.body).toContain('lập báo giá');
+    expect(n.link_href).toBe('/crm/leads/44');
+  });
+
+  it('tells Sales the AM drafted the contract', () => {
+    const n = caseStaffNotify({ kind: 'contract_drafted', leadId: 44 });
+    expect(n.title).toBe('AM đã lập hợp đồng');
+    expect(n.body).toContain('xem và tải');
   });
 });
 

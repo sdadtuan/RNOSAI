@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  claimLeadSolution,
   fetchIntakeDefinitionBySlug,
   fetchIntakeSessions,
   fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
   releaseLeadToSales,
   returnLeadToSales,
+  updateLeadSolutionDeadline,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -193,6 +193,40 @@ function bantScoreText(key: BantKey, score: number): string {
   return chosen?.label || `${score}/5`;
 }
 
+function saigonYmd(iso: string | null | undefined): string {
+  const raw = String(iso ?? '').trim();
+  if (!raw) return '';
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Saigon',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+}
+
+function isoToViDate(iso: string): string {
+  const ymd = saigonYmd(iso) || iso;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function viDateToIso(vi: string): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(vi || '').trim());
+  if (!m) return null;
+  const dd = m[1].padStart(2, '0');
+  const mm = m[2].padStart(2, '0');
+  const yyyy = m[3];
+  const dt = new Date(`${yyyy}-${mm}-${dd}T12:00:00+07:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function SolutionClock({
   label,
   dueAt,
@@ -222,7 +256,7 @@ function SolutionClock({
   const tone = late ? 'quote-case-timer quote-case-timer--late' : soon ? 'quote-case-timer quote-case-timer--soon' : 'quote-case-timer';
   return (
     <p className={tone} aria-live="polite">
-      <span>{label}</span>
+      <span>{label}{Number.isFinite(dueMs) ? ` · ${isoToViDate(dueAt)}` : ''}</span>
       <strong>{remain < 0 ? `Quá hạn ${clock}` : `Còn ${clock}`}</strong>
     </p>
   );
@@ -262,6 +296,16 @@ export function SolutionCaseDesk({
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
   const solution = funnel?.presales?.solution_case;
+  const storedDue = funnel?.presales?.handoff?.solution_due_at || solution?.timer_due_at || '';
+  const [deadlineText, setDeadlineText] = useState(() => isoToViDate(storedDue));
+  const [deadlineIso, setDeadlineIso] = useState(() => saigonYmd(storedDue));
+  useEffect(() => {
+    const ymd = saigonYmd(storedDue);
+    if (!ymd) return;
+    setDeadlineIso(ymd);
+    setDeadlineText(isoToViDate(storedDue));
+  }, [storedDue]);
+  const canEditDeadline = !filesOnly && (handoff === 'pending' || handoff === 'with_solution');
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
 
   const load = useCallback(async () => {
@@ -513,12 +557,12 @@ export function SolutionCaseDesk({
         <p className="solution-desk__kicker">Hồ sơ Sales đã giao</p>
         <p className="muted">
           {solution?.phase === 'cho_nhan'
-            ? `${solution.assignee_name || 'AM'} bấm nhận case Solutions trong 15 phút.`
+            ? 'AM đang kiểm tra Brief và sẽ giao cho Marketing.'
             : solution?.phase === 'chinh_sua'
-              ? 'Chỉnh theo yêu cầu, rồi bấm Trả Sales trong 2 giờ.'
+              ? 'Chỉnh theo yêu cầu, rồi bấm Nộp Solution trước hạn.'
               : handoff === 'with_solution'
-                ? 'Đóng gói hồ sơ Solution, rồi trả về Sales trong hạn làm việc.'
-                : 'Đã nộp cho Sales.'}
+                ? 'Đóng gói và nộp Solution trước Deadline. Lead sẽ chuyển sang Chờ báo giá.'
+                : 'Đã nộp Solution — Chờ báo giá.'}
         </p>
       </header>
       {solution ? (
@@ -528,6 +572,54 @@ export function SolutionCaseDesk({
           overdue={solution.timer_overdue}
           soon={solution.timer_warning}
         />
+      ) : null}
+      {canEditDeadline ? (
+        <div className="solution-desk__deadline" data-testid="solution-desk-deadline">
+          <label>
+            Deadline Solutions
+            <input
+              type="text"
+              inputMode="numeric"
+              lang="vi-VN"
+              placeholder="dd/MM/yyyy"
+              autoComplete="off"
+              value={deadlineText}
+              aria-label="Deadline Solutions (dd/MM/yyyy)"
+              data-testid="solution-desk-deadline-input"
+              onChange={(e) => {
+                const v = e.target.value;
+                setDeadlineText(v);
+                const iso = viDateToIso(v);
+                if (iso) setDeadlineIso(iso);
+              }}
+              onBlur={() => {
+                const iso = viDateToIso(deadlineText) || deadlineIso;
+                if (iso) {
+                  setDeadlineIso(iso);
+                  setDeadlineText(isoToViDate(iso));
+                }
+              }}
+              disabled={busy}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="solution-desk-deadline-save"
+            disabled={busy || !deadlineIso}
+            onClick={() =>
+              void run(async () => {
+                const out = await updateLeadSolutionDeadline(token, lead.id, deadlineIso);
+                onFunnelChange(out.funnel);
+                onMessage?.('Đã lưu Deadline Solutions.');
+              })
+            }
+          >
+            Lưu Deadline
+          </button>
+        </div>
+      ) : storedDue ? (
+        <p data-testid="solution-desk-deadline-view">Deadline Solutions: {isoToViDate(storedDue)}</p>
       ) : null}
       {solution?.revision_note ? (
         <p>
@@ -818,22 +910,7 @@ export function SolutionCaseDesk({
           </ul>
         )}
         <div className="solution-desk__actions">
-          {handoff === 'pending' ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const out = await claimLeadSolution(token, lead.id);
-                  onFunnelChange(out.funnel);
-                  onMessage?.('Đã nhận case');
-                })
-              }
-            >
-              Nhận case
-            </button>
-          ) : null}
+          {null}
           {handoff === 'with_solution' ? (
             <>
               {submitGaps.length > 0 ? (
@@ -869,7 +946,7 @@ export function SolutionCaseDesk({
                   })
                 }
               >
-                {uploading ? (uploadLabel ?? 'Đang tải file…') : 'Trả Sales'}
+                {uploading ? (uploadLabel ?? 'Đang tải file…') : 'Nộp Solution'}
               </button>
               </span>
               {releaseDisabled && releaseReason ? (
@@ -880,7 +957,7 @@ export function SolutionCaseDesk({
               </div>
             </>
           ) : null}
-          {handoff === 'pending' || handoff === 'with_solution' ? (
+          {handoff === 'with_solution' ? (
             <button
               type="button"
               className="btn btn-secondary"

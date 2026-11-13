@@ -441,6 +441,13 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       solution_owner_name: await this.staffNameById(ps.solution_owner_staff_id),
       solution_claimed_at: ps.solution_claimed_at,
       solution_released_at: ps.solution_released_at,
+      solution_due_at: ps.solution_due_at,
+      solution_approved_at: ps.solution_approved_at,
+      quote_offered_at: ps.quote_offered_at,
+      quote_approved_at: ps.quote_approved_at,
+      quote_sent_back_at: ps.quote_sent_back_at,
+      contract_created_at: ps.contract_created_at,
+      contract_signed_at: ps.contract_signed_at,
     };
   }
 
@@ -2309,6 +2316,29 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
 
+  async updateSolutionDeadline(leadId: number, deadline: string): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const handoff = String(snap.presales.handoff_status ?? '').trim();
+    if (handoff !== 'pending' && handoff !== 'with_solution') {
+      throw new Error('Chỉ sửa Deadline khi lead đang Chờ Solutions hoặc Đang làm Solutions.');
+    }
+    const raw = String(deadline ?? '').trim();
+    if (!raw) throw new Error('Nhập Deadline Solutions.');
+    const parsed = raw.length <= 10 ? new Date(`${raw}T17:00:00+07:00`) : new Date(raw);
+    if (Number.isNaN(parsed.getTime())) throw new Error('Deadline không hợp lệ. Dùng yyyy-MM-dd hoặc ISO.');
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+          SET solution_due_at = $2,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [snap.presales.id, parsed.toISOString()],
+    );
+    if (!updated.rows[0]) throw new Error('Không cập nhật được Deadline.');
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
   async returnToSalesForMissingInfo(leadId: number, staffId: number, reason: string, opts: { missingInfoHours?: number } = {}): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
@@ -3626,6 +3656,22 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return result.rows
       .map((row) => Number(row.staff_id))
       .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  /** AM desk operators: Account Managers plus SUPER-ADMIN (UAT AM desk). */
+  async amDeskStaffIds(): Promise<number[]> {
+    const am = await this.accountManagerStaffIds();
+    const result = await this.db.query(
+      `SELECT DISTINCT s.id AS staff_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND lower(replace(replace(p.code, ' ', ''), '_', '-')) IN ('super-admin', 'superadmin')`,
+    );
+    const supers = result.rows
+      .map((row) => Number(row.staff_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    return [...new Set([...am, ...supers])];
   }
 
   async leadOwnerStaffId(leadId: number): Promise<number | null> {

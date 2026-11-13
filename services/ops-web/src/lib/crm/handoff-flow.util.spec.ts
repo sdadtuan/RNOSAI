@@ -10,6 +10,9 @@ import {
   leadStatusAfterSolutionRelease,
   resolveHandoffFlow,
   resolveHandoffFlowStep,
+  timestampsForHandoffFlow,
+  flowTimesFromFunnel,
+  formatHandoffStamp,
 } from './handoff-flow.util';
 
 describe('handoff-flow.util', () => {
@@ -174,5 +177,51 @@ describe('handoff-flow.util', () => {
     expect(dash('')).toBe('—');
     expect(dash(null)).toBe('—');
     expect(dash('  TP.HCM ')).toBe('TP.HCM');
+  });
+
+  it('fills stepper timestamps for every completed stage, including quote and contract', () => {
+    const times = timestampsForHandoffFlow({
+      leadCreatedAt: '2026-11-10T03:00:00.000Z',
+      leadReceivedAt: '2026-11-10T03:05:00.000Z',
+      discoverySubmittedAt: '2026-11-11T02:00:00.000Z',
+      handedOffAt: '2026-11-11T02:00:00.000Z',
+      solutionClaimedAt: '2026-11-12T01:00:00.000Z',
+      solutionReleasedAt: '2026-11-13T04:30:00.000Z',
+      quoteApprovedAt: '2026-11-14T08:00:00.000Z',
+      contractCreatedAt: '2026-11-15T09:00:00.000Z',
+    });
+    expect(times.receive_lead).toBe('2026-11-10T03:05:00.000Z');
+    expect(times.sales_brief).toBe('2026-11-11T02:00:00.000Z');
+    expect(times.await_solutions).toBe('2026-11-11T02:00:00.000Z');
+    expect(times.doing_solutions).toBe('2026-11-12T01:00:00.000Z');
+    expect(times.await_quote).toBe('2026-11-13T04:30:00.000Z');
+    expect(times.negotiate).toBe('2026-11-14T08:00:00.000Z');
+    expect(times.sign_contract).toBe('2026-11-15T09:00:00.000Z');
+  });
+
+  it('formats stamps in Asia/Saigon with vi-VN day-month-year, never US month-first', () => {
+    // 2026-11-13T17:00:00Z = 13/11/2026 00:00 in Saigon (+7) on the 14th 00:00
+    const text = formatHandoffStamp('2026-11-13T17:05:00.000Z');
+    expect(text).toMatch(/14\/11\/2026/);
+    expect(text).toMatch(/00:05/);
+    expect(text).not.toMatch(/11\/14\/2026/);
+    expect(text).not.toMatch(/T17/);
+  });
+
+  it('reads release / quote / contract times from the funnel handoff payload', () => {
+    const pulled = flowTimesFromFunnel({
+      presales: {
+        handoff: {
+          handed_off_at: '2026-11-11T02:00:00.000Z',
+          solution_claimed_at: '2026-11-12T01:00:00.000Z',
+          solution_released_at: '2026-11-13T04:30:00.000Z',
+          quote_approved_at: '2026-11-14T08:00:00.000Z',
+          contract_created_at: '2026-11-15T09:00:00.000Z',
+        },
+      },
+    });
+    expect(pulled.solutionReleasedAt).toBe('2026-11-13T04:30:00.000Z');
+    expect(pulled.quoteApprovedAt).toBe('2026-11-14T08:00:00.000Z');
+    expect(pulled.contractCreatedAt).toBe('2026-11-15T09:00:00.000Z');
   });
 });

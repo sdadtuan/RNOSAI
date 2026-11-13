@@ -24,6 +24,7 @@ import {
   dash,
   formatHandoffStamp,
   resolveHandoffFlow,
+  flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import {
@@ -142,7 +143,7 @@ function salesNextAction(
       cta: 'submit',
     };
   }
-  if (!submitted && (currentKey === 'sales_brief' || currentKey === 'tiep_nhan' || !currentKey)) {
+  if (!submitted && (currentKey === 'sales_brief' || currentKey === 'receive_lead' || !currentKey)) {
     return {
       title: 'Hoàn thiện Sales Discovery',
       body: 'Điền hết các trường bắt buộc trong form, rồi bấm Submit to AM để chuyển lead sang Chờ Solutions.',
@@ -161,22 +162,29 @@ function salesNextAction(
       body: 'Marketing đang làm Solutions — bạn chỉ xem. Khi xong, lead chuyển sang Chờ báo giá.',
     };
   }
+  if (currentKey === 'receive_lead') {
+    return {
+      title: 'Tiếp nhận Lead',
+      body: 'Nhận lead và bắt đầu Sales Discovery (Pre Sale).',
+      cta: 'submit',
+    };
+  }
   if (currentKey === 'await_quote') {
     return {
       title: 'Chờ báo giá',
-      body: 'Solution đã xong. Chờ AM lập báo giá trong hạn đã thống nhất.',
+      body: 'Solution đã xong. Xem Solution, phản hồi khách, rồi bấm «Khách đồng ý — Chờ báo giá» để AM lập báo giá.',
     };
   }
   if (currentKey === 'negotiate') {
     return {
       title: 'Thương thảo',
-      body: 'Báo giá đã có. Thương thảo với khách và cập nhật tiến độ chốt.',
+      body: 'Báo giá đã có. Thương thảo với khách, xem và tải báo giá, cập nhật tiến độ chốt.',
     };
   }
-  if (currentKey === 'contract') {
+  if (currentKey === 'sign_contract') {
     return {
       title: 'Ký hợp đồng',
-      body: 'Hoàn tất ký hợp đồng để chuyển sang triển khai.',
+      body: 'AM soạn hợp đồng. Sales xem và tải hợp đồng; hoàn tất ký để chuyển sang triển khai.',
     };
   }
   return {
@@ -271,14 +279,12 @@ export function SalesLeadDesk({
     leadCreatedAt: lead.created_at,
     leadReceivedAt: lead.received_at,
     handoffStatus: handoff?.status,
-    handedOffAt: handoff?.handed_off_at,
-    solutionClaimedAt: (funnel?.presales?.solution_case as { claimed_at?: string } | null | undefined)?.claimed_at,
-    solutionReleasedAt: undefined,
     quotePhase: funnel?.presales?.quote_case?.phase,
     hasContract: Boolean(lead.has_contract),
     discoverySubmitted: submitted,
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: returned,
+    ...flowTimesFromFunnel(funnel),
   });
   const checklist = amDeskChecklist(checklistSourceFromMerged(view), {
     legacyReady: view.isLegacy && submitted,

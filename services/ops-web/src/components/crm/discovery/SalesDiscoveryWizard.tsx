@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/api';
 import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
   reopenIntakeSession } from '@/lib/api';
@@ -571,11 +570,8 @@ export function SalesDiscoveryWizard({
 
         {error ? <p className="sd-msg sd-msg--err">{error}</p> : null}
         {message ? (
-          <p className="sd-msg sd-msg--ok">
-            {message}{' '}
-            <Link href="/crm/solution/queue" className="nav-link">
-              Mở Chờ Solutions →
-            </Link>
+          <p className="sd-msg sd-msg--ok" data-testid="sd-submit-ok">
+            {message}
           </p>
         ) : null}
         {saving && !readOnly ? <p className="sd-hint">Đang lưu nháp…</p> : null}
@@ -585,9 +581,11 @@ export function SalesDiscoveryWizard({
             Quay lại
           </button>
           <div className="sd-actions__right">
-            <button type="button" className="btn btn-secondary" onClick={() => void persistDraft()} disabled={readOnly || saving} data-testid="sd-draft">
-              Lưu bản nháp
-            </button>
+            {!readOnly ? (
+              <button type="button" className="btn btn-secondary" onClick={() => void persistDraft()} disabled={saving} data-testid="sd-draft">
+                Lưu bản nháp
+              </button>
+            ) : null}
             <button type="button" className="btn btn-secondary" onClick={exportJson} data-testid="sd-export">
               Xuất dữ liệu
             </button>
@@ -598,16 +596,20 @@ export function SalesDiscoveryWizard({
                 data-testid="sd-next"
                 onClick={() => {
                   if (draftTimer.current) window.clearTimeout(draftTimer.current);
+                  if (readOnly) {
+                    setStep((s) => Math.min(3, s + 1));
+                    return;
+                  }
                   void persistDraft().finally(() => setStep((s) => Math.min(3, s + 1)));
                 }}
               >
                 Tiếp theo
               </button>
-            ) : (
+            ) : readOnly ? null : (
               <button
                 type="button"
                 className="btn btn-primary sd-submit"
-                disabled={!complete || readOnly || submitting}
+                disabled={!complete || submitting}
                 onClick={() => void onSubmit()}
                 data-testid="sd-submit"
                 title={!complete ? 'Điền hết các trường * trước khi Submit' : undefined}

@@ -2004,8 +2004,18 @@ export interface LeadFunnelSnapshot {
     handoff?: {
       status: '' | 'pending' | 'with_solution' | 'released' | 'returned';
       handed_off_at: string;
+      handed_off_by_staff_id?: number | null;
       solution_owner_staff_id: number | null;
       solution_owner_name: string;
+      solution_claimed_at?: string;
+      solution_released_at?: string;
+      solution_due_at?: string;
+      solution_approved_at?: string;
+      quote_offered_at?: string;
+      quote_approved_at?: string;
+      quote_sent_back_at?: string;
+      contract_created_at?: string;
+      contract_signed_at?: string;
     };
     solution_case?: {
       phase: 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_phan_hoi';
@@ -2391,6 +2401,17 @@ export async function claimLeadSolution(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/claim-solution`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function updateLeadSolutionDeadline(
+  token: string,
+  leadId: number,
+  deadline: string,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/solution-deadline`, {
+    method: 'PATCH',
+    body: JSON.stringify({ deadline }),
   });
 }
 

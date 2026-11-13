@@ -4,6 +4,7 @@ import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import Link from 'next/link';
 import {
   claimLeadSolution,
+  updateLeadSolutionDeadline,
   fetchCrmStaffList,
   fetchDiscoveryOptions,
   fetchIntakeSessions,
@@ -35,6 +36,7 @@ import {
   HANDOFF_FLOW_COPY,
   linesFromText,
   resolveHandoffFlow,
+  flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import {
@@ -172,16 +174,31 @@ function Bullets({ text }: { text: string }) {
   );
 }
 
+function saigonYmd(iso: string | null | undefined): string {
+  const raw = String(iso ?? '').trim();
+  if (!raw) return '';
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Saigon',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+}
+
 function defaultDeadline(): string {
   const d = new Date();
   d.setDate(d.getDate() + 3);
-  const tz = new Intl.DateTimeFormat('en-CA', {
+  return saigonYmd(d.toISOString()) || new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Saigon',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(d);
-  return tz;
 }
 
 /** ISO yyyy-MM-dd → vi-VN dd/MM/yyyy */
@@ -277,8 +294,16 @@ export function AmHandoffDesk({
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
   const [tab, setTab] = useState<TabKey>('brief');
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
-  const [deadline, setDeadline] = useState(defaultDeadline);
-  const [deadlineText, setDeadlineText] = useState(() => isoToViDate(defaultDeadline()));
+  const initialDue = saigonYmd(funnel?.presales?.handoff?.solution_due_at) || defaultDeadline();
+  const [deadline, setDeadline] = useState(initialDue);
+  const [deadlineText, setDeadlineText] = useState(() => isoToViDate(initialDue));
+
+  useEffect(() => {
+    const due = saigonYmd(funnel?.presales?.handoff?.solution_due_at);
+    if (!due) return;
+    setDeadline(due);
+    setDeadlineText(isoToViDate(due));
+  }, [funnel?.presales?.handoff?.solution_due_at]);
   const [assignNote, setAssignNote] = useState('');
   const [internalNote, setInternalNote] = useState('');
   const [internalLog, setInternalLog] = useState<ExchangeLine[]>([]);
@@ -423,9 +448,6 @@ export function AmHandoffDesk({
     leadCreatedAt: lead.created_at,
     leadReceivedAt: lead.received_at,
     handoffStatus: handoff?.status,
-    handedOffAt: handoff?.handed_off_at,
-    solutionClaimedAt: (funnel?.presales?.solution_case as { claimed_at?: string } | null | undefined)?.claimed_at,
-    solutionReleasedAt: undefined,
     quotePhase: funnel?.presales?.quote_case?.phase,
     hasContract: Boolean(lead.has_contract),
     discoverySubmitted:
@@ -434,6 +456,7 @@ export function AmHandoffDesk({
       Boolean(handoff?.handed_off_at),
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: handoff?.status === 'returned',
+    ...flowTimesFromFunnel(funnel),
   });
   const checklist = amDeskChecklist(checklistSourceFromMerged(view), {
     legacyReady:
@@ -594,16 +617,18 @@ export function AmHandoffDesk({
           </div>
         </div>
         <div className="ahd-head__actions">
+          {flow.currentKey === 'await_solutions' || flow.currentKey === 'doing_solutions' ? (
           <button
             type="button"
             className="ahd-btn ahd-btn--ghost"
             data-testid="ahd-return"
-            disabled={busy || (flow.currentKey !== 'await_solutions' && flow.currentKey !== 'doing_solutions')}
+            disabled={busy}
             onClick={() => setReturnOpen(true)}
           >
             <Icon d={I.return} size={14} />
             Trả về Sales
           </button>
+          ) : null}
           <button
             type="button"
             className="ahd-btn ahd-btn--ghost"
@@ -613,16 +638,22 @@ export function AmHandoffDesk({
             <Icon d={I.chat} size={14} />
             Trao đổi nội bộ
           </button>
+          {canAssign ? (
           <button
             type="button"
             className="ahd-btn ahd-btn--primary"
             data-testid="ahd-assign-top"
             disabled={busy || Boolean(assignDisabledReason())}
+            title={assignDisabledReason() || undefined}
+            aria-disabled={busy || Boolean(assignDisabledReason())}
             onClick={() => void assignToMarketing()}
           >
             <Icon d={I.arrow} size={14} />
             Giao cho Marketing
           </button>
+          ) : (
+            <span className="ahd-btn ahd-btn--ghost" data-testid="ahd-assigned-badge">{flow.currentLabel}</span>
+          )}
         </div>
       </header>
 
@@ -957,11 +988,25 @@ export function AmHandoffDesk({
                     setDeadlineText(isoToViDate(iso));
                   }
                 }}
-                disabled={busy || !canAssign}
+                disabled={busy}
                 data-testid="ahd-deadline"
                 aria-label="Deadline Solutions (dd/MM/yyyy)"
               />
             </label>
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--ghost ahd-btn--block"
+              data-testid="ahd-deadline-save"
+              disabled={busy || !deadline}
+              onClick={() => void run(async () => {
+                const out = await updateLeadSolutionDeadline(token, lead.id, deadline);
+                onFunnelChange(out.funnel);
+                setNotice('Đã lưu Deadline Solutions.');
+                pushToast('Đã lưu Deadline Solutions.', 'success');
+              })}
+            >
+              Lưu Deadline
+            </button>
             <label className="ahd-field">
               <span>Yêu cầu / Ghi chú cho Marketing</span>
               <textarea
@@ -972,16 +1017,22 @@ export function AmHandoffDesk({
                 rows={5}
               />
             </label>
+            {canAssign ? (
             <button
               type="button"
               className="ahd-btn ahd-btn--primary ahd-btn--block"
               data-testid="ahd-assign"
               disabled={busy || Boolean(assignDisabledReason())}
+              title={assignDisabledReason() || undefined}
+              aria-disabled={busy || Boolean(assignDisabledReason())}
               onClick={() => void assignToMarketing()}
             >
               <Icon d={I.arrow} size={15} />
               Giao cho Marketing
             </button>
+            ) : (
+              <p className="ahd-handoff-note" data-testid="ahd-already-assigned">Đã chuyển sang {flow.currentLabel}.</p>
+            )}
           </section>
         </div>
       </div>

@@ -155,6 +155,11 @@ export interface HandoffFlowInput {
   discoverySubmittedAt?: string | null;
   /** Return-to-sales (missing info). */
   returnedToSales?: boolean;
+  quoteSentAt?: string | null;
+  quoteApprovedAt?: string | null;
+  customerAgreedAt?: string | null;
+  contractCreatedAt?: string | null;
+  contractSignedAt?: string | null;
 }
 
 export interface HandoffFlowStepView extends HandoffFlowStepDef {
@@ -295,8 +300,50 @@ export function timestampsForHandoffFlow(
     await_solutions: firstIso(input.handedOffAt),
     doing_solutions: firstIso(input.solutionClaimedAt),
     await_quote: firstIso(input.solutionReleasedAt),
-    negotiate: null,
-    sign_contract: null,
+    negotiate: firstIso(input.quoteApprovedAt, input.quoteSentAt, input.customerAgreedAt),
+    sign_contract: firstIso(input.contractSignedAt, input.contractCreatedAt),
+  };
+}
+
+
+/** Pull stepper timestamps from a funnel snapshot handoff / quote_case. */
+export function flowTimesFromFunnel(funnel: {
+  presales?: {
+    handoff?: Record<string, unknown> | null;
+    solution_case?: Record<string, unknown> | null;
+    quote_case?: Record<string, unknown> | null;
+  } | null;
+} | null | undefined): Pick<
+  HandoffFlowInput,
+  | 'handedOffAt'
+  | 'solutionClaimedAt'
+  | 'solutionReleasedAt'
+  | 'quoteSentAt'
+  | 'quoteApprovedAt'
+  | 'customerAgreedAt'
+  | 'contractCreatedAt'
+  | 'contractSignedAt'
+> {
+  const str = (obj: Record<string, unknown> | null | undefined, ...keys: string[]): string | null => {
+    if (!obj) return null;
+    for (const key of keys) {
+      const value = obj[key];
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+    return null;
+  };
+  const handoff = funnel?.presales?.handoff;
+  const quote = funnel?.presales?.quote_case;
+  const sol = funnel?.presales?.solution_case;
+  return {
+    handedOffAt: firstIso(str(handoff, 'handed_off_at')),
+    solutionClaimedAt: firstIso(str(handoff, 'solution_claimed_at'), str(sol, 'claimed_at')),
+    solutionReleasedAt: firstIso(str(handoff, 'solution_released_at'), str(sol, 'released_at')),
+    quoteSentAt: firstIso(str(handoff, 'quote_offered_at'), str(quote, 'quote_sent_back_at'), str(handoff, 'quote_sent_back_at')),
+    quoteApprovedAt: firstIso(str(handoff, 'quote_approved_at'), str(quote, 'quote_approved_at')),
+    customerAgreedAt: firstIso(str(handoff, 'solution_approved_at'), str(quote, 'solution_approved_at'), str(quote, 'quote_accepted_at')),
+    contractCreatedAt: firstIso(str(handoff, 'contract_created_at')),
+    contractSignedAt: firstIso(str(handoff, 'contract_signed_at')),
   };
 }
 

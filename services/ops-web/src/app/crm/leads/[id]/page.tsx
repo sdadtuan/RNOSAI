@@ -76,7 +76,7 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
-import { handoffFlowStatusLabel } from '@/lib/crm/handoff-flow.util';
+import { flowTimesFromFunnel, handoffFlowStatusLabel } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelB2Complete,
@@ -1386,16 +1386,12 @@ export default function CrmLeadDetailPage() {
         leadCreatedAt: lead.created_at,
         leadReceivedAt: (lead as { received_at?: string | null }).received_at,
         handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
-        handedOffAt: funnelSnap?.presales?.handoff?.handed_off_at,
-        solutionClaimedAt: (funnelSnap?.presales?.solution_case as { claimed_at?: string } | null | undefined)?.claimed_at,
-        solutionReleasedAt:
-          (funnelSnap?.presales?.handoff as { released_at?: string; solution_released_at?: string } | undefined)?.released_at ||
-          (funnelSnap?.presales?.handoff as { solution_released_at?: string } | undefined)?.solution_released_at,
         quotePhase: funnelSnap?.presales?.quote_case?.phase,
         hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
         discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
         discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
         returnedToSales: handoffStatus === 'returned',
+        ...flowTimesFromFunnel(funnelSnap),
       })
     : '';
   const pipelineReadOnly =

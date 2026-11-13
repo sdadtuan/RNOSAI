@@ -1,9 +1,12 @@
 /** Payloads for case handoff notifies - only the person responsible, with reason + link. */
 
 export type CaseNotifyKind =
+  | 'submitted_to_am'
+  | 'assigned_to_marketing'
   | 'return_missing_info'
   | 'request_solution_edits'
   | 'release_to_sales'
+  | 'released_to_am'
   | 'request_quote_edits'
   | 'auto_reclaim_solution'
   | 'lead_assigned'
@@ -11,7 +14,8 @@ export type CaseNotifyKind =
   | 'quote_ceo_rejected'
   | 'quote_ceo_approved'
   | 'customer_agreed_solution'
-  | 'quote_ceo_approved_am';
+  | 'quote_ceo_approved_am'
+  | 'contract_drafted';
 
 export type CaseNotifyPayload = {
   kind: string;
@@ -43,11 +47,29 @@ export function caseStaffNotify(input: {
   const claimMinutes = Number.isFinite(rawMinutes) && rawMinutes >= 0 ? rawMinutes : 15;
   const claimMinutesLabel = claimMinutes === 1 ? '1 phút' : `${claimMinutes} phút`;
 
+  if (input.kind === 'submitted_to_am') {
+    return {
+      kind: 'presales_solution',
+      title: 'Sales đã Submit to AM — Chờ Solutions',
+      body: ('Lead #' + leadId + ' — Sales đã hoàn thành Brief. Vui lòng kiểm tra và giao cho Marketing.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
+  if (input.kind === 'assigned_to_marketing') {
+    return {
+      kind: 'presales_solution',
+      title: 'AM đã giao Case Solutions cho bạn',
+      body: ('Lead #' + leadId + ' — vui lòng làm Solutions trước Deadline.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
   if (input.kind === 'return_missing_info') {
     return {
       kind: 'presales_solution',
-      title: 'Solutions trả lại — cần bổ sung thông tin',
-      body: ('Lead #' + leadId + '  được AM trả lại vì thông tin chưa đủ.' + reasonBit),
+      title: 'AM trả về Sales — cần bổ sung Brief',
+      body: ('Lead #' + leadId + ' được AM trả về vì thông tin chưa đủ.' + reasonBit),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead', reason },
     };
@@ -64,8 +86,17 @@ export function caseStaffNotify(input: {
   if (input.kind === 'release_to_sales') {
     return {
       kind: 'presales_solution',
-      title: 'Solutions đã nộp cho bạn',
-      body: ('Lead #' + leadId + '  — AM đã nộp Solutions. Vui lòng xem và phản hồi khách.'),
+      title: 'Solution đã nộp — Chờ báo giá',
+      body: ('Lead #' + leadId + ' — Marketing đã nộp Solution. Lead chuyển sang Chờ báo giá. Vui lòng xem và phản hồi khách.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
+  if (input.kind === 'released_to_am') {
+    return {
+      kind: 'presales_solution',
+      title: 'Solution đã nộp — Chờ báo giá',
+      body: ('Lead #' + leadId + ' — Marketing đã nộp Solution. Vui lòng lập báo giá.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -82,8 +113,8 @@ export function caseStaffNotify(input: {
   if (input.kind === 'auto_reclaim_solution') {
     return {
       kind: 'presales_solution',
-      title: 'Case Solutions được giao lại cho bạn',
-      body: ('Lead #' + leadId + '  — Sales đã gửi lại. SLA Solutions 4 giờ làm việc (8:30–16:00).'),
+      title: 'Sales đã Submit to AM lại',
+      body: ('Lead #' + leadId + ' — Sales đã Submit to AM lại. Vui lòng kiểm tra Brief và giao cho Marketing.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -129,6 +160,15 @@ export function caseStaffNotify(input: {
       kind: 'presales_quote',
       title: 'CEO đã duyệt báo giá — lập hợp đồng',
       body: ('Lead #' + leadId + '  — CEO đã duyệt báo giá bạn lập. Vui lòng lập hợp đồng và gửi GĐKD duyệt.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
+  if (input.kind === 'contract_drafted') {
+    return {
+      kind: 'presales_quote',
+      title: 'AM đã lập hợp đồng',
+      body: ('Lead #' + leadId + ' — AM đã soạn hợp đồng. Sales có thể xem và tải.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };

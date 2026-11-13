@@ -335,6 +335,31 @@ export class LeadsFunnelController {
     }
   }
 
+  @Patch(':id/presales/solution-deadline')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    PresalesOnLeadGuard,
+    LeadNotInReviewQueueGuard,
+  )
+  async updateSolutionDeadline(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { deadline?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.updateSolutionDeadline(
+        id,
+        await this.userId(req),
+        String(body?.deadline ?? ''),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Post(':id/presales/return-to-sales')
   @HttpCode(HttpStatus.OK)
   @UseGuards(

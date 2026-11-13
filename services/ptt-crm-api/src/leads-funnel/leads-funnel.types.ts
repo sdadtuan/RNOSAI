@@ -186,6 +186,13 @@ export interface PresalesHandoffView {
   solution_owner_name: string;
   solution_claimed_at: string;
   solution_released_at: string;
+  solution_due_at: string;
+  solution_approved_at: string;
+  quote_offered_at: string;
+  quote_approved_at: string;
+  quote_sent_back_at: string;
+  contract_created_at: string;
+  contract_signed_at: string;
 }
 
 export interface PresalesRow {

@@ -156,28 +156,24 @@ export class LeadsFunnelService {
   }
 
   private async notifyAmSolutionHandoff(leadId: number): Promise<void> {
-    const acceptMinutes = await this.marketingClaimMinutes();
-    const acceptLabel = acceptMinutes === 1 ? '1 phút' : `${acceptMinutes} phút`;
-    const payload = {
-      kind: 'presales_solution',
-      title: 'Case Solutions chờ AM nhận',
-      body: `Lead #${leadId} chờ nhận case Solutions (${acceptLabel}).`,
-      link_href: '/crm/solution/queue',
-      meta_json: { lead_id: leadId, accept_minutes: acceptMinutes, action: 'claim_case' },
-    };
+    const payload = caseStaffNotify({ kind: 'submitted_to_am', leadId });
+    const notifiedUsers = new Set<string>();
+    const staffIds = await this.pgRepo.amDeskStaffIds();
+    for (const staffId of staffIds) {
+      const userId = await this.notifications.notifyStaff(staffId, payload).catch(() => null);
+      if (userId) notifiedUsers.add(String(userId));
+    }
+    // Auth users on the AM desk that do not map to a crm_staff row already notified.
     const userIds = await this.pgRepo.solutionDeskAuthUserIds();
     for (const userId of userIds) {
+      const uid = String(userId ?? '').trim();
+      if (!uid || notifiedUsers.has(uid)) continue;
       await this.notifications
         .create({
-          user_id: userId,
+          user_id: uid,
           ...payload,
         })
         .catch(() => undefined);
-    }
-    // Stub AMs (local UAT) have no staff_users row, so also notify by crm_staff id.
-    const staffIds = await this.pgRepo.accountManagerStaffIds();
-    for (const staffId of staffIds) {
-      await this.notifications.notifyStaff(staffId, payload).catch(() => undefined);
     }
   }
 
@@ -777,7 +773,7 @@ export class LeadsFunnelService {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     await this.assertPresalesPolicy(leadId, 'claim', staffUser);
     try {
-      await this.pgRepo.claimSolution(
+      const claimed = await this.pgRepo.claimSolution(
         leadId,
         staffId,
         await this.actorIsSuperAdmin(staffUser),
@@ -790,6 +786,13 @@ export class LeadsFunnelService {
         staffId,
         staffUser,
       );
+      const assignee = claimed?.solution_owner_staff_id;
+      if (assignee && assignee !== staffId) {
+        void this.notifyResponsible(
+          assignee,
+          caseStaffNotify({ kind: 'assigned_to_marketing', leadId }),
+        );
+      }
     } catch (err) {
       this.funnelError(err);
     }
@@ -852,6 +855,22 @@ export class LeadsFunnelService {
         staffId,
         caseStaffNotify({ kind: 'release_to_sales', leadId }),
       );
+      const amIds = await this.pgRepo.amDeskStaffIds();
+      const salesIds = new Set(
+        salesNotifyStaffIds({
+          handedOffBy: released.handed_off_by_staff_id,
+          leadOwner: await this.pgRepo.leadOwnerStaffId(leadId),
+          actorStaffId: staffId,
+          accountManagerStaffIds: amIds,
+        }),
+      );
+      for (const amId of amIds) {
+        if (!amId || amId === staffId || salesIds.has(amId)) continue;
+        void this.notifyResponsible(
+          amId,
+          caseStaffNotify({ kind: 'released_to_am', leadId }),
+        );
+      }
     } catch (err) {
       this.funnelError(err);
     }
@@ -887,6 +906,39 @@ export class LeadsFunnelService {
         afterEdits?.presales.solution_owner_staff_id,
         caseStaffNotify({ kind: 'request_solution_edits', leadId, reason: note }),
       );
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async updateSolutionDeadline(
+    leadId: number,
+    staffId: number | null,
+    deadline: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+    if (!snap) throw new NotFoundException({ error: 'Lead not found' });
+    const handoff = String(snap.presales.handoff_status ?? '').trim();
+    if (handoff !== 'pending' && handoff !== 'with_solution') {
+      throw new BadRequestException({
+        error: 'Chỉ sửa Deadline khi lead đang Chờ Solutions hoặc Đang làm Solutions.',
+      });
+    }
+    const asSuper = await this.actorIsSuperAdmin(staffUser);
+    const position = await this.actorPositionCode(staffUser);
+    const isAm = isAccountManagerPosition(position);
+    const isMkt = isMarketingLeaderPosition(position);
+    const isOwner = Number(snap.presales.solution_owner_staff_id) === Number(staffId);
+    if (!asSuper && !isAm && !(isMkt && (isOwner || handoff === 'with_solution'))) {
+      throw new ForbiddenException({
+        error: 'Chỉ AM, Marketing Leader hoặc Admin được sửa Deadline Solutions.',
+      });
+    }
+    try {
+      await this.pgRepo.updateSolutionDeadline(leadId, deadline);
     } catch (err) {
       this.funnelError(err);
     }
@@ -965,6 +1017,13 @@ export class LeadsFunnelService {
     }
     try {
       await this.pgRepo.createQuoteContract(leadId, staffId);
+      const afterContract = await this.pgRepo.getPresalesSnapshot(leadId);
+      await this.notifyLeadSales(
+        leadId,
+        afterContract?.presales.handed_off_by_staff_id,
+        staffId,
+        caseStaffNotify({ kind: 'contract_drafted', leadId }),
+      );
     } catch (err) {
       this.funnelError(err);
     }

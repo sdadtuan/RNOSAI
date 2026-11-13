@@ -124,18 +124,20 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
   async notifyStaff(
     staffId: number,
     input: Omit<CreateStaffNotificationInput, 'user_id'>,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const userId = await this.resolveUserId(staffId);
     if (!userId) {
       this.logger.error(`notifyStaff: could not resolve user_id for staffId=${staffId} kind=${input.kind}`);
-      return;
+      return null;
     }
     try {
       await this.create({ ...input, user_id: userId });
+      return userId;
     } catch (err) {
       this.logger.error(
         `notifyStaff INSERT failed staffId=${staffId} user=${userId} kind=${input.kind}: ${err instanceof Error ? err.stack || err.message : err}`,
       );
+      return null;
     }
   }
 
