@@ -60,6 +60,8 @@ export interface LeadV1 {
   expected_value?: number | null;
   margin_pct?: number | null;
   company_name?: string;
+  /** When Sales pressed Nhận lead — used to hide the claim banner. */
+  sales_claimed_at?: string | null;
   company_address?: string;
   logo_asset_id?: string | null;
   review_queue?: {
@@ -114,6 +116,7 @@ export interface PgLeadRow {
   assign_confidence?: number | null;
   company_name?: string | null;
   company_address?: string | null;
+  sales_claimed_at?: Date | string | null;
   logo_asset_id?: string | null;
   /** B2B list enrichment (from PG joins) */
   project_code?: string | null;

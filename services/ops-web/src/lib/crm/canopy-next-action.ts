@@ -96,7 +96,11 @@ export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefine
   if (hint?.claimed) {
     return 'Bước tiếp: liên hệ khách và hoàn thành bước Liên hệ lần đầu (B2).';
   }
-  return 'Bước tiếp: nhận lead trong 15 phút.';
+  const minutes = Number(hint?.claimMinutes);
+  const claimLabel = Number.isFinite(minutes) && minutes >= 0
+    ? (minutes === 1 ? '1 phút' : `${minutes} phút`)
+    : '15 phút';
+  return `Bước tiếp: nhận lead trong ${claimLabel}.`;
 }
 
 

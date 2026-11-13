@@ -390,7 +390,6 @@ export default function CrmLeadDetailPage() {
         null,
       viewer,
     });
-    return () => setLeadPageNextHint(null);
   }, [
     lead,
     b2Complete,
@@ -402,6 +401,10 @@ export default function CrmLeadDetailPage() {
     user,
     salesClaimedAt,
   ]);
+
+  useEffect(() => {
+    return () => setLeadPageNextHint(null);
+  }, []);
 
     const nba = useMemo(() => {
     if (!lead) return null;

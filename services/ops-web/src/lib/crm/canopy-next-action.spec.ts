@@ -30,6 +30,9 @@ describe('nextActionFor', () => {
     expect(nextActionFor(path, { leadHint: { handoffStatus: 'with_solution', viewer: 'sales' } })).toMatch(/chỉ xem/);
     expect(nextActionFor(path, { leadHint: { handoffStatus: 'pending', viewer: 'sales' } })).toMatch(/SUBMIT FOR SOLUTION/);
     expect(nextActionFor(path, { leadHint: { claimed: false, viewer: 'sales' } })).toMatch(/nhận lead trong 15 phút/);
+    expect(nextActionFor(path, { leadHint: { claimed: false, viewer: 'sales', claimMinutes: 1 } })).toMatch(/nhận lead trong 1 phút/);
+    expect(nextActionFor(path, { leadHint: { claimed: true, viewer: 'sales' } })).not.toMatch(/nhận lead/);
+    expect(nextActionFor(path, { leadHint: { claimed: true, viewer: 'sales' } })).toMatch(/liên hệ khách/);
     expect(nextActionForLeadDetail({ b2Complete: true, presalesStage: 'lead', viewer: 'sales' })).toMatch(/khảo sát BANT/);
     expect(nextActionFor(path, { leadHint: { quotePhase: 'hop_dong', viewer: 'sales' } })).not.toMatch(/BANT/);
     expect(nextActionFor(path, { hideSaleEarly: true, leadHint: { quotePhase: 'bao_gia', viewer: 'am' } })).toMatch(/gửi CEO duyệt/);

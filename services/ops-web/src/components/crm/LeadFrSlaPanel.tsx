@@ -12,9 +12,10 @@ import { resolveNewLeadClock, type NewLeadClock } from '@/lib/crm/new-lead-clock
 import { leadStatusAtOrAfterConsult } from '@/lib/crm/lead-status';
 import {
   defaultTeamSlaDocument,
-  normalizeTeamSlaDocument,
   type TeamSlaDocument,
 } from '@/lib/crm/team-sla-profiles';
+import { fetchTeamSlaDocument } from '@/lib/team-sla-api';
+import { setLeadPageClaimed, setLeadPageClaimMinutes } from '@/lib/crm/lead-page-next-hint';
 
 const CALL_RESULTS: { value: string; label: string; hint: string }[] = [
   {
@@ -170,7 +171,9 @@ export function LeadFrSlaPanel({
     try {
       const out = await fetchLeadFrSla(token, leadId);
       setSla(out);
-      setClaimedAt(out.sales_claimed_at ?? null);
+      const at = out.sales_claimed_at ?? null;
+      setClaimedAt(at);
+      if (at) setLeadPageClaimed(true);
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Không tải được SLA phản hồi đầu');
@@ -182,17 +185,19 @@ export function LeadFrSlaPanel({
   }, [reload]);
 
   useEffect(() => {
-    onClaimed?.(claimedAt);
+    if (claimedAt) onClaimed?.(claimedAt);
   }, [claimedAt, onClaimed]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch('/local-team-sla', { cache: 'no-store' });
-        if (!res.ok) throw new Error('local sla');
-        const body = normalizeTeamSlaDocument((await res.json()) as unknown);
-        if (!cancelled) setTeamSla(body);
+        const body = await fetchTeamSlaDocument(token);
+        if (!cancelled) {
+          setTeamSla(body);
+          const minutes = body.profiles.find((row) => row.code === 'sale_service')?.sale.claim_in_hours_minutes;
+          setLeadPageClaimMinutes(minutes ?? 15);
+        }
       } catch {
         if (!cancelled) setTeamSla(defaultTeamSlaDocument());
       }
@@ -270,7 +275,10 @@ export function LeadFrSlaPanel({
     try {
       const out = await claimLeadSalesReceipt(token, leadId);
       setSla(out);
-      setClaimedAt(out.sales_claimed_at ?? new Date().toISOString());
+      const at = out.sales_claimed_at ?? new Date().toISOString();
+      setClaimedAt(at);
+      setLeadPageClaimed(true);
+      onClaimed?.(at);
       setNow(new Date());
       setMsg('Đã nhận lead. Đồng hồ cập nhật bắt đầu từ bây giờ.');
     } catch (err) {
