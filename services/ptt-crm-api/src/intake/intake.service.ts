@@ -460,16 +460,16 @@ export class IntakeService {
     actor?: IntakeStaffActor | null,
   ) {
     const existing = await this.pg.getSession(id);
-    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!existing) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     if (existing.lead_id) {
       await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
     }
     if (String(existing.status ?? '').trim() === 'completed') {
-      throw new BadRequestException({ error: 'Phi?n ?? n?p ? ch? xem, kh?ng s?a.' });
+      throw new BadRequestException({ error: 'Phiên đã nộp — chỉ xem, không sửa.' });
     }
     const brief = body?.brief ?? readDiscoveryBriefFromAnswers(existing.answers_json);
     const updated = await this.pg.saveDiscoveryBrief(id, brief);
-    if (!updated) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!updated) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     return updated;
   }
 
@@ -479,23 +479,23 @@ export class IntakeService {
     actor?: IntakeStaffActor | null,
   ) {
     const existing = await this.pg.getSession(id);
-    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!existing) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     if (existing.lead_id) {
       await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
     }
     if (String(existing.status ?? '').trim() === 'completed') {
-      throw new BadRequestException({ error: 'Phi?n ?? n?p ? ch? xem, kh?ng s?a.' });
+      throw new BadRequestException({ error: 'Phiên đã nộp — chỉ xem, không sửa.' });
     }
     const brief = readDiscoveryBriefFromAnswers(existing.answers_json) ?? normalizeSalesDiscoveryBrief({});
     const slug = String(body?.slug ?? '').trim();
-    if (!slug) throw new BadRequestException({ error: 'Thi?u m? d?ch v?' });
+    if (!slug) throw new BadRequestException({ error: 'Thiếu mã dịch vụ' });
     if (body.action === 'remove') {
       brief.services = brief.services.filter((s) => s !== slug);
     } else if (!brief.services.includes(slug)) {
       brief.services = [...brief.services, slug];
     }
     const updated = await this.pg.saveDiscoveryBrief(id, brief);
-    if (!updated) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!updated) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     return updated;
   }
 
@@ -506,7 +506,7 @@ export class IntakeService {
     actor?: IntakeStaffActor | null,
   ) {
     const existing = await this.pg.getSession(id);
-    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!existing) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     if (existing.lead_id) {
       await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
     }
@@ -517,17 +517,27 @@ export class IntakeService {
       const { discoveryProgress } = await import('./sales-discovery.util');
       throw new BadRequestException({
         error: 'missing_required',
-        message: '?i?n h?t c?c tr??ng b?t bu?c (*) tr??c khi Submit to AM.',
+        message: 'Điền hết các trường bắt buộc (*) trước khi Submit to AM.',
         missing: discoveryProgress(incoming).missing,
       });
     }
     const leadId = existing.lead_id;
     if (!leadId) {
-      throw new BadRequestException({ error: 'Phi?n ch?a g?n lead' });
+      throw new BadRequestException({ error: 'Phiên chưa gắn lead' });
     }
 
     const primary = primaryServiceSlug(incoming.services) || existing.service_slug || '_common';
     const actorLabel = actorId != null ? `staff:${actorId}` : 'staff:discovery';
+    const careNote = (
+      incoming.call_notes || 'Sales Discovery submitted after customer call.'
+    ).trim().slice(0, 4000);
+    try {
+      await this.funnelPg.satisfyCareGateForDiscovery(leadId, actorLabel, careNote);
+    } catch (err) {
+      this.logger.warn(
+        `satisfyCareGateForDiscovery failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     try {
       await this.funnelPg.ensurePresales(leadId, primary, actorLabel);
     } catch (err) {
@@ -543,7 +553,7 @@ export class IntakeService {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadRequestException({ error: msg });
     }
-    if (!completed) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (!completed) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
 
     try {
       await this.funnelPg.runPresalesConsultPrefill(leadId, false);

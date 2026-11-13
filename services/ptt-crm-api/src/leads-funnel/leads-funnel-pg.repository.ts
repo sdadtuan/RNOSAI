@@ -752,6 +752,49 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return updated;
   }
 
+  /**
+   * Sales Discovery Submit: treat the completed discovery call as B2
+   * ("Lien he OK" + stage complete) so ensurePresales / handoffToSolution
+   * can run without a separate care-pipeline click. No-op if B2 is already done.
+   * Does not change the global ensurePresales gate for other entry points.
+   */
+  async satisfyCareGateForDiscovery(leadId: number, actor: string, note: string): Promise<void> {
+    const row = await this.fetchLeadRow(leadId);
+    if (!row) throw new Error('Không tìm thấy lead.');
+    // Use the same Vietnamese error as fetchLeadRow callers if we want consistency ?
+    // fetchLeadRow already used above; if missing we throw. Prefer existing message:
+    const gate = presalesCareGateState(row.care_stage_current, row.care_stages_done_json);
+    if (gate.complete) return;
+
+    const key = 'first_contact';
+    const noteClean = String(note || 'Sales Discovery submitted after customer call.').trim().slice(0, 8000);
+    const alreadyOk = await this.hasB2ContactOkReport(leadId, key);
+    if (!alreadyOk) {
+      await this.db.query(
+        `INSERT INTO crm_lead_activities (
+           lead_id, activity_type, content, result,
+           next_action, next_action_at, created_at, created_by,
+           lead_status_at_log, care_status, care_stage_key, care_contact_type
+         ) VALUES ($1, 'call', $2, '', '', NULL, NOW(), $3, $4, $5, $6, $7)`,
+        [
+          leadId,
+          noteClean,
+          actor.slice(0, 120),
+          row.status,
+          CONTACT_OK_CARE_STATUS,
+          key,
+          'phone',
+        ],
+      );
+    }
+
+    const completionNote =
+      noteClean.length >= CARE_STAGE_MIN_COMPLETION_NOTE_LEN
+        ? noteClean
+        : 'Sales Discovery submitted; auto-complete B2 for Solution handoff.';
+    await this.completeCareStage(leadId, { stage: key, note: completionNote }, actor);
+  }
+
   async countReviewQueue(b2bListScope?: B2bListScope): Promise<number> {
     const scopeParts = this.reviewQueueB2bScopeSql(b2bListScope, 1);
     const result = await this.db.query(
