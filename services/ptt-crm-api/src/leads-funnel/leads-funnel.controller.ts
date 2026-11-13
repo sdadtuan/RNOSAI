@@ -499,7 +499,7 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return await this.funnel.createQuoteContract(id, await this.userId(req));
+      return await this.funnel.createQuoteContract(id, await this.userId(req), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }

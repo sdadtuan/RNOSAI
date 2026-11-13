@@ -110,7 +110,7 @@ export function caseStaffNotify(input: {
     return {
       kind: 'presales_quote',
       title: 'CEO đã duyệt báo giá',
-      body: ('Lead #' + leadId + '  — CEO đã duyệt. Sales có thể xem và tải báo giá.'),
+      body: ('Lead #' + leadId + '  — CEO đã duyệt. Sales có thể xem và tải báo giá. AM sẽ lập hợp đồng.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -127,8 +127,8 @@ export function caseStaffNotify(input: {
   if (input.kind === 'quote_ceo_approved_am') {
     return {
       kind: 'presales_quote',
-      title: 'CEO đã duyệt báo giá',
-      body: ('Lead #' + leadId + '  — CEO đã duyệt báo giá bạn lập. Vui lòng xem và tiếp tục bước hợp đồng.'),
+      title: 'CEO đã duyệt báo giá — lập hợp đồng',
+      body: ('Lead #' + leadId + '  — CEO đã duyệt báo giá bạn lập. Vui lòng lập hợp đồng và gửi GĐKD duyệt.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };

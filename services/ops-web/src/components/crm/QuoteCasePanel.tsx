@@ -277,7 +277,7 @@ export function QuoteCasePanel({
                 onClick={() =>
                   void run(
                     () => approveLeadQuote(token, leadId),
-                    'CEO đã duyệt báo giá. Sales có thể xem và tải.',
+                    'CEO đã duyệt báo giá. AM lập hợp đồng; Sales chỉ xem và tải.',
                   )
                 }
               >
@@ -317,10 +317,19 @@ export function QuoteCasePanel({
         ) : null}
         {quote.phase === 'hop_dong' ? (
           <>
-            <p>CEO đã duyệt báo giá. Sales có thể xem và tải file hợp đồng (Word từ báo giá đã chốt). Gửi GĐKD duyệt trên tab Hợp đồng và Chốt, rồi lead mới sang Triển khai.</p>
+            <p data-testid="quote-hop-dong-copy">
+              {viewerIsSales && !viewerIsSuperAdmin
+                ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
+                : 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) lập hợp đồng và gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Sales chỉ xem và tải.'}
+            </p>
+            {!viewerIsSales || viewerIsSuperAdmin ? (
+              <a href="#lead-contract" className="btn btn-primary" data-testid="quote-lap-hop-dong">
+                Lập hợp đồng
+              </a>
+            ) : null}
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-secondary"
               disabled={busy}
               onClick={() => {
                 setBusy(true);

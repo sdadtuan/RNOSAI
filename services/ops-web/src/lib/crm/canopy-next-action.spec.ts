@@ -23,6 +23,9 @@ describe('nextActionFor', () => {
   it('uses the lead stage so the banner is not stuck on BANT at quote', () => {
     const path = '/crm/leads/900000115';
     expect(nextActionFor(path, { leadHint: { quotePhase: 'hop_dong', viewer: 'sales' } })).toMatch(/tải báo giá đã duyệt/);
+    expect(nextActionFor(path, { leadHint: { quotePhase: 'hop_dong', viewer: 'sales' } })).toMatch(/AM sẽ lập hợp đồng/);
+    expect(nextActionFor(path, { leadHint: { quotePhase: 'hop_dong', viewer: 'am' } })).toMatch(/lập hợp đồng từ báo giá/);
+    expect(nextActionFor(path, { leadHint: { quotePhase: 'hop_dong', viewer: 'am' } })).toMatch(/Sales chỉ xem/);
     expect(nextActionFor(path, { leadHint: { quotePhase: 'ceo_review', viewer: 'sales' } })).toMatch(/chờ CEO duyệt/);
     expect(nextActionFor(path, { leadHint: { quotePhase: 'ceo_review', viewer: 'ceo' } })).toMatch(/duyệt hoặc từ chối/);
     expect(nextActionFor(path, { leadHint: { quotePhase: 'bao_gia', viewer: 'am' } })).toMatch(/gửi CEO duyệt/);

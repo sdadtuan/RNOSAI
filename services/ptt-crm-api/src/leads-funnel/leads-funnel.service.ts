@@ -33,6 +33,7 @@ import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { parseQuoteServiceCodes } from './quote-sheet.util';
 import { isCeoPosition } from './quote-case.util';
 import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
+import { canWriteLeadContract, CONTRACT_AM_ONLY_MESSAGE } from '../leads-contract/contract-writer.util';
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack } from './presales-marketing-plan.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
@@ -927,8 +928,26 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  async createQuoteContract(leadId: number, staffId: number | null) {
+  async createQuoteContract(leadId: number, staffId: number | null, staffUser?: StaffJwtPayload) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+    const asSuper = await this.actorIsSuperAdmin(staffUser);
+    const position = await this.actorPositionCode(staffUser);
+    if (
+      !canWriteLeadContract({
+        positionCode: position,
+        asSuperAdmin: asSuper,
+        actorStaffId: staffId,
+        quoteAssigneeStaffId: snap?.presales.quote_assignee_staff_id,
+        solutionOwnerStaffId: snap?.presales.solution_owner_staff_id,
+        lastSolutionOwnerStaffId: snap?.presales.last_solution_owner_staff_id,
+      })
+    ) {
+      throw new ForbiddenException({
+        error: CONTRACT_AM_ONLY_MESSAGE,
+        message: CONTRACT_AM_ONLY_MESSAGE,
+      });
+    }
     try {
       await this.pgRepo.createQuoteContract(leadId, staffId);
     } catch (err) {

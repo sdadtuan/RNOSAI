@@ -54,6 +54,14 @@ describe('caseStaffNotify', () => {
     const n = caseStaffNotify({ kind: 'quote_ceo_approved_am', leadId: 11 });
     expect(n.title).toContain('duyệt báo giá');
     expect(n.body).toContain('CEO đã duyệt');
+    expect(n.body).toContain('lập hợp đồng');
+    expect(n.body).toContain('GĐKD');
+  });
+
+  it('tells Sales they may view, while the AM drafts the contract', () => {
+    const n = caseStaffNotify({ kind: 'quote_ceo_approved', leadId: 11 });
+    expect(n.body).toContain('Sales có thể xem');
+    expect(n.body).toContain('AM sẽ lập hợp đồng');
   });
 
   it('tells the original AM that the case is theirs again', () => {

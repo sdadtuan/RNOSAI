@@ -3063,7 +3063,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       leadId,
       staffId,
       status,
-      'CEO duyệt báo giá. Sales có thể xem và tải. Lập hợp đồng và chờ GĐKD duyệt trước khi sang Triển Khai.',
+      'CEO duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải.',
     );
     try {
       await this.syncQuoteDeliveryKpi(leadId);
@@ -3190,7 +3190,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (!snap.presales.quote_approved_at) {
-      throw new Error('Sale chưa Approve báo giá.');
+      throw new Error('CEO chưa duyệt báo giá.');
     }
     if (snap.presales.contract_created_at) {
       throw new Error('Hợp đồng đã được tạo.');

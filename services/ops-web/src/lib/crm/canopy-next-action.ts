@@ -35,8 +35,8 @@ export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefine
   }
   if (phase === 'hop_dong') {
     return isSales
-      ? 'Bước tiếp: xem và tải báo giá đã duyệt; gửi hợp đồng cho GĐKD duyệt.'
-      : 'Bước tiếp: báo giá đã được CEO duyệt — Sales có thể xem và tải.';
+      ? 'Bước tiếp: xem và tải báo giá đã duyệt. AM sẽ lập hợp đồng và gửi GĐKD duyệt.'
+      : 'Bước tiếp: lập hợp đồng từ báo giá đã duyệt và gửi GĐKD duyệt. Sales chỉ xem và tải.';
   }
   if (phase === 'ceo_review' || phase === 'sale_review') {
     return isCeo

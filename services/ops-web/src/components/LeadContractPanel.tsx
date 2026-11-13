@@ -20,7 +20,7 @@ import {
   readinessCheckHref,
 } from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
-import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
+import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { normalizeAgencyClientId } from '@/lib/crm/funnel-snapshot.util';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
@@ -71,6 +71,7 @@ export function LeadContractPanel({
     !readOnly &&
     (isSuperAdmin(user) ||
       isAccountManager(user) ||
+      isMarketingLeader(user) ||
       (isAccountExecutive(user) &&
         Boolean(contract?.created_by) &&
         String(contract?.created_by).trim().toLowerCase() === String(user?.email ?? '').trim().toLowerCase()));
@@ -217,7 +218,7 @@ export function LeadContractPanel({
       <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Hợp đồng → Service Delivery</h3>
       <ActionErrorToast message={panelError} />
       <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
-        AM tạo draft → submit → GDKD duyệt → lifecycle Onboard (2 bước phê duyệt)
+        AM phụ trách (người lập báo giá) tạo draft → gửi GDKD duyệt. Sales chỉ xem. SUPER-ADMIN vẫn đầy đủ quyền.
       </p>
       {!canEdit && !readOnly ? (
         <p className="muted" style={{ fontSize: '0.85rem' }} data-testid="lead-contract-view-only">

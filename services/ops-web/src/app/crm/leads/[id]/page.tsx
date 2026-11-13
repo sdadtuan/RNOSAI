@@ -429,6 +429,7 @@ export default function CrmLeadDetailPage() {
       canWriteContract:
         isSuperAdmin(user) ||
         isAccountManager(user) ||
+        isMarketingLeader(user) ||
         (isAccountExecutive(user) &&
           Boolean(contractSummary?.createdBy) &&
           String(contractSummary?.createdBy).trim().toLowerCase() ===

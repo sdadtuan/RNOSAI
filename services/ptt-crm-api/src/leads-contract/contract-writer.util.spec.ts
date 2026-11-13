@@ -30,4 +30,37 @@ describe('contract writer RBAC', () => {
       }),
     ).toBe(false);
   });
+
+  it('allows a Marketing Leader to create when no owner is recorded', () => {
+    expect(canWriteLeadContract({ positionCode: 'mkl' })).toBe(true);
+    expect(canWriteLeadContract({ positionCode: 'mkt-01' })).toBe(true);
+  });
+
+  it('allows the assigned AM who made the quote, and blocks another AM', () => {
+    expect(
+      canWriteLeadContract({
+        positionCode: 'acm',
+        actorStaffId: 108,
+        quoteAssigneeStaffId: 108,
+      }),
+    ).toBe(true);
+    expect(
+      canWriteLeadContract({
+        positionCode: 'acm',
+        actorStaffId: 201,
+        quoteAssigneeStaffId: 108,
+        solutionOwnerStaffId: 108,
+      }),
+    ).toBe(false);
+  });
+
+  it('blocks Sales even when they try to draft after CEO approval', () => {
+    expect(
+      canWriteLeadContract({
+        positionCode: 'ae',
+        actorStaffId: 107,
+        quoteAssigneeStaffId: 108,
+      }),
+    ).toBe(false);
+  });
 });
