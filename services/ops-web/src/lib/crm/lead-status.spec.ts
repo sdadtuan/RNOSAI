@@ -97,7 +97,8 @@ describe('leadStatusSearchOptions', () => {
       'Hẹn gọi lại',
       'Sai số',
       'Đã nói chuyện',
-      'Đã chuyển Solution',
+      'Lead chờ Solutions',
+      'Đang làm Solutions',
       'Chờ dọn',
     ]);
     expect(leadStatusSearchStatuses('hen_goi_lai', 'b2b_prospect')).toEqual([]);
@@ -106,8 +107,10 @@ describe('leadStatusSearchOptions', () => {
       'callback',
       'khach_hen_goi_lai',
     ]);
-    expect(leadStatusSearchHandoffs('da_chuyen_solution', 'b2b_prospect')).toEqual([
+    expect(leadStatusSearchHandoffs('lead_cho_solutions', 'b2b_prospect')).toEqual([
       'pending',
+    ]);
+    expect(leadStatusSearchHandoffs('dang_lam_solutions', 'b2b_prospect')).toEqual([
       'with_solution',
     ]);
   });

@@ -290,9 +290,14 @@ const CALL_SITUATIONS: readonly LeadStatusSearchOption[] = [
     callResults: ['answered', 'connected_meet_pending', 'connected_qualified', 'connected_other'],
   },
   {
-    id: 'da_chuyen_solution',
-    label: 'Đã chuyển Solution',
-    handoffs: ['pending', 'with_solution'],
+    id: 'lead_cho_solutions',
+    label: 'Lead chờ Solutions',
+    handoffs: ['pending'],
+  },
+  {
+    id: 'dang_lam_solutions',
+    label: 'Đang làm Solutions',
+    handoffs: ['with_solution'],
   },
 ];
 
