@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadLeadQuoteXlsx,
   fetchLeadQuoteSheet,
@@ -58,6 +58,8 @@ export function LeadQuoteSheet({
   const [sheet, setSheet] = useState<LeadQuoteSheet | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+  // Latest user-picked service codes — protects against a late initial fetch wiping a click.
+  const selectedRef = useRef<string[] | null>(null);
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
@@ -67,7 +69,20 @@ export function LeadQuoteSheet({
     setLocalError('');
     void fetchLeadQuoteSheet(token, leadId)
       .then((next) => {
-        if (!cancelled) setSheet(next);
+        if (cancelled) return;
+        setSheet((current) => {
+          const picked = selectedRef.current;
+          if (picked && picked.length > 0 && current) {
+            return {
+              ...next,
+              selected_service_codes: current.selected_service_codes,
+              vat_percent: current.vat_percent,
+              promo_percent: current.promo_percent,
+              groups: current.groups.length > 0 ? current.groups : next.groups,
+            };
+          }
+          return next;
+        });
       })
       .catch((err: unknown) => {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
@@ -92,13 +107,19 @@ export function LeadQuoteSheet({
 
   async function loadServices(codes: string[]) {
     if (!sheet) return;
+    const previous = sheet.selected_service_codes;
     const edits = new Map(linesFromSheet(sheet).map((line) => [line.item_code, line]));
+    // Optimistic: check/uncheck immediately so a real click (and Playwright) sees the new state
+    // before the preview GET returns. Do this before setBusy so the box is not disabled-while-unchecked.
+    selectedRef.current = codes;
+    setSheet((current) => (current ? { ...current, selected_service_codes: codes } : current));
     setBusy(true);
     setLocalError('');
     try {
       const next = await fetchLeadQuoteSheet(token, leadId, codes);
       setSheet({
         ...next,
+        selected_service_codes: next.selected_service_codes?.length ? next.selected_service_codes : codes,
         vat_percent: sheet.vat_percent,
         promo_percent: sheet.promo_percent,
         groups: next.groups.map((group) => ({
@@ -125,6 +146,8 @@ export function LeadQuoteSheet({
         })),
       });
     } catch (err) {
+      selectedRef.current = previous;
+      setSheet((current) => (current ? { ...current, selected_service_codes: previous } : current));
       const message = err instanceof Error ? err.message : 'Không tải được việc của dịch vụ';
       setLocalError(message);
       onError?.(message);
@@ -242,15 +265,19 @@ export function LeadQuoteSheet({
           {sheet.services.map((service) => {
             const checked = sheet.selected_service_codes.includes(service.code);
             return (
-              <label key={service.code}>
+              <label key={service.code} data-testid={`quote-svc-label-${service.code}`}>
                 <input
                   type="checkbox"
+                  data-testid={`quote-svc-${service.code}`}
                   checked={checked}
                   disabled={busy || (!checked && sheet.selected_service_codes.length >= 4)}
-                  onChange={() => {
-                    const next = checked
-                      ? sheet.selected_service_codes.filter((code) => code !== service.code)
-                      : [...sheet.selected_service_codes, service.code];
+                  onChange={(event) => {
+                    const want = event.target.checked;
+                    const next = want
+                      ? sheet.selected_service_codes.includes(service.code)
+                        ? sheet.selected_service_codes
+                        : [...sheet.selected_service_codes, service.code]
+                      : sheet.selected_service_codes.filter((code) => code !== service.code);
                     void loadServices(next);
                   }}
                 />
@@ -429,7 +456,13 @@ export function LeadQuoteSheet({
               <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
                 Lưu bảng
               </button>
-              <button type="button" className="btn btn-primary" disabled={busy || !sheet} onClick={() => void onSend()}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                data-testid="quote-send-ceo"
+                disabled={busy || !sheet || sheet.selected_service_codes.length < 1}
+                onClick={() => void onSend()}
+              >
                 Nộp báo giá cho CEO
               </button>
             </>

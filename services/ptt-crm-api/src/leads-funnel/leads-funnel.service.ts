@@ -1,4 +1,4 @@
-import { Optional, BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
@@ -122,6 +122,7 @@ export class LeadsFunnelService {
     private readonly leadPg: CrmLeadsPgRepository,
     private readonly cskhBoard: CskhBoardService,
     private readonly reviewQueueLlm: ReviewQueueLlmService,
+    @Inject(forwardRef(() => IntakeService))
     private readonly intake: IntakeService,
     private readonly llm: AiLlmClient,
     private readonly legacyLeads: CrmLeadsLegacyService,
@@ -155,7 +156,8 @@ export class LeadsFunnelService {
     }
   }
 
-  private async notifyAmSolutionHandoff(leadId: number): Promise<void> {
+  /** Public so Discovery submit (intake) can notify the same AM desk as the handoff API. */
+  async notifyAmSolutionHandoff(leadId: number): Promise<void> {
     const payload = caseStaffNotify({ kind: 'submitted_to_am', leadId });
     const notifiedUsers = new Set<string>();
     const staffIds = await this.pgRepo.amDeskStaffIds();
@@ -175,6 +177,20 @@ export class LeadsFunnelService {
         })
         .catch(() => undefined);
     }
+  }
+
+  async notifyAfterHandoffToSolution(
+    leadId: number,
+    handed?: { handoff_status?: string | null; solution_owner_staff_id?: number | null },
+  ): Promise<void> {
+    if (handed?.handoff_status === 'with_solution' && handed.solution_owner_staff_id) {
+      await this.notifyResponsible(
+        handed.solution_owner_staff_id,
+        caseStaffNotify({ kind: 'auto_reclaim_solution', leadId }),
+      );
+      return;
+    }
+    await this.notifyAmSolutionHandoff(leadId);
   }
 
   private async notifyResponsible(
@@ -342,11 +358,21 @@ export class LeadsFunnelService {
 
   private async notifyCeos(leadId: number): Promise<void> {
     const payload = caseStaffNotify({ kind: 'quote_submitted_ceo', leadId });
+    const notified = new Set<string>();
+    // CEO position plus SUPER-ADMIN (UAT has no dedicated CEO stub; admin is the CEO actor).
+    // Do not skip a recipient because they are also the AM who sent the quote.
+    const staffIds = await this.pgRepo.ceoDeskStaffIds();
+    for (const staffId of staffIds) {
+      const userId = await this.notifications.notifyStaff(staffId, payload).catch(() => null);
+      if (userId) notified.add(String(userId));
+    }
     const userIds = await this.pgRepo.ceoAuthUserIds();
     for (const userId of userIds) {
+      const uid = String(userId ?? '').trim();
+      if (!uid || notified.has(uid)) continue;
       await this.notifications
         .create({
-          user_id: userId,
+          user_id: uid,
           kind: payload.kind,
           title: payload.title,
           body: payload.body,
@@ -723,14 +749,7 @@ export class LeadsFunnelService {
         staffId,
         staffUser,
       );
-      if (handed.handoff_status === 'with_solution' && handed.solution_owner_staff_id) {
-        void this.notifyResponsible(
-          handed.solution_owner_staff_id,
-          caseStaffNotify({ kind: 'auto_reclaim_solution', leadId }),
-        );
-      } else {
-        void this.notifyAmSolutionHandoff(leadId);
-      }
+      await this.notifyAfterHandoffToSolution(leadId, handed).catch(() => undefined);
     } catch (err) {
       this.funnelError(err);
     }
@@ -1021,7 +1040,7 @@ export class LeadsFunnelService {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
       await this.pgRepo.sendQuoteToSales(leadId, staffId, await this.actorIsSuperAdmin(staffUser));
-      void this.notifyCeos(leadId);
+      await this.notifyCeos(leadId).catch(() => undefined);
     } catch (err) {
       this.funnelError(err);
     }

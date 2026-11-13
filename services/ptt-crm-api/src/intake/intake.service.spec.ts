@@ -34,6 +34,7 @@ describe('IntakeService salesKitTurn library', () => {
       salesKitLlm as never,
       turns as never,
       learn as never,
+      { notifyAfterHandoffToSolution: jest.fn().mockResolvedValue(undefined) } as never,
     );
   }
 

@@ -1,12 +1,15 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { AI_USE_CASE } from '../ai-intelligence/ai-audit.constants';
 import { AppConfigService } from '../config/app-config.service';
 import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
+import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
 import { extractLmpConsultMergeFields } from '../lead-meeting-prep/lmp-consult-merge.util';
@@ -58,6 +61,8 @@ export class IntakeService {
     private readonly salesKitLlm: IntakeSalesKitLlmService,
     private readonly turns: SalesKitTurnsRepository,
     private readonly learn: SalesKitLearnService,
+    @Inject(forwardRef(() => LeadsFunnelService))
+    private readonly funnel: LeadsFunnelService,
   ) {}
 
   getDefinitions() {
@@ -570,6 +575,17 @@ export class IntakeService {
     const staffId = actorId ?? actor?.staffId ?? 0;
     try {
       handoff = await this.funnelPg.handoffToSolution(leadId, staffId, { confirm: true });
+      const handed = handoff as {
+        handoff_status?: string | null;
+        solution_owner_staff_id?: number | null;
+      };
+      // Discovery calls the repository, not LeadsFunnelService.handoffToSolution —
+      // fire the same AM-desk notify (ACM + SUPER-ADMIN) before the HTTP response returns.
+      await this.funnel.notifyAfterHandoffToSolution(leadId, handed).catch((err) => {
+        this.logger.warn(
+          `AM notify after discovery failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
     } catch (err) {
       handoff_error = err instanceof Error ? err.message : String(err);
       this.logger.warn(`handoffToSolution after discovery failed lead=${leadId}: ${handoff_error}`);

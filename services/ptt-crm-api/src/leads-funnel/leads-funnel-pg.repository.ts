@@ -3733,6 +3733,29 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
+  async ceoStaffIds(): Promise<number[]> {
+    const result = await this.db.query(
+      `SELECT DISTINCT s.id AS staff_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND upper(replace(p.code, ' ', '')) = 'CEO'`,
+    );
+    return result.rows
+      .map((row) => Number(row.staff_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  /**
+   * CEO desk operators: staff with position CEO, plus SUPER-ADMIN.
+   * UAT has no dedicated CEO stub — admin (SUPER-ADMIN) is the CEO actor and
+   * must receive quote-submit notifies even when they are also the AM who sent the quote.
+   */
+  async ceoDeskStaffIds(): Promise<number[]> {
+    const [ceos, supers] = await Promise.all([this.ceoStaffIds(), this.superAdminStaffIds()]);
+    return [...new Set([...ceos, ...supers])];
+  }
+
   async ceoAuthUserIds(): Promise<string[]> {
     const result = await this.db.query(
       `SELECT DISTINCT u.id::text AS user_id
@@ -3740,7 +3763,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          JOIN crm_positions p ON p.id = s.position_id
          JOIN staff_users u ON lower(trim(u.email)) = lower(trim(s.email))
         WHERE s.active IS TRUE
-          AND upper(replace(p.code, ' ', '')) = 'CEO'`,
+          AND (
+            upper(replace(p.code, ' ', '')) = 'CEO'
+            OR lower(replace(replace(p.code, ' ', ''), '_', '-')) IN ('super-admin', 'superadmin')
+          )`,
     );
     return result.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
   }
