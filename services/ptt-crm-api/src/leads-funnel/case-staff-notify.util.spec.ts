@@ -123,6 +123,14 @@ describe('new-flow handoff notifies', () => {
     expect(n.title).toBe('AM đã lập hợp đồng');
     expect(n.body).toContain('xem và tải');
   });
+
+  it('notifies involved staff about an internal note, with a lead link', () => {
+    const n = caseStaffNotify({ kind: 'internal_note', leadId: 44, reason: 'Cần thêm logo khách' });
+    expect(n.title).toBe('Ghi chú nội bộ mới');
+    expect(n.body).toContain('Lead #44');
+    expect(n.body).toContain('Cần thêm logo khách');
+    expect(n.link_href).toBe('/crm/leads/44');
+  });
 });
 
 describe('slaAlertPredictionScope', () => {

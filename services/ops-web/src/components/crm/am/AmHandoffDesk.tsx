@@ -39,6 +39,7 @@ import {
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
@@ -305,8 +306,6 @@ export function AmHandoffDesk({
     setDeadlineText(isoToViDate(due));
   }, [funnel?.presales?.handoff?.solution_due_at]);
   const [assignNote, setAssignNote] = useState('');
-  const [internalNote, setInternalNote] = useState('');
-  const [internalLog, setInternalLog] = useState<ExchangeLine[]>([]);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -532,19 +531,6 @@ export function AmHandoffDesk({
       onMessage?.(msg);
       pushToast(msg, 'success');
     });
-  }
-
-  function addInternalNote() {
-    const text = internalNote.trim();
-    if (!text) return;
-    setInternalLog((prev) => [
-      { at: new Date().toISOString(), author: userName || 'Bạn', text },
-      ...prev,
-    ]);
-    setInternalNote('');
-    // No dedicated internal-thread API on this desk — keep the note visible locally
-    // and report it as a local log. Trao đổi nội bộ still opens this tab.
-    onMessage?.('Đã ghi chú nội bộ trên màn hình (chưa đồng bộ máy chủ).');
   }
 
   const serviceChips = (view.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
@@ -864,42 +850,16 @@ export function AmHandoffDesk({
           ) : null}
 
           {tab === 'notes' ? (
-            <section className="ahd-card" data-testid="ahd-notes">
-              <h3 className="ahd-card__title">
-                <Icon d={I.note} />
-                Ghi chú nội bộ
-              </h3>
-              <div className="ahd-note-form">
-                <textarea
-                  value={internalNote}
-                  onChange={(e) => setInternalNote(e.target.value)}
-                  placeholder="Ghi chú nội bộ cho team…"
-                  rows={4}
-                  data-testid="ahd-internal-input"
-                />
-                <button type="button" className="ahd-btn ahd-btn--primary" onClick={addInternalNote} disabled={!internalNote.trim()}>
-                  Lưu ghi chú
-                </button>
-              </div>
-              {internalLog.length ? (
-                <div className="ahd-history" style={{ marginTop: 12 }}>
-                  {internalLog.map((line, i) => (
-                    <div className="ahd-history__item" key={i}>
-                      {line.at ? <time>{formatHandoffStamp(line.at)}</time> : null}
-                      <p className="ahd-prose">
-                        <strong>{line.author}: </strong>
-                        {line.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="ahd-empty" style={{ marginTop: 10 }}>
-                  Chưa có ghi chú nội bộ. Ghi chú trên tab này mới lưu trên màn hình hiện tại.
-                </p>
-              )}
-            </section>
+            <LeadInternalNotes
+              token={token}
+              leadId={lead.id}
+              onMessage={onMessage}
+              onError={onError}
+              sectionTestId="ahd-notes"
+              inputTestId="ahd-internal-input"
+            />
           ) : null}
+
         </div>
 
         <div className="ahd-col ahd-col--side">

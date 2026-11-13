@@ -912,6 +912,68 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
+  private isInternalNoteActivity(activity: { activity_type?: string; result?: string }): boolean {
+    const type = String(activity.activity_type ?? '').trim().toLowerCase();
+    const result = String(activity.result ?? '').trim().toLowerCase();
+    return type === 'internal_note' || (type === 'note' && result === 'internal');
+  }
+
+  async listInternalNotes(leadId: number) {
+    const activities = await this.legacyLeads.listActivities(leadId, 200);
+    const notes = activities.filter((row) => this.isInternalNoteActivity(row));
+    return { ok: true, notes };
+  }
+
+  async addInternalNote(
+    leadId: number,
+    content: string,
+    staffId: number | null,
+    actor: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    const text = String(content ?? '').trim();
+    if (!text) throw new BadRequestException({ error: 'Nhập nội dung ghi chú nội bộ.' });
+    if (text.length < 2) throw new BadRequestException({ error: 'Ghi chú quá ngắn (tối thiểu 2 ký tự).' });
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    const { activity } = await this.legacyLeads.createActivity(
+      leadId,
+      { activity_type: 'note', content: text.slice(0, 4000), result: 'internal' },
+      actor,
+      staffId,
+    );
+    const preview = text.length > 120 ? `${text.slice(0, 117)}…` : text;
+    const author = (await this.resolveStaffDisplayName(staffUser, actor, staffId)) || actor;
+    const payload = caseStaffNotify({
+      kind: 'internal_note',
+      leadId,
+      reason: `${author}: ${preview}`,
+    });
+    const recipients = new Set<number>();
+    const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+    const owner = await this.pgRepo.leadOwnerStaffId(leadId);
+    const candidates = [
+      owner,
+      snap?.presales.handed_off_by_staff_id,
+      snap?.presales.solution_owner_staff_id,
+      snap?.presales.last_solution_owner_staff_id,
+      snap?.presales.quote_assignee_staff_id,
+      snap?.presales.assigned_am,
+    ];
+    for (const id of candidates) {
+      const n = Number(id ?? 0);
+      if (Number.isFinite(n) && n > 0 && n !== staffId) recipients.add(n);
+    }
+    const superOnly = await this.pgRepo.superAdminStaffIds();
+    for (const id of superOnly) {
+      if (id && id !== staffId) recipients.add(id);
+    }
+    for (const id of recipients) {
+      void this.notifyResponsible(id, payload);
+    }
+    const listed = await this.listInternalNotes(leadId);
+    return { ok: true, activity, notes: listed.notes };
+  }
+
   async updateSolutionDeadline(
     leadId: number,
     staffId: number | null,

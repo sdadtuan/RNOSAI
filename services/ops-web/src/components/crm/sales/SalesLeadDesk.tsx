@@ -26,6 +26,7 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
+import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import {
   buildAmDeskBrief,
@@ -521,6 +522,16 @@ export function SalesLeadDesk({
               </button>
             ) : null}
           </section>
+
+          <LeadInternalNotes
+            token={token}
+            leadId={lead.id}
+            compact
+            onMessage={undefined}
+            onError={undefined}
+            sectionTestId="sld-notes"
+            inputTestId="sld-internal-input"
+          />
         </div>
       </div>
     </div>

@@ -36,4 +36,43 @@ describe('shouldShowQuoteTransferBox', () => {
   it('hides when the viewer is not CEO', () => {
     expect(shouldShowQuoteTransferBox({ ...base, viewerIsCeo: false, assigneeStaffId: null })).toBe(false);
   });
+
+  it('hides during sale_approve_solution even for SUPER-ADMIN (no quote-assignment purpose)', () => {
+    expect(
+      shouldShowQuoteTransferBox({
+        ...base,
+        viewerIsSuperAdmin: true,
+        expectedRole: 'Sale',
+        assigneeStaffId: 8,
+        phase: 'sale_approve_solution',
+      }),
+    ).toBe(false);
+  });
+
+  it('shows on chuyen_bao_gia / ceo_review for SUPER-ADMIN', () => {
+    expect(
+      shouldShowQuoteTransferBox({
+        ...base,
+        viewerIsSuperAdmin: true,
+        phase: 'chuyen_bao_gia',
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowQuoteTransferBox({
+        ...base,
+        viewerIsSuperAdmin: true,
+        phase: 'ceo_review',
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps prior behaviour when phase is omitted', () => {
+    expect(
+      shouldShowQuoteTransferBox({
+        ...base,
+        expectedRole: 'Sale',
+        assigneeStaffId: 8,
+      }),
+    ).toBe(true);
+  });
 });

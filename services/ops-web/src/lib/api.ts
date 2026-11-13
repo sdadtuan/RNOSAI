@@ -2404,6 +2404,46 @@ export async function claimLeadSolution(
   });
 }
 
+export async function fetchLeadInternalNotes(
+  token: string,
+  leadId: number,
+): Promise<LeadActivityRow[]> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/internal-notes`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const out = await parseJson<{ notes: LeadActivityRow[]; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Không tải được ghi chú nội bộ', res.status);
+  }
+  return out.notes ?? [];
+}
+
+export async function addLeadInternalNote(
+  token: string,
+  leadId: number,
+  content: string,
+): Promise<LeadActivityRow[]> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/internal-notes`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+  const out = await parseJson<{
+    notes: LeadActivityRow[];
+    activity?: LeadActivityRow;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Không lưu được ghi chú nội bộ', res.status);
+  }
+  return out.notes ?? [];
+}
+
 export async function updateLeadSolutionDeadline(
   token: string,
   leadId: number,

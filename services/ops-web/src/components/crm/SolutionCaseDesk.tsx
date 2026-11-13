@@ -36,6 +36,7 @@ import {
 } from '@/lib/crm/solution-pack';
 import { fetchP13Service, fetchP13Services } from '@/lib/p13/api';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
+import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import {
   SOLUTION_FILE_MAX_COUNT,
   solutionFileAddError,
@@ -1061,6 +1062,15 @@ export function SolutionCaseDesk({
           </>
         )}
       </section>
+      <LeadInternalNotes
+        token={token}
+        leadId={lead.id}
+        onMessage={onMessage}
+        onError={onError}
+        compact
+        sectionTestId="scd-notes"
+        inputTestId="scd-internal-input"
+      />
     </section>
   );
 }

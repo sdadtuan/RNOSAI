@@ -3658,9 +3658,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       .filter((id) => Number.isFinite(id) && id > 0);
   }
 
-  /** AM desk operators: Account Managers plus SUPER-ADMIN (UAT AM desk). */
-  async amDeskStaffIds(): Promise<number[]> {
-    const am = await this.accountManagerStaffIds();
+  async superAdminStaffIds(): Promise<number[]> {
     const result = await this.db.query(
       `SELECT DISTINCT s.id AS staff_id
          FROM crm_staff s
@@ -3668,9 +3666,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         WHERE s.active IS TRUE
           AND lower(replace(replace(p.code, ' ', ''), '_', '-')) IN ('super-admin', 'superadmin')`,
     );
-    const supers = result.rows
+    return result.rows
       .map((row) => Number(row.staff_id))
       .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  /** AM desk operators: Account Managers plus SUPER-ADMIN (UAT AM desk). */
+  async amDeskStaffIds(): Promise<number[]> {
+    const [am, supers] = await Promise.all([this.accountManagerStaffIds(), this.superAdminStaffIds()]);
     return [...new Set([...am, ...supers])];
   }
 

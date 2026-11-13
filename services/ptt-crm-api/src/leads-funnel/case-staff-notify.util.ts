@@ -15,7 +15,8 @@ export type CaseNotifyKind =
   | 'quote_ceo_approved'
   | 'customer_agreed_solution'
   | 'quote_ceo_approved_am'
-  | 'contract_drafted';
+  | 'contract_drafted'
+  | 'internal_note';
 
 export type CaseNotifyPayload = {
   kind: string;
@@ -171,6 +172,16 @@ export function caseStaffNotify(input: {
       body: ('Lead #' + leadId + ' — AM đã soạn hợp đồng. Sales có thể xem và tải.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
+  if (input.kind === 'internal_note') {
+    const preview = reason ? (' Nội dung: ' + reason) : '';
+    return {
+      kind: 'presales_note',
+      title: 'Ghi chú nội bộ mới',
+      body: ('Lead #' + leadId + ' — có ghi chú nội bộ mới.' + preview),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead', reason },
     };
   }
   return {

@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { shouldShowQuoteTransferBox } from '@/components/crm/quote-transfer-box.util';
+import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 
 function when(value: string): string {
   const ms = Date.parse(value);
@@ -356,6 +357,7 @@ export function QuoteCasePanel({
           expectedRole: quote.expected_role,
           candidateCount: quote.transfer_candidates?.length ?? 0,
           assigneeStaffId: quote.assignee_staff_id,
+          phase: quote.phase,
         }) ? (
           <>
             <label>
@@ -377,6 +379,7 @@ export function QuoteCasePanel({
               type="button"
               className="btn btn-secondary"
               disabled={busy || !targetId}
+              title={busy ? 'Đang xử lý…' : !targetId ? 'Chọn người nhận trước khi giao.' : 'Giao case báo giá cho người được chọn.'}
               onClick={() =>
                 void run(
                   () => transferLeadQuoteCase(token, leadId, Number(targetId)),
@@ -389,6 +392,15 @@ export function QuoteCasePanel({
           </>
         ) : null}
       </div>
+      <LeadInternalNotes
+        token={token}
+        leadId={leadId}
+        onMessage={onMessage}
+        onError={onError}
+        compact
+        sectionTestId="qcp-notes"
+        inputTestId="qcp-internal-input"
+      />
     </section>
   );
 }

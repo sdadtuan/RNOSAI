@@ -360,6 +360,43 @@ export class LeadsFunnelController {
     }
   }
 
+  @Get(':id/presales/internal-notes')
+  @UseGuards(StaffOrInternalKeyGuard, PresalesOnLeadGuard)
+  async listInternalNotes(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    try {
+      return await this.funnel.listInternalNotes(id);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/internal-notes')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    PresalesOnLeadGuard,
+  )
+  async addInternalNote(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { content?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.addInternalNote(
+        id,
+        String(body?.content ?? ''),
+        await this.userId(req),
+        this.actor(req),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Post(':id/presales/return-to-sales')
   @HttpCode(HttpStatus.OK)
   @UseGuards(
