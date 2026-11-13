@@ -2386,10 +2386,11 @@ export async function handoffLeadToSolution(
 export async function claimLeadSolution(
   token: string,
   leadId: number,
+  body: { assignee_staff_id?: number; deadline?: string; note?: string } = {},
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/claim-solution`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(body),
   });
 }
 

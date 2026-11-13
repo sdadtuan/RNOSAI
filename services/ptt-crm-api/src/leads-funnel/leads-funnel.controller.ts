@@ -315,6 +315,7 @@ export class LeadsFunnelController {
   )
   async claimSolution(
     @Param('id', ParseIntPipe) id: number,
+    @Body() body: { assignee_staff_id?: number; deadline?: string; note?: string },
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
@@ -323,6 +324,11 @@ export class LeadsFunnelController {
         await this.userId(req),
         this.actor(req),
         req.staffUser,
+        {
+          assigneeStaffId: body?.assignee_staff_id ? Number(body.assignee_staff_id) : undefined,
+          dueAt: body?.deadline ? String(body.deadline) : undefined,
+          note: body?.note ? String(body.note) : undefined,
+        },
       );
     } catch (err) {
       this.badRequest(err);

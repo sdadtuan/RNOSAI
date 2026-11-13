@@ -1,0 +1,536 @@
+/**
+ * Single source of truth for the Sales Discovery → Solutions → Quote → Contract
+ * handoff flow. UI steppers (AM desk, "Tiến độ bàn giao", Pipeline), Kanban
+ * columns, status badges, and notifications should all derive from these steps.
+ *
+ * Stored codes stay backward-compatible:
+ *   handoff pending      → Chờ Solutions
+ *   handoff with_solution → Đang làm Solutions
+ *   handoff released / lead status bao_gia → Chờ báo giá
+ *   dam_phan             → Thương thảo
+ *   won / chot / contract → Ký hợp đồng
+ *   dang_tu_van (no handoff or returned) → Sales tư vấn & nhập Brief
+ *   moi / da_lien_he     → Tiếp nhận Lead (until Pre Sale starts)
+ */
+export const HANDOFF_FLOW_STEP_KEYS = [
+  'receive_lead',
+  'sales_brief',
+  'await_solutions',
+  'doing_solutions',
+  'await_quote',
+  'negotiate',
+  'sign_contract',
+] as const;
+
+export type HandoffFlowStepKey = (typeof HANDOFF_FLOW_STEP_KEYS)[number];
+
+export type HandoffFlowStepState = 'done' | 'current' | 'pending';
+
+export interface HandoffFlowStepDef {
+  key: HandoffFlowStepKey;
+  index: number;
+  label: string;
+  hint: string;
+  roleHint: string;
+}
+
+export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
+  {
+    key: 'receive_lead',
+    index: 1,
+    label: 'Tiếp nhận Lead',
+    hint: '',
+    roleHint: '',
+  },
+  {
+    key: 'sales_brief',
+    index: 2,
+    label: 'Sales tư vấn & nhập Brief',
+    hint: 'Pre Sale · Sales Discovery',
+    roleHint: 'Sales',
+  },
+  {
+    key: 'await_solutions',
+    index: 3,
+    label: 'Chờ Solutions',
+    hint: 'AM kiểm tra & giao Case',
+    roleHint: 'Account Manager',
+  },
+  {
+    key: 'doing_solutions',
+    index: 4,
+    label: 'Đang làm Solutions',
+    hint: 'Marketing Leader',
+    roleHint: 'Marketing Leader',
+  },
+  {
+    key: 'await_quote',
+    index: 5,
+    label: 'Chờ báo giá',
+    hint: 'Account Manager',
+    roleHint: 'Account Manager',
+  },
+  {
+    key: 'negotiate',
+    index: 6,
+    label: 'Thương thảo',
+    hint: '',
+    roleHint: 'Sales',
+  },
+  {
+    key: 'sign_contract',
+    index: 7,
+    label: 'Ký hợp đồng',
+    hint: '',
+    roleHint: '',
+  },
+];
+
+export const HANDOFF_FLOW_STATUS_LABELS: Record<HandoffFlowStepKey, string> = {
+  receive_lead: 'Tiếp nhận Lead',
+  sales_brief: 'Sales tư vấn & nhập Brief',
+  await_solutions: 'Chờ Solutions',
+  doing_solutions: 'Đang làm Solutions',
+  await_quote: 'Chờ báo giá',
+  negotiate: 'Thương thảo',
+  sign_contract: 'Ký hợp đồng',
+};
+
+/** Stored CRM status written when Solution is released to Sales (Chờ báo giá). */
+export const SOLUTION_RELEASE_LEAD_STATUS = 'bao_gia';
+
+/** Statuses that may be promoted to Chờ báo giá on Solution release. */
+export const STATUSES_PROMOTED_ON_SOLUTION_RELEASE = [
+  'moi',
+  'new',
+  'intake',
+  'first_contact',
+  'da_lien_he',
+  'contacted',
+  'qualified',
+  'qualify',
+  'dang_tu_van',
+  'nurturing',
+  'hen_gap',
+  'consult',
+] as const;
+
+export function leadStatusAfterSolutionRelease(
+  current: string | null | undefined,
+): string | null {
+  const status = String(current ?? '')
+    .trim()
+    .toLowerCase();
+  if (!status) return SOLUTION_RELEASE_LEAD_STATUS;
+  if ((STATUSES_PROMOTED_ON_SOLUTION_RELEASE as readonly string[]).includes(status)) {
+    return SOLUTION_RELEASE_LEAD_STATUS;
+  }
+  return null;
+}
+
+export interface HandoffFlowInput {
+  leadStatus?: string | null;
+  leadCreatedAt?: string | null;
+  leadReceivedAt?: string | null;
+  /** presales.handoff.status */
+  handoffStatus?: string | null;
+  handedOffAt?: string | null;
+  /** solution claimed / with_solution start */
+  solutionClaimedAt?: string | null;
+  solutionReleasedAt?: string | null;
+  /** quote_case.phase */
+  quotePhase?: string | null;
+  hasContract?: boolean;
+  contractStatus?: string | null;
+  /** Discovery / intake session completed (Submit to AM). */
+  discoverySubmitted?: boolean;
+  discoverySubmittedAt?: string | null;
+  /** Return-to-sales (missing info). */
+  returnedToSales?: boolean;
+}
+
+export interface HandoffFlowStepView extends HandoffFlowStepDef {
+  state: HandoffFlowStepState;
+  isActive: boolean;
+  at: string | null;
+}
+
+export interface HandoffFlowView {
+  currentKey: HandoffFlowStepKey;
+  currentLabel: string;
+  steps: HandoffFlowStepView[];
+  returnedToSales: boolean;
+}
+
+function norm(value: string | null | undefined): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+function firstIso(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    const raw = String(value ?? '').trim();
+    if (!raw) continue;
+    const ms = Date.parse(raw);
+    if (!Number.isNaN(ms)) return raw;
+  }
+  return null;
+}
+
+/**
+ * Derive the current 7-step key from stored lead + funnel fields.
+ * Does not invent data; later stages win over earlier ones.
+ */
+export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStepKey {
+  const status = norm(input.leadStatus);
+  const handoff = norm(input.handoffStatus);
+  const quote = norm(input.quotePhase);
+  const contractStatus = norm(input.contractStatus);
+  const signedContract =
+    Boolean(input.hasContract) ||
+    status === 'won' ||
+    status === 'chot' ||
+    status === 'post_sale' ||
+    contractStatus === 'signed' ||
+    contractStatus === 'active' ||
+    quote === 'trien_khai' ||
+    quote === 'hop_dong';
+
+  if (signedContract && quote !== 'hop_dong' && (status === 'won' || status === 'chot' || status === 'post_sale' || Boolean(input.hasContract) && contractStatus === 'signed')) {
+    return 'sign_contract';
+  }
+  if (status === 'won' || status === 'chot' || status === 'post_sale') return 'sign_contract';
+  if (quote === 'hop_dong' || quote === 'trien_khai') {
+    return quote === 'trien_khai' && !input.hasContract ? 'sign_contract' : 'sign_contract';
+  }
+
+  if (
+    status === 'dam_phan' ||
+    status === 'negotiation' ||
+    quote === 'sale_review' ||
+    quote === 'ceo_review'
+  ) {
+    return 'negotiate';
+  }
+
+  if (
+    handoff === 'released' ||
+    status === 'bao_gia' ||
+    status === 'proposal' ||
+    quote === 'chuyen_bao_gia' ||
+    quote === 'bao_gia' ||
+    quote === 'sale_approve_solution'
+  ) {
+    return 'await_quote';
+  }
+
+  if (handoff === 'with_solution') return 'doing_solutions';
+  if (handoff === 'pending') return 'await_solutions';
+
+  // Returned to Sales for missing info, or not yet submitted.
+  if (input.discoverySubmitted && handoff !== 'returned' && handoff !== '') {
+    // unknown handoff after submit: still at AM queue if not returned
+    if (handoff && handoff !== 'returned') return 'await_solutions';
+  }
+
+  if (
+    status === 'dang_tu_van' ||
+    status === 'consult' ||
+    status === 'hen_gap' ||
+    status === 'nurturing' ||
+    input.discoverySubmitted ||
+    handoff === 'returned' ||
+    input.returnedToSales
+  ) {
+    return 'sales_brief';
+  }
+
+  if (status === 'da_lien_he' || status === 'contacted' || status === 'qualified') {
+    // Contact done — Sales can start the Brief (Pre Sale). Treat as sales_brief
+    // so the pipeline opens the Discovery panel, not a dead "receive" step.
+    return 'sales_brief';
+  }
+
+  return 'receive_lead';
+}
+
+export function resolveHandoffFlow(input: HandoffFlowInput): HandoffFlowView {
+  const currentKey = resolveHandoffFlowStep(input);
+  const currentIndex = HANDOFF_FLOW_STEPS.find((s) => s.key === currentKey)?.index ?? 1;
+  const times = timestampsForHandoffFlow(input);
+  const steps: HandoffFlowStepView[] = HANDOFF_FLOW_STEPS.map((def) => {
+    let state: HandoffFlowStepState = 'pending';
+    if (def.index < currentIndex) state = 'done';
+    else if (def.index === currentIndex) state = 'current';
+    return {
+      ...def,
+      state,
+      isActive: def.key === currentKey,
+      at: state === 'pending' ? null : times[def.key] ?? null,
+    };
+  });
+  return {
+    currentKey,
+    currentLabel: HANDOFF_FLOW_STATUS_LABELS[currentKey],
+    steps,
+    returnedToSales: Boolean(input.returnedToSales) || norm(input.handoffStatus) === 'returned',
+  };
+}
+
+export function timestampsForHandoffFlow(
+  input: HandoffFlowInput,
+): Record<HandoffFlowStepKey, string | null> {
+  return {
+    receive_lead: firstIso(input.leadReceivedAt, input.leadCreatedAt),
+    sales_brief: firstIso(input.discoverySubmittedAt, input.handedOffAt),
+    await_solutions: firstIso(input.handedOffAt),
+    doing_solutions: firstIso(input.solutionClaimedAt),
+    await_quote: firstIso(input.solutionReleasedAt),
+    negotiate: null,
+    sign_contract: null,
+  };
+}
+
+/** Display label for badges, Kanban, notifications — never raw slugs. */
+export function handoffFlowStatusLabel(input: HandoffFlowInput): string {
+  return HANDOFF_FLOW_STATUS_LABELS[resolveHandoffFlowStep(input)];
+}
+
+export interface HandoffKanbanColumn {
+  id: string;
+  label: string;
+  stepKey?: HandoffFlowStepKey;
+  statuses: readonly string[];
+  handoffs?: readonly string[];
+  collapsible: boolean;
+}
+
+/**
+ * B2B Kanban columns for this flow. Stored status codes are unchanged;
+ * handoff_status pulls leads out of "Đang tư vấn" into Chờ / Đang làm Solutions.
+ */
+export const HANDOFF_FLOW_KANBAN_COLUMNS: readonly HandoffKanbanColumn[] = [
+  {
+    id: 'moi',
+    label: 'Tiếp nhận Lead',
+    stepKey: 'receive_lead',
+    statuses: ['moi', 'new', 'intake'],
+    collapsible: false,
+  },
+  {
+    id: 'sales_brief',
+    label: 'Sales tư vấn & nhập Brief',
+    stepKey: 'sales_brief',
+    statuses: ['da_lien_he', 'first_contact', 'contacted', 'qualified', 'qualify', 'dang_tu_van', 'nurturing', 'hen_gap', 'consult'],
+    collapsible: false,
+  },
+  {
+    id: 'cho_solutions',
+    label: 'Chờ Solutions',
+    stepKey: 'await_solutions',
+    statuses: [],
+    handoffs: ['pending'],
+    collapsible: false,
+  },
+  {
+    id: 'dang_lam_solutions',
+    label: 'Đang làm Solutions',
+    stepKey: 'doing_solutions',
+    statuses: [],
+    handoffs: ['with_solution'],
+    collapsible: false,
+  },
+  {
+    id: 'bao_gia',
+    label: 'Chờ báo giá',
+    stepKey: 'await_quote',
+    statuses: ['bao_gia', 'proposal'],
+    handoffs: ['released'],
+    collapsible: false,
+  },
+  {
+    id: 'dam_phan',
+    label: 'Thương thảo',
+    stepKey: 'negotiate',
+    statuses: ['dam_phan', 'negotiation'],
+    collapsible: false,
+  },
+  {
+    id: 'won',
+    label: 'Ký hợp đồng',
+    stepKey: 'sign_contract',
+    statuses: ['won', 'chot', 'post_sale'],
+    collapsible: true,
+  },
+  {
+    id: 'lost',
+    label: 'Thất bại',
+    statuses: ['lost'],
+    collapsible: true,
+  },
+  {
+    id: 'nurture',
+    label: 'Chăm sóc lại',
+    statuses: ['nurture'],
+    collapsible: true,
+  },
+];
+
+export interface HandoffKanbanLead {
+  status?: string | null;
+  solution_handoff?: string | null;
+  quote_case_open?: boolean;
+  has_contract?: boolean;
+  quote_approved?: boolean;
+}
+
+/**
+ * Place a lead into a HANDOFF_FLOW_KANBAN column. Handoff status wins over
+ * the stored CRM status so a "Đang tư vấn" row with pending handoff sits in
+ * Chờ Solutions — without rewriting historical status codes.
+ */
+export function kanbanColumnIdForLead(lead: HandoffKanbanLead): string {
+  const view = resolveHandoffFlow({
+    leadStatus: lead.status,
+    handoffStatus: lead.solution_handoff,
+    hasContract: Boolean(lead.has_contract),
+    quotePhase: lead.quote_approved ? 'trien_khai' : lead.quote_case_open ? 'bao_gia' : null,
+  });
+  const col = HANDOFF_FLOW_KANBAN_COLUMNS.find((c) => c.stepKey === view.currentKey);
+  if (col) return col.id;
+  const status = norm(lead.status);
+  for (const c of HANDOFF_FLOW_KANBAN_COLUMNS) {
+    if (c.statuses.includes(status)) return c.id;
+  }
+  return '__other__';
+}
+
+export function bucketLeadsByHandoffFlow<T extends HandoffKanbanLead>(
+  rows: T[],
+): { stageKeys: string[]; byStage: Record<string, T[]> } {
+  const byStage: Record<string, T[]> = {};
+  for (const col of HANDOFF_FLOW_KANBAN_COLUMNS) byStage[col.id] = [];
+  byStage.__other__ = [];
+  for (const row of rows) {
+    const id = kanbanColumnIdForLead(row);
+    if (byStage[id]) byStage[id].push(row);
+    else byStage.__other__.push(row);
+  }
+  const stageKeys = HANDOFF_FLOW_KANBAN_COLUMNS.map((c) => c.id);
+  if (byStage.__other__.length > 0) stageKeys.push('__other__');
+  return { stageKeys, byStage };
+}
+
+/* ---------- AM desk checklist (auto from Discovery completeness) ---------- */
+
+export interface DiscoveryChecklistSource {
+  company_name?: string;
+  industry?: string;
+  region?: string;
+  flagship_product?: string;
+  websites?: string;
+  contact_name?: string;
+  phone?: string;
+  biggest_problem?: string;
+  services?: string[];
+  marketing_goal?: string;
+  target_customers?: string;
+  budget_band?: string;
+  timeline_band?: string;
+  call_notes?: string;
+  temperature?: string;
+}
+
+export interface AmDeskChecklistItem {
+  key: string;
+  label: string;
+  ok: boolean;
+}
+
+function filled(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => String(item ?? '').trim().length > 0);
+  return String(value ?? '').trim().length > 0;
+}
+
+export function amDeskChecklist(brief: DiscoveryChecklistSource | null | undefined): {
+  items: AmDeskChecklistItem[];
+  allOk: boolean;
+} {
+  const b = brief ?? {};
+  const items: AmDeskChecklistItem[] = [
+    {
+      key: 'company',
+      label: 'Thông tin doanh nghiệp đầy đủ',
+      ok: filled(b.company_name) && filled(b.industry),
+    },
+    {
+      key: 'need',
+      label: 'Nhu cầu & vấn đề rõ ràng',
+      ok: filled(b.biggest_problem) && Array.isArray(b.services) && b.services.length > 0,
+    },
+    {
+      key: 'goal',
+      label: 'Mục tiêu & đối tượng khách hàng',
+      ok: filled(b.marketing_goal) && filled(b.target_customers),
+    },
+    {
+      key: 'budget',
+      label: 'Ngân sách & thời gian triển khai',
+      ok: filled(b.budget_band) && filled(b.timeline_band),
+    },
+    {
+      key: 'ready',
+      label: 'Đủ điều kiện giao Marketing',
+      ok: false,
+    },
+  ];
+  const firstFour = items.slice(0, 4).every((item) => item.ok);
+  const contactOk = filled(b.contact_name) && filled(b.phone);
+  items[4] = { ...items[4], ok: firstFour && contactOk };
+  return { items, allOk: items.every((item) => item.ok) };
+}
+
+/** Format a timestamp in Asia/Saigon for stepper / meta rows. */
+export function formatHandoffStamp(
+  iso: string | null | undefined,
+  opts: { dateOnly?: boolean } = {},
+): string {
+  const raw = String(iso ?? '').trim();
+  if (!raw) return '';
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) return '';
+  const fmt = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Saigon',
+    day: '2-digit',
+    month: '2-digit',
+    year: opts.dateOnly ? undefined : 'numeric',
+    hour: opts.dateOnly ? undefined : '2-digit',
+    minute: opts.dateOnly ? undefined : '2-digit',
+    hour12: false,
+  });
+  return fmt.format(new Date(ms)).replace(/,/g, '');
+}
+
+export function dash(value: string | null | undefined): string {
+  const text = String(value ?? '').trim();
+  return text || '—';
+}
+
+export function linesFromText(value: string | null | undefined): string[] {
+  const text = String(value ?? '').trim();
+  if (!text) return [];
+  return text
+    .split(/\r?\n|•/g)
+    .map((line) => line.replace(/^\s*[-–]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+export const HANDOFF_FLOW_COPY = {
+  submitToAm: 'Đã Submit to AM. Lead đang ở Chờ Solutions.',
+  assignedToMarketing: 'Đã giao cho Marketing. Lead đang ở Đang làm Solutions.',
+  returnedToSales: 'Đã trả về Sales. Lead quay lại Pre Sale (Sales tư vấn & nhập Brief).',
+  releasedToQuote: 'Đã nộp Solution. Lead chuyển sang Chờ báo giá.',
+  confirmRelease: 'Nộp Solution và chuyển lead sang Chờ báo giá?',
+  confirmReturn: 'Trả về Sales? Lead sẽ quay lại bước Sales tư vấn & nhập Brief để bổ sung thông tin.',
+} as const;

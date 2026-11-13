@@ -51,3 +51,32 @@ export function handoffBadgeLabel(
   if (status === 'returned') return 'Solutions trả lại Sales — cần bổ sung thông tin';
   return null;
 }
+
+
+/** Stored CRM status written when Solution is released to Sales (Chờ báo giá). */
+export const SOLUTION_RELEASE_LEAD_STATUS = 'bao_gia';
+
+/** Early / consult statuses that move to Chờ báo giá. Closed statuses stay put. */
+export const STATUSES_PROMOTED_ON_SOLUTION_RELEASE = [
+  'moi',
+  'new',
+  'intake',
+  'first_contact',
+  'da_lien_he',
+  'contacted',
+  'qualified',
+  'qualify',
+  'dang_tu_van',
+  'nurturing',
+  'hen_gap',
+  'consult',
+] as const;
+
+export function leadStatusAfterSolutionRelease(current: string | null | undefined): string | null {
+  const status = String(current ?? '').trim().toLowerCase();
+  if (!status) return SOLUTION_RELEASE_LEAD_STATUS;
+  if ((STATUSES_PROMOTED_ON_SOLUTION_RELEASE as readonly string[]).includes(status)) {
+    return SOLUTION_RELEASE_LEAD_STATUS;
+  }
+  return null;
+}

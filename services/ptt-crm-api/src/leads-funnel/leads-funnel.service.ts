@@ -759,6 +759,7 @@ export class LeadsFunnelService {
     staffId: number | null,
     actor: string,
     staffUser?: StaffJwtPayload,
+    opts?: { assigneeStaffId?: number; dueAt?: string; note?: string },
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     await this.assertPresalesPolicy(leadId, 'claim', staffUser);
@@ -767,6 +768,7 @@ export class LeadsFunnelService {
         leadId,
         staffId,
         await this.actorIsSuperAdmin(staffUser),
+        opts,
       );
       await this.logSolutionHandoffActivity(
         leadId,

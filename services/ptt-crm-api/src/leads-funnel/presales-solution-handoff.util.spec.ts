@@ -2,6 +2,7 @@ import {
   blocksDirectProposalAdvance,
   handoffBadgeLabel,
   leadStatusAfterSolutionHandoff,
+  leadStatusAfterSolutionRelease,
   normalizeHandoffStatus,
 } from './presales-solution-handoff.util';
 
@@ -34,3 +35,11 @@ describe('presales-solution-handoff.util', () => {
     expect(handoffBadgeLabel('with_solution', 'Lan')).toContain('Lan');
   });
 });
+
+  it('moves Đang tư vấn to Chờ báo giá (bao_gia) and leaves a closed lead', () => {
+    expect(leadStatusAfterSolutionRelease('dang_tu_van')).toBe('bao_gia');
+    expect(leadStatusAfterSolutionRelease('hen_gap')).toBe('bao_gia');
+    expect(leadStatusAfterSolutionRelease('lost')).toBeNull();
+    expect(leadStatusAfterSolutionRelease('won')).toBeNull();
+    expect(leadStatusAfterSolutionRelease('bao_gia')).toBeNull();
+  });

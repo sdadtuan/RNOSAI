@@ -49,6 +49,9 @@ import {
 import {
   blocksDirectProposalAdvance,
   leadStatusAfterSolutionHandoff,
+  leadStatusAfterSolutionRelease,
+  SOLUTION_RELEASE_LEAD_STATUS,
+  STATUSES_PROMOTED_ON_SOLUTION_RELEASE,
   normalizeHandoffStatus,
   SOLUTION_HANDOFF_LEAD_STATUS,
   STATUSES_PROMOTED_ON_SOLUTION_HANDOFF,
@@ -2217,14 +2220,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        ) VALUES ($1, 'system', $2, '', '', NOW(), $3, $4)`,
       [
         leadId,
-        'Giao Solution — trạng thái lead chuyển sang Đang tư vấn.',
+        'Đã Submit to AM — lead vào Chờ Solutions.',
         actor.slice(0, 120),
         SOLUTION_HANDOFF_LEAD_STATUS,
       ],
     );
   }
 
-  async claimSolution(leadId: number, staffId: number, asSuperAdmin = false): Promise<PresalesRow> {
+  async claimSolution(leadId: number, staffId: number, asSuperAdmin = false, opts?: { assigneeStaffId?: number; dueAt?: string; note?: string }): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (snap.presales.handoff_status !== 'pending') {
@@ -2246,7 +2249,21 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         throw new Error('Case Solutions đang giao cho AM khác.');
       }
     }
-    const due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
+    const assignee =
+      opts?.assigneeStaffId && opts.assigneeStaffId > 0 ? opts.assigneeStaffId : staffId;
+    if (assignee !== staffId && !asSuperAdmin) {
+      const callerIsAm = isAccountManagerPosition(position);
+      if (!callerIsAm) {
+        throw new Error('Chỉ AM được giao case cho Marketing Leader.');
+      }
+    }
+    let due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
+    if (opts?.dueAt) {
+      const raw = String(opts.dueAt).trim();
+      const parsed = raw.length <= 10 ? new Date(`${raw}T17:00:00+07:00`) : new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) due = parsed;
+    }
+    const assignNote = String(opts?.note ?? '').trim().slice(0, 2000);
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET handoff_status = 'with_solution',
@@ -2254,15 +2271,29 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            last_solution_owner_staff_id = $2,
            solution_claimed_at = NOW(),
            solution_due_at = $3,
-           solution_revision_note = '',
+           solution_revision_note = $4,
            solution_revision_due_at = NULL,
+           notes = TRIM(BOTH FROM COALESCE(notes, '') || CASE WHEN $5 = '' THEN '' ELSE E'\n' || $5 END),
            updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, due.toISOString()],
+      [
+        snap.presales.id,
+        assignee,
+        due.toISOString(),
+        assignNote,
+        assignNote ? `AM giao Marketing — ghi chú: ${assignNote}` : '',
+      ],
     );
     const status = await this.currentLeadStatus(leadId);
-    await this.noteLeadStep(leadId, staffId, status, 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.');
+    await this.noteLeadStep(
+      leadId,
+      staffId,
+      status,
+      assignee !== staffId
+        ? `AM đã giao case Solutions cho Marketing Leader (staff ${assignee}). Hạn ${due.toISOString()}.`
+        : 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.',
+    );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
 
@@ -2304,7 +2335,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [
         snap.presales.id,
         note,
-        `MKT trả lại Sales — thông tin chưa đủ: ${note}`,
+        `AM trả về Sales — bổ sung thông tin Pre Sale: ${note}`,
         Number.isFinite(Number(opts.missingInfoHours)) && Number(opts.missingInfoHours) >= 0
           ? Number(opts.missingInfoHours)
           : 1,
@@ -2316,7 +2347,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       leadId,
       staffId,
       status,
-      `MKT trả lại Sales — thông tin chưa đủ: ${note}`,
+      `AM trả về Sales — bổ sung thông tin Pre Sale: ${note}`,
     );
     return mapped;
   }
@@ -2363,14 +2394,43 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        RETURNING *`,
       [snap.presales.id, SOLUTION_CUSTOMER_HOURS],
     );
+    await this.promoteLeadStatusOnSolutionRelease(leadId, `staff:${staffId}`);
     const status = await this.currentLeadStatus(leadId);
     await this.noteLeadStep(
       leadId,
       staffId,
       status,
-      `Đã trả Sales. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi Solutions.`,
+      `Đã nộp Solution. Lead chuyển sang Chờ báo giá. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  private async promoteLeadStatusOnSolutionRelease(leadId: number, actor: string): Promise<void> {
+    const current = await this.db.query(
+      `SELECT lower(status) AS status FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const next = leadStatusAfterSolutionRelease(current.rows[0]?.status);
+    if (!next) return;
+    const updated = await this.db.query(
+      `UPDATE crm_leads
+       SET status = $2, updated_at = NOW(), updated_by = $3
+       WHERE sqlite_lead_id = $1
+         AND lower(status) = ANY($4::text[])`,
+      [leadId, SOLUTION_RELEASE_LEAD_STATUS, actor.slice(0, 120), [...STATUSES_PROMOTED_ON_SOLUTION_RELEASE]],
+    );
+    if (!updated.rowCount) return;
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       ) VALUES ($1, 'system', $2, '', '', NOW(), $3, $4)`,
+      [
+        leadId,
+        'Nộp Solution — trạng thái lead chuyển sang Chờ báo giá.',
+        actor.slice(0, 120),
+        SOLUTION_RELEASE_LEAD_STATUS,
+      ],
+    );
   }
 
   async requestSolutionEdits(leadId: number, staffId: number, note: string): Promise<void> {
