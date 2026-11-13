@@ -44,6 +44,7 @@ import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import { LeadStageRecords } from '@/components/crm/LeadStageRecords';
+import { bantDetailHref } from '@/components/crm/LeadPipelineIntakePanel';
 import { LeadPropertyRail } from '@/components/crm/LeadPropertyRail';
 import { getQtQuotes } from '@/lib/crm/qt-api';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
@@ -1548,15 +1549,28 @@ export default function CrmLeadDetailPage() {
               showAssign={!aeViewer}
               onOpenAssign={() => setAssignOpen(true)}
               contactActions={
-                lead.phone ? (
-                  <LeadContactActions
-                    phone={lead.phone}
-                    leadId={lead.id}
-                    accessToken={accessToken}
-                    onCopy={onCopyContact}
-                    onCallPlaced={onSoftphonePlaced}
-                  />
-                ) : null
+                <>
+                  {lead.phone ? (
+                    <LeadContactActions
+                      phone={lead.phone}
+                      leadId={lead.id}
+                      accessToken={accessToken}
+                      onCopy={onCopyContact}
+                      onCallPlaced={onSoftphonePlaced}
+                    />
+                  ) : null}
+                  <Link
+                    href={bantDetailHref(
+                      leadId,
+                      intakeSummary?.preview?.id ?? intakeSummary?.latest_completed?.id,
+                      presetServiceSlug,
+                    )}
+                    className="btn btn-sm btn-secondary"
+                    data-testid="lead-view-bant-intake"
+                  >
+                    Xem BANT / Intake
+                  </Link>
+                </>
               }
             />
             <LeadPropertyRail
@@ -1622,7 +1636,7 @@ export default function CrmLeadDetailPage() {
               quoteHref={quoteOpenHref}
             />
           </div>
-          {accessToken && lead && !marketingLeader ? (
+          {accessToken && lead ? (
             <LeadStageRecords
               leadId={leadId}
               status={lead.status || status}
