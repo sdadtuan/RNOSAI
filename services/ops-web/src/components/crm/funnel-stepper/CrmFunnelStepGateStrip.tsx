@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { INTAKE_DECISION_OPTIONS } from '@/lib/crm/intake-labels';
 import type { FunnelGateStripViewModel } from '@/lib/crm/funnel-stepper.types';
 
 interface Props {
@@ -12,15 +11,15 @@ interface Props {
   onEdit?: () => void;
 }
 
-function decisionLabel(value: string | undefined): string {
-  if (!value) return '—';
-  return INTAKE_DECISION_OPTIONS.find((d) => d.value === value)?.label ?? value;
-}
-
 export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh, onEdit }: Props) {
   const tone = gateStrip.tone;
   const isProposal = gateStrip.gateKind === 'proposal';
   const editable = Boolean(onEdit) && !isProposal;
+  const metaBits = [
+    gateStrip.requiresOverride ? 'Cần Director override' : '',
+    gateStrip.requiresConfirm ? 'Cần xác nhận' : '',
+    editable ? 'Bấm để mở Sales Discovery' : '',
+  ].filter(Boolean);
 
   return (
     <section
@@ -29,7 +28,7 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh, 
       }`}
       aria-live="polite"
       aria-label={
-        isProposal ? 'Cổng chuyển Báo giá (G4)' : 'Cổng chuyển Tư vấn "Consult gate"'
+        isProposal ? 'Cổng chuyển Chờ báo giá' : 'Cổng Submit to AM (Chờ Solutions)'
       }
       role={editable ? 'button' : undefined}
       tabIndex={editable ? 0 : undefined}
@@ -73,8 +72,8 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh, 
                   <Link href={`/crm/leads/${leadId}#funnel-presales`} className="nav-link">
                     Lead #{leadId}
                   </Link>{' '}
-                  → Pre-sales → tick ✓ task giai đoạn Lead, hoặc bấm <strong>Làm mới</strong> sau khi
-                  Intake Go đã hoàn thành.
+                  → Pre Sale → hoàn thành bước, hoặc bấm <strong>Làm mới</strong> sau khi
+                  Sales Discovery đã nộp.
                 </>
               ) : m.includes('Consult') || m.includes('KH MKT') || m.includes('kế hoạch') ? (
                 <>
@@ -96,15 +95,8 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh, 
           ))}
         </ul>
       ) : null}
-      {gateStrip.bantTotal != null || gateStrip.decision ? (
-        <p className="muted intake-gate-banner__meta">
-          BANT {gateStrip.bantTotal ?? '—'}/30 · Quyết định: {decisionLabel(gateStrip.decision)}
-          {gateStrip.requiresOverride ? ' · Cần Director override' : ''}
-          {gateStrip.requiresConfirm ? ' · Cần xác nhận' : ''}
-          {editable ? ' · Bấm để mở chi tiết BANT' : ''}
-        </p>
-      ) : editable ? (
-        <p className="muted intake-gate-banner__meta">Bấm để mở chi tiết BANT</p>
+      {metaBits.length > 0 ? (
+        <p className="muted intake-gate-banner__meta">{metaBits.join(' · ')}</p>
       ) : null}
     </section>
   );

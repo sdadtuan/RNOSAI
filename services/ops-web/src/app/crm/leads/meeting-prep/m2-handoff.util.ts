@@ -37,7 +37,7 @@ export function buildSolutionCallBriefText(input: {
 }): string {
   const parts: string[] = ['=== Brief cuộc gọi Solution / Handoff ==='];
   if (input.temperatureLabel || input.bantTotal != null) {
-    parts.push(`BANT ${input.bantTotal ?? '—'}/30 · ${input.temperatureLabel ?? '—'}`);
+    parts.push(input.temperatureLabel ?? '—');
   }
   if (input.externalResearch?.trim()) {
     parts.push('\nResearch DN:\n' + input.externalResearch.trim());

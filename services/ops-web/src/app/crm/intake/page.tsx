@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { IntakeContent } from './IntakeContent';
 
 type CrmIntakePageProps = {
@@ -11,6 +12,9 @@ type CrmIntakePageProps = {
 
 export default function CrmIntakePage({ searchParams }: CrmIntakePageProps) {
   const leadId = Number(searchParams?.lead_id ?? 0);
+  if (leadId > 0) {
+    redirect(`/crm/leads/${leadId}?tab=pipeline&step=intake_bant`);
+  }
   const lifecycleId = Number(searchParams?.lifecycle_id ?? 0);
   const sessionId = Number(searchParams?.session_id ?? 0);
   const openBant = searchParams?.open === 'bant';

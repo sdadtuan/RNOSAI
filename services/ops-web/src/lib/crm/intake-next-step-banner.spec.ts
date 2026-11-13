@@ -108,7 +108,7 @@ describe('resolveIntakeNextStepBanner', () => {
       handoffStatus: '',
     });
     expect(banner?.action).toBe('handoff_solution');
-    expect(banner?.cta_label_vi).toMatch(/SUBMIT FOR SOLUTION/);
+    expect(banner?.cta_label_vi).toMatch(/Submit to AM/);
   });
 
   it('queue link when handoff pending', () => {

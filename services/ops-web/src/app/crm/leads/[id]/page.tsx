@@ -24,6 +24,7 @@ import { resolveActiveStep, summarizeLeadIntake } from '@/lib/crm/funnel-stepper
 import { resolveLeadQuoteOpenHref } from '@/lib/crm/sales-quote-open.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
+import { AmHandoffDesk } from '@/components/crm/am/AmHandoffDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
@@ -647,7 +648,7 @@ export default function CrmLeadDetailPage() {
         document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         break;
       case 'open_intake':
-        router.push(`/crm/intake?lead_id=${leadId}`);
+        router.push(`/crm/leads/${leadId}?tab=pipeline&step=intake_bant`);
         break;
       case 'copy_m2_brief': {
         if (prep) {
@@ -673,15 +674,15 @@ export default function CrmLeadDetailPage() {
         break;
       case 'handoff_solution': {
         if (!token) return;
-        if (typeof window !== 'undefined' && !window.confirm('Xác nhận SUBMIT FOR SOLUTION?')) return;
+        if (typeof window !== 'undefined' && !window.confirm('Xác nhận Submit to AM? Lead sẽ vào Chờ Solutions.')) return;
         setNbaBusy(true);
         setError('');
         try {
           const first = await handoffLeadToSolution(token, leadId, { confirm: true });
           setFunnelSnap(first.funnel);
-          setMessage('Đã gửi SUBMIT FOR SOLUTION');
+          setMessage('Đã Submit to AM — lead vào Chờ Solutions');
         } catch (err) {
-          const msg = err instanceof Error ? err.message : 'SUBMIT FOR SOLUTION thất bại';
+          const msg = err instanceof Error ? err.message : 'Submit to AM thất bại';
           if (/override/i.test(msg) && typeof window !== 'undefined') {
             const reason = window.prompt('Director override — nhập lý do:');
             if (!reason?.trim()) {
@@ -694,9 +695,9 @@ export default function CrmLeadDetailPage() {
                 override_reason: reason.trim(),
               });
               setFunnelSnap(retry.funnel);
-              setMessage('Đã gửi SUBMIT FOR SOLUTION (override)');
+              setMessage('Đã Submit to AM (override)');
             } catch (retryErr) {
-              setError(retryErr instanceof Error ? retryErr.message : 'SUBMIT FOR SOLUTION thất bại');
+              setError(retryErr instanceof Error ? retryErr.message : 'Submit to AM thất bại');
             }
           } else {
             setError(msg);
@@ -708,7 +709,7 @@ export default function CrmLeadDetailPage() {
       }
       case 'advance_presales': {
         if (!token) return;
-        if (typeof window !== 'undefined' && !window.confirm('Xác nhận chuyển → Báo giá?')) return;
+        if (typeof window !== 'undefined' && !window.confirm('Xác nhận chuyển sang Chờ báo giá?')) return;
         setNbaBusy(true);
         setError('');
         try {
@@ -1473,6 +1474,41 @@ export default function CrmLeadDetailPage() {
     );
   }
 
+  if (
+    lead &&
+    !loading &&
+    accessToken &&
+    solutionDesk &&
+    handoffStatus === 'pending'
+  ) {
+    return (
+      <StaffPageShell
+        user={user}
+        onLogout={logout}
+        width="full"
+        breadcrumb={[
+          { label: 'CRM', href: '/crm/leads' },
+          { label: 'Leads', href: '/crm/leads' },
+          { label: lead.full_name || `#${leadId}` },
+        ]}
+      >
+        <ActionErrorToast message={error} />
+        <ActionSuccessToast message={message} />
+        <AmHandoffDesk
+          token={accessToken}
+          lead={lead}
+          party={party}
+          funnel={funnelSnap}
+          userName={user?.display_name || user?.email}
+          userId={Number(user?.id) || undefined}
+          onFunnelChange={applyFunnelFromMutation}
+          onMessage={setMessage}
+          onError={setError}
+        />
+      </StaffPageShell>
+    );
+  }
+
   return (
     <StaffPageShell
       user={user}
@@ -1569,7 +1605,7 @@ export default function CrmLeadDetailPage() {
                     className="btn btn-sm btn-secondary"
                     data-testid="lead-view-bant-intake"
                   >
-                    Xem BANT / Intake
+                    Xem Sales Discovery
                   </Link>
                 </>
               }
@@ -1657,7 +1693,14 @@ export default function CrmLeadDetailPage() {
           ) : null}
 
 
-          {showB2bFlow ? <LeadHandoffTimeline funnel={funnelSnap} /> : null}
+          {showB2bFlow && !(solutionDesk && handoffStatus === 'pending') ? (
+            <LeadHandoffTimeline
+              funnel={funnelSnap}
+              leadStatus={lead?.status || status}
+              leadCreatedAt={lead?.created_at}
+              leadReceivedAt={(lead as { received_at?: string | null })?.received_at}
+            />
+          ) : null}
 
           {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
@@ -1808,7 +1851,21 @@ export default function CrmLeadDetailPage() {
               <LeadDeliveryKpi token={accessToken} leadId={leadId} />
             ) : null}
 
-            {solutionDesk && accessToken && lead ? (
+            {solutionDesk && accessToken && lead && handoffStatus === 'pending' ? (
+              <AmHandoffDesk
+                token={accessToken}
+                lead={lead}
+                party={party}
+                funnel={funnelSnap}
+                userName={user?.display_name || user?.email}
+                userId={Number(user?.id) || undefined}
+                onFunnelChange={applyFunnelFromMutation}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {solutionDesk && accessToken && lead && handoffStatus !== 'pending' ? (
               <SolutionCaseDesk
                 token={accessToken}
                 lead={lead}
@@ -1899,6 +1956,8 @@ export default function CrmLeadDetailPage() {
               <LeadSalesPipelineTab
                 token={accessToken}
                 leadId={leadId}
+                lead={lead}
+                canEdit={!pipelineReadOnly}
                 user={user}
                 stepperInput={{
                   leadId,
@@ -2035,7 +2094,7 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {(solutionDesk || showConsultMain) && accessToken && funnelSnap ? (
+            {((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
               <LeadConsultWorkspace
                 token={accessToken}
                 leadId={leadId}

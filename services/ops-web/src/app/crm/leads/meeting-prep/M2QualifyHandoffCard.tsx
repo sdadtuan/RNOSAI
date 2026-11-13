@@ -135,7 +135,7 @@ export function M2QualifyHandoffCard({
           </h3>
           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
             Sau Sales Discovery — brief pain/ROI trước cuộc gọi Solution
-            {bantTotal != null ? ` · BANT ${bantTotal}/30` : ''}
+            {bantTotal != null ? `` : ''}
             {temperature ? ` · ${temperature}` : ''}
           </p>
         </div>

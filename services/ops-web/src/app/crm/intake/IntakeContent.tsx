@@ -52,6 +52,15 @@ export function IntakeContent({
 }) {
   const router = useRouter();
   const [leadId, setLeadId] = useState(initialLeadId);
+
+  useEffect(() => {
+    const lid = initialLeadId || (typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('lead_id') || 0) : 0);
+    if (lid > 0) {
+      const href = `/crm/leads/${lid}?tab=pipeline&step=intake_bant`;
+      router.replace(href);
+      if (typeof window !== 'undefined') window.location.replace(href);
+    }
+  }, [initialLeadId, router]);
   const [user, setUser] = useState<StoredStaffUser | null>(() => getStoredUser());
   const [authReady, setAuthReady] = useState(false);
   const [token, setToken] = useState('');
@@ -171,7 +180,7 @@ export function IntakeContent({
     };
   }, [ensureAuth, leadId, loadAll]);
 
-  if (!authReady) {
+  if (!authReady || leadId > 0) {
     return (
       <StaffPageShell user={user} onLogout={logout} loading>
         <span />

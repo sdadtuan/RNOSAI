@@ -346,7 +346,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('handoff_solution');
-    expect(action?.label).toContain('SUBMIT FOR SOLUTION');
+    expect(action?.label).toContain('Submit to AM');
 
     const secondary = resolveSecondaryAction({
       funnel: mockFunnel(),
@@ -467,7 +467,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('link');
-    expect(action?.label).toContain('Hàng chờ Solution');
+    expect(action?.label).toContain('Chờ Solutions');
     expect(action?.href).toBe('/crm/solution/queue');
   });
 
@@ -481,7 +481,7 @@ describe('resolvePrimaryAction', () => {
       context: 'intake',
     });
     expect(action?.kind).toBe('handoff_solution');
-    expect(action?.label).toContain('SUBMIT FOR SOLUTION');
+    expect(action?.label).toContain('Submit to AM');
   });
 
   it('sends the lead back to BANT when the survey is not completed', () => {
@@ -494,8 +494,8 @@ describe('resolvePrimaryAction', () => {
       context: 'lead_detail',
     });
     expect(action?.kind).toBe('link');
-    expect(action?.label).toContain('Pre Sale');
-    expect(action?.href).toContain('/crm/intake?lead_id=5');
+    expect(action?.label).toContain('Sales Discovery');
+    expect(action?.href).toContain('/crm/leads/5?tab=pipeline');
   });
 });
 
@@ -520,7 +520,7 @@ describe('resolveGateStrip', () => {
       },
     });
     const strip = resolveGateStrip('intake_bant', mockGate(), undefined, undefined, funnel, 'intake');
-    expect(strip?.title).toContain('Đã gửi SUBMIT FOR SOLUTION');
+    expect(strip?.title).toContain('Đã Submit to AM');
   });
 });
 
@@ -557,8 +557,8 @@ describe('resolveFunnelStepper', () => {
     expect(vm.visible).toBe(true);
     expect(vm.steps).toHaveLength(4);
     expect(vm.steps.map((s) => s.key)).toEqual(['b2', 'intake_bant', 'consult', 'proposal']);
-    expect(vm.steps.find((s) => s.key === 'intake_bant')?.label).toBe('Pre Sale');
-    expect(vm.steps.find((s) => s.key === 'intake_bant')?.href).toContain('/crm/intake?lead_id=900000002');
+    expect(vm.steps.find((s) => s.key === 'intake_bant')?.label).toBe('Sales tư vấn & nhập Brief');
+    expect(vm.steps.find((s) => s.key === 'intake_bant')?.href).toContain('/crm/leads/900000002?tab=pipeline');
     expect(vm.activeStep).toBe('intake_bant');
     expect(vm.gateStrip?.tone).toBe('ok');
     expect(vm.primaryAction?.kind).toBe('handoff_solution');
@@ -627,7 +627,7 @@ describe('resolveFunnelStepper', () => {
       consultGate: null,
       context: 'lead_detail',
     });
-    expect(vm.primaryAction?.label).toBe('Chuyển → Báo giá');
+    expect(vm.primaryAction?.label).toBe('Chuyển → Chờ báo giá');
     expect(vm.primaryAction?.disabled).toBe(true);
     expect(vm.primaryAction?.blockReason).toBe('Solution chưa lưu sau bản AI.');
   });

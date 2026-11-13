@@ -21,9 +21,9 @@ import type {
 
 export const PRESALES_FUNNEL_STEPS: FunnelStepDefinition[] = [
   { key: 'b2', label: 'Liên hệ lần đầu', shortLabel: 'B2', anchor: '#funnel-b2' },
-  { key: 'intake_bant', label: 'Pre Sale', shortLabel: 'Pre Sale' },
-  { key: 'consult', label: 'Tư vấn', shortLabel: 'Tư vấn', anchor: '#funnel-presales' },
-  { key: 'proposal', label: 'Báo giá', shortLabel: 'Báo giá', anchor: '#funnel-presales' },
+  { key: 'intake_bant', label: 'Sales tư vấn & nhập Brief', shortLabel: 'Pre Sale' },
+  { key: 'consult', label: 'Chờ Solutions', shortLabel: 'Chờ Solutions', anchor: '#funnel-presales' },
+  { key: 'proposal', label: 'Chờ báo giá', shortLabel: 'Chờ báo giá', anchor: '#funnel-presales' },
 ];
 
 const PRESALES_STAGE_ORDER = ['lead', 'consult', 'proposal'] as const;
@@ -35,7 +35,7 @@ export function presalesStageIndex(stage: string | undefined): number {
 
 function intakeHref(leadId: number, serviceSlug?: string | null): string {
   const slug = String(serviceSlug ?? '').trim();
-  return `/crm/intake?lead_id=${leadId}${slug ? `&service_slug=${encodeURIComponent(slug)}` : ''}`;
+  return `/crm/leads/${leadId}?tab=pipeline&step=intake_bant`;
 }
 
 function inReview(funnel: LeadFunnelSnapshot | null): boolean {
@@ -78,7 +78,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate) {
     return {
       kind: 'none',
-      label: 'SUBMIT FOR SOLUTION →',
+      label: 'Submit to AM',
       disabled: true,
       blockReason: 'Đang tải gate…',
     };
@@ -87,7 +87,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   if (!consultGate.ok || consultGate.level === 'block') {
     return {
       kind: 'handoff_solution',
-      label: 'SUBMIT FOR SOLUTION →',
+      label: 'Submit to AM',
       disabled: true,
       blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện giao Solution',
       requiresOverride: consultGate.requires_override,
@@ -97,7 +97,7 @@ function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): Fun
   const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
   return {
     kind: 'handoff_solution',
-    label: requiresConfirm ? 'SUBMIT FOR SOLUTION (xác nhận) →' : 'SUBMIT FOR SOLUTION →',
+    label: requiresConfirm ? 'Submit to AM (xác nhận) →' : 'Submit to AM →',
     disabled: false,
     requiresConfirm,
   };
@@ -234,8 +234,8 @@ export function resolveGateStrip(
       gateKind: 'proposal',
       title:
         tone === 'ok'
-          ? 'Sẵn sàng chuyển Báo giá'
-          : 'Chưa đủ điều kiện Báo giá',
+          ? 'Sẵn sàng chuyển Chờ báo giá'
+          : 'Chưa đủ điều kiện Chờ báo giá',
       messages: proposalGate.messages,
       scrollAnchor: '#funnel-presales-r5',
     };
@@ -253,7 +253,7 @@ export function resolveGateStrip(
       return {
         tone: 'ok',
         gateKind: 'consult',
-        title: 'Đã gửi SUBMIT FOR SOLUTION',
+        title: 'Đã Submit to AM',
         messages: ['Lead đang chờ Solutions nhận case — theo dõi hàng chờ hoặc trang chi tiết lead.'],
         scrollAnchor: '#funnel-presales',
       };
@@ -270,7 +270,7 @@ export function resolveGateStrip(
     return {
       tone: 'ok',
       gateKind: 'consult',
-      title: 'Đã chuyển Tư vấn',
+      title: 'Đã Submit to AM — Chờ Solutions',
       messages: ['Lead đã qua Sales Discovery — tiếp tục trên trang chi tiết lead.'],
       scrollAnchor: '#funnel-presales',
     };
@@ -287,10 +287,10 @@ export function resolveGateStrip(
 
   const title =
     tone === 'ok'
-      ? 'Sẵn sàng chuyển Tư vấn'
+      ? 'Sẵn sàng Submit to AM'
       : tone === 'warn'
-        ? 'Cần xem xét trước khi chuyển Tư vấn'
-        : 'Chưa đủ điều kiện chuyển Tư vấn';
+        ? 'Kiểm tra Sales Discovery trước khi Submit to AM'
+        : 'Điền hết 14 trường bắt buộc rồi Submit to AM';
 
   return {
     tone,
@@ -353,7 +353,7 @@ export function resolvePrimaryAction(input: {
       if (status === 'pending') {
         return {
           kind: 'link',
-          label: 'Hàng chờ Solution →',
+          label: 'Chờ Solutions →',
           disabled: false,
           href: '/crm/solution/queue',
         };
@@ -388,13 +388,13 @@ export function resolvePrimaryAction(input: {
       if (context === 'intake') {
         return {
           kind: 'create_intake_session',
-          label: '+ Mở Sales Discovery',
+          label: 'Tiếp tục Sales Discovery',
           disabled: false,
         };
       }
       return {
         kind: 'link',
-        label: '+ Mở Sales Discovery →',
+        label: 'Tiếp tục Sales Discovery',
         disabled: false,
         href: intakeLink,
       };
@@ -404,7 +404,7 @@ export function resolvePrimaryAction(input: {
       if (!hasCompletedIntake(intakeSummary)) {
         return {
           kind: 'link',
-          label: 'Pre Sale →',
+          label: 'Mở Sales Discovery',
           disabled: false,
           href: intakeLink,
         };
@@ -436,9 +436,9 @@ export function resolvePrimaryAction(input: {
       if (!(solutionCaps?.canHandoff ?? true)) {
         return {
           kind: 'none',
-          label: 'SUBMIT FOR SOLUTION →',
+          label: 'Submit to AM',
           disabled: true,
-          blockReason: 'Chỉ Sales được bấm SUBMIT FOR SOLUTION',
+          blockReason: 'Chỉ Sales được bấm Submit to AM',
         };
       }
       return handoff;
@@ -459,7 +459,7 @@ export function resolvePrimaryAction(input: {
     if (status === 'pending') {
       return {
         kind: 'link',
-        label: solutionCaps?.canView ? 'Hàng chờ Solution →' : 'Theo dõi Solution',
+        label: solutionCaps?.canView ? 'Chờ Solutions →' : 'Theo dõi Solution',
         disabled: false,
         href: '/crm/solution/queue',
       };
@@ -467,7 +467,7 @@ export function resolvePrimaryAction(input: {
     if (status === 'with_solution' && proposalGate?.ok && solutionCaps?.canRelease) {
       return {
         kind: 'release_to_sales',
-        label: 'Trả Sales — Báo giá →',
+        label: 'Nộp Solution — Chờ báo giá →',
         disabled: false,
       };
     }
@@ -484,14 +484,14 @@ export function resolvePrimaryAction(input: {
       if (advance.can_advance_forward) {
         return {
           kind: 'advance_presales',
-          label: 'Chuyển → Báo giá',
+          label: 'Chuyển → Chờ báo giá',
           disabled: false,
         };
       }
       if (shouldConfirmPresalesAdvance(null, advance.block_reason)) {
         return {
           kind: 'advance_presales',
-          label: 'Chuyển → Báo giá (xác nhận)',
+          label: 'Chuyển → Chờ báo giá (xác nhận)',
           disabled: false,
           requiresConfirm: true,
           blockReason: advance.block_reason || undefined,
@@ -500,7 +500,7 @@ export function resolvePrimaryAction(input: {
       if (advance.current_complete && advance.block_reason) {
         return {
           kind: 'advance_presales',
-          label: 'Chuyển → Báo giá',
+          label: 'Chuyển → Chờ báo giá',
           disabled: true,
           blockReason: advance.block_reason,
         };
@@ -700,6 +700,6 @@ export function shouldConfirmPresalesAdvance(
   if (consultGate?.requires_confirm) return true;
   if (consultGate?.level === 'warn') return true;
   return (
-    blockReason.includes('Nurture') || blockReason.includes('BANT') || blockReason.includes('cân nhắc')
+    blockReason.includes('Nurture') || blockReason.includes('BANT') || blockReason.includes('Discovery') || blockReason.includes('cân nhắc')
   );
 }

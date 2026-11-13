@@ -20,6 +20,7 @@ import {
   leadStatusLabel,
   leadStatusTone,
 } from '@/lib/crm/lead-status';
+import { HANDOFF_FLOW_KANBAN_COLUMNS, bucketLeadsByHandoffFlow, handoffFlowStatusLabel, kanbanColumnIdForLead as handoffKanbanColumnId } from '@/lib/crm/handoff-flow.util';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeadsForColumn } from '@/lib/crm/kanban-column.util';
 import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
 import { formatLeadArrived } from '@/lib/crm/lead-arrived';
@@ -179,10 +180,17 @@ export function LeadKanbanBoard({
   const b2b = flowKind === 'b2b_prospect';
   const stages = statusOptionsForFlowKind(flowKind);
   const { stageKeys, byStage } = bucketLeadsByKanbanStage(rows, stages);
-  const columnDefs = fromSolution ? kanbanColumnsFromSolution() : B2B_KANBAN_COLUMNS;
+  const useHandoffColumns = b2b && !fromSolution;
+  const columnDefs = fromSolution
+    ? kanbanColumnsFromSolution()
+    : useHandoffColumns
+      ? HANDOFF_FLOW_KANBAN_COLUMNS
+      : B2B_KANBAN_COLUMNS;
   const byColumn = fromSolution
     ? bucketLeadsFromSolution(rows)
-    : bucketLeadsByKanbanColumns(rows, B2B_KANBAN_COLUMNS);
+    : useHandoffColumns
+      ? bucketLeadsByHandoffFlow(rows).byStage
+      : bucketLeadsByKanbanColumns(rows, B2B_KANBAN_COLUMNS);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -234,7 +242,7 @@ export function LeadKanbanBoard({
         title: column.label,
         items: byColumn[column.id] ?? [],
         accent: column.id === 'solution' ? 'dang_tu_van' : column.id,
-        sum: column.sumValue,
+        sum: Boolean((column as { sumValue?: boolean }).sumValue),
         collapsible: column.collapsible,
       }))
     : visibleStageKeys.map((stage) => ({
@@ -309,10 +317,22 @@ export function LeadKanbanBoard({
     const leadId = Number(event.dataTransfer.getData('text/plain'));
     const lead = rows.find((row) => row.id === leadId);
     if (!lead) return;
-    const fromId = kanbanColumnIdForLead(lead);
+    const fromId = useHandoffColumns ? handoffKanbanColumnId(lead) : kanbanColumnIdForLead(lead);
     if (!fromId || fromId === target) return;
+    if (target === 'cho_solutions' || target === 'dang_lam_solutions') {
+      setErr('Cột này do Submit to AM / Giao cho Marketing điều khiển — không kéo thả.');
+      return;
+    }
+    if (target === 'sales_brief') {
+      void moveLead(lead, 'dang_tu_van', { audit_note: 'Chuyển sang Sales tư vấn & nhập Brief' });
+      return;
+    }
+    if (target === 'dam_phan') {
+      void moveLead(lead, 'dam_phan', { audit_note: 'Chuyển sang Thương thảo' });
+      return;
+    }
     if (target === 'bao_gia') {
-      void moveLead(lead, 'bao_gia', { audit_note: 'Chuyển sang Báo giá' });
+      void moveLead(lead, 'bao_gia', { audit_note: 'Chuyển sang Chờ báo giá' });
       return;
     }
     if (target === 'lost') {
@@ -592,7 +612,12 @@ export function LeadKanbanBoard({
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{sla}</span>
                         ) : null}
                         <span className={`lead-status-badge lead-status-badge--${leadStatusTone(lead.status)}`}>
-                          {situation.status}
+                          {useHandoffColumns
+                            ? handoffFlowStatusLabel({
+                                leadStatus: lead.status,
+                                handoffStatus: lead.solution_handoff,
+                              })
+                            : situation.status}
                         </span>
                         {situation.call ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>

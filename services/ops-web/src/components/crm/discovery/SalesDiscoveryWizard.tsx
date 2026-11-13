@@ -54,6 +54,7 @@ export function SalesDiscoveryWizard({
   canEdit,
   onSessionChange,
   historicalSessions = [],
+  embedded = false,
 }: {
   token: string;
   lead: LeadRow | null;
@@ -62,6 +63,7 @@ export function SalesDiscoveryWizard({
   canEdit: boolean;
   onSessionChange: (session: IntakeSessionRow) => void;
   historicalSessions?: IntakeSessionRow[];
+  embedded?: boolean;
 }) {
   const completed = session.status === 'completed';
   const readOnly = completed || !canEdit;
@@ -71,7 +73,7 @@ export function SalesDiscoveryWizard({
       full_name: lead?.full_name,
       phone: lead?.phone,
       email: lead?.email,
-      need: lead?.need,
+      need: (lead as { need?: string | null } | null | undefined)?.need,
       industry: (lead as { industry?: string } | null)?.industry,
       session,
     }),
@@ -95,7 +97,7 @@ export function SalesDiscoveryWizard({
         full_name: lead?.full_name,
         phone: lead?.phone,
         email: lead?.email,
-        need: lead?.need,
+        need: (lead as { need?: string | null } | null | undefined)?.need,
         session,
       }),
     );
@@ -149,7 +151,7 @@ export function SalesDiscoveryWizard({
     try {
       const saved = await saveDiscoveryService(token, session.id, selected ? 'remove' : 'add', slug);
       onSessionChange(saved);
-      const next = prefillSalesDiscovery({ session: saved, company_name: lead?.company_name, full_name: lead?.full_name, phone: lead?.phone, email: lead?.email, need: lead?.need });
+      const next = prefillSalesDiscovery({ session: saved, company_name: lead?.company_name, full_name: lead?.full_name, phone: lead?.phone, email: lead?.email, need: (lead as { need?: string | null } | null | undefined)?.need });
       // Keep other in-progress fields; only take services from server.
       setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }));
     } catch (err) {
@@ -167,7 +169,7 @@ export function SalesDiscoveryWizard({
       if (out.session) onSessionChange(out.session);
       if (out.ok) {
         setHandoffOk(true);
-        setMessage('Đã Submit to AM. Lead đang ở Hàng chờ Solution.');
+        setMessage('Đã Submit to AM. Lead đang ở Chờ Solutions.');
       } else {
         setError(out.handoff_error || 'Đã lưu Discovery nhưng chưa giao được Solution.');
       }
@@ -538,7 +540,7 @@ export function SalesDiscoveryWizard({
           <p className="sd-msg sd-msg--ok">
             {message}{' '}
             <Link href="/crm/solution/queue" className="nav-link">
-              Mở Hàng chờ Solution →
+              Mở Chờ Solutions →
             </Link>
           </p>
         ) : null}
@@ -581,7 +583,7 @@ export function SalesDiscoveryWizard({
           {historicalSessions.map((row) => (
             <details key={row.id}>
               <summary>
-                #{row.id} · {row.status} · {row.decision || '?'} · BANT {row.bant_total ?? 0}/30 · {row.updated_at}
+                #{row.id} · {row.status} · {row.decision || '—'} · {row.updated_at}
               </summary>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
                 {JSON.stringify(row.answers_json ?? {}, null, 2).slice(0, 4000)}

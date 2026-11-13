@@ -21,7 +21,7 @@ describe('leadListSituation', () => {
 
   it('marks a lead that has been sent to Solution', () => {
     expect(leadListSituation({ status: 'dang_tu_van', solution_handoff: 'pending' }).solution).toBe(
-      'Lead chờ Solutions',
+      'Chờ Solutions',
     );
     expect(leadListSituation({ status: 'dang_tu_van', solution_handoff: 'with_solution' }).solution).toBe(
       'Đang làm Solutions',

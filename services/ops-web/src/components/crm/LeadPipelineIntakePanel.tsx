@@ -1,89 +1,83 @@
 'use client';
 
-import Link from 'next/link';
-import { BANT_KEYS, type BantKey } from '@/lib/crm/intake-bant';
-import { BANT_FIELD_LABELS } from '@/lib/crm/intake-labels';
+import { SalesDiscoveryEmbed } from '@/components/crm/discovery/SalesDiscoveryEmbed';
 import type { IntakeStepSummary } from '@/lib/crm/funnel-stepper.types';
+import type { LeadFunnelSnapshot, LeadRow } from '@/lib/api';
+import type { StoredStaffUser } from '@/lib/auth';
 
-const DECISION_LABEL: Record<string, string> = {
-  go: 'Go',
-  nurture: 'Nurture',
-  no_go: 'No-Go',
-};
-
-function shortLabel(key: BantKey): string {
-  return BANT_FIELD_LABELS[key].label.split(' "')[0];
-}
-
+/** @deprecated Kept so existing imports of the old BANT deep-link compile. Redirects to the lead Pre Sale panel. */
 export function bantDetailHref(
   leadId: number,
-  sessionId?: number,
-  serviceSlug?: string | null,
+  _sessionId?: number,
+  _serviceSlug?: string | null,
 ): string {
-  const qs = new URLSearchParams();
-  if (leadId > 0) qs.set('lead_id', String(leadId));
-  if (sessionId && sessionId > 0) qs.set('session_id', String(sessionId));
-  const slug = String(serviceSlug ?? '').trim();
-  if (slug) qs.set('service_slug', slug);
-  qs.set('open', 'bant');
-  return `/crm/intake?${qs.toString()}`;
+  if (leadId > 0) return `/crm/leads/${leadId}?tab=pipeline&step=intake_bant`;
+  return '/crm/leads';
 }
 
 export function LeadPipelineIntakePanel({
   leadId = 0,
-  serviceSlug,
+  token,
+  lead,
+  user,
+  canEdit,
   intakeSummary,
   loading = false,
   pastBant = false,
+  onFunnelChange,
+  onSubmitted,
+  onMessage,
+  onError,
 }: {
   leadId?: number;
+  token?: string;
+  lead?: LeadRow | null;
+  user?: StoredStaffUser | null;
+  canEdit?: boolean;
   serviceSlug?: string | null;
   intakeSummary?: IntakeStepSummary | null;
-  token?: string;
   readOnly?: boolean;
   onSaved?: () => void;
   editRequest?: number;
   loading?: boolean;
-  /** Lead already passed BANT (handed off / quote) — do not show the empty "create session" CTA. */
   pastBant?: boolean;
+  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onSubmitted?: () => void;
+  onMessage?: (message: string) => void;
+  onError?: (message: string) => void;
 }) {
-  const preview = intakeSummary?.preview;
-  const completed = intakeSummary?.latest_completed;
-
-  if (!preview && !completed) {
+  if (!token || leadId <= 0) {
     if (loading || pastBant) return null;
+    if (intakeSummary?.preview || intakeSummary?.latest_completed) {
+      return (
+        <div className="card-inner" id="funnel-intake-discovery" data-testid="funnel-intake-discovery">
+          <p className="muted" style={{ margin: 0 }}>
+            Sales Discovery đã có phiên — mở tab Pipeline bán hàng để xem brief.
+          </p>
+        </div>
+      );
+    }
     return (
-      <div className="card-inner" id="funnel-intake-bant">
+      <div className="card-inner" id="funnel-intake-discovery">
         <p className="muted" style={{ margin: 0 }}>
-          Chưa có phiên BANT. Tạo phiên để chấm điểm rồi giao Solution.
+          Chưa có phiên Sales Discovery.
         </p>
       </div>
     );
   }
-
-  const viewScores = preview?.bant ?? {};
-  const viewTotal = preview?.bant_total ?? completed?.bant_total ?? 0;
-  const viewDecision = preview?.decision || completed?.decision || '';
-  const draft = preview?.status === 'draft' || Boolean(intakeSummary?.has_draft);
-  const sessionId = preview?.id ?? completed?.id ?? 0;
-  const href = bantDetailHref(leadId, sessionId, serviceSlug);
-
   return (
-    <Link href={href} className="lead-bant-summary" id="funnel-intake-bant">
-      <div className="lead-bant-summary__head">
-        <strong>BANT {viewTotal}/30</strong>
-        <span>{DECISION_LABEL[viewDecision] || (viewDecision ? viewDecision : 'Chưa chốt')}</span>
-        {draft ? <span className="muted">Nháp</span> : <span className="muted">Đã chốt</span>}
-        <span className="lead-bant-summary__hint">Mở chi tiết</span>
-      </div>
-      <dl className="lead-bant-summary__grid">
-        {BANT_KEYS.map((key) => (
-          <div key={key}>
-            <dt>{shortLabel(key)}</dt>
-            <dd>{Number(viewScores[key] ?? 0)}/5</dd>
-          </div>
-        ))}
-      </dl>
-    </Link>
+    <div className="card-inner" id="funnel-intake-discovery" data-testid="funnel-intake-discovery">
+      <SalesDiscoveryEmbed
+        token={token}
+        leadId={leadId}
+        lead={lead}
+        user={user}
+        canEdit={canEdit}
+        onFunnelChange={onFunnelChange}
+        onSubmitted={onSubmitted}
+        onMessage={onMessage}
+        onError={onError}
+      />
+    </div>
   );
 }

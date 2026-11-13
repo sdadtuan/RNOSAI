@@ -862,8 +862,8 @@ export function SolutionCaseDesk({
                   void run(async () => {
                     const out = await releaseLeadToSales(token, lead.id);
                     onFunnelChange(out.funnel);
-                    onMessage?.('Đã trả Sales. Khách có 8 giờ để phản hồi.');
-                    pushToast('Đã trả Sales. Khách có 8 giờ để phản hồi.', 'success');
+                    onMessage?.('Đã nộp Solution. Lead chuyển sang Chờ báo giá.');
+                    pushToast('Đã nộp Solution. Lead chuyển sang Chờ báo giá.', 'success');
                   })
                 }
               >

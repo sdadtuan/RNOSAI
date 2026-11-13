@@ -336,7 +336,7 @@ export function LeadConsultWorkspace({
                   />
                   <p style={{ margin: '0.75rem 0 0' }}>
                     <Link href={intakeHref} className="nav-link">
-                      Mở Lead Intake (BANT) →
+                      Mở Sales Discovery
                     </Link>
                   </p>
                 </details>

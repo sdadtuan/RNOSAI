@@ -150,7 +150,7 @@ export function resolveIntakeNextStepBanner(input: {
   if (handoff === 'pending' || handoff === 'with_solution') {
     return {
       tone: 'ok',
-      title_vi: 'Đã gửi SUBMIT FOR SOLUTION',
+      title_vi: 'Đã Submit to AM',
       body_vi: 'Solution claim trên queue.',
       action: 'open_solution_queue',
       cta_label_vi: 'Mở queue Solution →',
@@ -201,12 +201,12 @@ export function resolveIntakeNextStepBanner(input: {
     const needsConfirm = gate.requires_confirm || gate.level === 'warn';
     return {
       tone: 'ok',
-      title_vi: needsConfirm ? 'Gate cảnh báo — có thể gửi' : 'Gate OK — SUBMIT FOR SOLUTION',
+      title_vi: needsConfirm ? 'Gate cảnh báo — có thể gửi' : 'Gate OK — Submit to AM',
       body_vi: needsConfirm
         ? gate.messages[0] || 'Xác nhận trước khi giao.'
-        : 'Bấm SUBMIT FOR SOLUTION để chuyển Tư vấn.',
+        : 'Bấm Submit to AM để chuyển sang Chờ Solutions.',
       action: 'handoff_solution',
-      cta_label_vi: needsConfirm ? 'SUBMIT FOR SOLUTION (xác nhận) →' : 'SUBMIT FOR SOLUTION →',
+      cta_label_vi: needsConfirm ? 'Submit to AM (xác nhận) →' : 'Submit to AM →',
       blockers: gate.messages,
       chips: [],
     };

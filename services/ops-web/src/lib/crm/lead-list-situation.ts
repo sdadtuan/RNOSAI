@@ -11,7 +11,7 @@ const SPOKE = new Set([
 export type LeadListSituation = {
   status: string;
   call: 'Không nghe máy' | 'Máy bận' | 'Hẹn gọi lại' | 'Sai số' | 'Đã nói chuyện' | null;
-  solution: 'Lead chờ Solutions' | 'Đang làm Solutions' | null;
+  solution: 'Chờ Solutions' | 'Đang làm Solutions' | null;
 };
 
 export function leadListSituation(lead: {
@@ -27,7 +27,7 @@ export function leadListSituation(lead: {
   const handoff = String(lead.solution_handoff ?? '').trim().toLowerCase();
   const solution =
     handoff === 'pending'
-      ? 'Lead chờ Solutions'
+      ? 'Chờ Solutions'
       : handoff === 'with_solution'
         ? 'Đang làm Solutions'
         : null;

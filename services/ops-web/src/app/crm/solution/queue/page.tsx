@@ -164,7 +164,7 @@ export default function CrmSolutionQueuePage() {
   async function onRelease(leadId: number) {
     const token = getAccessToken();
     if (!token) return;
-    if (!window.confirm(`Trả Sales Lead #${leadId} — chuyển sang Báo giá?`)) return;
+    if (!window.confirm(`Nộp Solution cho Lead #${leadId} và chuyển sang Chờ báo giá?`)) return;
     setBusyLeadId(leadId);
     setMessage('');
     setError('');
@@ -186,7 +186,7 @@ export default function CrmSolutionQueuePage() {
         subtitle={
           aeTrackOnly
             ? 'Chỉ lead của bạn: đã chuyển Solution/AM, hoặc AM trả lại cần chỉnh bước trước — chỉ xem, không nhận case.'
-            : 'Lead đã handoff từ Sales — AM nhận case Solutions → trả Sales Báo giá'
+            : 'Lead đã Submit to AM — AM giao Marketing → nộp Solution sang Chờ báo giá'
         }
       />
 

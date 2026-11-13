@@ -74,24 +74,24 @@ export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefine
   if (returned) {
     const reason = String(hint?.revisionNote ?? '').trim();
     return reason
-      ? `Bước tiếp: Solutions đã trả lại case — bổ sung thông tin theo lý do: ${reason}. Rồi gửi lại.`
-      : 'Bước tiếp: Solutions đã trả lại case — bổ sung thông tin theo yêu cầu, rồi gửi lại.';
+      ? `Bước tiếp: AM trả về Sales — bổ sung thông tin Pre Sale theo lý do: ${reason}. Rồi Submit to AM lại.`
+      : 'Bước tiếp: AM trả về Sales — bổ sung thông tin Pre Sale, rồi Submit to AM lại.';
   }
   if (handoff === 'with_solution') {
     return isAm
-      ? 'Bước tiếp: hoàn thiện Solution và trả về Sales trong hạn làm việc.'
-      : 'Bước tiếp: Solutions đang xử lý case — bạn chỉ xem.';
+      ? 'Bước tiếp: hoàn thiện Solution và nộp cho Sales (Đang làm Solutions → Chờ báo giá).'
+      : 'Bước tiếp: Marketing đang làm Solutions — bạn chỉ xem.';
   }
   if (handoff === 'pending') {
     return isAm
-      ? 'Bước tiếp: nhận case Solutions trên hàng chờ.'
-      : 'Bước tiếp: đã gửi SUBMIT FOR SOLUTION — chờ Solutions nhận case.';
+      ? 'Bước tiếp: kiểm tra Sales Brief và giao cho Marketing (Chờ Solutions).'
+      : 'Bước tiếp: đã Submit to AM — chờ AM kiểm tra và giao Case (Chờ Solutions).';
   }
   if (hint?.b2Complete) {
     if (stage === 'consult' || stage === 'lead') {
-      return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
+      return 'Bước tiếp: hoàn thành Sales Discovery, rồi bấm Submit to AM.';
     }
-    return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
+    return 'Bước tiếp: hoàn thành Sales Discovery, rồi bấm Submit to AM.';
   }
   if (hint?.claimed) {
     return 'Bước tiếp: liên hệ khách và hoàn thành bước Liên hệ lần đầu (B2).';
@@ -125,13 +125,13 @@ export function nextActionFor(
   }
   if (path.startsWith('/crm/leads/') && path !== '/crm/leads') {
     if (options?.leadHint) return nextActionForLeadDetail(options.leadHint);
-    return 'Bước tiếp: hoàn thành khảo sát BANT, rồi bấm SUBMIT FOR SOLUTION.';
+    return 'Bước tiếp: hoàn thành Sales Discovery, rồi bấm Submit to AM.';
   }
   if (path.startsWith('/crm/b2b-inbox')) {
     return 'Bước tiếp: mở thread Nóng, trả lời, rồi cập nhật trạng thái lead.';
   }
   if (path.startsWith('/crm/intake')) {
-    return 'Bước tiếp: Discovery → BANT → Red flags → Hoàn thành (Go ≥ 24).';
+    return 'Bước tiếp: Sales Discovery nằm trong tab Pipeline bán hàng (Pre Sale).';
   }
   if (path.startsWith('/crm/proposals') || path.startsWith('/crm/solution')) {
     return 'Bước tiếp: đủ L2 + Consult rồi soạn đề xuất / báo giá.';

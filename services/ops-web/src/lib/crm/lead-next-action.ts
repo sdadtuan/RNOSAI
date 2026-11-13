@@ -217,9 +217,9 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     }
     return {
       rule: 7,
-      title_vi: 'SUBMIT FOR SOLUTION',
+      title_vi: 'Submit to AM',
       body_vi: 'Intake đã Go. Giao queue Solution — Tư vấn là chỗ làm việc, không thay nút giao.',
-      primary: { label_vi: 'SUBMIT FOR SOLUTION', action: 'handoff_solution' },
+      primary: { label_vi: 'Submit to AM', action: 'handoff_solution' },
       secondary: (
         [
           { label_vi: 'Mở Tư vấn', action: 'open_consult' },

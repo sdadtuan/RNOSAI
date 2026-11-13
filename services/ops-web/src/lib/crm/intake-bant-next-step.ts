@@ -74,7 +74,7 @@ export function nextBantStep(input: {
     code: 'consult',
     title_vi: 'Gợi ý: Đủ điểm BANT',
     body_vi:
-      'Đủ điểm BANT (≥24) — chưa phải đủ báo giá / HĐ. Chọn Quyết định Go trên Qualify, hoàn thành phiên, rồi SUBMIT FOR SOLUTION trên Funnel.',
+      'Đủ điểm BANT (≥24) — chưa phải đủ báo giá / HĐ. Chọn Quyết định Go trên Qualify, hoàn thành phiên, rồi Submit to AM trên Funnel.',
     cta: 'qualify',
   };
 }

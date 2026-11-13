@@ -8,10 +8,10 @@ import type { StoredStaffUser } from '@/lib/auth';
 function badgeText(funnel: LeadFunnelSnapshot): string | null {
   const handoff = funnel.presales?.handoff;
   if (!handoff) return null;
-  if (handoff.status === 'pending') return 'Đang chờ Solution/MKT nhận case';
+  if (handoff.status === 'pending') return 'Đang ở Chờ Solutions — AM sẽ kiểm tra Brief và giao cho Marketing.';
   if (handoff.status === 'with_solution') {
     const who = handoff.solution_owner_name?.trim();
-    return who ? `Đang Solution/MKT — ${who}` : 'Đang Solution/MKT xử lý';
+    return who ? `Đang làm Solutions — ${who}` : 'Đang làm Solutions';
   }
   return null;
 }
@@ -30,16 +30,16 @@ export function PresalesSolutionHandoffBanner({
 
   return (
     <div className="banner banner-info" data-testid="presales-solution-handoff-banner">
-      <strong>Giai đoạn Solution/MKT</strong>
+      <strong>Giai đoạn Chờ Solutions</strong>
       <p style={{ margin: '0.35rem 0 0' }}>{text}</p>
       {readOnly ? (
         <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-          Bạn chỉ xem — không chỉnh kế hoạch tư vấn. Solutions sẽ trả về Sales khi sẵn sàng lập báo giá.
+          Bạn chỉ xem — không chỉnh kế hoạch tư vấn. Marketing sẽ nộp Solution khi xong; lead chuyển sang Chờ báo giá.
         </p>
       ) : null}
       <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
         <Link href="/crm/solution/queue" className="nav-link">
-          Mở hàng chờ Solution →
+          Mở Chờ Solutions →
         </Link>
       </p>
     </div>

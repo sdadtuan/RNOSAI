@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
-import { bantDetailHref, LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
+import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
+import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import { resolveHandoffFlow } from '@/lib/crm/handoff-flow.util';
+import type { LeadRow } from '@/lib/api';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadPipelineDoneAccordion } from '@/components/crm/LeadPipelineDoneAccordion';
 import { LeadPipelineSlaStrip } from '@/components/crm/LeadPipelineSlaStrip';
@@ -47,6 +48,8 @@ export function LeadSalesPipelineTab({
   leadStatus = null,
   viewerIsSales = false,
   quoteSheetVisible = false,
+  lead = null,
+  canEdit,
 }: {
   token: string;
   leadId: number;
@@ -80,8 +83,9 @@ export function LeadSalesPipelineTab({
   /** Sales must never follow a CTA onto /crm/proposals/new (403). */
   viewerIsSales?: boolean;
   quoteSheetVisible?: boolean;
+  lead?: LeadRow | null;
+  canEdit?: boolean;
 }) {
-  const router = useRouter();
   const stepperVm = useMemo(() => resolveFunnelStepper(stepperInput), [stepperInput]);
   const activeState = stepperVm.steps.find((s) => s.key === activeStepKey)?.state ?? 'current';
   const viewModel = {
@@ -119,33 +123,46 @@ export function LeadSalesPipelineTab({
         />
       )}
       <div className="lead-pipeline-tab__head">
-        <span className="lead-zone__kicker">Bước pipeline</span>
-        <CrmFunnelStepper
-          {...stepperInput}
-          viewModel={viewModel}
-          showTitle={false}
-          actionBusy={actionBusy}
-          onPrimaryAction={readOnly ? undefined : onFunnelPrimaryAction}
-          onEditBant={
-            readOnly
-              ? undefined
-              : () => {
-                  const summary = stepperInput.intakeSummary;
-                  const sessionId = summary?.preview?.id ?? summary?.latest_completed?.id;
-                  router.push(bantDetailHref(leadId, sessionId, serviceSlug));
-                }
-          }
-          beforeAction={
-            activeStepKey === 'intake_bant' &&
-            (stepperInput.intakeSummary?.preview || stepperInput.intakeSummary?.latest_completed) ? (
-              <LeadPipelineIntakePanel
-                leadId={leadId}
-                serviceSlug={serviceSlug}
-                intakeSummary={stepperInput.intakeSummary}
-              />
-            ) : null
-          }
+        <span className="lead-zone__kicker">Tiến độ bàn giao</span>
+        <HandoffFlowStepper
+          view={resolveHandoffFlow({
+            leadStatus,
+            leadCreatedAt: lead?.created_at,
+            leadReceivedAt: lead?.received_at,
+            handoffStatus: stepperInput.funnel?.presales?.handoff?.status,
+            handedOffAt: stepperInput.funnel?.presales?.handoff?.handed_off_at,
+            quotePhase: stepperInput.funnel?.presales?.quote_case?.phase,
+            hasContract: Boolean(lead?.has_contract),
+            discoverySubmitted: Boolean(
+              stepperInput.intakeSummary?.latest_completed ||
+                stepperInput.funnel?.presales?.handoff?.status,
+            ),
+            discoverySubmittedAt:
+              stepperInput.intakeSummary?.latest_completed?.completed_at ??
+              stepperInput.funnel?.presales?.handoff?.handed_off_at,
+            returnedToSales: stepperInput.funnel?.presales?.handoff?.status === 'returned',
+          })}
+          onStepClick={(key) => {
+            if (key === 'receive_lead') onStepChange('b2');
+            else if (key === 'sales_brief') onStepChange('intake_bant');
+            else if (key === 'await_quote' || key === 'negotiate' || key === 'sign_contract') onStepChange('proposal');
+            else if (key === 'await_solutions' || key === 'doing_solutions') onStepChange('consult');
+          }}
         />
+        {activeStepKey === 'intake_bant' || activeStepKey === 'presales_lead' ? (
+          <LeadPipelineIntakePanel
+            leadId={leadId}
+            token={token}
+            lead={lead}
+            user={user}
+            canEdit={canEdit}
+            serviceSlug={serviceSlug}
+            intakeSummary={stepperInput.intakeSummary}
+            onFunnelChange={onFunnelChange}
+            onMessage={onMessage}
+            onError={onError}
+          />
+        ) : null}
       </div>
       <LeadFunnelPanel
         token={token}

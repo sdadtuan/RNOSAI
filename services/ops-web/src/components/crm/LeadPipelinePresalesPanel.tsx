@@ -96,7 +96,7 @@ export function LeadPipelinePresalesPanel({
           ) : showLeadIntake ? (
             <p style={{ margin: '0.5rem 0' }}>
               <Link href={intakeHref} className="nav-link">
-                Mở Lead Intake (BANT) →
+                Mở Sales Discovery
               </Link>
             </p>
           ) : (
