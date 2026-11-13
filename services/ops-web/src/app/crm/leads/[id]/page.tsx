@@ -25,6 +25,7 @@ import { resolveLeadQuoteOpenHref } from '@/lib/crm/sales-quote-open.util';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { AmHandoffDesk } from '@/components/crm/am/AmHandoffDesk';
+import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
@@ -352,6 +353,7 @@ export default function CrmLeadDetailPage() {
   const marketingLeader = isMarketingLeader(user);
   const showPipelineTab =
     pipelineTabOn && shouldShowPipelineTab(leadFlowKind) && canViewCrmLeadDetail(user);
+  const useSalesDesk = Boolean(showB2bFlow && lead);
   const prepDeepLink = searchParams.get('prep') === '1';
 
 
@@ -394,8 +396,9 @@ export default function CrmLeadDetailPage() {
         null,
       viewer,
       hideBanner:
-        String(hintHandoff || '').toLowerCase() === 'pending' &&
-        (viewer === 'am' || viewer === 'admin'),
+        (String(hintHandoff || '').toLowerCase() === 'pending' &&
+          (viewer === 'am' || viewer === 'admin')) ||
+        Boolean(showB2bFlow),
     });
   }, [
     lead,
@@ -407,6 +410,7 @@ export default function CrmLeadDetailPage() {
     salesViewer,
     user,
     salesClaimedAt,
+    showB2bFlow,
   ]);
 
   useEffect(() => {
@@ -1589,12 +1593,24 @@ export default function CrmLeadDetailPage() {
       <ActionSuccessToast message={message} />
       {copilotMessage ? <p className="lead-copilot-hint">{copilotMessage}</p> : null}
 
-      {lead && !loading && solutionCaps.canView && !solutionDesk ? (
+      {lead && !loading && solutionCaps.canView && !solutionDesk && !useSalesDesk ? (
         <PresalesSolutionHandoffBanner funnel={funnelSnap} user={user} />
       ) : null}
 
       {lead && !loading ? (
-        <div className="lead-detail-layout">
+        <SalesOrLegacyLeadLayout
+          useDesk={useSalesDesk}
+          token={accessToken}
+          lead={lead}
+          party={party}
+          funnel={funnelSnap}
+          userName={user?.display_name || user?.email}
+          salesViewer={salesViewer}
+          onFunnelChange={setFunnelSnap}
+          onBack={() => router.push('/crm/leads')}
+        >
+          {!useSalesDesk ? (
+            <>
           <div className="lead-detail-top">
             <div className="lead-detail-identity">
             <LeadDetailHero
@@ -1725,6 +1741,8 @@ export default function CrmLeadDetailPage() {
               leadCreatedAt={lead?.created_at}
               leadReceivedAt={(lead as { received_at?: string | null })?.received_at}
             />
+          ) : null}
+            </>
           ) : null}
 
           {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
@@ -1915,8 +1933,7 @@ export default function CrmLeadDetailPage() {
               <>
             {showPipelineTab ? (
               <div className="lead-zone">
-                <span className="lead-zone__kicker">Khu vực</span>
-                <div className="lead-pipeline-tabs" role="tablist" aria-label="Khu vực lead">
+                <div className="lead-pipeline-tabs" role="tablist" aria-label="Hồ sơ lead">
                   {marketingLeader ? null : (
                   <button
                     type="button"
@@ -2148,7 +2165,7 @@ export default function CrmLeadDetailPage() {
 
           </div>
 
-        </div>
+        </SalesOrLegacyLeadLayout>
       ) : null}
 
       {layout.mobile && mobileTab === 'detail' && lead?.phone ? (

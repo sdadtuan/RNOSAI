@@ -79,12 +79,6 @@ export function LeadHandoffTimeline({
 
   return (
     <nav aria-label="Tiến độ bàn giao" className="lead-handoff-timeline" data-testid="lead-handoff-timeline">
-      <div className="lead-journey__head">
-        <h3 className="lead-journey__title">Tiến độ bàn giao</h3>
-        <p className="lead-journey__desc">
-          Tiếp nhận Lead → Sales tư vấn &amp; nhập Brief → Chờ Solutions → Đang làm Solutions → Chờ báo giá → Thương thảo → Ký hợp đồng
-        </p>
-      </div>
       <HandoffFlowStepper view={view} />
     </nav>
   );

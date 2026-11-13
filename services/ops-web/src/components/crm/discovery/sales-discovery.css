@@ -19,8 +19,8 @@
 .sd-badge--done { background: #e6f6ea; color: #1c7a3a; }
 .sd-badge--pending { background: #fff4d6; color: #8a6100; }
 .sd-progress {
-  font-size: 0.85rem; font-weight: 600; color: #1f6feb;
-  background: #eaf2ff; padding: 4px 10px; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 600; color: #00762f;
+  background: #e8f6ee; padding: 4px 10px; border-radius: 999px;
 }
 .sd-progress--full { background: #e6f6ea; color: #1c7a3a; }
 .sd-steps { display: flex; gap: 8px; margin: 18px 0 22px; }
@@ -29,8 +29,8 @@
   border-radius: 999px; padding: 8px 10px; font-weight: 600; font-size: 0.86rem;
   cursor: pointer;
 }
-.sd-step.is-active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
-.sd-step.is-done { background: #eaf2ff; color: #1f6feb; border-color: #c9ddff; }
+.sd-step.is-active { background: #00762f; color: #fff; border-color: #00762f; }
+.sd-step.is-done { background: #e8f6ee; color: #00762f; border-color: #b7e0c6; }
 .sd-section { margin: 0 0 22px; }
 .sd-section__head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -49,7 +49,7 @@
 }
 .sd-textarea { min-height: 88px; resize: vertical; }
 .sd-input:focus, .sd-select:focus, .sd-textarea:focus {
-  outline: 2px solid #c9ddff; border-color: #1f6feb;
+  outline: 2px solid #b7e0c6; border-color: #00762f;
 }
 .sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled { background: #f4f6f8; color: #526070; }
 .sd-hint { font-size: 0.78rem; color: #6a7a8b; }
@@ -60,16 +60,16 @@
   border: 1px solid #cfd8e3; background: #fff; border-radius: 999px;
   padding: 6px 12px; font-size: 0.86rem; cursor: pointer;
 }
-.sd-chip.is-on { background: #eaf2ff; border-color: #1f6feb; color: #1f6feb; font-weight: 600; }
+.sd-chip.is-on { background: #e8f6ee; border-color: #00762f; color: #00762f; font-weight: 600; }
 .sd-chip:disabled { cursor: default; opacity: 0.7; }
 
 .sd-svc-wrap { position: relative; }
 .sd-svc-btn {
-  border: 1px solid #1f6feb; background: #1f6feb; color: #fff;
+  border: 1px solid #00762f; background: #00762f; color: #fff;
   border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 0.84rem;
   cursor: pointer; white-space: nowrap;
 }
-.sd-svc-btn--ghost { background: #fff; color: #1f6feb; }
+.sd-svc-btn--ghost { background: #fff; color: #00762f; }
 .sd-svc-panel {
   position: absolute; right: 0; top: calc(100% + 8px); z-index: 8;
   width: min(420px, 80vw); background: #fff; border: 1px solid #dbe3ec;
@@ -94,11 +94,11 @@
 }
 .sd-plus {
   width: 26px; height: 26px; flex: 0 0 26px; border-radius: 8px;
-  border: 1px solid #1f6feb; background: #fff; color: #1f6feb;
+  border: 1px solid #00762f; background: #fff; color: #00762f;
   font-size: 1.1rem; line-height: 1; cursor: pointer; font-weight: 700;
 }
-.sd-plus:hover { background: #eaf2ff; }
-.sd-plus.is-on { background: #1f6feb; color: #fff; }
+.sd-plus:hover { background: #e8f6ee; }
+.sd-plus.is-on { background: #00762f; color: #fff; }
 .sd-plus:disabled { opacity: 0.5; cursor: default; }
 .sd-picker__name { font-size: 0.9rem; color: #24384c; }
 
@@ -123,3 +123,20 @@
   .sd-head-meta { align-items: flex-start; }
   .sd-steps { flex-direction: column; }
 }
+
+.sd-page--embed { max-width: none; margin: 0; }
+.sd-page--embed .sd-card { box-shadow: none; padding: 16px 18px 18px; }
+.sd-head--embed { margin-bottom: 4px; align-items: center; }
+.sd-head--embed .sd-head-meta { flex-direction: row; align-items: center; }
+.sd-embed .btn-primary,
+.sd-page--embed .btn-primary {
+  background: #00762f;
+  border-color: #00762f;
+  color: #fff;
+}
+.sd-embed .btn-primary:hover:not(:disabled),
+.sd-page--embed .btn-primary:hover:not(:disabled) {
+  background: #0e4620;
+  border-color: #0e4620;
+}
+.sd-progress { color: #00762f; background: #e8f6ee; }

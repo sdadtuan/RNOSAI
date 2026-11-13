@@ -1,0 +1,101 @@
+/* Sales lead desk — shares .ahd tokens; only Sales-specific alignment lives here. */
+.sld { width: 100%; max-width: 100%; min-width: 0; }
+.sld .sld-next__title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #163047;
+}
+.sld .sld-next__body {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+/* Flatten the legacy lead-detail chrome so it sits in the AM 3-col shell. */
+.sld .lead-detail-layout,
+.sld .lead-detail-grid,
+.sld .lead-detail-grid--record,
+.sld .lead-detail-main,
+.sld .lead-detail-pane--hidden {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.sld .lead-detail-sidebar,
+.sld .lead-detail-top,
+.sld .lead-handoff-timeline .lead-journey__head {
+  display: none;
+}
+.sld .lead-zone {
+  margin: 0;
+  gap: 10px;
+}
+.sld .lead-zone__kicker { display: none; }
+.sld .lead-pipeline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  padding: 6px;
+  margin: 0 0 12px;
+}
+.sld .lead-pipeline-tabs [role="tab"] {
+  border: 0;
+  background: transparent;
+  color: #4b5563;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border-bottom: 0;
+}
+.sld .lead-pipeline-tabs [role="tab"][aria-selected="true"] {
+  color: #00762f;
+  background: #e8f6ee;
+  border-bottom-color: transparent;
+}
+.sld .lead-pipeline-tabs [role="tab"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sld #funnel-intake-discovery.card-inner,
+.sld .card-inner#funnel-intake-discovery,
+.sld .lead-pipeline-tab__head,
+.sld .lead-pipeline-tab {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.sld #funnel-intake-discovery.card-inner,
+.sld .card-inner#funnel-intake-discovery {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.sld .sd-page,
+.sld .sd-embed,
+.sld .sd-card {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+.sld .sd-card {
+  box-shadow: none;
+  border: 1px solid #e6e8ee;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+}

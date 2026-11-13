@@ -200,9 +200,10 @@ export function SalesDiscoveryWizard({
   );
 
   return (
-    <div className="sd-page" data-testid="sales-discovery-wizard">
+    <div className={`sd-page${embedded ? ' sd-page--embed' : ''}`} data-testid="sales-discovery-wizard">
       <div className="sd-card">
-        <header className="sd-head">
+        <header className={`sd-head${embedded ? ' sd-head--embed' : ''}`}>
+          {embedded ? null : (
           <div>
             <h1 className="sd-title">CRM – Sales Discovery</h1>
             <p className="sd-kicker">
@@ -210,6 +211,7 @@ export function SalesDiscoveryWizard({
               {lead?.full_name ? ` · ${lead.full_name}` : ''}
             </p>
           </div>
+          )}
           <div className="sd-head-meta">
             {badge}
             <span className={`sd-progress${complete ? ' sd-progress--full' : ''}`} data-testid="sd-progress">
@@ -591,7 +593,7 @@ export function SalesDiscoveryWizard({
         </div>
       </div>
 
-      {historicalSessions.length > 0 ? (
+      {!embedded && historicalSessions.length > 0 ? (
         <div className="sd-history">
           <h3>Phiên cũ (chỉ xem)</h3>
           {historicalSessions.map((row) => (

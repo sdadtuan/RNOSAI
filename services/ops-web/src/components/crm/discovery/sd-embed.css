@@ -2,3 +2,25 @@
 .sd-embed { margin: 0; }
 .sd-embed .sd-wizard { box-shadow: none; border: 0; padding: 0; }
 .sd-page-banner { display: none; }
+
+.sd-embed { width: 100%; max-width: none; }
+.sd-embed .sd-page { max-width: none; margin: 0; width: 100%; }
+.sd-embed .sd-title,
+.sd-embed .sd-kicker { display: none; }
+.sd-embed .sd-card {
+  box-shadow: none;
+  border: 1px solid #e6e8ee;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  max-width: none;
+  width: 100%;
+}
+.sd-embed .btn-primary {
+  background: #00762f;
+  border-color: #00762f;
+  color: #fff;
+}
+.sd-embed .btn-primary:hover:not(:disabled) {
+  background: #0e4620;
+  border-color: #0e4620;
+}
