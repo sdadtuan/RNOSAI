@@ -39,6 +39,8 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { staffMe, staffRefresh } from '@/lib/api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const STATUSES: GtmStatus[] = [
   'new',
@@ -90,6 +92,7 @@ function GtmDemosContent() {
   const [importOpen, setImportOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<GtmImportResult | null>(null);
   const [ioBusy, setIoBusy] = useState<'export' | 'import' | null>(null);
+  const demoImport = useUploadProgress();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filterStatus = (searchParams.get('status') as GtmStatus | null) ?? '';
@@ -256,7 +259,7 @@ function GtmDemosContent() {
     setImportSummary(null);
     setError('');
     try {
-      const result = await importGtmDemoRequests(access, file);
+      const result = await demoImport.run((onUploadProgress) => importGtmDemoRequests(access, file, { onUploadProgress }));
       setImportSummary(result);
       setMsg(`Import: ${result.imported} mới, ${result.skipped} bỏ qua`);
       if (result.imported > 0) await load();
@@ -364,6 +367,8 @@ function GtmDemosContent() {
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={(e) => void handleImportFile(e.target.files?.[0])}
               />
+              {demoImport.view}
+              {demoImport.uploading ? <p className="muted">{demoImport.label()}</p> : null}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                 <button type="button" className="btn btn-sm btn-ghost" onClick={() => setImportOpen(false)}>
                   Đóng

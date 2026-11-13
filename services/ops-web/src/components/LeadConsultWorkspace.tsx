@@ -23,6 +23,7 @@ import {
   resolvePresalesSolutionCaps,
 } from '@/lib/crm/presales-solution-caps';
 import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 interface Props {
   token: string;
@@ -222,11 +223,7 @@ export function LeadConsultWorkspace({
       data-testid="lead-consult-workspace"
       aria-label="Workspace Tư vấn pre-sales"
     >
-      {panelError ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {panelError}
-        </div>
-      ) : null}
+      <ActionErrorToast message={panelError} />
 
       {consultReadOnly ? (
         <div className="banner banner-info" data-testid="consult-solution-readonly-banner">

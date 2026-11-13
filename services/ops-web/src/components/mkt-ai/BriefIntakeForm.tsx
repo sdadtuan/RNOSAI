@@ -23,6 +23,8 @@ import {
 import { BRIEF_FIELD_LABELS } from '@/lib/tmmt-labels';
 import { AiPlaybookSelector } from '@/components/mkt-ai/AiPlaybookSelector';
 import type { MktAiPlannerContext } from '@/lib/mkt-ai-planner-api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--bg)',
@@ -80,6 +82,7 @@ export function BriefIntakeForm({
   const fieldRefs = useRef<Partial<Record<string, HTMLElement | null>>>({});
   const uploadRef = useRef<HTMLInputElement | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const briefUpload = useUploadProgress();
   const [prefillBusy, setPrefillBusy] = useState(false);
 
   const hasL1ConsultPrefill = prefillSources?.includes('l1-consult-bridge') ?? false;
@@ -194,7 +197,7 @@ export function BriefIntakeForm({
     if (!canEdit || paused) return;
     setUploadBusy(true);
     try {
-      const out = await uploadMktAiBrief(token, lifecycleId, file);
+      const out = await briefUpload.run((onUploadProgress) => uploadMktAiBrief(token, lifecycleId, file, { onUploadProgress }));
       onBriefChange(out.brief);
       onPersisted(out);
       autosave.markSavedNow(briefAutosaveSnapshot(out.brief, serviceSlug));
@@ -326,6 +329,7 @@ export function BriefIntakeForm({
                   if (f) void handleBriefUpload(f);
                 }}
               />
+            {briefUpload.view}
               {uploadBusy ? (
                 <span className="muted" style={{ fontSize: '0.85rem' }}>
                   Đang trích xuất brief…

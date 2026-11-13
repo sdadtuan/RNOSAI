@@ -11,6 +11,7 @@ import {
   type LeadQuoteSheetRow,
 } from '@/lib/api';
 import { quoteRoleLabel, quoteUnitLabel } from '@/lib/crm/quote-unit-label';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 function vnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
@@ -234,11 +235,7 @@ export function LeadQuoteSheet({
                 : 'Chọn dịch vụ, nhân sự và số lượng. Thành tiền = giờ × số lượng × đơn giá giờ.'}
         </p>
       </header>
-      {localError ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {localError}
-        </div>
-      ) : null}
+      <ActionErrorToast message={localError} />
       {!sheet ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
       {sheet && editable ? (
         <div className="quote-sheet__services">

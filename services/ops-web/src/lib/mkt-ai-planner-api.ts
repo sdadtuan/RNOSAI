@@ -1,4 +1,5 @@
 import { API_BASE, ApiError, parseJson } from './api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -338,18 +339,34 @@ export async function fetchMktAiDocuments(token: string, lifecycleId: number) {
   );
 }
 
-export async function uploadMktAiDocument(token: string, lifecycleId: number, file: File, tag?: string) {
+export async function uploadMktAiDocument(token: string, lifecycleId: number, file: File, tag?: string, opts?: { onUploadProgress?: UploadProgressHandler }) {
   const form = new FormData();
   form.append('file', file);
   if (tag?.trim()) form.append('tag', tag.trim());
-  const res = await fetch(
-    `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/documents`,
-    {
-      method: 'POST',
-      headers: authHeaders(token) as Record<string, string>,
-      body: form,
-    },
-  );
+  const url = `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/documents`;
+  if (opts?.onUploadProgress) {
+    try {
+      return await xhrWithProgress<{
+        document: MktAiDocumentRow;
+        error?: string;
+        message?: string;
+      }>({
+        url,
+        method: 'POST',
+        headers: authHeaders(token) as Record<string, string>,
+        body: form,
+        onUploadProgress: opts.onUploadProgress,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: authHeaders(token) as Record<string, string>,
+    body: form,
+  });
   const body = await parseJson<{
     document: MktAiDocumentRow;
     error?: string;
@@ -361,17 +378,29 @@ export async function uploadMktAiDocument(token: string, lifecycleId: number, fi
   return body;
 }
 
-export async function uploadMktAiBrief(token: string, lifecycleId: number, file: File) {
+export async function uploadMktAiBrief(token: string, lifecycleId: number, file: File, opts?: { onUploadProgress?: UploadProgressHandler }) {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(
-    `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/brief/upload`,
-    {
-      method: 'POST',
-      headers: authHeaders(token) as Record<string, string>,
-      body: form,
-    },
-  );
+  const url = `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/brief/upload`;
+  if (opts?.onUploadProgress) {
+    try {
+      return await xhrWithProgress<MktAiBriefUploadResult & { error?: string; message?: string }>({
+        url,
+        method: 'POST',
+        headers: authHeaders(token) as Record<string, string>,
+        body: form,
+        onUploadProgress: opts.onUploadProgress,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: authHeaders(token) as Record<string, string>,
+    body: form,
+  });
   const body = await parseJson<MktAiBriefUploadResult & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.message ?? body.error ?? 'Brief upload failed', res.status);
@@ -383,6 +412,7 @@ export async function patchMktAiBrief(
   token: string,
   lifecycleId: number,
   body: Partial<MktAiBrief>,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<{
   brief: MktAiBrief;
   brief_validation: MktAiBriefValidation;

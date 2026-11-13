@@ -1,4 +1,5 @@
 import { API_BASE, ApiError, parseJson } from './api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 export class ResearchApiError extends ApiError {
   constructor(
@@ -1198,6 +1199,7 @@ export async function attachResearchInsightTheme(
   token: string,
   insightId: number,
   taxonomyId: number,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<ResearchInsight> {
   return researchFetch(token, `/api/v1/research/insights/${insightId}/themes`, {
     method: 'POST',
@@ -1316,6 +1318,7 @@ export async function importResearchSurvey(
   token: string,
   projectId: number,
   formData: FormData,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<SurveyImportResult> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/import-survey`, {
     method: 'POST',
@@ -1411,6 +1414,7 @@ export async function attachResearchInsightEvidence(
   token: string,
   insightId: number,
   evidenceIds: number[],
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<ResearchInsight> {
   return researchFetch(token, `/api/v1/research/insights/${insightId}/attach-evidence`, {
     method: 'POST',

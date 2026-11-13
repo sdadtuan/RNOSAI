@@ -13,17 +13,21 @@ import {
   type QtSettings,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export function QtCatalogImportPanel({
   importing = false,
   notice = '',
   error = '',
   onImport,
+  progressView,
 }: {
   importing?: boolean;
   notice?: string;
   error?: string;
   onImport?: (file: File) => void | Promise<void>;
+  progressView?: React.ReactNode;
 }) {
   return (
     <section className={`qt-card qt-catalog-import${error ? ' qt-card--error' : ''}`}>
@@ -43,6 +47,7 @@ export function QtCatalogImportPanel({
             event.target.value = '';
           }}
         />
+            {progressView}
       </label>
       <button type="button" className="qt-btn" disabled>
         {importing ? 'Đang nhập…' : 'Nhập catalog'}
@@ -124,6 +129,7 @@ export function QtSettingsForm({
   importError = '',
   onSubmit,
   onImportCatalog,
+  importProgressView,
 }: {
   settings: QtSettings;
   tab?: QtSettingsTabId;
@@ -133,6 +139,7 @@ export function QtSettingsForm({
   importError?: string;
   onSubmit?: (form: FormData) => void | Promise<void>;
   onImportCatalog?: (file: File) => void | Promise<void>;
+  importProgressView?: React.ReactNode;
 }) {
   const active = asSettingsTab(tab);
 
@@ -292,6 +299,7 @@ export function QtSettingsForm({
           notice={importNotice}
           error={importError}
           onImport={onImportCatalog}
+          progressView={importProgressView}
         />
       </div>
 
@@ -385,6 +393,7 @@ export function QtSettingsChrome({
   importNotice = '',
   importError = '',
   onRetry,
+  importProgressView,
 }: {
   settings: QtSettings | null;
   tab?: QtSettingsTabId;
@@ -399,6 +408,7 @@ export function QtSettingsChrome({
   onSubmit?: (form: FormData) => void | Promise<void>;
   onImportCatalog?: (file: File) => void | Promise<void>;
   onRetry?: () => void;
+  importProgressView?: React.ReactNode;
 }) {
   const active = asSettingsTab(tab);
   return (
@@ -444,6 +454,7 @@ export function QtSettingsChrome({
           importError={importError}
           onSubmit={onSubmit}
           onImportCatalog={onImportCatalog}
+          importProgressView={importProgressView}
         />
       ) : !loading ? (
         <p className="qt-empty">{dash(null)}</p>
@@ -463,6 +474,7 @@ export function QtSettings() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [importing, setImporting] = useState(false);
+  const qtImport = useUploadProgress();
   const [importNotice, setImportNotice] = useState('');
 
   const load = useCallback(async () => {
@@ -527,6 +539,7 @@ export function QtSettings() {
       importing={importing}
       importNotice={importNotice}
       importError={error}
+      importProgressView={qtImport.view}
       onImportCatalog={async (file) => {
         const token = getAccessToken();
         if (!token) {

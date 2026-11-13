@@ -7,6 +7,8 @@ import {
   leadPartyLogoUrl,
   uploadLeadPartyLogo,
 } from '@/lib/api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export type LeadPartyFormValue = {
   company_name: string;
@@ -50,6 +52,7 @@ export function LeadPartyCard({
   layout?: 'card' | 'inline';
 }) {
   const [logoBusy, setLogoBusy] = useState(false);
+  const logoUpload = useUploadProgress();
   const [logoError, setLogoError] = useState('');
   const [pickedLogoName, setPickedLogoName] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -88,13 +91,18 @@ export function LeadPartyCard({
     setLogoBusy(true);
     setLogoError('');
     try {
-      const lead = await uploadLeadPartyLogo(token, leadId, file);
+      const lead = await logoUpload.run((onUploadProgress) =>
+        uploadLeadPartyLogo(token, leadId, file, { onUploadProgress }),
+      );
+      pushToast('Đã tải logo khách hàng.', 'success');
       onChange({
         ...value,
         logo_asset_id: String(lead.logo_asset_id ?? ''),
       });
     } catch (caught) {
-      setLogoError(caught instanceof Error ? caught.message : 'Không tải được logo');
+      const msg = caught instanceof Error ? caught.message : 'Không tải được logo';
+      setLogoError(msg);
+      pushToast(msg, 'error');
     } finally {
       setLogoBusy(false);
     }
@@ -210,8 +218,9 @@ export function LeadPartyCard({
             disabled={disabled || logoBusy || !leadId}
             onClick={() => logoInputRef.current?.click()}
           >
-            {logoBusy ? 'Đang tải…' : 'Chọn file'}
+            {logoUpload.label(logoBusy ? 'Đang tải…' : 'Chọn file')}
           </button>
+          {logoUpload.view}
           <span className="qt-muted">
             {pickedLogoName || (value.logo_asset_id ? 'Đã có logo' : 'Chưa chọn file')}
           </span>

@@ -587,11 +587,21 @@ html.ops-shell-bitrix .btn-ghost:focus-visible {
 }
 
 html.ops-shell-bitrix .btn:disabled,
-html.ops-shell-bitrix .btn-primary:disabled,
 html.ops-shell-bitrix .btn-secondary:disabled {
-  opacity: 0.4;
+  opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* Primary disabled stays a clear greyed-green (0.4 on white looked like a missing button). */
+html.ops-shell-bitrix .btn-primary:disabled,
+html.ops-shell-bitrix .btn.btn-primary:disabled {
+  opacity: 1;
+  background: #8fbf9a;
+  color: #fff;
+  cursor: not-allowed;
+  box-shadow: none;
+  border: 1px solid #5e8f6c;
 }
 
 html.ops-shell-bitrix .btn-sm {

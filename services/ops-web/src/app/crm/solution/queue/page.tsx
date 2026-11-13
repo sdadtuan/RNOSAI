@@ -27,6 +27,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
+import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 function statusLabel(row: SolutionQueueRow): string {
   if (row.queue_kind === 'am_rework') return 'Trả lại — cần chỉnh';
@@ -189,16 +190,8 @@ export default function CrmSolutionQueuePage() {
         }
       />
 
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {message ? (
-        <div className="lead-alert lead-alert--success" role="status">
-          {message}
-        </div>
-      ) : null}
+      <ActionErrorToast message={error} />
+      <ActionSuccessToast message={message} />
 
       {aeTrackOnly ? (
         <p className="muted" style={{ marginTop: 0 }}>

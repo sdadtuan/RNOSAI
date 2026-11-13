@@ -23,11 +23,14 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const SELF_CATEGORIES = new Set(['education', 'cert', 'license', 'medical', 'family', 'other']);
 
 function MyWalletPanel({ token }: { token: string }) {
   const [cards, setCards] = useState<HrDocWalletCardDto[]>([]);
+  const walletUpload = useUploadProgress();
   const [types, setTypes] = useState<HrDocTypeDto[]>([]);
   const [walletPct, setWalletPct] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,7 +88,7 @@ function MyWalletPanel({ token }: { token: string }) {
   async function handleUpload(cardId: number, file: File) {
     setError('');
     try {
-      await uploadHrMyWalletFile(token, cardId, file);
+      await walletUpload.run((onUploadProgress) => uploadHrMyWalletFile(token, cardId, file, { onUploadProgress }));
       await load();
       setUploadCardId(null);
     } catch (err) {

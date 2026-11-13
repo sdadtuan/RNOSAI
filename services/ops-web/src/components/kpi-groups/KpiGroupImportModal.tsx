@@ -7,6 +7,8 @@ import {
   type KpiGroupImportPreviewRow,
 } from '@/lib/kpi-group-import.util';
 import { importKpiGroups, type ImportKpiGroupsResult } from '@/lib/kpi-groups-api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type KpiGroupImportModalProps = {
   open: boolean;
@@ -29,6 +31,7 @@ export function KpiGroupImportModal({
   const [headerError, setHeaderError] = useState('');
   const [fileName, setFileName] = useState('');
   const [busy, setBusy] = useState(false);
+  const kpiImport = useUploadProgress();
   const [result, setResult] = useState<ImportKpiGroupsResult | null>(null);
   const [err, setErr] = useState('');
 
@@ -129,6 +132,7 @@ export function KpiGroupImportModal({
               hidden
               onChange={(e) => void onPickFile(e.target.files?.[0])}
             />
+            {kpiImport.view}
           </div>
 
           {fileName ? (

@@ -14,6 +14,8 @@ import {
   type SalesKitRuntimeDto,
 } from '@/lib/api';
 import { intakeServiceLabel, PILOT_SERVICE_SLUGS } from '@/lib/crm/intake-service-resolve';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const ORG_KINDS = ['qa', 'battle-cards', 'cases', 'pricing'] as const;
 const ORG_ROOTS = [...PILOT_SERVICE_SLUGS, '_common'] as const;
@@ -38,6 +40,7 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
   const [files, setFiles] = useState<IntakeSalesKitFileRow[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const kitUpload = useUploadProgress();
   const [dragOver, setDragOver] = useState(false);
   const [runtime, setRuntime] = useState<SalesKitRuntimeDto | null>(null);
   const [modeBusy, setModeBusy] = useState(false);
@@ -93,7 +96,7 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
     setBusy(true);
     setError('');
     try {
-      await uploadIntakeSalesKitFile(token, { file, folder_key: folder });
+      await kitUpload.run((onUploadProgress) => uploadIntakeSalesKitFile(token, { file, folder_key: folder }, { onUploadProgress }));
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload thất bại');
@@ -205,6 +208,7 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
         >
           <span>Kéo xlsx / pdf / ảnh vào đây hoặc chọn file</span>
           <input type="file" accept={ACCEPT} disabled={busy} onChange={onFileInput} />
+            {kitUpload.view}
         </label>
 
         <div className="data-table-wrap">

@@ -10,6 +10,8 @@ import {
 import { canWriteGtmCms } from '@/lib/gtm/caps';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken } from '@/lib/auth';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type MediaTabProps = {
   user: StoredStaffUser;
@@ -27,6 +29,7 @@ export function MediaTab({ user, onToast }: MediaTabProps) {
   const [rows, setRows] = useState<CmsMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const mediaUpload = useUploadProgress();
   const [uploadAltVi, setUploadAltVi] = useState('');
   const [uploadAltEn, setUploadAltEn] = useState('');
   const [uploadCredit, setUploadCredit] = useState('');
@@ -55,11 +58,11 @@ export function MediaTab({ user, onToast }: MediaTabProps) {
     if (!token) return;
     setBusy(true);
     try {
-      await uploadCmsMedia(token, file, {
+      await mediaUpload.run((onUploadProgress) => uploadCmsMedia(token, file, {
         alt_vi: uploadAltVi || undefined,
         alt_en: uploadAltEn || undefined,
         credit: uploadCredit || undefined,
-      });
+      }, { onUploadProgress }));
       onToast('Đã upload media');
       setUploadAltVi('');
       setUploadAltEn('');
@@ -132,6 +135,7 @@ export function MediaTab({ user, onToast }: MediaTabProps) {
                 disabled={busy}
                 onChange={(e) => void handleUpload(e.target.files?.[0] ?? null)}
               />
+            {mediaUpload.view}
             </label>
           </div>
         </div>

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { importServiceKpiActuals } from '@/lib/service-kpi-api';
 import { parseActualImportCsv } from '@/lib/service-kpi-csv';
 import type { ImportActualResult } from '@/lib/service-kpi-types';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type Props = {
   open: boolean;
@@ -21,6 +23,7 @@ export function ServiceKpiActualImportDrawer({ open, token, onClose, onImported 
   const [csvText, setCsvText] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const kpiCsvUpload = useUploadProgress();
   const [result, setResult] = useState<ImportActualResult | null>(null);
 
   useEffect(() => {
@@ -105,6 +108,7 @@ export function ServiceKpiActualImportDrawer({ open, token, onClose, onImported 
           <label className="kpi-hub-field">
             <span>Chọn file CSV</span>
             <input type="file" accept=".csv,text/csv" onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+            {kpiCsvUpload.view}
           </label>
           {previewCount ? <p className="kpi-hub-muted">{previewCount} dòng sẽ import</p> : null}
           {error ? <p className="kpi-hub-form-error">{error}</p> : null}

@@ -8,6 +8,8 @@ import {
   exportLeadsXlsx,
   importLeadsXlsx,
 } from '@/lib/api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 interface Props {
   token: string;
@@ -33,6 +35,7 @@ export function CrmLeadsImportExport({
   const [busy, setBusy] = useState<'template' | 'export-all' | 'export-selected' | 'import' | null>(
     null,
   );
+  const importUpload = useUploadProgress();
   const [importSummary, setImportSummary] = useState<LeadImportResult | null>(null);
 
   async function onDownloadTemplate() {
@@ -73,7 +76,7 @@ export function CrmLeadsImportExport({
     setImportSummary(null);
     onError('');
     try {
-      const result = await importLeadsXlsx(token, file);
+      const result = await importUpload.run((onUploadProgress) => importLeadsXlsx(token, file, { onUploadProgress }));
       setImportSummary(result);
       if (result.created > 0) onImported();
       if (result.errors.length > 0) {
@@ -87,6 +90,12 @@ export function CrmLeadsImportExport({
     }
   }
 
+  const uploadStatus = (
+    <>
+      {importUpload.view}
+      {importUpload.uploading ? <p className="muted">{importUpload.label()}</p> : null}
+    </>
+  );
   const fileInput = canImport ? (
     <input
       ref={fileRef}
@@ -159,7 +168,7 @@ export function CrmLeadsImportExport({
         >
           {busy === 'export-selected' ? 'Đang xuất…' : `Export đã chọn (${selectedIds.length})`}
         </button>
-        {fileInput}
+        <>{fileInput}{uploadStatus}</>
         {summary}
         {wizard}
       </div>

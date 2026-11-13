@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchEntityTimeline } from '@/lib/ai-api';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   'lead.ingested': 'Lead ingest',
@@ -93,12 +94,7 @@ export function LeadEntityTimelinePanel({ token, leadId }: { token: string; lead
 
       {loading ? <p className="lead-empty-state">Đang tải timeline…</p> : null}
 
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          <strong>Timeline</strong>
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <ActionErrorToast message={error ? `Timeline: ${error}` : ''} />
 
       {!loading && !error && !events.length ? (
         <p className="lead-empty-state">

@@ -12,6 +12,7 @@ import {
   transferLeadQuoteCase,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 function when(value: string): string {
   const ms = Date.parse(value);
@@ -203,11 +204,7 @@ export function QuoteCasePanel({
           {quote.ceo_escalation.since ? ` từ ${when(quote.ceo_escalation.since)}` : ''}.
         </div>
       ) : null}
-      {localError ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {localError}
-        </div>
-      ) : null}
+      <ActionErrorToast message={localError} />
       {quote.change_note ? (
         <p>
           <strong>CEO từ chối:</strong> {quote.change_note}

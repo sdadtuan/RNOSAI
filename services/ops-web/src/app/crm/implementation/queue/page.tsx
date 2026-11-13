@@ -15,6 +15,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 export default function CrmImplementationQueuePage() {
   const router = useRouter();
@@ -112,16 +113,8 @@ export default function CrmImplementationQueuePage() {
         title="Hàng chờ Triển khai (MKL)"
         subtitle="Lead đã GDKD duyệt hợp đồng — Marketing Leader nhận case trong 15 phút."
       />
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {message ? (
-        <div className="lead-alert lead-alert--success" role="status">
-          {message}
-        </div>
-      ) : null}
+      <ActionErrorToast message={error} />
+      <ActionSuccessToast message={message} />
       {loading ? <p>Đang tải…</p> : null}
       {!loading && rows.length === 0 ? <p>Không có case Triển khai đang chờ.</p> : null}
       <ul className="solution-queue-list">

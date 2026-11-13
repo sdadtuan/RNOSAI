@@ -4370,8 +4370,58 @@ html.ops-shell-bitrix .win-home__scope {
 .solution-desk__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
+  gap: 0.5rem 0.65rem;
+  align-items: flex-start;
+}
+
+.solution-desk__tra-sales-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.solution-desk__tra-sales-wrap {
+  display: inline-flex;
+}
+
+.solution-desk__disabled-reason {
+  margin: 0;
+  flex-basis: auto;
+  max-width: 22rem;
+  color: #7a4b00;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.solution-desk__upload-progress {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.15rem 0 0.25rem;
+}
+
+.solution-desk__upload-progress p {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #17692f;
+  font-variant-numeric: tabular-nums;
+}
+
+.solution-desk__upload-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #e7f5eb;
+  overflow: hidden;
+}
+
+.solution-desk__upload-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #17692f;
+  transition: width 0.16s ease-out;
 }
 
 .quote-case-timer {
@@ -26512,3 +26562,162 @@ html.rs-mobile-chrome .crm-leads-signal {
   border-radius: 0.75rem;
 }
 
+
+
+/* Shared CRM toasts — bottom-right, stacked. Error: white bg, red text. */
+.ops-toast-stack.email-toast-stack,
+.email-toast-stack {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 0.55rem;
+  max-width: min(420px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.ops-toast,
+.email-toast.ops-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.85rem 0.75rem 0.85rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid #eadfdf;
+  border-left-width: 4px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(28, 25, 23, 0.14);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #1f291f;
+}
+
+.ops-toast--error,
+.email-toast--error.ops-toast {
+  background: #fff;
+  color: #b42318;
+  border-color: #f0c2c0;
+  border-left-color: #d92d20;
+}
+
+.ops-toast--success,
+.email-toast--success.ops-toast {
+  background: #fff;
+  color: #17692f;
+  border-color: #c9e6d0;
+  border-left-color: #17692f;
+}
+
+.ops-toast--info,
+.email-toast--info.ops-toast {
+  background: #fff;
+  color: #1f3b2a;
+  border-color: #d8e0d4;
+  border-left-color: #3b6d4a;
+}
+
+.ops-toast__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.05rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ops-toast--error .ops-toast__icon {
+  background: #d92d20;
+  color: #fff;
+}
+
+.ops-toast--success .ops-toast__icon {
+  background: #17692f;
+  color: #fff;
+}
+
+.ops-toast--info .ops-toast__icon {
+  background: #3b6d4a;
+  color: #fff;
+}
+
+.ops-toast__msg {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.ops-toast__close {
+  flex-shrink: 0;
+  margin: -0.25rem -0.2rem 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+}
+
+.ops-toast__close:hover,
+.ops-toast__close:focus-visible {
+  opacity: 1;
+}
+
+/* Shared file-upload progress (same pattern as Solution desk Trả Sales). */
+.file-upload-progress,
+.solution-desk__upload-progress {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.15rem 0 0.25rem;
+}
+
+.file-upload-progress p,
+.solution-desk__upload-progress p {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #17692f;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-upload-progress__bar,
+.solution-desk__upload-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #e7f5eb;
+  overflow: hidden;
+}
+
+.file-upload-progress__bar > span,
+.solution-desk__upload-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #17692f;
+  transition: width 0.16s ease-out;
+}
+
+
+/* Disabled primary: greyed green, always readable — do not wash out to near-invisible. */
+.btn-primary:disabled,
+.btn.btn-primary:disabled {
+  opacity: 1;
+  background: #8fbf9a;
+  color: #fff;
+  cursor: not-allowed;
+  box-shadow: none;
+  border: 1px solid #5e8f6c;
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchLeadDeliveryKpi, type LeadDeliveryKpi as DeliveryKpi } from '@/lib/api';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 function hoursLabel(value: number): string {
   return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value)} giờ`;
@@ -38,11 +39,7 @@ export function LeadDeliveryKpi({ token, leadId }: { token: string; leadId: numb
           {data ? ` tháng ${data.month}/${data.year}` : ''}: {data?.metric_name ?? 'Giờ triển khai báo giá'}.
         </p>
       </header>
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {error}
-        </div>
-      ) : null}
+      <ActionErrorToast message={error} />
       {!data && !error ? <p className="muted">Đang ghi KPI…</p> : null}
       {data && data.people.length === 0 ? <p className="muted">Chưa có nhân sự được gán trên báo giá.</p> : null}
       {data?.people.map((person) => (

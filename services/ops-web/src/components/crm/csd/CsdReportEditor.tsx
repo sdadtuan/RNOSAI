@@ -10,6 +10,8 @@ import {
   type CsdReportSection,
   type CsdReportStatus,
 } from '@/lib/crm/csd-api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type CsdReportEditorProps = {
   report: CsdReportDetail;
@@ -185,6 +187,7 @@ export function CsdReportEditor({
   const [tab, setTab] = useState<'content' | 'versions'>('content');
   const [drafts, setDrafts] = useState(() => draftsFromReport(report));
   const [busy, setBusy] = useState(false);
+  const reportUpload = useUploadProgress();
   const [msg, setMsg] = useState('');
   const [changeComment, setChangeComment] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
@@ -480,6 +483,7 @@ export function CsdReportEditor({
                         onChange={(e) => setBlock(index, { ...block, caption: e.target.value })}
                       />
                       {canWrite && !readOnly && onUploadFile ? (
+                        <>
                         <input
                           type="file"
                           onChange={(e) => {
@@ -497,6 +501,8 @@ export function CsdReportEditor({
                             }, 'Đã tải file');
                           }}
                         />
+            {reportUpload.view}
+                        </>
                       ) : null}
                     </div>
                   ) : null}

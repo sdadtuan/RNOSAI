@@ -30,6 +30,8 @@ import {
 } from '@/lib/p13/api';
 import { canManageP13Catalog, canManageP13Holidays, p13Enabled } from '@/lib/p13/flags';
 import './catalog.css';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const LEVELS = [
   { code: 'basic', name: 'Cơ bản', rank: 1 },
@@ -64,6 +66,7 @@ export function ServiceCatalog() {
   const [gatesOnly, setGatesOnly] = useState(false);
   const [drawer, setDrawer] = useState<P13Item | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const seedUpload = useUploadProgress();
   const [importStep, setImportStep] = useState(1);
   const [importSeed, setImportSeed] = useState<unknown>(null);
   const [importSource, setImportSource] = useState<'upload' | 'repo'>('upload');
@@ -370,6 +373,7 @@ export function ServiceCatalog() {
                   setImportSeed(JSON.parse(await file.text()) as unknown);
                   setImportStep(2);
                 }} />
+            {seedUpload.view}
                 <button className="btn btn-sm" type="button" onClick={() => { setImportSource('repo'); setImportSeed(null); setImportStep(2); }}>Dùng seed trên server</button>
               </>
             ) : null}

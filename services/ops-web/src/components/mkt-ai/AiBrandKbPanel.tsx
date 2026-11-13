@@ -8,6 +8,8 @@ import {
   type MktAiDocumentRow,
 } from '@/lib/mkt-ai-planner-api';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 interface Props {
   token: string;
@@ -57,6 +59,7 @@ export function AiBrandKbPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const docUpload = useUploadProgress();
   const [toggling, setToggling] = useState(false);
   const [uploadTag, setUploadTag] = useState('');
 
@@ -70,7 +73,7 @@ export function AiBrandKbPanel({
     setUploading(true);
     onError?.('');
     try {
-      const res = await uploadMktAiDocument(token, lifecycleId, file, uploadTag.trim() || undefined);
+      const res = await docUpload.run((onUploadProgress) => uploadMktAiDocument(token, lifecycleId, file, uploadTag.trim() || undefined, { onUploadProgress }));
       await refreshDocuments();
       const tagNote = uploadTag.trim() ? ` · tag=${uploadTag.trim()}` : '';
       onMessage?.(
@@ -163,6 +166,7 @@ export function AiBrandKbPanel({
                 e.target.value = '';
               }}
             />
+            {docUpload.view}
             <div style={{ fontSize: '0.9rem' }}>
               {uploading ? 'Đang upload & index…' : 'Kéo thả hoặc bấm để chọn PDF / DOCX / PPTX / TXT'}
             </div>

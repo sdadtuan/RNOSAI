@@ -23,6 +23,8 @@ import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel } from './iwr-form
 import { iwrInboxHasApprovals, iwrInboxProject, iwrInboxStatusBadge } from './iwr-inbox';
 import { useIwrB2bProjects } from './useIwrB2bProjects';
 import { clampProgress, formatViTime, iwrItemText, parseIwrItemMeta } from './iwr-item-meta';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type IwrInboxDetailProps = {
   token: string;
@@ -73,6 +75,7 @@ export function IwrInboxDetail({ token, report, canReview, onReload, onError }: 
   const [taskOpen, setTaskOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const iwrUpload = useUploadProgress();
 
   const toRecipients = report.recipients.filter((r) => r.kind === 'to');
   const ccRecipients = report.recipients.filter((r) => r.kind === 'cc');
@@ -513,6 +516,7 @@ export function IwrInboxDetail({ token, report, canReview, onReload, onError }: 
                       if (file) void onAttach(file);
                     }}
                   />
+            {iwrUpload.view}
                 </label>
                 {EMOJIS.map((emo) => (
                   <button key={emo} type="button" className="iwr-emoji" onClick={() => setDraft((p) => `${p}${emo}`)}>

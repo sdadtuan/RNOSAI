@@ -23,6 +23,8 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export default function AdminBrandPage() {
   const router = useRouter();
@@ -33,6 +35,7 @@ export default function AdminBrandPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const brandUpload = useUploadProgress();
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
 
@@ -110,7 +113,7 @@ export default function AdminBrandPage() {
     const access = await ensureAuth();
     if (!access || !canConfigure) return;
     await withBusy(async () => {
-      await uploadBrandLogo(access, file);
+      await brandUpload.run((onUploadProgress) => uploadBrandLogo(access, file, { onUploadProgress }));
       await reload(access);
       setMsg('Đã cập nhật logo — mọi logo trong hệ thống sẽ đổi theo.');
     });
@@ -121,7 +124,7 @@ export default function AdminBrandPage() {
     const access = await ensureAuth();
     if (!access || !canConfigure) return;
     await withBusy(async () => {
-      await uploadBrandHero(access, file);
+      await brandUpload.run((onUploadProgress) => uploadBrandHero(access, file, { onUploadProgress }));
       await reload(access);
       setMsg('Đã thêm ảnh hero mới.');
     });
@@ -176,6 +179,7 @@ export default function AdminBrandPage() {
             hidden
             onChange={(e) => void onLogoPick(e.target.files?.[0])}
           />
+            {brandUpload.view}
           <button
             type="button"
             className="btn btn-primary"

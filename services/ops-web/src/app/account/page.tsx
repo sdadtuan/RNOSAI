@@ -40,6 +40,8 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 function formatDt(iso: string): string {
   try {
@@ -83,6 +85,7 @@ function AccountPageContent() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const avatarUpload = useUploadProgress();
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -152,7 +155,7 @@ function AccountPageContent() {
     setMsg('');
     try {
       const blob = await cropAvatarFileToJpeg(file);
-      await uploadStaffAvatar(token, blob);
+      await avatarUpload.run((onUploadProgress) => uploadStaffAvatar(token, blob, { onUploadProgress }));
       setMsg('Đã cập nhật ảnh đại diện.');
       await reload(token);
     } catch (err) {
@@ -418,10 +421,11 @@ function AccountPageContent() {
                           hidden
                           onChange={onPickAvatar}
                         />
+            {avatarUpload.view}
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
-                          disabled={busy}
+                          disabled={busy || avatarUpload.uploading}
                           onClick={() => fileRef.current?.click()}
                         >
                           Đổi ảnh

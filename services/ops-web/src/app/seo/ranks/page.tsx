@@ -24,6 +24,8 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { canViewSeoRanks, canWriteSeo } from '@/lib/seo/caps';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export default function SeoRanksPage() {
   return (
@@ -51,6 +53,7 @@ function SeoRanksContent() {
   const [phrase, setPhrase] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const seoUpload = useUploadProgress();
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
@@ -163,6 +166,7 @@ function SeoRanksContent() {
                 setToast('CSV imported');
                 await loadData(access, Number(customerId));
               })()} />
+            {seoUpload.view}
               <button type="button" onClick={() => fileRef.current?.click()}>Import CSV</button>
             </>
           )}

@@ -38,6 +38,8 @@ import {
   type IwrItemMeta,
   type IwrItemSeverity,
 } from './iwr-item-meta';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type Props = {
   token: string;
@@ -132,6 +134,7 @@ export function IwrWeeklyReportEditor({
   const [picked, setPicked] = useState<string[]>(report.source_report_ids ?? []);
   const [files, setFiles] = useState<IwrFileRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const iwrUpload = useUploadProgress();
   const [formError, setFormError] = useState('');
   const [lateOpen, setLateOpen] = useState(false);
   const [lateReason, setLateReason] = useState('');
@@ -487,6 +490,7 @@ export function IwrWeeklyReportEditor({
                     e.target.value = '';
                   }}
                 />
+            {iwrUpload.view}
               </label>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { API_BASE, parseJson, ApiError } from '@/lib/api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -357,9 +358,24 @@ export async function uploadHrWalletFile(
   staffId: number,
   cardId: number,
   file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<HrDocWalletFileDto> {
   const form = new FormData();
   form.append('file', file);
+  if (opts?.onUploadProgress) {
+    try {
+      return await xhrWithProgress({
+        url: `${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/files`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+        onUploadProgress: opts.onUploadProgress,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
   const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/files`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -695,9 +711,23 @@ export async function submitHrMyWalletCard(
   return body.card;
 }
 
-export async function uploadHrMyWalletFile(token: string, cardId: number, file: File): Promise<HrDocWalletFileDto> {
+export async function uploadHrMyWalletFile(token: string, cardId: number, file: File, opts?: { onUploadProgress?: UploadProgressHandler }): Promise<HrDocWalletFileDto> {
   const form = new FormData();
   form.append('file', file);
+  if (opts?.onUploadProgress) {
+    try {
+      return await xhrWithProgress({
+        url: `${API_BASE}/api/v1/hr/me/wallet/${cardId}/files`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+        onUploadProgress: opts.onUploadProgress,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
   const res = await fetch(`${API_BASE}/api/v1/hr/me/wallet/${cardId}/files`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -888,6 +918,7 @@ export async function importHrAttendanceCsv(
   token: string,
   csv: string,
   deviceId?: number,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<{ imported: number; accepted: number; duplicate: number; pending_review: number }> {
   const res = await fetch(`${API_BASE}/api/v1/hr/attendance/device/import.csv`, {
     method: 'POST',

@@ -23,6 +23,7 @@ import {
 import { sciBlocksQuoteForUser, blockingRedFlags } from '@/lib/lmp-red-flag-block.util';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 interface Props {
   leadId: number;
@@ -156,26 +157,14 @@ export function DealRoomPage({ leadId }: Props) {
         </header>
 
         {loading ? <p className="muted">Đang tải Deal Room…</p> : null}
-        {error ? (
-          <div className="lead-alert lead-alert--error" role="alert">
-            {error}
-            {!snapshot ? (
-              <p style={{ marginTop: '0.5rem' }}>
-                <Link href={`/crm/leads/${leadId}`}>Quay lại lead</Link> — cần B2 xong và bắt đầu Pre-sales.
-              </p>
-            ) : null}
-          </div>
+        {error ? <ActionErrorToast message={error} /> : null}
+        {error && !snapshot ? (
+          <p className="muted">
+            <Link href={`/crm/leads/${leadId}`}>Quay lại lead</Link> — cần B2 xong và bắt đầu Pre-sales.
+          </p>
         ) : null}
-        {gateBlockedBanner ? (
-          <div className="lead-alert lead-alert--warn" role="status">
-            Không thể tạo báo giá trực tiếp — hoàn thành checklist G4 (L1 R5) trên Deal Room trước.
-          </div>
-        ) : null}
-        {message ? (
-          <div className="lead-alert lead-alert--success" role="status">
-            {message}
-          </div>
-        ) : null}
+        <ActionErrorToast message={gateBlockedBanner ? 'Không thể tạo báo giá trực tiếp — hoàn thành checklist G4 (L1 R5) trên Deal Room trước.' : ''} />
+        <ActionSuccessToast message={message} />
 
         {snapshot && !loading ? (
           <>

@@ -26,6 +26,8 @@ import {
 import { CONSULT_CHANNEL_OPTIONS, formatChannelsBrief, parseChannelsBrief } from '@/lib/crm/consult-facts-suggest.ui';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const PLAN_FIELDS: Array<{ key: string; label: string; slot: string }> = [
   { key: 'name', label: 'Tên kế hoạch', slot: 'name' },
@@ -140,6 +142,7 @@ export function PresalesConsultPlanScreen({
   const [modelName, setModelName] = useState('');
   const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const fileUpload = useUploadProgress();
   const [suggesting, setSuggesting] = useState(false);
   const [factsReady, setFactsReady] = useState(false);
   const [goalPicks, setGoalPicks] = useState<string[]>([]);
@@ -415,11 +418,11 @@ export function PresalesConsultPlanScreen({
     }
   }
 
-  async function persistFiles(next: MktAttachment[]) {
+  async function persistFiles(next: MktAttachment[], opts?: { onUploadProgress?: (n: number) => void }) {
     setFiles(next);
     await patchLeadPresalesMarketingPlan(token, leadId, {
       strategy_framework: { mkt_files: JSON.stringify(next) },
-    });
+    }, { onUploadProgress: opts?.onUploadProgress });
   }
 
   async function onAttachFile(file: File | undefined) {
@@ -432,29 +435,37 @@ export function PresalesConsultPlanScreen({
     const blocked = solutionFileAddError(currentTotal, file.size, files.length);
     if (blocked) {
       onError?.(blocked);
+      pushToast(blocked, 'error');
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(new Error('Không đọc được file'));
-      reader.readAsDataURL(file);
-    });
     setBusy(true);
+    fileUpload.startReading();
     try {
-      await persistFiles([
-        ...files,
-        {
-          id: `${Date.now()}-${file.name}`,
-          name: file.name,
-          mime: file.type || 'application/octet-stream',
-          data_url: dataUrl,
-        },
-      ]);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ''));
+        reader.onerror = () => reject(new Error('Không đọc được file'));
+        reader.readAsDataURL(file);
+      });
+      await fileUpload.run((onUploadProgress) =>
+        persistFiles([
+          ...files,
+          {
+            id: `${Date.now()}-${file.name}`,
+            name: file.name,
+            mime: file.type || 'application/octet-stream',
+            data_url: dataUrl,
+          },
+        ], { onUploadProgress }),
+      );
       onMessage?.(`Đã đính kèm ${file.name}`);
+      pushToast(`Đã đính kèm ${file.name}`, 'success');
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Không lưu được file');
+      const msg = err instanceof Error ? err.message : 'Không lưu được file';
+      onError?.(msg);
+      pushToast(msg, 'error');
     } finally {
+      fileUpload.finish();
       setBusy(false);
     }
   }
@@ -648,13 +659,17 @@ export function PresalesConsultPlanScreen({
         <input
           type="file"
           aria-label="Đính kèm file Solutions"
-          disabled={!canEdit || busy}
+          disabled={!canEdit || busy || fileUpload.uploading}
           onChange={(event) => {
             const picked = event.target.files?.[0];
             event.target.value = '';
             void onAttachFile(picked);
           }}
         />
+        {fileUpload.uploading ? (
+          <p className="muted" data-testid="consult-plan-upload-reason">{fileUpload.label()}</p>
+        ) : null}
+        {fileUpload.view}
         <span className="client-plan-brief__hint">Tối đa 5 file, tổng dung lượng dưới 15MB. PDF, ảnh, Excel, Word.</span>
         {files.length === 0 ? (
           <span className="muted">Chưa có file.</span>

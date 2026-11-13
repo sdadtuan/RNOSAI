@@ -9,6 +9,8 @@ import {
   importLeadsXlsx,
 } from '@/lib/api';
 import { WinWizardSteps } from '@/components/win/WinWizardSteps';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type WizardMode = 'leads' | 'staff';
 
@@ -34,6 +36,7 @@ const STEP_LABELS: Record<StepId, string> = {
 export function WinExcelImportWizard({ open, mode, token, onClose, onComplete, onError }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<StepId>('template');
+  const winImport = useUploadProgress();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [leadResult, setLeadResult] = useState<LeadImportResult | null>(null);
@@ -161,6 +164,7 @@ export function WinExcelImportWizard({ open, mode, token, onClose, onComplete, o
               accept={mode === 'leads' ? '.xlsx' : '.csv,.xlsx'}
               onChange={(e) => onPickFile(e.target.files?.[0])}
             />
+            {winImport.view}
           </div>
         ) : null}
 

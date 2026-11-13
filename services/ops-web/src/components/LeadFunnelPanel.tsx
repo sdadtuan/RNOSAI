@@ -42,6 +42,7 @@ import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
 import { M1FirstCallCard } from '@/app/crm/leads/meeting-prep/M1FirstCallCard';
 import type { LeadMeetingPrepStatus } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
+import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 interface Props {
   token: string;
@@ -544,16 +545,8 @@ export function LeadFunnelPanel({
         </div>
       )}
 
-      {panelError ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {panelError}
-        </div>
-      ) : null}
-      {panelMessage ? (
-        <div className="lead-alert lead-alert--success" role="status">
-          {panelMessage}
-        </div>
-      ) : null}
+      <ActionErrorToast message={panelError} />
+      <ActionSuccessToast message={panelMessage} />
 
       {showM1Card && !hideM1Card ? (
         <M1FirstCallCard

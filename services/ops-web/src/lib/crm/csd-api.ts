@@ -1,4 +1,5 @@
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 export const CSD_TICKET_STATUSES = [
   'draft',
@@ -355,15 +356,34 @@ function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-async function csdFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+async function csdFetch<T>(token: string, path: string, init?: RequestInit & { onUploadProgress?: UploadProgressHandler }): Promise<T> {
+  const { onUploadProgress, ...restInit } = init ?? {};
   const headers: Record<string, string> = {
     ...(authHeaders(token) as Record<string, string>),
-    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+    ...((restInit.headers as Record<string, string> | undefined) ?? {}),
   };
-  if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
+  if (restInit.body && !headers['Content-Type'] && typeof restInit.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
+  if (onUploadProgress && typeof XMLHttpRequest !== 'undefined') {
+    if (restInit.body instanceof FormData) {
+      for (const k of Object.keys(headers)) if (k.toLowerCase() === 'content-type') delete headers[k];
+    }
+    try {
+      return await xhrWithProgress<T>({
+        url: `${API_BASE}${path}`,
+        method: restInit.method || 'GET',
+        headers,
+        body: (restInit.body as string | FormData | Blob | null | undefined) ?? null,
+        onUploadProgress,
+        signal: restInit.signal ?? undefined,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
+  const res = await fetch(`${API_BASE}${path}`, { ...restInit, headers, cache: 'no-store' });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.error ?? body.message ?? 'CSD request failed', res.status);
@@ -524,12 +544,14 @@ export async function uploadCsdGroupAvatar(
   token: string,
   conversationId: string,
   file: Blob,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<CsdConversationRow> {
   const form = new FormData();
   form.append('file', file, 'avatar.jpg');
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/avatar`, {
     method: 'POST',
     body: form,
+    onUploadProgress: opts?.onUploadProgress,
   });
 }
 
@@ -637,12 +659,14 @@ export async function uploadCsdConversationFile(
   token: string,
   conversationId: string,
   file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<CsdAttachmentRow> {
   const form = new FormData();
   form.append('file', file);
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/files`, {
     method: 'POST',
     body: form,
+    onUploadProgress: opts?.onUploadProgress,
   });
 }
 
@@ -1372,12 +1396,14 @@ export async function uploadCsdReportFile(
   token: string,
   reportId: string,
   file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<CsdAttachmentRow> {
   const form = new FormData();
   form.append('file', file);
   return csdFetch(token, `/api/crm/csd/reports/${reportId}/files`, {
     method: 'POST',
     body: form,
+    onUploadProgress: opts?.onUploadProgress,
   });
 }
 

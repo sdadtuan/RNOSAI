@@ -22,6 +22,8 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { canViewSeoAuthority, canWriteSeo } from '@/lib/seo/caps';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export default function SeoAuthorityPage() {
   return (

@@ -13,6 +13,8 @@ import {
   type HrDocTypeDto,
   type HrDocWalletCardDto,
 } from '@/lib/hr-employee-file-api';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type Props = {
   staffId: number;
@@ -34,6 +36,7 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
   const [activeCard, setActiveCard] = useState<HrDocWalletCardDto | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const walletUpload = useUploadProgress();
   const [saving, setSaving] = useState(false);
   const onWalletChangeRef = useRef(onWalletChange);
 
@@ -139,7 +142,7 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
     if (!activeCard) return;
     setUploading(true);
     try {
-      await uploadHrWalletFile(token, staffId, activeCard.id, file);
+      await walletUpload.run((onUploadProgress) => uploadHrWalletFile(token, staffId, activeCard.id, file, { onUploadProgress }));
       await load();
       const refreshed = (await fetchHrStaffWallet(token, staffId)).cards.find((c) => c.id === activeCard.id);
       if (refreshed) setActiveCard(refreshed);
@@ -329,7 +332,7 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
               )}
               {canEdit ? (
                 <label className="btn btn-sm btn-secondary" style={{ marginTop: '0.5rem', display: 'inline-block' }}>
-                  {uploading ? 'Đang upload…' : 'Upload file (PDF/JPG)'}
+                  {walletUpload.uploading || uploading ? walletUpload.label('Đang tải file…') : 'Upload file (PDF/JPG)'}
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
@@ -341,6 +344,7 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
                       e.target.value = '';
                     }}
                   />
+            {walletUpload.view}
                 </label>
               ) : null}
             </section>

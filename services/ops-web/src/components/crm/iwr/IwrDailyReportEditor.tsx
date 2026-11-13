@@ -55,6 +55,8 @@ import {
   type DailyReportMetrics,
   type DailyReportTemplateCode,
 } from './daily-report-template';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 type IwrDailyReportEditorProps = {
   token: string;
@@ -385,6 +387,7 @@ export function IwrDailyReportEditor({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [busy, setBusy] = useState(false);
+  const iwrUpload = useUploadProgress();
   const [lateOpen, setLateOpen] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [changeOpen, setChangeOpen] = useState(false);
@@ -1152,6 +1155,7 @@ export function IwrDailyReportEditor({
                               e.target.value = '';
                             }}
                           />
+            {iwrUpload.view}
                         </label>
                       )}
                     </div>

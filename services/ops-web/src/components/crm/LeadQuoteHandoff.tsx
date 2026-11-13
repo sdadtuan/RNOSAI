@@ -9,6 +9,7 @@ import {
   type LeadFunnelSnapshot,
   type LeadImplementationPlan,
 } from '@/lib/api';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 function vnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
@@ -125,11 +126,7 @@ export function LeadQuoteHandoff({
       <section aria-label="Kế hoạch triển khai">
         <h3>2. Kế hoạch triển khai</h3>
         {contractState !== 'signed' ? <p className="muted">Mở sau khi hợp đồng đã ký.</p> : null}
-        {planError ? (
-          <div className="lead-alert lead-alert--error" role="alert">
-            {planError}
-          </div>
-        ) : null}
+        <ActionErrorToast message={planError} />
         {contractState === 'signed' && plan && plan.groups.length === 0 ? <p>Chưa có hạng mục trong báo giá đã chốt.</p> : null}
         {plan?.groups.map((group) => (
           <div key={`${group.service_name}:${group.phase_name}`}>

@@ -14,6 +14,8 @@ import {
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import type { CsdConversationLinkItem, CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',

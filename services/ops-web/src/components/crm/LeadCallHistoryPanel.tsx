@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { fetchLeadFrSla, type LeadFrCallAttempt, type LeadFrSlaState } from '@/lib/api';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 const RESULT_VI: Record<string, string> = {
   ring_no_answer: 'Không nghe máy',
@@ -90,7 +91,7 @@ export function LeadCallHistoryPanel({ token, leadId }: { token: string; leadId:
         <h3 className="lead-panel__title">Lịch sử cuộc gọi</h3>
       </div>
       {loading ? <p className="lead-empty-state">Đang tải…</p> : null}
-      {error ? <p className="lead-alert lead-alert--error">{error}</p> : null}
+      <ActionErrorToast message={error} />
       {!loading && !error && attempts.length === 0 ? (
         <p className="lead-empty-state">Chưa có cuộc gọi được ghi nhận.</p>
       ) : null}

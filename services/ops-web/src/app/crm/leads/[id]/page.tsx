@@ -136,6 +136,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 type LeadDetailTab = 'detail' | 'history' | 'ai';
 type B2bOverviewTab = 'overview' | 'consult';
@@ -286,6 +287,8 @@ export default function CrmLeadDetailPage() {
   const [cockpitOpen, setCockpitOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const funnelReqIdRef = useRef(0);
+  const funnelAbortRef = useRef<AbortController | null>(null);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled() && Boolean(funnelSnap?.presales_ai_configured);
@@ -463,19 +466,28 @@ export default function CrmLeadDetailPage() {
 
   const reloadFunnel = useCallback(async (access: string) => {
     if (!showB2bFlow) return;
+    const reqId = ++funnelReqIdRef.current;
+    funnelAbortRef.current?.abort();
+    const ac = new AbortController();
+    funnelAbortRef.current = ac;
     let funnelIntake: IntakeSessionRow[] = [];
     try {
-      const snap = await fetchLeadFunnel(access, leadId);
+      const snap = await fetchLeadFunnel(access, leadId, { signal: ac.signal });
+      if (reqId !== funnelReqIdRef.current) return;
       setFunnelSnap(snap);
       funnelIntake = (snap.intake_sessions ?? []) as IntakeSessionRow[];
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       /* funnel optional until B2 complete */
     }
+    if (reqId !== funnelReqIdRef.current) return;
     try {
       const [sessions, gateOut] = await Promise.all([
         fetchIntakeSessions(access, { lead_id: leadId }).catch(() => [] as IntakeSessionRow[]),
         fetchLeadPresalesConsultGate(access, leadId).catch(() => null),
       ]);
+      if (reqId !== funnelReqIdRef.current) return;
       const merged = sessions.length ? sessions : funnelIntake;
       setIntakeSummary(summarizeLeadIntake(merged));
       setConsultGate(
@@ -488,10 +500,21 @@ export default function CrmLeadDetailPage() {
         },
       );
     } catch {
+      if (reqId !== funnelReqIdRef.current) return;
       setIntakeSummary(null);
       setConsultGate(null);
     }
   }, [leadId, showB2bFlow]);
+
+  const applyFunnelFromMutation = useCallback((funnel: LeadFunnelSnapshot) => {
+    funnelReqIdRef.current += 1;
+    funnelAbortRef.current?.abort();
+    setFunnelSnap(funnel);
+    const access = getAccessToken();
+    if (access) void reloadFunnel(access);
+  }, [reloadFunnel]);
+
+
 
   const selectWorkspaceTab = useCallback((tab: LeadWorkspaceDesktopTab) => {
     userPickedWorkspaceTab.current = true;
@@ -810,7 +833,7 @@ export default function CrmLeadDetailPage() {
         setError('');
         try {
           const out = await claimLeadSolution(token, leadId);
-          setFunnelSnap(out.funnel);
+          applyFunnelFromMutation(out.funnel);
           setMessage('Đã claim Solution');
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Claim Solution thất bại');
@@ -825,7 +848,7 @@ export default function CrmLeadDetailPage() {
         setError('');
         try {
           const out = await releaseLeadToSales(token, leadId);
-          setFunnelSnap(out.funnel);
+          applyFunnelFromMutation(out.funnel);
           setMessage('Đã trả Sales');
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Trả Sales thất bại');
@@ -834,7 +857,7 @@ export default function CrmLeadDetailPage() {
         }
       }
     },
-    [catalogServices, leadId, onNbaAction, presetServiceSlug],
+    [catalogServices, leadId, onNbaAction, presetServiceSlug, applyFunnelFromMutation],
   );
 
   const reloadStatusOptions = useCallback(async (access: string) => {
@@ -1401,11 +1424,7 @@ export default function CrmLeadDetailPage() {
         ]}
       >
         {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
-        {error ? (
-          <div className="lead-alert lead-alert--error" role="alert">
-            {error}
-          </div>
-        ) : null}
+        <ActionErrorToast message={error} />
         {lead && !loading && accessToken ? (
           <div style={{ display: 'grid', gap: '1rem' }}>
             <h1 style={{ margin: 0, fontSize: '1.25rem' }}>
@@ -1502,16 +1521,8 @@ export default function CrmLeadDetailPage() {
       ) : null}
 
       {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {message ? (
-        <div className="lead-alert lead-alert--success" role="status">
-          {message}
-        </div>
-      ) : null}
+      <ActionErrorToast message={error} />
+      <ActionSuccessToast message={message} />
       {copilotMessage ? <p className="lead-copilot-hint">{copilotMessage}</p> : null}
 
       {lead && !loading && solutionCaps.canView && !solutionDesk ? (
@@ -1784,7 +1795,7 @@ export default function CrmLeadDetailPage() {
                 lead={lead}
                 party={party}
                 funnel={funnelSnap}
-                onFunnelChange={setFunnelSnap}
+                onFunnelChange={applyFunnelFromMutation}
                 onMessage={setMessage}
                 onError={setError}
               />

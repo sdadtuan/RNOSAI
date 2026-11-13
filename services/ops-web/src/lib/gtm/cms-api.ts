@@ -1,4 +1,5 @@
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -205,6 +206,7 @@ export async function uploadCmsMedia(
   token: string,
   file: File,
   meta?: { alt_vi?: string; alt_en?: string; credit?: string },
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<CmsMediaRow> {
   const form = new FormData();
   form.append('file', file);

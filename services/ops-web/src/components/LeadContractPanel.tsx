@@ -23,6 +23,7 @@ import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { normalizeAgencyClientId } from '@/lib/crm/funnel-snapshot.util';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
 
 interface Props {
   token: string;
@@ -214,11 +215,7 @@ export function LeadContractPanel({
       }}
     >
       <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Hợp đồng → Service Delivery</h3>
-      {panelError ? (
-        <div className="lead-alert lead-alert--error" role="alert" style={{ marginBottom: '0.75rem' }}>
-          {panelError}
-        </div>
-      ) : null}
+      <ActionErrorToast message={panelError} />
       <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
         AM tạo draft → submit → GDKD duyệt → lifecycle Onboard (2 bước phê duyệt)
       </p>

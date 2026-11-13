@@ -1,5 +1,6 @@
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
 import type { GtmSlaTone } from './caps';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -158,7 +159,7 @@ export type GtmImportResult = {
   errors: Array<{ row: number; message: string }>;
 };
 
-export async function importGtmDemoRequests(token: string, file: File): Promise<GtmImportResult> {
+export async function importGtmDemoRequests(token: string, file: File, opts?: { onUploadProgress?: UploadProgressHandler }): Promise<GtmImportResult> {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${API_BASE}/api/v1/gtm/demo-requests/import`, {

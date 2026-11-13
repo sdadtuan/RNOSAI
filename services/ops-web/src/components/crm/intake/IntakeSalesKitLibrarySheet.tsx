@@ -9,6 +9,8 @@ import {
 } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth';
 import { intakeServiceLabel, PILOT_SERVICE_SLUGS } from '@/lib/crm/intake-service-resolve';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 const ORG_KINDS = ['qa', 'battle-cards', 'cases', 'pricing'] as const;
 const ORG_ROOTS = [...PILOT_SERVICE_SLUGS, '_common'] as const;
@@ -44,6 +46,7 @@ export function IntakeSalesKitLibrarySheet({
   const [browseFolder, setBrowseFolder] = useState(orgFolder);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const kitUpload = useUploadProgress();
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
@@ -91,12 +94,12 @@ export function IntakeSalesKitLibrarySheet({
     setBusy(true);
     setError('');
     try {
-      await uploadIntakeSalesKitFile(token, {
+      await kitUpload.run((onUploadProgress) => uploadIntakeSalesKitFile(token, {
         file,
         folder_key: `session/${leadId || 0}/${sessionId}`,
         lead_id: leadId > 0 ? leadId : undefined,
         session_id: sessionId,
-      });
+      }, { onUploadProgress }));
       await reloadSession();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload túi phiên thất bại');
@@ -159,6 +162,7 @@ export function IntakeSalesKitLibrarySheet({
             disabled={!sessionId || !canEdit || busy}
             onChange={onFileInput}
           />
+            {kitUpload.view}
         </label>
 
         <ul className="intake-kit-library__files">

@@ -1,5 +1,6 @@
 import { parseB2bProjectList, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 
 export const IWR_STATUSES = [
   'draft',
@@ -399,7 +400,7 @@ export async function fetchIwrFiles(token: string, reportId: string): Promise<{ 
   return iwrFetch(token, `/api/crm/iwr/reports/${reportId}/files`);
 }
 
-export async function uploadIwrFile(token: string, reportId: string, file: File): Promise<IwrFileRow> {
+export async function uploadIwrFile(token: string, reportId: string, file: File, opts?: { onUploadProgress?: UploadProgressHandler }): Promise<IwrFileRow> {
   const data = new FormData();
   data.append('file', file);
   const res = await fetch(`${API_BASE}/api/crm/iwr/reports/${reportId}/files`, {

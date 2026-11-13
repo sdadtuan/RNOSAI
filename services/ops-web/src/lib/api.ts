@@ -1,4 +1,6 @@
 import type { StaffSectionCap, StoredStaffUser } from './auth';
+import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
+export type { UploadProgressHandler } from '@/lib/http-upload';
 
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
@@ -456,18 +458,16 @@ export async function revokeStaffSessionsAll(token: string): Promise<{ ok: boole
 export async function uploadStaffAvatar(
   token: string,
   blob: Blob,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<{ ok: boolean; has_avatar: boolean; avatar_updated_at: string }> {
   const form = new FormData();
   form.append('file', blob, 'avatar.jpg');
-  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/avatar`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: form,
-  });
-  const body = await parseJson<{ ok?: boolean; has_avatar?: boolean; avatar_updated_at?: string; error?: string }>(
-    res,
+  const body = await postMultipart<{ ok?: boolean; has_avatar?: boolean; avatar_updated_at?: string; error?: string }>(
+    token,
+    '/api/v1/staff/auth/account/avatar',
+    form,
+    opts,
   );
-  if (!res.ok) throw new ApiError(body.error ?? 'Tải ảnh thất bại', res.status);
   return {
     ok: true,
     has_avatar: Boolean(body.has_avatar),
@@ -697,19 +697,14 @@ export async function exportLeadsXlsx(
   await downloadBinary(token, `/api/v1/leads/export.xlsx${suffix}`, 'leads-export.xlsx');
 }
 
-export async function importLeadsXlsx(token: string, file: File): Promise<LeadImportResult> {
+export async function importLeadsXlsx(
+  token: string,
+  file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
+): Promise<LeadImportResult> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${API_BASE}/api/v1/leads/import`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: form,
-  });
-  const body = await parseJson<LeadImportResult & { error?: string; message?: string }>(res);
-  if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Import failed', res.status);
-  }
-  return body;
+  return postMultipart<LeadImportResult>(token, '/api/v1/leads/import', form, opts);
 }
 
 export interface CskhSlaTierSnapshot {
@@ -1474,19 +1469,11 @@ export async function uploadLeadPartyLogo(
   token: string,
   id: number,
   file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<LeadRow> {
   const body = new FormData();
   body.append('file', file);
-  const res = await fetch(`${API_BASE}/api/v1/leads/${id}/party-logo`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body,
-  });
-  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
-  if (!res.ok) {
-    throw new ApiError(out.error ?? out.message ?? 'Không tải được logo', res.status);
-  }
-  return out;
+  return postMultipart<LeadRow>(token, `/api/v1/leads/${id}/party-logo`, body, opts);
 }
 
 export async function deleteLeadPartyLogo(token: string, id: number): Promise<LeadRow> {
@@ -2143,8 +2130,12 @@ async function leadFunnelMutate<T>(token: string, path: string, init: RequestIni
   return body;
 }
 
-export async function fetchLeadFunnel(token: string, leadId: number): Promise<LeadFunnelSnapshot> {
-  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/funnel`, { method: 'GET' });
+export async function fetchLeadFunnel(
+  token: string,
+  leadId: number,
+  init?: { signal?: AbortSignal },
+): Promise<LeadFunnelSnapshot> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/funnel`, { method: 'GET', signal: init?.signal });
 }
 
 export async function submitLeadCareReport(
@@ -2718,6 +2709,40 @@ export async function fetchLeadPresalesMarketingPlan(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, { method: 'GET' });
 }
 
+async function leadFunnelXhr<T>(
+  token: string,
+  path: string,
+  method: string,
+  body: string | FormData,
+  onUploadProgress?: UploadProgressHandler,
+  signal?: AbortSignal,
+): Promise<T> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (typeof body === 'string') headers['Content-Type'] = 'application/json';
+  try {
+    return await xhrWithProgress<T>({
+      url: `${API_BASE}${path}`,
+      method,
+      headers,
+      body,
+      onUploadProgress,
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+    throw err;
+  }
+}
+
+async function postMultipart<T>(
+  token: string,
+  path: string,
+  form: FormData,
+  opts?: { onUploadProgress?: UploadProgressHandler; signal?: AbortSignal },
+): Promise<T> {
+  return leadFunnelXhr<T>(token, path, 'POST', form, opts?.onUploadProgress, opts?.signal);
+}
+
 export async function patchLeadPresalesMarketingPlan(
   token: string,
   leadId: number,
@@ -2728,15 +2753,22 @@ export async function patchLeadPresalesMarketingPlan(
     strategy_framework?: Record<string, string>;
     target_market_prof?: Record<string, string>;
   },
+  opts?: { onUploadProgress?: UploadProgressHandler; signal?: AbortSignal },
 ): Promise<{
     ok: boolean;
     funnel: LeadFunnelSnapshot;
     validation: { ok: boolean; messages: string[] };
     plan?: Record<string, unknown>;
   }> {
-  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, {
+  const path = `/api/v1/leads/${leadId}/presales/marketing-plan`;
+  const payload = JSON.stringify(body);
+  if (opts?.onUploadProgress && typeof XMLHttpRequest !== 'undefined') {
+    return leadFunnelXhr(token, path, 'PATCH', payload, opts.onUploadProgress, opts.signal);
+  }
+  return leadFunnelMutate(token, path, {
     method: 'PATCH',
-    body: JSON.stringify(body),
+    body: payload,
+    signal: opts?.signal,
   });
 }
 
@@ -3371,17 +3403,37 @@ export interface IntakeSessionRow {
   updated_at: string;
 }
 
-async function crmFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+export type CrmFetchInit = RequestInit & { onUploadProgress?: UploadProgressHandler };
+
+async function crmFetch<T>(token: string, path: string, init?: CrmFetchInit): Promise<T> {
+  const { onUploadProgress, ...restInit } = init ?? {};
   const headers: Record<string, string> = {
     ...(authHeaders(token) as Record<string, string>),
-    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+    ...((restInit.headers as Record<string, string> | undefined) ?? {}),
   };
-  if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
+  if (restInit.body && !headers['Content-Type'] && typeof restInit.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
+  if (onUploadProgress && typeof XMLHttpRequest !== 'undefined') {
+    try {
+      return await xhrWithProgress<T>({
+        url: `${API_BASE}${path}`,
+        method: restInit.method || 'GET',
+        headers: headers['Content-Type'] === undefined && restInit.body instanceof FormData
+          ? Object.fromEntries(Object.entries(headers).filter(([k]) => k.toLowerCase() !== 'content-type'))
+          : headers,
+        body: (restInit.body as string | FormData | Blob | null | undefined) ?? null,
+        onUploadProgress,
+        signal: restInit.signal ?? undefined,
+      });
+    } catch (err) {
+      if (err instanceof UploadHttpError) throw new ApiError(err.message, err.status);
+      throw err;
+    }
+  }
   const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    cache: init?.cache ?? 'no-store',
+    ...restInit,
+    cache: restInit.cache ?? 'no-store',
     headers,
   });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
@@ -3786,6 +3838,7 @@ export async function listIntakeSalesKitFiles(
 export async function uploadIntakeSalesKitFile(
   token: string,
   input: { file: File; folder_key: string; lead_id?: number; session_id?: number },
+  opts?: { onUploadProgress?: UploadProgressHandler },
 ): Promise<IntakeSalesKitFileRow> {
   const form = new FormData();
   form.append('file', input.file);
@@ -3795,6 +3848,7 @@ export async function uploadIntakeSalesKitFile(
   return crmFetch<IntakeSalesKitFileRow>(token, '/api/crm/intake/sales-kit/files', {
     method: 'POST',
     body: form,
+    onUploadProgress: opts?.onUploadProgress,
   });
 }
 
@@ -9475,16 +9529,24 @@ export async function fetchAdminBrand(token: string): Promise<AdminBrandResponse
   return crmFetch(token, '/api/v1/admin/brand');
 }
 
-export async function uploadBrandLogo(token: string, file: File): Promise<AdminBrandResponse> {
+export async function uploadBrandLogo(
+  token: string,
+  file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
+): Promise<AdminBrandResponse> {
   const form = new FormData();
   form.append('file', file);
-  return crmFetch(token, '/api/v1/admin/brand/logo', { method: 'POST', body: form });
+  return crmFetch(token, '/api/v1/admin/brand/logo', { method: 'POST', body: form, onUploadProgress: opts?.onUploadProgress });
 }
 
-export async function uploadBrandHero(token: string, file: File): Promise<{ id: string }> {
+export async function uploadBrandHero(
+  token: string,
+  file: File,
+  opts?: { onUploadProgress?: UploadProgressHandler },
+): Promise<{ id: string }> {
   const form = new FormData();
   form.append('file', file);
-  return crmFetch(token, '/api/v1/admin/brand/heroes', { method: 'POST', body: form });
+  return crmFetch(token, '/api/v1/admin/brand/heroes', { method: 'POST', body: form, onUploadProgress: opts?.onUploadProgress });
 }
 
 export async function activateBrandHero(token: string, id: string): Promise<AdminBrandResponse> {

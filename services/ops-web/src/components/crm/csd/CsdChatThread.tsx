@@ -23,6 +23,8 @@ import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import { CsdChatAddMembersModal } from '@/components/crm/csd/CsdChatAddMembersModal';
 import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
 import { CsdChatGroupMembersPanel } from '@/components/crm/csd/CsdChatGroupMembersPanel';
+import { useUploadProgress } from '@/components/ui/FileUploadProgress';
+import { pushToast } from '@/lib/toast';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);

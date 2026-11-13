@@ -33,6 +33,8 @@ import {
   SOLUTION_FILE_MAX_COUNT,
   solutionFileAddError,
 } from '@/lib/crm/solution-file-limit';
+import { ActionErrorToast } from '@/components/ui/ActionToast';
+import { pushToast } from '@/lib/toast';
 
 
 type Attachment = { id: string; name: string; mime: string; data_url: string };
@@ -248,6 +250,8 @@ export function SolutionCaseDesk({
   const [serviceName, setServiceName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
   const solution = funnel?.presales?.solution_case;
@@ -405,11 +409,22 @@ export function SolutionCaseDesk({
     }
   }
 
-  async function saveFiles(next: Attachment[]) {
+  async function saveFiles(next: Attachment[], opts?: { trackProgress?: boolean }) {
     setFiles(next);
-    await patchLeadPresalesMarketingPlan(token, lead.id, {
-      strategy_framework: { mkt_files: JSON.stringify(next) },
-    });
+    const out = await patchLeadPresalesMarketingPlan(
+      token,
+      lead.id,
+      { strategy_framework: { mkt_files: JSON.stringify(next) } },
+      opts?.trackProgress
+        ? {
+            onUploadProgress: (percent) => {
+              setUploadPhase('uploading');
+              setUploadProgress(percent);
+            },
+          }
+        : undefined,
+    );
+    if (out.funnel) onFunnelChange(out.funnel);
   }
 
   const canPack = handoff === 'with_solution';
@@ -448,12 +463,13 @@ export function SolutionCaseDesk({
       { id: `solution-${Date.now()}`, name: 'Solution.html', mime: 'text/html', data_url: dataUrl },
     ];
     setFiles(next);
-    await patchLeadPresalesMarketingPlan(token, lead.id, {
+    const packed = await patchLeadPresalesMarketingPlan(token, lead.id, {
       strategy_framework: {
         mkt_files: JSON.stringify(next),
         solution_pack: JSON.stringify({ problem, approach, lines }),
       },
     });
+    if (packed.funnel) onFunnelChange(packed.funnel);
     downloadSolutionHtml(html);
     onMessage?.('Đã đóng gói hồ sơ Solution.');
   }
@@ -463,6 +479,23 @@ export function SolutionCaseDesk({
     handoff === 'with_solution'
       ? solutionSubmitGaps({ lines, fileNames: files.map((file) => file.name) })
       : [];
+  const uploading = uploadPhase !== 'idle' && uploadProgress != null;
+  const uploadLabel =
+    uploadPhase === 'reading'
+      ? 'Đang đọc file…'
+      : uploading
+        ? `Đang tải file… ${uploadProgress}%`
+        : null;
+  const releaseDisabled = busy || !hasSolutionFile || submitGaps.length > 0 || uploading;
+  const releaseReason = uploading
+    ? (uploadLabel ?? 'Đang tải file…')
+    : !hasSolutionFile
+      ? 'Cần tải file Solution trước'
+      : submitGaps.length > 0
+        ? submitGaps.join(' ')
+        : busy
+          ? 'Đang xử lý…'
+          : '';
 
   return (
     <section className="solution-desk" aria-label="Hồ sơ Solution">
@@ -505,19 +538,7 @@ export function SolutionCaseDesk({
       <div className="solution-desk__cols">
       <div className="solution-desk__col">
 
-      {error ? (
-        <div className="lead-alert lead-alert--error" role="alert">
-          {error.includes('\n') ? (
-            <ul>
-              {error.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : (
-            error
-          )}
-        </div>
-      ) : null}
+      <ActionErrorToast message={error} />
 
       <div className="solution-desk__block" data-testid="solution-sales-company">
         <h3>Công ty</h3>
@@ -680,22 +701,39 @@ export function SolutionCaseDesk({
               }, 0);
               const blocked = solutionFileAddError(currentTotal, picked.size, files.length);
               if (blocked) throw new Error(blocked);
-              const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(String(reader.result ?? ''));
-                reader.onerror = () => reject(new Error('Không đọc được file'));
-                reader.readAsDataURL(picked);
-              });
-              await saveFiles([
-                ...files,
-                {
-                  id: `${Date.now()}-${picked.name}`,
-                  name: picked.name,
-                  mime: picked.type || 'application/octet-stream',
-                  data_url: dataUrl,
-                },
-              ]);
-              onMessage?.(`Đã tải ${picked.name}`);
+              setUploadPhase('reading');
+              setUploadProgress(0);
+              try {
+                const dataUrl = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onprogress = (event) => {
+                    if (event.lengthComputable && event.total > 0) {
+                      setUploadProgress(Math.min(99, Math.round((event.loaded / event.total) * 30)));
+                    }
+                  };
+                  reader.onload = () => resolve(String(reader.result ?? ''));
+                  reader.onerror = () => reject(new Error('Không đọc được file'));
+                  reader.readAsDataURL(picked);
+                });
+                setUploadPhase('uploading');
+                setUploadProgress(0);
+                await saveFiles(
+                  [
+                    ...files,
+                    {
+                      id: `${Date.now()}-${picked.name}`,
+                      name: picked.name,
+                      mime: picked.type || 'application/octet-stream',
+                      data_url: dataUrl,
+                    },
+                  ],
+                  { trackProgress: true },
+                );
+                onMessage?.(`Đã tải ${picked.name}`);
+              } finally {
+                setUploadPhase('idle');
+                setUploadProgress(null);
+              }
             });
           }}
         />
@@ -706,12 +744,28 @@ export function SolutionCaseDesk({
             disabled={busy || handoff !== 'with_solution'}
             onClick={() => solutionFileInputRef.current?.click()}
           >
-            Chọn file
+            {uploadLabel ?? 'Chọn file'}
           </button>
         </div>
-        {files.length === 0 ? (
+        {uploadLabel ? (
+          <div
+            className="solution-desk__upload-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={uploadProgress ?? 0}
+            aria-label={uploadLabel}
+            data-testid="solution-desk-upload-progress"
+          >
+            <p>{uploadLabel}</p>
+            <div className="solution-desk__upload-bar">
+              <span style={{ width: `${uploadPhase === 'reading' ? Math.max(uploadProgress ?? 0, 8) : uploadProgress ?? 0}%` }} />
+            </div>
+          </div>
+        ) : null}
+        {files.length === 0 && !uploadLabel ? (
           <p className="muted">Chưa có file Solution.</p>
-        ) : (
+        ) : files.length === 0 ? null : (
           <ul>
             {files.map((file) => (
               <li key={file.id}>
@@ -758,20 +812,41 @@ export function SolutionCaseDesk({
                   ))}
                 </ul>
               ) : null}
+              <div className="solution-desk__tra-sales-cluster">
+              <span
+                className="solution-desk__tra-sales-wrap"
+                onClick={() => {
+                  if (releaseDisabled && releaseReason) {
+                    pushToast(releaseReason, 'error');
+                  }
+                }}
+              >
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={busy || !hasSolutionFile || submitGaps.length > 0}
+                data-testid="solution-desk-tra-sales"
+                disabled={releaseDisabled}
+                aria-disabled={releaseDisabled}
+                style={{ pointerEvents: releaseDisabled ? 'none' : undefined }}
+                title={releaseReason || undefined}
                 onClick={() =>
                   void run(async () => {
                     const out = await releaseLeadToSales(token, lead.id);
                     onFunnelChange(out.funnel);
                     onMessage?.('Đã trả Sales. Khách có 8 giờ để phản hồi.');
+                    pushToast('Đã trả Sales. Khách có 8 giờ để phản hồi.', 'success');
                   })
                 }
               >
-                Trả Sales
+                {uploading ? (uploadLabel ?? 'Đang tải file…') : 'Trả Sales'}
               </button>
+              </span>
+              {releaseDisabled && releaseReason ? (
+                <p className="muted solution-desk__disabled-reason" data-testid="solution-desk-disabled-reason">
+                  {releaseReason}
+                </p>
+              ) : null}
+              </div>
             </>
           ) : null}
           {handoff === 'pending' || handoff === 'with_solution' ? (
