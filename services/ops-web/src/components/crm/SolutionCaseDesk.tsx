@@ -717,6 +717,7 @@ export function SolutionCaseDesk({
           className="sr-only"
           type="file"
           aria-label="Chọn file Solution"
+          data-testid="solution-desk-file"
           disabled={busy || handoff !== 'with_solution'}
           onChange={(event) => {
             const picked = event.target.files?.[0];
@@ -772,6 +773,7 @@ export function SolutionCaseDesk({
             className="btn btn-secondary"
             disabled={busy || handoff !== 'with_solution'}
             onClick={() => solutionFileInputRef.current?.click()}
+            data-testid="solution-desk-file-btn"
           >
             {uploadLabel ?? 'Chọn file'}
           </button>

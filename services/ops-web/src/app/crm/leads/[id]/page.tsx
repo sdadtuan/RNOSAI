@@ -75,6 +75,7 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
+import { handoffFlowStatusLabel } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelB2Complete,
@@ -377,12 +378,13 @@ export default function CrmLeadDetailPage() {
     const presalesRow = funnelSnap?.presales?.presales as
       | { solution_revision_note?: string; handoff_status?: string }
       | undefined;
-    setLeadPageNextHint({
+    const hintHandoff =
+        funnelSnap?.presales?.handoff?.status ?? presalesRow?.handoff_status ?? null;
+      setLeadPageNextHint({
       claimed,
       b2Complete,
       presalesStage,
-      handoffStatus:
-        funnelSnap?.presales?.handoff?.status ?? presalesRow?.handoff_status ?? null,
+      handoffStatus: hintHandoff,
       quotePhase: quoteCasePhase || null,
       quoteRejected: Boolean(funnelSnap?.presales?.quote_case?.change_note),
       solutionPhase: funnelSnap?.presales?.solution_case?.phase ?? null,
@@ -391,6 +393,9 @@ export default function CrmLeadDetailPage() {
         presalesRow?.solution_revision_note ||
         null,
       viewer,
+      hideBanner:
+        String(hintHandoff || '').toLowerCase() === 'pending' &&
+        (viewer === 'am' || viewer === 'admin'),
     });
   }, [
     lead,
@@ -1371,6 +1376,24 @@ export default function CrmLeadDetailPage() {
     (handoffStatus === 'pending' || handoffStatus === 'with_solution') &&
     !solutionCaps.isAeTrackOnly &&
     (solutionCaps.canClaim || solutionCaps.canEditConsult);
+  const flowStatusLabel = lead
+    ? handoffFlowStatusLabel({
+        leadStatus: lead.status || status,
+        leadCreatedAt: lead.created_at,
+        leadReceivedAt: (lead as { received_at?: string | null }).received_at,
+        handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
+        handedOffAt: funnelSnap?.presales?.handoff?.handed_off_at,
+        solutionClaimedAt: (funnelSnap?.presales?.solution_case as { claimed_at?: string } | null | undefined)?.claimed_at,
+        solutionReleasedAt:
+          (funnelSnap?.presales?.handoff as { released_at?: string; solution_released_at?: string } | undefined)?.released_at ||
+          (funnelSnap?.presales?.handoff as { solution_released_at?: string } | undefined)?.solution_released_at,
+        quotePhase: funnelSnap?.presales?.quote_case?.phase,
+        hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
+        discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
+        discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
+        returnedToSales: handoffStatus === 'returned',
+      })
+    : '';
   const pipelineReadOnly =
     status === 'won' || Boolean(contractSummary?.hasContract);
   const hideMainPane = useMobileTabs && mobileTab === 'ai';
@@ -1576,6 +1599,7 @@ export default function CrmLeadDetailPage() {
             <div className="lead-detail-identity">
             <LeadDetailHero
               hideMeta
+              statusLabel={flowStatusLabel}
               lead={lead}
               ownerLabel={ownerLabel}
               flowKind={leadFlowKind}
@@ -1633,10 +1657,11 @@ export default function CrmLeadDetailPage() {
                         statusOptionsLoading ||
                         statusDropdownOptions.length <= 1
                       }
+                      data-testid="lead-status-select"
                     >
                       {statusDropdownOptions.map((row) => (
                         <option key={row.id} value={row.id}>
-                          {row.label}
+                          {row.id === status && flowStatusLabel ? flowStatusLabel : row.label}
                         </option>
                       ))}
                     </select>

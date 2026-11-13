@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   claimLeadSolution,
   fetchCrmStaffList,
+  fetchDiscoveryOptions,
   fetchIntakeSessions,
   fetchLeadPresalesConsultBrief,
   fetchLeadPresalesMarketingPlan,
@@ -18,9 +19,13 @@ import {
   authorityLabel,
   budgetLabel,
   channelLabels,
+  discoveryIndustryLabel,
+  discoveryServiceLabel,
+  parseWebsiteBundle,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
   timelineLabel,
+  type DiscoveryOption,
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
 import {
@@ -94,7 +99,6 @@ function Field({ icon, label, value, href }: { icon: string; label: string; valu
   const empty = !value || value === '—';
   return (
     <div>
-      <dt>{label}</dt>
       <Icon d={icon} />
       <dd>
         <span className="ahd-k">{label}: </span>
@@ -157,6 +161,28 @@ function defaultDeadline(): string {
     day: '2-digit',
   }).format(d);
   return tz;
+}
+
+/** ISO yyyy-MM-dd → vi-VN dd/MM/yyyy */
+export function isoToViDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '').trim());
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** vi-VN dd/MM/yyyy → ISO yyyy-MM-dd, or null if incomplete/invalid. */
+export function viDateToIso(vi: string): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(vi || '').trim());
+  if (!m) return null;
+  const dd = m[1].padStart(2, '0');
+  const mm = m[2].padStart(2, '0');
+  const yyyy = m[3];
+  const dt = new Date(`${yyyy}-${mm}-${dd}T12:00:00+07:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  if (dt.getUTCDate() !== Number(dd) && dt.getDate() !== Number(dd)) {
+    /* still accept calendar-valid ISO strings */
+  }
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function readFiles(plan: Record<string, unknown> | null): Attachment[] {
@@ -231,6 +257,7 @@ export function AmHandoffDesk({
   const [tab, setTab] = useState<TabKey>('brief');
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
   const [deadline, setDeadline] = useState(defaultDeadline);
+  const [deadlineText, setDeadlineText] = useState(() => isoToViDate(defaultDeadline()));
   const [assignNote, setAssignNote] = useState('');
   const [internalNote, setInternalNote] = useState('');
   const [internalLog, setInternalLog] = useState<ExchangeLine[]>([]);
@@ -239,6 +266,8 @@ export function AmHandoffDesk({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<Array<{ slug?: string; value?: string; name?: string; label?: string }>>([]);
 
   const brief: SalesDiscoveryBrief | null = useMemo(
     () => readDiscoveryBriefFromAnswers(session?.answers_json) ?? null,
@@ -268,6 +297,32 @@ export function AmHandoffDesk({
   useEffect(() => {
     void load().catch((err) => setError(err instanceof Error ? err.message : 'Không tải được hồ sơ Sales.'));
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchDiscoveryOptions(token)
+      .then((opts) => {
+        if (cancelled || !opts) return;
+        const industries = (opts.industries ?? []) as DiscoveryOption[];
+        if (industries.length) setIndustryOptions(industries);
+        const groups = (opts.service_groups ?? []) as Array<{
+          services?: Array<{ slug?: string; name?: string; label?: string }>;
+          slug?: string;
+          name?: string;
+          label?: string;
+        }>;
+        const flat: Array<{ slug?: string; value?: string; name?: string; label?: string }> = [];
+        for (const g of groups) {
+          if (Array.isArray(g.services)) flat.push(...g.services);
+          else if (g.slug || g.name) flat.push(g);
+        }
+        if (flat.length) setServiceOptions(flat);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (marketingLeaders.length) setLeaders(marketingLeaders);
@@ -315,18 +370,11 @@ export function AmHandoffDesk({
   }, [consultPrefill, brief?.call_notes]);
 
   const websites = String(brief?.websites ?? '').trim();
-  let fanpage = '';
-  let tiktok = '';
-  let site = '';
-  if (websites) {
-    // parseWebsiteBundle is in sales-discovery — inline to avoid unused import issues if tree-shaken
-    for (const part of websites.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean)) {
-      const low = part.toLowerCase();
-      if (low.includes('tiktok')) tiktok = part;
-      else if (low.includes('facebook') || low.includes('fb.com') || low.includes('fanpage')) fanpage = part;
-      else if (!site) site = part;
-    }
-  }
+  const parsedSites = parseWebsiteBundle(websites);
+  const fanpage = parsedSites.fanpage;
+  const tiktok = parsedSites.tiktok;
+  const site = parsedSites.website;
+  void site;
 
   const company = dash(brief?.company_name || party?.company_name || lead.company_name || lead.full_name);
   const leadCode = lead.project_code || `LD-${lead.id}`;
@@ -429,7 +477,7 @@ export function AmHandoffDesk({
     onMessage?.('Đã ghi chú nội bộ trên màn hình (chưa đồng bộ máy chủ).');
   }
 
-  const serviceChips = (brief?.services ?? []).map((slug) => intakeServiceLabel(slug) || slug);
+  const serviceChips = (brief?.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
   const fileCount = files.length;
 
   return (
@@ -530,12 +578,19 @@ export function AmHandoffDesk({
             </h3>
             <div className="ahd-brand">
               <div className="ahd-avatar">
-                {party?.logo_url ? <img src={party.logo_url} alt="" /> : initials(String(company === '—' ? lead.full_name : company))}
+                {(party?.logo_url || (lead as { logo_url?: string }).logo_url || (party as { logo?: string } | null | undefined)?.logo) ? (
+                  <img
+                    src={party?.logo_url || (lead as { logo_url?: string }).logo_url || (party as { logo?: string }).logo}
+                    alt={String(company === '—' ? lead.full_name : company)}
+                  />
+                ) : (
+                  initials(String(company === '—' ? lead.full_name : company))
+                )}
               </div>
               <p className="ahd-brand__name">{company}</p>
             </div>
             <dl className="ahd-dl">
-              <Field icon={I.industry} label="Ngành nghề" value={dash(brief?.industry || party?.industry)} />
+              <Field icon={I.industry} label="Ngành nghề" value={dash(discoveryIndustryLabel(brief?.industry || party?.industry || '', industryOptions) || brief?.industry || party?.industry)} />
               <Field icon={I.pin} label="Địa bàn" value={dash(brief?.region || party?.address)} />
               <Field icon={I.link} label="Fanpage" value={dash(fanpage)} href={fanpage || undefined} />
               <Field icon={I.link} label="TikTok" value={dash(tiktok)} href={tiktok || undefined} />
@@ -807,11 +862,28 @@ export function AmHandoffDesk({
                 Deadline Solutions <span className="ahd-req">*</span>
               </span>
               <input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                lang="vi-VN"
+                placeholder="dd/MM/yyyy"
+                autoComplete="off"
+                value={deadlineText}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDeadlineText(v);
+                  const iso = viDateToIso(v);
+                  if (iso) setDeadline(iso);
+                }}
+                onBlur={() => {
+                  const iso = viDateToIso(deadlineText) || deadline;
+                  if (iso) {
+                    setDeadline(iso);
+                    setDeadlineText(isoToViDate(iso));
+                  }
+                }}
                 disabled={busy || !canAssign}
                 data-testid="ahd-deadline"
+                aria-label="Deadline Solutions (dd/MM/yyyy)"
               />
             </label>
             <label className="ahd-field">

@@ -1341,6 +1341,18 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     };
   }
 
+  async listIntakeAnswersForLead(leadId: number): Promise<Array<{ answers_json?: unknown }>> {
+    const sessionResult = await this.db.query(
+      `SELECT answers_json
+       FROM crm_lead_intake_sessions
+       WHERE lead_id = $1
+       ORDER BY updated_at DESC, id DESC
+       LIMIT 20`,
+      [leadId],
+    );
+    return sessionResult.rows as Array<{ answers_json?: unknown }>;
+  }
+
   async buildConsultAdvanceGate(leadId: number, presalesId: number) {
     const sessionResult = await this.db.query(
       `SELECT status, mode, decision, bant_total, answers_json

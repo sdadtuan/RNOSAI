@@ -35,7 +35,8 @@ import { isCeoPosition } from './quote-case.util';
 import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
 import { canWriteLeadContract, CONTRACT_AM_ONLY_MESSAGE } from '../leads-contract/contract-writer.util';
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
-import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack } from './presales-marketing-plan.util';
+import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack, preliminaryPlanHasSolutionFile } from './presales-marketing-plan.util';
+import { sessionHasCompleteDiscovery } from '../intake/sales-discovery.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
   buildPresalesAiPromptContext,
@@ -259,6 +260,16 @@ export class LeadsFunnelService {
     const planVal = validatePreliminaryPlan(plan);
     const packDone = hasCompletedSolutionPack(plan);
     const hasHandoff = await this.pgRepo.hasSolutionHandoffActivity(leadId, snap.presales.handed_off_at);
+    const intakeRows = await this.pgRepo.listIntakeAnswersForLead(leadId);
+    const hasCompleteDiscovery = intakeRows.some((row) => sessionHasCompleteDiscovery(row.answers_json));
+    // New flow = Sales Discovery Submit (handoff stamped) + Giao (with_solution / pending).
+    const discoveryHandoffFlow =
+      hasCompleteDiscovery &&
+      Boolean(snap.presales.handed_off_at) &&
+      (snap.presales.handoff_status === 'with_solution' ||
+        snap.presales.handoff_status === 'pending' ||
+        snap.presales.handoff_status === 'released');
+    const hasSolutionFile = preliminaryPlanHasSolutionFile(plan) || packDone;
     let positionCode: string | null = null;
     if (staffUser) {
       const me = await this.staffAuth.me(staffUser);
@@ -277,6 +288,8 @@ export class LeadsFunnelService {
       has_handoff_activity: hasHandoff,
       consult_complete: consultComplete || packDone,
       preliminary_plan_ok: planVal.ok || packDone,
+      discovery_handoff_flow: discoveryHandoffFlow,
+      has_solution_file: hasSolutionFile,
     };
   }
 

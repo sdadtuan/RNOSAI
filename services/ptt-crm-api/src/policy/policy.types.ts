@@ -18,6 +18,10 @@ export interface PolicyContext {
   has_handoff_activity?: boolean;
   consult_complete?: boolean;
   preliminary_plan_ok?: boolean;
+  /** Lead came through Sales Discovery Submit + Giao cho Marketing (new flow). */
+  discovery_handoff_flow?: boolean;
+  /** A Solution file is already stored on the preliminary plan. */
+  has_solution_file?: boolean;
   job_functions?: string[];
   permission_sets?: string[];
   gdkd_assign?: boolean;

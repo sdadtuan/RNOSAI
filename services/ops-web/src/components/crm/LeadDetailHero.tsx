@@ -29,6 +29,7 @@ export function LeadDetailHero({
   contactActions,
   party,
   hideMeta,
+  statusLabel,
 }: {
   lead: LeadRow;
   ownerLabel?: string | null;
@@ -42,8 +43,11 @@ export function LeadDetailHero({
   contactActions?: ReactNode;
   party?: ReactNode;
   hideMeta?: boolean;
+  /** Flow-aware status (Chờ Solutions / Đang làm Solutions / Chờ báo giá). */
+  statusLabel?: string | null;
 }) {
   const tone = leadStatusTone(lead.status);
+  const chipLabel = (statusLabel && statusLabel.trim()) || leadStatusLabel(lead.status);
   const created = lead.created_at?.slice(0, 10) ?? '—';
   const showActions = Boolean(contactActions) || Boolean(showCockpit) || Boolean(showAssign);
 
@@ -75,8 +79,8 @@ export function LeadDetailHero({
                 {flowLabel}
               </span>
             ) : null}
-            <span className={`lead-status-badge lead-status-badge--${tone}`}>
-              {leadStatusLabel(lead.status)}
+            <span className={`lead-status-badge lead-status-badge--${tone}`} data-testid="lead-status-badge">
+              {chipLabel}
             </span>
             {nbaTitle ? (
               <span className="lead-detail-hero__nba">{nbaTitle}</span>

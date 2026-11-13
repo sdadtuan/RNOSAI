@@ -109,6 +109,7 @@ export function nextActionFor(
   pathname: string,
   options?: { hideSaleEarly?: boolean; leadHint?: LeadPageNextHint | null },
 ): string | null {
+  if (options?.leadHint?.hideBanner) return null;
   const path = String(pathname ?? '').split('?')[0] || '/';
   if (options?.hideSaleEarly && isSaleEarlyPath(path)) {
     if (path.startsWith('/crm/leads/') && path !== '/crm/leads' && options?.leadHint) {

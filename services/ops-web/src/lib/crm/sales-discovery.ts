@@ -280,21 +280,52 @@ export function primaryServiceSlug(services: string[]): string {
 }
 
 export function parseWebsiteBundle(websites: string): { website: string; fanpage: string; tiktok: string } {
-  const tokens = asString(websites)
-    .split(/[\s,;]+/)
+  const raw = asString(websites);
+  // Pull labeled "Fanpage: …" / "TikTok: …" / "Website: …" first.
+  let labeledFanpage = '';
+  let labeledTiktok = '';
+  let labeledWebsite = '';
+  const labeled = raw.replace(
+    /(?:^|[\n;,|/·•]|\s)(?:fanpage|facebook|fb)\s*[:：]\s*(\S+)/gi,
+    (_, url: string) => {
+      if (!labeledFanpage) labeledFanpage = url;
+      return ' ';
+    },
+  ).replace(
+    /(?:^|[\n;,|/·•]|\s)(?:tiktok|tt)\s*[:：]\s*(\S+)/gi,
+    (_, url: string) => {
+      if (!labeledTiktok) labeledTiktok = url;
+      return ' ';
+    },
+  ).replace(
+    /(?:^|[\n;,|/·•]|\s)(?:website|web|site|url)\s*[:：]\s*(\S+)/gi,
+    (_, url: string) => {
+      if (!labeledWebsite) labeledWebsite = url;
+      return ' ';
+    },
+  );
+  const tokens = labeled
+    .split(/[\s,;|·•]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  let website = '';
-  let fanpage = '';
-  let tiktok = '';
+  let website = labeledWebsite;
+  let fanpage = labeledFanpage;
+  let tiktok = labeledTiktok;
   const leftover: string[] = [];
   for (const token of tokens) {
     const lower = token.toLowerCase();
-    if (!fanpage && (lower.includes('facebook.com') || lower.includes('fb.com') || lower.includes('fanpage'))) {
+    if (
+      !fanpage &&
+      (lower.includes('facebook.com') ||
+        lower.includes('fb.com') ||
+        lower.includes('fb.me') ||
+        lower.includes('fanpage') ||
+        /^fb\.com\//.test(lower))
+    ) {
       fanpage = token;
       continue;
     }
-    if (!tiktok && lower.includes('tiktok.com')) {
+    if (!tiktok && (lower.includes('tiktok.com') || lower.includes('tiktok') || lower.startsWith('@') && lower.includes('tiktok'))) {
       tiktok = token;
       continue;
     }
@@ -307,6 +338,55 @@ export function parseWebsiteBundle(websites: string): { website: string; fanpage
   if (!website && leftover.length) website = leftover.join(' ');
   else if (leftover.length) website = [website, ...leftover].filter(Boolean).join(' ');
   return { website, fanpage, tiktok };
+}
+
+export function discoveryIndustryLabel(value: string, options?: DiscoveryOption[]): string {
+  const raw = asString(value);
+  if (!raw) return '';
+  if (options?.length) {
+    const hit = options.find((row) => row.value === raw);
+    if (hit?.label) return hit.label;
+  }
+  return optionLabel(DISCOVERY_INDUSTRY_FALLBACK, raw);
+}
+
+const DISCOVERY_SERVICE_FALLBACK: Record<string, string> = {
+  'nhan-dien-thuong-hieu': 'Nhận diện thương hiệu',
+  'tiep-thi-noi-dung': 'Tiếp thị nội dung',
+  'thiet-ke-landing-page': 'Thiết kế landing page',
+  'quang-cao-facebook': 'Quảng cáo Facebook',
+  'dich-vu-seo-tong-the': 'SEO tổng thể',
+  'lead-gen': 'Lead generation',
+  'van-hanh-tmdt': 'Vận hành TMĐT',
+  'media-planning-ooh': 'Media planning / OOH',
+  'nuoi-duong-khach-hang': 'Nuôi dưỡng khách hàng',
+  'marketing-automation-nurture': 'Marketing automation (nurture)',
+  'marketing-automation-setup': 'Marketing automation (setup)',
+  'thiet-lap-crm': 'Thiết lập CRM',
+  'email-sms-zalo-marketing': 'Email / SMS / Zalo Marketing',
+  'ai-chatbot-ban-hang': 'AI chatbot bán hàng',
+  'ai-system-intelligence': 'AI System & Intelligence',
+  'dashboard-bao-cao-ai': 'Dashboard / Báo cáo AI',
+  'phan-tich-thi-truong': 'Phân tích thị trường',
+  'pr-booking-bao-chi': 'PR / Booking báo chí',
+  'san-xuat-video-tvc': 'Sản xuất video / TVC',
+  'kol-koc-booking': 'KOL / KOC booking',
+  'su-kien-activation-btl': 'Sự kiện / Activation / BTL',
+  'trade-marketing-posm': 'Trade marketing / POSM',
+};
+
+export function discoveryServiceLabel(
+  slug: string,
+  options?: Array<{ slug?: string; value?: string; name?: string; label?: string }>,
+): string {
+  const raw = asString(slug);
+  if (!raw) return '';
+  if (options?.length) {
+    const hit = options.find((row) => (row.slug || row.value) === raw);
+    const label = hit?.name || hit?.label;
+    if (label) return label;
+  }
+  return DISCOVERY_SERVICE_FALLBACK[raw] || raw;
 }
 
 export function optionLabel(options: DiscoveryOption[], value: string): string {

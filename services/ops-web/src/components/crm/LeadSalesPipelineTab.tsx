@@ -2,8 +2,6 @@
 
 import { useMemo } from 'react';
 import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
-import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
-import { resolveHandoffFlow } from '@/lib/crm/handoff-flow.util';
 import type { LeadRow } from '@/lib/api';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadPipelineDoneAccordion } from '@/components/crm/LeadPipelineDoneAccordion';
@@ -123,32 +121,6 @@ export function LeadSalesPipelineTab({
         />
       )}
       <div className="lead-pipeline-tab__head">
-        <span className="lead-zone__kicker">Tiến độ bàn giao</span>
-        <HandoffFlowStepper
-          view={resolveHandoffFlow({
-            leadStatus,
-            leadCreatedAt: lead?.created_at,
-            leadReceivedAt: lead?.received_at,
-            handoffStatus: stepperInput.funnel?.presales?.handoff?.status,
-            handedOffAt: stepperInput.funnel?.presales?.handoff?.handed_off_at,
-            quotePhase: stepperInput.funnel?.presales?.quote_case?.phase,
-            hasContract: Boolean(lead?.has_contract),
-            discoverySubmitted: Boolean(
-              stepperInput.intakeSummary?.latest_completed ||
-                stepperInput.funnel?.presales?.handoff?.status,
-            ),
-            discoverySubmittedAt:
-              stepperInput.intakeSummary?.latest_completed?.completed_at ??
-              stepperInput.funnel?.presales?.handoff?.handed_off_at,
-            returnedToSales: stepperInput.funnel?.presales?.handoff?.status === 'returned',
-          })}
-          onStepClick={(key) => {
-            if (key === 'receive_lead') onStepChange('b2');
-            else if (key === 'sales_brief') onStepChange('intake_bant');
-            else if (key === 'await_quote' || key === 'negotiate' || key === 'sign_contract') onStepChange('proposal');
-            else if (key === 'await_solutions' || key === 'doing_solutions') onStepChange('consult');
-          }}
-        />
         {activeStepKey === 'intake_bant' || activeStepKey === 'presales_lead' ? (
           <LeadPipelineIntakePanel
             leadId={leadId}

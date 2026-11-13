@@ -78,4 +78,46 @@ describe('PolicyEngine WIN-4-C', () => {
     });
     expect(out.allow).toBe(true);
   });
+
+  it('allows discovery-flow release with only a Solution file (no consult/plan)', () => {
+    const out = evaluatePolicy(
+      'presales.no_release_without_handoff',
+      releaseCtx({
+        consult_complete: false,
+        preliminary_plan_ok: false,
+        has_handoff_activity: true,
+        discovery_handoff_flow: true,
+        has_solution_file: true,
+      }),
+    );
+    expect(out.allow).toBe(true);
+  });
+
+  it('denies discovery-flow release without a Solution file', () => {
+    const out = evaluatePolicy(
+      'presales.no_release_without_handoff',
+      releaseCtx({
+        consult_complete: false,
+        preliminary_plan_ok: false,
+        discovery_handoff_flow: true,
+        has_solution_file: false,
+      }),
+    );
+    expect(out.allow).toBe(false);
+    expect(out.reason).toMatch(/Solution file/);
+  });
+
+  it('keeps legacy deny when discovery flag is off and consult is incomplete', () => {
+    const out = evaluatePolicy(
+      'presales.no_release_without_handoff',
+      releaseCtx({
+        consult_complete: false,
+        preliminary_plan_ok: false,
+        discovery_handoff_flow: false,
+        has_solution_file: true,
+      }),
+    );
+    expect(out.allow).toBe(false);
+    expect(out.reason).toMatch(/Consult tasks/);
+  });
 });

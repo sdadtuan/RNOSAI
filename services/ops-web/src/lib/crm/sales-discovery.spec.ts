@@ -126,3 +126,19 @@ describe('sales-discovery.util', () => {
     expect(other?.services.map((s) => s.slug)).toEqual(['mystery-svc']);
   });
 });
+
+describe('parseWebsiteBundle labeled and compact forms', () => {
+  it('splits facebook.com and tiktok.com without protocol', () => {
+    const urls = parseWebsiteBundle('facebook.com/pandatea tiktok.com/@pandatea');
+    expect(urls.fanpage).toBe('facebook.com/pandatea');
+    expect(urls.tiktok).toBe('tiktok.com/@pandatea');
+  });
+
+  it('reads Fanpage: and TikTok: labels', () => {
+    const urls = parseWebsiteBundle('Website: spa.vn Fanpage: facebook.com/spa TikTok: tiktok.com/@spa');
+    expect(urls.website).toContain('spa.vn');
+    expect(urls.fanpage).toContain('facebook.com/spa');
+    expect(urls.tiktok).toContain('tiktok.com/@spa');
+  });
+});
+

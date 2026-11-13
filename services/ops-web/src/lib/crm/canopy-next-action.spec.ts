@@ -69,3 +69,14 @@ describe('nextActionFor', () => {
     ).toMatch(/chỉ xem/);
   });
 });
+
+describe('hideBanner on AM Chờ Solutions desk', () => {
+  it('returns null when the lead-page hint hides chrome', () => {
+    expect(
+      nextActionFor('/crm/leads/900000126', {
+        leadHint: { handoffStatus: 'pending', viewer: 'am', hideBanner: true },
+      }),
+    ).toBeNull();
+  });
+});
+

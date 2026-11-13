@@ -12,6 +12,8 @@ export type LeadPageNextHint = {
   solutionPhase?: string | null;
   revisionNote?: string | null;
   viewer?: 'sales' | 'am' | 'ceo' | 'admin' | 'other';
+  /** Hide the StaffPageShell "Bước tiếp" chrome (AM Chờ Solutions desk matches the mockup). */
+  hideBanner?: boolean;
 };
 
 type Listener = () => void;
