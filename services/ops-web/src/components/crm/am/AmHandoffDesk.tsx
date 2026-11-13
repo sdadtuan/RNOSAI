@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   claimLeadSolution,
   fetchCrmStaffList,
   fetchDiscoveryOptions,
   fetchIntakeSessions,
+  fetchLeadPresalesClientBrief,
   fetchLeadPresalesConsultBrief,
   fetchLeadPresalesMarketingPlan,
   returnLeadToSales,
@@ -21,7 +22,6 @@ import {
   channelLabels,
   discoveryIndustryLabel,
   discoveryServiceLabel,
-  parseWebsiteBundle,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
   timelineLabel,
@@ -37,6 +37,15 @@ import {
   resolveHandoffFlow,
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import {
+  buildAmDeskBrief,
+  checklistSourceFromMerged,
+  hrefForUrl,
+  humanizeSource,
+  isFilled,
+  type AmDeskClientBriefLike,
+  type AmDeskConsultLike,
+} from '@/lib/crm/am-desk-data';
 import { pushToast } from '@/lib/toast';
 import './am-handoff-desk.css';
 
@@ -96,22 +105,34 @@ function initials(name: string): string {
 }
 
 function Field({ icon, label, value, href }: { icon: string; label: string; value: string; href?: string }) {
-  const empty = !value || value === '—';
+  const empty = !isFilled(value) || value === '—';
+  if (empty) return null;
+  const link = href || hrefForUrl(value);
   return (
     <div>
       <Icon d={icon} />
       <dd>
         <span className="ahd-k">{label}: </span>
-        {href && !empty ? (
-          <a className="ahd-link" href={href} target="_blank" rel="noreferrer">
+        {link ? (
+          <a className="ahd-link" href={link} target="_blank" rel="noreferrer">
             {value}
           </a>
         ) : (
-          <span className={empty ? 'ahd-empty' : undefined}>{empty ? '—' : value}</span>
+          <span>{value}</span>
         )}
       </dd>
     </div>
   );
+}
+
+function EmptyState({ text = 'Chưa có dữ liệu.' }: { text?: string }) {
+  return <p className="ahd-empty-state">{text}</p>;
+}
+
+function FieldList({ children }: { children: ReactNode }) {
+  const items = Children.toArray(children).filter(Boolean);
+  if (!items.length) return <EmptyState />;
+  return <dl className="ahd-dl">{items}</dl>;
 }
 
 function BriefCard({
@@ -125,7 +146,7 @@ function BriefCard({
   icon: string;
   wide?: boolean;
   testId?: string;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section className={`ahd-card${wide ? ' ahd-card--wide' : ''}`} data-testid={testId}>
@@ -133,14 +154,14 @@ function BriefCard({
         <Icon d={icon} />
         {title}
       </h3>
-      {children}
+      {children ?? <EmptyState />}
     </section>
   );
 }
 
 function Bullets({ text }: { text: string }) {
   const lines = linesFromText(text);
-  if (!lines.length) return <p className="ahd-empty">—</p>;
+  if (!lines.length) return <EmptyState />;
   if (lines.length === 1) return <p className="ahd-prose">{lines[0]}</p>;
   return (
     <ul className="ahd-bullets">
@@ -268,17 +289,35 @@ export function AmHandoffDesk({
   const [notice, setNotice] = useState('');
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
   const [serviceOptions, setServiceOptions] = useState<Array<{ slug?: string; value?: string; name?: string; label?: string }>>([]);
+  const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
+  const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
 
   const brief: SalesDiscoveryBrief | null = useMemo(
     () => readDiscoveryBriefFromAnswers(session?.answers_json) ?? null,
     [session],
   );
 
+  const view = useMemo(
+    () =>
+      buildAmDeskBrief({
+        discovery: brief,
+        lead,
+        party,
+        session,
+        consult: consultPack,
+        clientBrief: clientPack,
+        presalesNotes: (funnel?.presales as { notes?: string } | null | undefined)?.notes,
+        serviceSlug: (funnel?.presales as { service_slug?: string } | null | undefined)?.service_slug,
+      }),
+    [brief, lead, party, session, consultPack, clientPack, funnel],
+  );
+
   const load = useCallback(async () => {
-    const [sessions, plan, consult] = await Promise.all([
+    const [sessions, plan, consult, clientBrief] = await Promise.all([
       fetchIntakeSessions(token, { lead_id: lead.id }).catch(() => [] as IntakeSessionRow[]),
       fetchLeadPresalesMarketingPlan(token, lead.id).catch(() => null),
       fetchLeadPresalesConsultBrief(token, lead.id).catch(() => null),
+      fetchLeadPresalesClientBrief(token, lead.id).catch(() => null),
     ]);
     const completed = [...sessions].filter((s) => s.status === 'completed').sort((a, b) => b.id - a.id);
     const draft = [...sessions].filter((s) => s.status === 'draft').sort((a, b) => b.id - a.id);
@@ -292,6 +331,8 @@ export function AmHandoffDesk({
       briefRec && typeof briefRec.need === 'string' ? String(briefRec.need) : '',
     ].filter((s) => s.trim());
     setConsultPrefill(prefillParts.join('\n'));
+    setConsultPack(consult && typeof consult === 'object' ? (consult as AmDeskConsultLike) : null);
+    setClientPack(clientBrief && typeof clientBrief === 'object' ? (clientBrief as AmDeskClientBriefLike) : null);
   }, [token, lead.id]);
 
   useEffect(() => {
@@ -361,24 +402,21 @@ export function AmHandoffDesk({
   }, [token, marketingLeaders.length]);
 
   useEffect(() => {
-    if (!assignNote && (brief?.call_notes || consultPrefill)) {
-      const seed = consultPrefill || brief?.call_notes || '';
+    if (!assignNote && (view.call_notes || consultPrefill)) {
+      const seed = consultPrefill || view.call_notes || '';
       if (seed) setAssignNote(seed);
     }
     // only seed once when data arrives
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [consultPrefill, brief?.call_notes]);
+  }, [consultPrefill, view.call_notes]);
 
-  const websites = String(brief?.websites ?? '').trim();
-  const parsedSites = parseWebsiteBundle(websites);
-  const fanpage = parsedSites.fanpage;
-  const tiktok = parsedSites.tiktok;
-  const site = parsedSites.website;
-  void site;
+  const fanpage = view.fanpage;
+  const tiktok = view.tiktok;
+  const site = view.website;
 
-  const company = dash(brief?.company_name || party?.company_name || lead.company_name || lead.full_name);
+  const company = view.company_name || party?.company_name || lead.company_name || lead.full_name || '';
   const leadCode = lead.project_code || `LD-${lead.id}`;
-  const contactName = dash(brief?.contact_name || party?.contact_name || lead.full_name);
+  const contactName = view.contact_name;
   const handoff = funnel?.presales?.handoff;
   const flow = resolveHandoffFlow({
     leadStatus: lead.status,
@@ -390,16 +428,25 @@ export function AmHandoffDesk({
     solutionReleasedAt: undefined,
     quotePhase: funnel?.presales?.quote_case?.phase,
     hasContract: Boolean(lead.has_contract),
-    discoverySubmitted: Boolean(brief) && (handoff?.status === 'pending' || session?.status === 'completed'),
+    discoverySubmitted:
+      Boolean(brief) ||
+      session?.status === 'completed' ||
+      Boolean(handoff?.handed_off_at),
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: handoff?.status === 'returned',
   });
-  const checklist = amDeskChecklist(brief);
+  const checklist = amDeskChecklist(checklistSourceFromMerged(view), {
+    legacyReady:
+      view.isLegacy &&
+      (handoff?.status === 'pending' ||
+        session?.status === 'completed' ||
+        Boolean(handoff?.handed_off_at)),
+  });
   const salesName = dash((lead as { owner_name?: string }).owner_name);
   const amName = dash(userName);
-  const temp = brief?.temperature || '';
+  const temp = view.temperature;
   const tempLabel = temperatureLabel(temp) || temp;
-  const source = dash(lead.source || lead.channel);
+  const source = humanizeSource(view.source) || dash(lead.source || lead.channel);
   const created = formatHandoffStamp(lead.created_at || lead.received_at);
   const sentAm = formatHandoffStamp(handoff?.handed_off_at);
 
@@ -477,7 +524,22 @@ export function AmHandoffDesk({
     onMessage?.('Đã ghi chú nội bộ trên màn hình (chưa đồng bộ máy chủ).');
   }
 
-  const serviceChips = (brief?.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
+  const serviceChips = (view.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
+  const currentRows = [
+    view.channels.length
+      ? `Kênh đang sử dụng: ${channelLabels(view.channels)}`
+      : view.channels_text
+        ? `Kênh đang sử dụng: ${view.channels_text}`
+        : '',
+    view.current_budget ? `Ngân sách hiện tại: ${view.current_budget}` : '',
+    view.current_results ? `Kết quả: ${view.current_results}` : '',
+    view.difficulties ? `Khó khăn: ${view.difficulties}` : '',
+  ].filter(Boolean);
+  const budgetRows = [
+    view.budget_band ? `Ngân sách Marketing dự kiến: ${budgetLabel(view.budget_band)}` : '',
+    view.timeline_band ? `Thời điểm: ${timelineLabel(view.timeline_band)}` : '',
+    view.flagship_product ? `Sản phẩm chủ lực: ${view.flagship_product}` : '',
+  ].filter(Boolean);
   const fileCount = files.length;
 
   return (
@@ -581,22 +643,23 @@ export function AmHandoffDesk({
                 {(party?.logo_url || (lead as { logo_url?: string }).logo_url || (party as { logo?: string } | null | undefined)?.logo) ? (
                   <img
                     src={party?.logo_url || (lead as { logo_url?: string }).logo_url || (party as { logo?: string }).logo}
-                    alt={String(company === '—' ? lead.full_name : company)}
+                    alt={String(company || lead.full_name || '')}
                   />
                 ) : (
-                  initials(String(company === '—' ? lead.full_name : company))
+                  initials(String(company || lead.full_name || ''))
                 )}
               </div>
               <p className="ahd-brand__name">{company}</p>
             </div>
-            <dl className="ahd-dl">
-              <Field icon={I.industry} label="Ngành nghề" value={dash(discoveryIndustryLabel(brief?.industry || party?.industry || '', industryOptions) || brief?.industry || party?.industry)} />
-              <Field icon={I.pin} label="Địa bàn" value={dash(brief?.region || party?.address)} />
-              <Field icon={I.link} label="Fanpage" value={dash(fanpage)} href={fanpage || undefined} />
-              <Field icon={I.link} label="TikTok" value={dash(tiktok)} href={tiktok || undefined} />
-              <Field icon={I.scale} label="Quy mô" value="—" />
-              <Field icon={I.model} label="Mô hình" value="—" />
-            </dl>
+            <FieldList>
+              <Field icon={I.industry} label="Ngành nghề" value={discoveryIndustryLabel(view.industry, industryOptions) || view.industry} />
+              <Field icon={I.pin} label="Địa bàn" value={view.region} />
+              <Field icon={I.link} label="Website" value={site} href={hrefForUrl(site)} />
+              <Field icon={I.link} label="Fanpage" value={fanpage} href={hrefForUrl(fanpage)} />
+              <Field icon={I.link} label="TikTok" value={tiktok} href={hrefForUrl(tiktok)} />
+              <Field icon={I.scale} label="Quy mô" value={view.scale} />
+              <Field icon={I.model} label="Mô hình" value={view.model} />
+            </FieldList>
           </section>
 
           <section className="ahd-card" data-testid="ahd-contact">
@@ -604,14 +667,14 @@ export function AmHandoffDesk({
               <Icon d={I.person} />
               Người liên hệ
             </h3>
-            <dl className="ahd-dl">
+            <FieldList>
               <Field icon={I.person} label="Họ tên" value={contactName} />
-              <Field icon={I.brief} label="Chức vụ" value={dash(brief?.job_title || party?.job_title)} />
-              <Field icon={I.phone} label="Điện thoại" value={dash(brief?.phone || party?.phone || lead.phone)} />
-              <Field icon={I.mail} label="Email" value={dash(brief?.email || party?.email || lead.email)} />
-              <Field icon={I.shield} label="Quyền quyết định" value={dash(brief?.budget_authority ? authorityLabel(brief.budget_authority) : '')} />
-              <Field icon={I.person} label="Người duyệt ngân sách" value="—" />
-            </dl>
+              <Field icon={I.brief} label="Chức vụ" value={view.job_title} />
+              <Field icon={I.phone} label="Điện thoại" value={view.phone} />
+              <Field icon={I.mail} label="Email" value={view.email} />
+              <Field icon={I.shield} label="Quyền quyết định" value={view.budget_authority ? authorityLabel(view.budget_authority) : ''} />
+              <Field icon={I.person} label="Người duyệt ngân sách" value={view.budget_approver} />
+            </FieldList>
           </section>
 
           <section className="ahd-card" data-testid="ahd-mgmt">
@@ -633,13 +696,15 @@ export function AmHandoffDesk({
                   {amName !== '—' ? <span className="ahd-you"> (Bạn)</span> : null}
                 </span>
               </div>
-              <div className="ahd-person">
-                Mức độ:{' '}
-                <span className={`ahd-temp ahd-temp--${temp || 'unknown'}`} data-testid="ahd-temp">
-                  {temp === 'hot' ? '🔥 ' : ''}
-                  {dash(tempLabel)}
-                </span>
-              </div>
+              {temp ? (
+                <div className="ahd-person">
+                  Mức độ:{' '}
+                  <span className={`ahd-temp ahd-temp--${temp}`} data-testid="ahd-temp">
+                    {temp === 'hot' ? '🔥 ' : ''}
+                    {tempLabel}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
@@ -672,7 +737,7 @@ export function AmHandoffDesk({
           {tab === 'brief' ? (
             <div className="ahd-brief-grid" data-testid="ahd-brief">
               <BriefCard title="Mục tiêu Marketing" icon={I.goal} testId="ahd-goal">
-                <Bullets text={brief?.marketing_goal || ''} />
+                <Bullets text={view.marketing_goal} />
               </BriefCard>
               <BriefCard title="Dịch vụ quan tâm" icon={I.box} testId="ahd-services">
                 {serviceChips.length ? (
@@ -683,33 +748,34 @@ export function AmHandoffDesk({
                       </span>
                     ))}
                   </div>
-                ) : (
-                  <p className="ahd-empty">—</p>
-                )}
+                ) : null}
               </BriefCard>
               <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
-                <Bullets text={brief?.biggest_problem || ''} />
+                <Bullets text={view.biggest_problem} />
               </BriefCard>
               <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
-                <ul className="ahd-bullets">
-                  <li>Kênh đang sử dụng: {dash(brief?.channels?.length ? channelLabels(brief.channels) : '')}</li>
-                  <li>Ngân sách hiện tại: —</li>
-                  <li>Kết quả: {dash(brief?.current_results)}</li>
-                  <li>Khó khăn: {dash(brief?.difficulties)}</li>
-                </ul>
+                {currentRows.length ? (
+                  <ul className="ahd-bullets">
+                    {currentRows.map((row) => (
+                      <li key={row}>{row}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </BriefCard>
               <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
-                <Bullets text={brief?.target_customers || ''} />
+                <Bullets text={view.target_customers} />
               </BriefCard>
               <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
-                <ul className="ahd-bullets">
-                  <li>Ngân sách Marketing dự kiến: {dash(brief?.budget_band ? budgetLabel(brief.budget_band) : '')}</li>
-                  <li>Thời điểm: {dash(brief?.timeline_band ? timelineLabel(brief.timeline_band) : '')}</li>
-                  <li>Sản phẩm chủ lực: {dash(brief?.flagship_product || brief?.priority_product)}</li>
-                </ul>
+                {budgetRows.length ? (
+                  <ul className="ahd-bullets">
+                    {budgetRows.map((row) => (
+                      <li key={row}>{row}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </BriefCard>
               <BriefCard title="Ghi chú cuộc gọi (Sales)" icon={I.note} wide testId="ahd-call-notes">
-                <Bullets text={brief?.call_notes || ''} />
+                <Bullets text={view.call_notes} />
               </BriefCard>
             </div>
           ) : null}
@@ -803,7 +869,7 @@ export function AmHandoffDesk({
           ) : null}
         </div>
 
-        <div className="ahd-col">
+        <div className="ahd-col ahd-col--side">
           <section className="ahd-card" data-testid="ahd-checklist">
             <h3 className="ahd-card__title">
               <Icon d={I.list} />

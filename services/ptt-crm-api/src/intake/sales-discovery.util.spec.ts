@@ -1,6 +1,7 @@
 import {
   addDiscoveryService,
   buildDiscoveryCompatAnswers,
+  preserveFilledDiscoveryFields,
   discoveryClientBriefPatch,
   discoveryConsultFormPatch,
   discoveryProgress,
@@ -111,8 +112,21 @@ describe('sales-discovery.util', () => {
     expect((answers.crm_fields as { other: string; need: string }).other).toBe('x');
     expect((answers.crm_fields as { need: string }).need).toBe('Ít lead');
     expect(answers.discovery_brief).toMatchObject({ company_name: 'Spa Hoa' });
+    expect((answers.discovery_brief as { websites: string }).websites).toContain('spa.vn');
+    expect((answers.crm_fields as { fanpage: string }).fanpage).toContain('facebook.com');
     expect(addDiscoveryService(['a'], 'a')).toEqual(['a']);
     expect(addDiscoveryService(['a'], 'b')).toEqual(['a', 'b']);
+  });
+
+  it('does not wipe a previously saved websites value with an empty incoming field', () => {
+    const kept = preserveFilledDiscoveryFields(filledBrief(), normalizeSalesDiscoveryBrief({
+      ...filledBrief(),
+      websites: '',
+    }));
+    expect(kept.websites).toContain('spa.vn');
+    const answers = buildDiscoveryCompatAnswers({}, kept);
+    expect((answers.discovery_brief as { websites: string }).websites).toContain('facebook.com');
+    expect((answers.crm_fields as { fanpage: string }).fanpage).toContain('facebook.com');
   });
 
   it('groups known catalog slugs and leaves leftovers in Other', () => {

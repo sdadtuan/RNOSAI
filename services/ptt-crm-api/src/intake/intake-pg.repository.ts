@@ -25,7 +25,9 @@ import {
   groupCatalogServices,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
+  preserveFilledDiscoveryFields,
   primaryServiceSlug,
+  readDiscoveryBriefFromAnswers,
   type SalesDiscoveryBrief,
 } from './sales-discovery.util';
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
@@ -1071,7 +1073,11 @@ export class IntakePgRepository implements OnModuleDestroy {
   ): Promise<IntakeSessionRow | null> {
     const prev = await this.getSession(sessionId);
     if (!prev) return null;
-    const brief = normalizeSalesDiscoveryBrief(briefInput);
+    const incoming = normalizeSalesDiscoveryBrief(briefInput);
+    const brief = preserveFilledDiscoveryFields(
+      readDiscoveryBriefFromAnswers(prev.answers_json),
+      incoming,
+    );
     const answers = buildDiscoveryCompatAnswers(prev.answers_json, brief);
     const primary = primaryServiceSlug(brief.services) || prev.service_slug || '_common';
     const payload: PatchIntakeSessionBody = {

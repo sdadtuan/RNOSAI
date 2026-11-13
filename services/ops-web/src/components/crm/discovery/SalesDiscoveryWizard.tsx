@@ -165,6 +165,7 @@ export function SalesDiscoveryWizard({
     setError('');
     setMessage('');
     try {
+      if (draftTimer.current) window.clearTimeout(draftTimer.current);
       const out = await submitDiscoveryBrief(token, session.id, briefRef.current);
       if (out.session) onSessionChange(out.session);
       if (out.ok) {
@@ -281,7 +282,12 @@ export function SalesDiscoveryWizard({
                     value={brief.websites}
                     disabled={readOnly}
                     placeholder="URL, cách nhau bởi khoảng trắng"
+                    data-testid="sd-websites"
                     onChange={(e) => patch({ websites: e.target.value })}
+                    onInput={(e) => {
+                      const value = (e.target as HTMLInputElement).value;
+                      if (value !== briefRef.current.websites) patch({ websites: value });
+                    }}
                   />
                 </label>
               </div>
@@ -558,7 +564,15 @@ export function SalesDiscoveryWizard({
               Xuất dữ liệu
             </button>
             {step < 3 ? (
-              <button type="button" className="btn btn-primary" onClick={() => setStep((s) => Math.min(3, s + 1))} data-testid="sd-next">
+              <button
+                type="button"
+                className="btn btn-primary"
+                data-testid="sd-next"
+                onClick={() => {
+                  if (draftTimer.current) window.clearTimeout(draftTimer.current);
+                  void persistDraft().finally(() => setStep((s) => Math.min(3, s + 1)));
+                }}
+              >
                 Tiếp theo
               </button>
             ) : (

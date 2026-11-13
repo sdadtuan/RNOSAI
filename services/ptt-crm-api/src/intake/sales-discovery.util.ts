@@ -203,6 +203,20 @@ function asStringList(value: unknown): string[] {
   return out;
 }
 
+/** Keep a previously saved optional field (e.g. websites) when a stale or
+ *  partial save arrives with an empty string. Does not invent new values. */
+export function preserveFilledDiscoveryFields(
+  existing: SalesDiscoveryBrief | null | undefined,
+  incoming: SalesDiscoveryBrief,
+): SalesDiscoveryBrief {
+  const prev = existing ?? emptySalesDiscoveryBrief();
+  const next = { ...incoming };
+  if (!asString(next.websites) && asString(prev.websites)) {
+    next.websites = prev.websites;
+  }
+  return normalizeSalesDiscoveryBrief(next);
+}
+
 export function normalizeSalesDiscoveryBrief(raw: unknown): SalesDiscoveryBrief {
   const base = emptySalesDiscoveryBrief();
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;

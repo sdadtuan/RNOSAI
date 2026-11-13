@@ -30,6 +30,7 @@ export interface HandoffFlowStepDef {
   key: HandoffFlowStepKey;
   index: number;
   label: string;
+  shortLabel: string;
   hint: string;
   roleHint: string;
 }
@@ -39,6 +40,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'receive_lead',
     index: 1,
     label: 'Tiếp nhận Lead',
+    shortLabel: 'Tiếp nhận',
     hint: '',
     roleHint: '',
   },
@@ -46,6 +48,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'sales_brief',
     index: 2,
     label: 'Sales tư vấn & nhập Brief',
+    shortLabel: 'Sales Brief',
     hint: 'Pre Sale · Sales Discovery',
     roleHint: 'Sales',
   },
@@ -53,6 +56,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'await_solutions',
     index: 3,
     label: 'Chờ Solutions',
+    shortLabel: 'Chờ Solutions',
     hint: 'AM kiểm tra & giao Case',
     roleHint: 'Account Manager',
   },
@@ -60,6 +64,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'doing_solutions',
     index: 4,
     label: 'Đang làm Solutions',
+    shortLabel: 'Đang làm',
     hint: 'Marketing Leader',
     roleHint: 'Marketing Leader',
   },
@@ -67,6 +72,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'await_quote',
     index: 5,
     label: 'Chờ báo giá',
+    shortLabel: 'Báo giá',
     hint: 'Account Manager',
     roleHint: 'Account Manager',
   },
@@ -74,6 +80,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'negotiate',
     index: 6,
     label: 'Thương thảo',
+    shortLabel: 'Thương thảo',
     hint: '',
     roleHint: 'Sales',
   },
@@ -81,6 +88,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     key: 'sign_contract',
     index: 7,
     label: 'Ký hợp đồng',
+    shortLabel: 'Ký HĐ',
     hint: '',
     roleHint: '',
   },
@@ -453,7 +461,10 @@ function filled(value: unknown): boolean {
   return String(value ?? '').trim().length > 0;
 }
 
-export function amDeskChecklist(brief: DiscoveryChecklistSource | null | undefined): {
+export function amDeskChecklist(
+  brief: DiscoveryChecklistSource | null | undefined,
+  opts?: { legacyReady?: boolean },
+): {
   items: AmDeskChecklistItem[];
   allOk: boolean;
 } {
@@ -487,8 +498,14 @@ export function amDeskChecklist(brief: DiscoveryChecklistSource | null | undefin
   ];
   const firstFour = items.slice(0, 4).every((item) => item.ok);
   const contactOk = filled(b.contact_name) && filled(b.phone);
-  items[4] = { ...items[4], ok: firstFour && contactOk };
-  return { items, allOk: items.every((item) => item.ok) };
+  const discoveryReady = firstFour && contactOk;
+  const legacyReady =
+    Boolean(opts?.legacyReady) &&
+    contactOk &&
+    filled(b.company_name) &&
+    (filled(b.biggest_problem) || (Array.isArray(b.services) && b.services.length > 0));
+  items[4] = { ...items[4], ok: discoveryReady || legacyReady };
+  return { items, allOk: items[4].ok };
 }
 
 /** Format a timestamp in Asia/Saigon for stepper / meta rows. */

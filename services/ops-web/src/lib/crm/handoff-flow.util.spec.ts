@@ -149,6 +149,26 @@ describe('handoff-flow.util', () => {
     expect(complete.items.every((i) => i.ok)).toBe(true);
   });
 
+  it('lets a legacy handed-off lead pass the giao gate without Discovery-only fields', () => {
+    const legacy = amDeskChecklist(
+      {
+        company_name: 'Công ty Seed 915',
+        industry: 'Dịch vụ',
+        contact_name: 'Phạm Hà 920915',
+        phone: '0900000915',
+        biggest_problem: 'Chăm sóc fanpage',
+        services: ['ads'],
+      },
+      { legacyReady: true },
+    );
+    expect(legacy.items[0].ok).toBe(true);
+    expect(legacy.items[1].ok).toBe(true);
+    expect(legacy.items[2].ok).toBe(false);
+    expect(legacy.items[3].ok).toBe(false);
+    expect(legacy.items[4].ok).toBe(true);
+    expect(legacy.allOk).toBe(true);
+  });
+
   it('renders a dash for missing Discovery fields instead of inventing data', () => {
     expect(dash('')).toBe('—');
     expect(dash(null)).toBe('—');
