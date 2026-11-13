@@ -23,9 +23,9 @@ import {
 import './sales-discovery.css';
 
 const STEPS = [
-  { id: 1, label: '1. Kh?ch h?ng' },
-  { id: 2, label: '2. Nhu c?u' },
-  { id: 3, label: '3. B?n giao' },
+  { id: 1, label: '1. Khách hàng' },
+  { id: 2, label: '2. Nhu cầu' },
+  { id: 3, label: '3. Bàn giao' },
 ] as const;
 
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
@@ -137,7 +137,7 @@ export function SalesDiscoveryWizard({
       const saved = await saveDiscoveryBrief(token, session.id, briefRef.current);
       onSessionChange(saved);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kh?ng l?u ???c b?n nh?p.');
+      setError(err instanceof Error ? err.message : 'Không lưu được bản nháp.');
     } finally {
       setSaving(false);
     }
@@ -153,7 +153,7 @@ export function SalesDiscoveryWizard({
       // Keep other in-progress fields; only take services from server.
       setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kh?ng l?u ???c d?ch v?.');
+      setError(err instanceof Error ? err.message : 'Không lưu được dịch vụ.');
     }
   }
 
@@ -167,12 +167,12 @@ export function SalesDiscoveryWizard({
       if (out.session) onSessionChange(out.session);
       if (out.ok) {
         setHandoffOk(true);
-        setMessage('?? Submit to AM. Lead ?ang ? H?ng ch? Solution.');
+        setMessage('Đã Submit to AM. Lead đang ở Hàng chờ Solution.');
       } else {
-        setError(out.handoff_error || '?? l?u Discovery nh?ng ch?a giao ???c Solution.');
+        setError(out.handoff_error || 'Đã lưu Discovery nhưng chưa giao được Solution.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Submit th?t b?i.');
+      setError(err instanceof Error ? err.message : 'Submit thất bại.');
     } finally {
       setSubmitting(false);
     }
@@ -190,7 +190,7 @@ export function SalesDiscoveryWizard({
 
   const badge = completed ? (
     <span className={`sd-badge ${handoffOk ? 'sd-badge--pending' : 'sd-badge--done'}`}>
-      {handoffOk ? '?? n?p ? ch? AM' : '?? n?p'}
+      {handoffOk ? 'Đã nộp — chờ AM' : 'Đã nộp'}
     </span>
   ) : (
     <span className="sd-badge sd-badge--draft">Draft</span>
@@ -201,16 +201,16 @@ export function SalesDiscoveryWizard({
       <div className="sd-card">
         <header className="sd-head">
           <div>
-            <h1 className="sd-title">CRM ? Sales Discovery</h1>
+            <h1 className="sd-title">CRM – Sales Discovery</h1>
             <p className="sd-kicker">
               {lead?.company_name || brief.company_name || '?'}
-              {lead?.full_name ? ` ? ${lead.full_name}` : ''}
+              {lead?.full_name ? ` · ${lead.full_name}` : ''}
             </p>
           </div>
           <div className="sd-head-meta">
             {badge}
             <span className={`sd-progress${complete ? ' sd-progress--full' : ''}`} data-testid="sd-progress">
-              {progress.filled}/{progress.total} tr??ng c?t l?i
+              {progress.filled}/{progress.total} trường cốt lõi
             </span>
           </div>
         </header>
@@ -232,11 +232,11 @@ export function SalesDiscoveryWizard({
           <>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">A. Th?ng tin doanh nghi?p</h2>
+                <h2 className="sd-section__title">A. Thông tin doanh nghiệp</h2>
               </div>
               <div className="sd-grid">
                 <label className="sd-field sd-field--wide">
-                  <FieldLabel required>T?n DN / th??ng hi?u</FieldLabel>
+                  <FieldLabel required>Tên DN / thương hiệu</FieldLabel>
                   <input
                     className="sd-input"
                     value={brief.company_name}
@@ -246,7 +246,7 @@ export function SalesDiscoveryWizard({
                   />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>Ng?nh ngh?</FieldLabel>
+                  <FieldLabel required>Ngành nghề</FieldLabel>
                   <select
                     className="sd-select"
                     value={brief.industry}
@@ -254,7 +254,7 @@ export function SalesDiscoveryWizard({
                     onChange={(e) => patch({ industry: e.target.value })}
                     data-testid="sd-industry"
                   >
-                    <option value="">Ch?n ng?nh ngh?</option>
+                    <option value="">Chọn ngành nghề</option>
                     {industries.map((row) => (
                       <option key={row.value} value={row.value}>
                         {row.label}
@@ -263,7 +263,7 @@ export function SalesDiscoveryWizard({
                   </select>
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>S?n ph?m / d?ch v? ch? l?c</FieldLabel>
+                  <FieldLabel required>Sản phẩm / dịch vụ chủ lực</FieldLabel>
                   <input
                     className="sd-input"
                     value={brief.flagship_product}
@@ -278,7 +278,7 @@ export function SalesDiscoveryWizard({
                     className="sd-input"
                     value={brief.websites}
                     disabled={readOnly}
-                    placeholder="URL, c?ch nhau b?i kho?ng tr?ng"
+                    placeholder="URL, cách nhau bởi khoảng trắng"
                     onChange={(e) => patch({ websites: e.target.value })}
                   />
                 </label>
@@ -286,15 +286,15 @@ export function SalesDiscoveryWizard({
             </section>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">B. Ng??i li?n h?</h2>
+                <h2 className="sd-section__title">B. Người liên hệ</h2>
               </div>
               <div className="sd-grid">
                 <label className="sd-field">
-                  <FieldLabel required>H? t?n</FieldLabel>
+                  <FieldLabel required>Họ tên</FieldLabel>
                   <input className="sd-input" value={brief.contact_name} disabled={readOnly} onChange={(e) => patch({ contact_name: e.target.value })} data-testid="sd-contact" />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>S?T</FieldLabel>
+                  <FieldLabel required>SĐT</FieldLabel>
                   <input className="sd-input" value={brief.phone} disabled={readOnly} onChange={(e) => patch({ phone: e.target.value })} data-testid="sd-phone" />
                 </label>
                 <label className="sd-field">
@@ -302,9 +302,9 @@ export function SalesDiscoveryWizard({
                   <input className="sd-input" value={brief.email} disabled={readOnly} onChange={(e) => patch({ email: e.target.value })} />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel>Ch?c v?</FieldLabel>
+                  <FieldLabel>Chức vụ</FieldLabel>
                   <select className="sd-select" value={brief.job_title} disabled={readOnly} onChange={(e) => patch({ job_title: e.target.value })}>
-                    <option value="">Ch?n ch?c v?</option>
+                    <option value="">Chọn chức vụ</option>
                     {jobTitles.map((row) => (
                       <option key={row.value} value={row.value}>
                         {row.label}
@@ -313,7 +313,7 @@ export function SalesDiscoveryWizard({
                   </select>
                 </label>
                 <div className="sd-field sd-field--wide">
-                  <FieldLabel>Quy?n quy?t ??nh ng?n s?ch</FieldLabel>
+                  <FieldLabel>Quyền quyết định ngân sách</FieldLabel>
                   <div className="sd-radios">
                     {authorities.map((row) => (
                       <label key={row.value} className="sd-radio">
@@ -339,7 +339,7 @@ export function SalesDiscoveryWizard({
           <>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">C. Nhu c?u Marketing</h2>
+                <h2 className="sd-section__title">C. Nhu cầu Marketing</h2>
                 <div className="sd-svc-wrap">
                   <button
                     type="button"
@@ -347,18 +347,18 @@ export function SalesDiscoveryWizard({
                     onClick={() => setListOpen((open) => !open)}
                     data-testid="sd-service-list-btn"
                   >
-                    Danh s?ch d?ch v? ({brief.services.length})
+                    Danh sách dịch vụ ({brief.services.length})
                   </button>
                   {listOpen ? (
                     <div className="sd-svc-panel" data-testid="sd-service-list">
                       {brief.services.length === 0 ? (
-                        <p className="sd-svc-empty">Ch?a ch?n d?ch v?. B?m + b?n d??i ?? th?m (l?u ngay).</p>
+                        <p className="sd-svc-empty">Chưa chọn dịch vụ. Bấm + bên dưới để thêm (lưu ngay).</p>
                       ) : (
                         brief.services.map((slug) => (
                           <div key={slug} className="sd-svc-item">
                             <span>{serviceName(options, slug)}</span>
                             {readOnly ? null : (
-                              <button type="button" className="sd-svc-remove" onClick={() => void onToggleService(slug, true)} aria-label="G? d?ch v?">
+                              <button type="button" className="sd-svc-remove" onClick={() => void onToggleService(slug, true)} aria-label="Gỡ dịch vụ">
                                 ?
                               </button>
                             )}
@@ -370,8 +370,8 @@ export function SalesDiscoveryWizard({
                 </div>
               </div>
               <div className="sd-field" style={{ marginBottom: 14 }}>
-                <FieldLabel required>D?ch v? kh?ch h?ng quan t?m</FieldLabel>
-                <p className="sd-hint">B?m + ?? th?m ? l?u ngay, kh?ng c?n n?t Save.</p>
+                <FieldLabel required>Dịch vụ khách hàng quan tâm</FieldLabel>
+                <p className="sd-hint">Bấm + để thêm — lưu ngay, không cần nút Save.</p>
                 <div className="sd-picker" data-testid="sd-service-picker">
                   {groups.map((group) => (
                     <div key={group.key} className="sd-picker__group">
@@ -384,10 +384,10 @@ export function SalesDiscoveryWizard({
                               type="button"
                               className={`sd-plus${on ? ' is-on' : ''}`}
                               disabled={readOnly}
-                              title={on ? '?? th?m ? b?m ?? g?' : 'Th?m d?ch v?'}
+                              title={on ? 'Đã thêm — bấm để gỡ' : 'Thêm dịch vụ'}
                               onClick={() => void onToggleService(svc.slug, on)}
                             >
-                              {on ? '?' : '+'}
+                              {on ? '×' : '+'}
                             </button>
                             <span className="sd-picker__name">{svc.name}</span>
                           </div>
@@ -399,33 +399,33 @@ export function SalesDiscoveryWizard({
               </div>
               <div className="sd-grid sd-grid--1">
                 <label className="sd-field">
-                  <FieldLabel required>V?n ?? l?n nh?t</FieldLabel>
+                  <FieldLabel required>Vấn đề lớn nhất</FieldLabel>
                   <textarea className="sd-textarea" value={brief.biggest_problem} disabled={readOnly} onChange={(e) => patch({ biggest_problem: e.target.value })} data-testid="sd-problem" />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>M?c ti?u Marketing</FieldLabel>
+                  <FieldLabel required>Mục tiêu Marketing</FieldLabel>
                   <textarea className="sd-textarea" value={brief.marketing_goal} disabled={readOnly} onChange={(e) => patch({ marketing_goal: e.target.value })} data-testid="sd-goal" />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel>S?n ph?m ?u ti?n qu?ng b?</FieldLabel>
+                  <FieldLabel>Sản phẩm ưu tiên quảng bá</FieldLabel>
                   <input className="sd-input" value={brief.priority_product} disabled={readOnly} onChange={(e) => patch({ priority_product: e.target.value })} />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>Kh?ch h?ng m?c ti?u</FieldLabel>
+                  <FieldLabel required>Khách hàng mục tiêu</FieldLabel>
                   <input className="sd-input" value={brief.target_customers} disabled={readOnly} onChange={(e) => patch({ target_customers: e.target.value })} data-testid="sd-audience" />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>Khu v?c tri?n khai</FieldLabel>
+                  <FieldLabel required>Khu vực triển khai</FieldLabel>
                   <input className="sd-input" value={brief.region} disabled={readOnly} onChange={(e) => patch({ region: e.target.value })} data-testid="sd-region" />
                 </label>
               </div>
             </section>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">D. Hi?n tr?ng Marketing</h2>
+                <h2 className="sd-section__title">D. Hiện trạng Marketing</h2>
               </div>
               <div className="sd-field" style={{ marginBottom: 12 }}>
-                <FieldLabel>K?nh ?ang d?ng</FieldLabel>
+                <FieldLabel>Kênh đang dùng</FieldLabel>
                 <div className="sd-chips">
                   {channels.map((row) => (
                     <button
@@ -442,11 +442,11 @@ export function SalesDiscoveryWizard({
               </div>
               <div className="sd-grid">
                 <label className="sd-field">
-                  <FieldLabel>K?t qu? Marketing hi?n t?i</FieldLabel>
+                  <FieldLabel>Kết quả Marketing hiện tại</FieldLabel>
                   <textarea className="sd-textarea" value={brief.current_results} disabled={readOnly} onChange={(e) => patch({ current_results: e.target.value })} />
                 </label>
                 <label className="sd-field">
-                  <FieldLabel>Kh? kh?n / nguy?n nh?n ch?a hi?u qu?</FieldLabel>
+                  <FieldLabel>Khó khăn / nguyên nhân chưa hiệu quả</FieldLabel>
                   <textarea className="sd-textarea" value={brief.difficulties} disabled={readOnly} onChange={(e) => patch({ difficulties: e.target.value })} />
                 </label>
               </div>
@@ -458,13 +458,13 @@ export function SalesDiscoveryWizard({
           <>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">E. Ng?n s?ch & th?i ?i?m</h2>
+                <h2 className="sd-section__title">E. Ngân sách & thời điểm</h2>
               </div>
               <div className="sd-grid">
                 <label className="sd-field">
-                  <FieldLabel required>Ng?n s?ch Marketing d? ki?n</FieldLabel>
+                  <FieldLabel required>Ngân sách Marketing dự kiến</FieldLabel>
                   <select className="sd-select" value={brief.budget_band} disabled={readOnly} onChange={(e) => patch({ budget_band: e.target.value })} data-testid="sd-budget">
-                    <option value="">Ch?n m?c ng?n s?ch</option>
+                    <option value="">Chọn mức ngân sách</option>
                     {budgets.map((row) => (
                       <option key={row.value} value={row.value}>
                         {row.label}
@@ -473,9 +473,9 @@ export function SalesDiscoveryWizard({
                   </select>
                 </label>
                 <label className="sd-field">
-                  <FieldLabel required>Th?i gian mong mu?n tri?n khai</FieldLabel>
+                  <FieldLabel required>Thời gian mong muốn triển khai</FieldLabel>
                   <select className="sd-select" value={brief.timeline_band} disabled={readOnly} onChange={(e) => patch({ timeline_band: e.target.value })} data-testid="sd-timeline">
-                    <option value="">Ch?n th?i ?i?m</option>
+                    <option value="">Chọn thời điểm</option>
                     {timelines.map((row) => (
                       <option key={row.value} value={row.value}>
                         {row.label}
@@ -487,15 +487,15 @@ export function SalesDiscoveryWizard({
             </section>
             <section className="sd-section">
               <div className="sd-section__head">
-                <h2 className="sd-section__title">F. Ghi ch? & m?c ?? s?n s?ng</h2>
+                <h2 className="sd-section__title">F. Ghi chú & mức độ sẵn sàng</h2>
               </div>
               <div className="sd-grid sd-grid--1">
                 <label className="sd-field">
-                  <FieldLabel required>Ghi ch? n?i dung cu?c g?i</FieldLabel>
+                  <FieldLabel required>Ghi chú nội dung cuộc gọi</FieldLabel>
                   <textarea className="sd-textarea" value={brief.call_notes} disabled={readOnly} onChange={(e) => patch({ call_notes: e.target.value })} data-testid="sd-notes" />
                 </label>
                 <div className="sd-field">
-                  <FieldLabel required>M?c ?? s?n s?ng</FieldLabel>
+                  <FieldLabel required>Mức độ sẵn sàng</FieldLabel>
                   <div className="sd-radios">
                     {temperatures.map((row) => (
                       <label key={row.value} className="sd-radio">
@@ -517,11 +517,11 @@ export function SalesDiscoveryWizard({
 
             <div className="sd-check" data-testid="sd-checklist">
               <div className="sd-check__head">
-                <h3>Ki?m tra tr??c khi Submit</h3>
-                <span>{complete ? '?? 14 m?c' : `Thi?u ${progress.missing.length} m?c`}</span>
+                <h3>Kiểm tra trước khi Submit</h3>
+                <span>{complete ? 'Đủ 14 mục' : `Thiếu ${progress.missing.length} mục`}</span>
               </div>
               {complete ? (
-                <p className="sd-check__list is-ok">?? ?? {progress.total} tr??ng c?t l?i.</p>
+                <p className="sd-check__list is-ok">Đã đủ {progress.total} trường cốt lõi.</p>
               ) : (
                 <ul className="sd-check__list">
                   {progress.missing.map((item) => (
@@ -538,23 +538,26 @@ export function SalesDiscoveryWizard({
           <p className="sd-msg sd-msg--ok">
             {message}{' '}
             <Link href="/crm/solution/queue" className="nav-link">
-              M? H?ng ch? Solution ?
+              Mở Hàng chờ Solution →
             </Link>
           </p>
         ) : null}
-        {saving && !readOnly ? <p className="sd-hint">?ang l?u nh?p?</p> : null}
+        {saving && !readOnly ? <p className="sd-hint">Đang lưu nháp…</p> : null}
 
         <div className="sd-actions">
           <button type="button" className="btn btn-secondary" disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>
-            Quay l?i
+            Quay lại
           </button>
           <div className="sd-actions__right">
+            <button type="button" className="btn btn-secondary" onClick={() => void persistDraft()} disabled={readOnly || saving} data-testid="sd-draft">
+              Lưu bản nháp
+            </button>
             <button type="button" className="btn btn-secondary" onClick={exportJson} data-testid="sd-export">
-              Xu?t d? li?u
+              Xuất dữ liệu
             </button>
             {step < 3 ? (
               <button type="button" className="btn btn-primary" onClick={() => setStep((s) => Math.min(3, s + 1))} data-testid="sd-next">
-                Ti?p theo
+                Tiếp theo
               </button>
             ) : (
               <button
@@ -563,9 +566,9 @@ export function SalesDiscoveryWizard({
                 disabled={!complete || readOnly || submitting}
                 onClick={() => void onSubmit()}
                 data-testid="sd-submit"
-                title={!complete ? '?i?n h?t c?c tr??ng * tr??c khi Submit' : undefined}
+                title={!complete ? 'Điền hết các trường * trước khi Submit' : undefined}
               >
-                {submitting ? '?ang n?p?' : 'Submit to AM'}
+                {submitting ? 'Đang nộp…' : 'Submit to AM'}
               </button>
             )}
           </div>
@@ -574,11 +577,11 @@ export function SalesDiscoveryWizard({
 
       {historicalSessions.length > 0 ? (
         <div className="sd-history">
-          <h3>Phi?n c? (ch? xem)</h3>
+          <h3>Phiên cũ (chỉ xem)</h3>
           {historicalSessions.map((row) => (
             <details key={row.id}>
               <summary>
-                #{row.id} ? {row.status} ? {row.decision || '?'} ? BANT {row.bant_total ?? 0}/30 ? {row.updated_at}
+                #{row.id} · {row.status} · {row.decision || '?'} · BANT {row.bant_total ?? 0}/30 · {row.updated_at}
               </summary>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
                 {JSON.stringify(row.answers_json ?? {}, null, 2).slice(0, 4000)}
@@ -593,22 +596,22 @@ export function SalesDiscoveryWizard({
 
 export function discoverySummaryLines(brief: SalesDiscoveryBrief, options?: DiscoveryOptionsPayload | null): Array<{ label: string; value: string }> {
   return [
-    { label: 'T?n DN / th??ng hi?u', value: brief.company_name },
-    { label: 'Ng?nh ngh?', value: optionLabel(options?.industries ?? [], brief.industry) || brief.industry },
-    { label: 'S?n ph?m ch? l?c', value: brief.flagship_product },
-    { label: 'Ng??i li?n h?', value: [brief.contact_name, brief.phone, brief.email].filter(Boolean).join(' ? ') },
-    { label: 'Ch?c v?', value: optionLabel(options?.job_titles ?? [], brief.job_title) || brief.job_title },
-    { label: 'Quy?n quy?t ??nh NS', value: authorityLabel(brief.budget_authority) },
-    { label: 'D?ch v? quan t?m', value: brief.services.map((s) => serviceName(options ?? null, s)).join(', ') },
-    { label: 'V?n ?? l?n nh?t', value: brief.biggest_problem },
-    { label: 'M?c ti?u Marketing', value: brief.marketing_goal },
-    { label: 'KH m?c ti?u', value: brief.target_customers },
-    { label: 'Khu v?c', value: brief.region },
-    { label: 'K?nh ?ang d?ng', value: channelLabels(brief.channels) },
-    { label: 'Ng?n s?ch', value: budgetLabel(brief.budget_band) },
-    { label: 'Th?i ?i?m', value: timelineLabel(brief.timeline_band) },
-    { label: 'Ghi ch? cu?c g?i', value: brief.call_notes },
-    { label: 'M?c ?? s?n s?ng', value: temperatureLabel(brief.temperature) },
+    { label: 'Tên DN / thương hiệu', value: brief.company_name },
+    { label: 'Ngành nghề', value: optionLabel(options?.industries ?? [], brief.industry) || brief.industry },
+    { label: 'Sản phẩm chủ lực', value: brief.flagship_product },
+    { label: 'Người liên hệ', value: [brief.contact_name, brief.phone, brief.email].filter(Boolean).join(' · ') },
+    { label: 'Chức vụ', value: optionLabel(options?.job_titles ?? [], brief.job_title) || brief.job_title },
+    { label: 'Quyền quyết định NS', value: authorityLabel(brief.budget_authority) },
+    { label: 'Dịch vụ quan tâm', value: brief.services.map((s) => serviceName(options ?? null, s)).join(', ') },
+    { label: 'Vấn đề lớn nhất', value: brief.biggest_problem },
+    { label: 'Mục tiêu Marketing', value: brief.marketing_goal },
+    { label: 'KH mục tiêu', value: brief.target_customers },
+    { label: 'Khu vực', value: brief.region },
+    { label: 'Kênh đang dùng', value: channelLabels(brief.channels) },
+    { label: 'Ngân sách', value: budgetLabel(brief.budget_band) },
+    { label: 'Thời điểm', value: timelineLabel(brief.timeline_band) },
+    { label: 'Ghi chú cuộc gọi', value: brief.call_notes },
+    { label: 'Mức độ sẵn sàng', value: temperatureLabel(brief.temperature) },
   ].filter((row) => row.value);
 }
 

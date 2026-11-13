@@ -163,7 +163,7 @@ export function M2QualifyHandoffCard({
 
       {status === 'skipped' || status === 'failed' ? (
         <div className="banner banner-info">
-          <p>{prep?.error || 'Chưa có prep M2 — n?p Sales Discovery hoặc chạy lại prep.'}</p>
+          <p>{prep?.error || 'Chưa có prep M2 — nộp Sales Discovery hoặc chạy lại prep.'}</p>
           {canRunLmp(user) ? (
             <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onRunM2Prep()}>
               Chạy prep M2

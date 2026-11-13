@@ -592,11 +592,11 @@ export function SolutionCaseDesk({
         <p>{need || 'Sales chưa ghi nhu cầu.'}</p>
         {discoveryBrief ? (
           <dl className="solution-desk__facts" data-testid="solution-discovery">
-            {discoveryBrief.marketing_goal ? (<div><dt>M?c ti?u Marketing</dt><dd>{discoveryBrief.marketing_goal}</dd></div>) : null}
-            {discoveryBrief.target_customers ? (<div><dt>KH m?c ti?u</dt><dd>{discoveryBrief.target_customers}</dd></div>) : null}
-            {discoveryBrief.region ? (<div><dt>Khu v?c</dt><dd>{discoveryBrief.region}</dd></div>) : null}
-            {discoveryBrief.flagship_product ? (<div><dt>S?n ph?m ch? l?c</dt><dd>{discoveryBrief.flagship_product}</dd></div>) : null}
-            {discoveryBrief.services?.length ? (<div><dt>D?ch v? quan t?m</dt><dd>{discoveryBrief.services.map((slug) => intakeServiceLabel(slug) || slug).join(', ')}</dd></div>) : null}
+            {discoveryBrief.marketing_goal ? (<div><dt>Mục tiêu Marketing</dt><dd>{discoveryBrief.marketing_goal}</dd></div>) : null}
+            {discoveryBrief.target_customers ? (<div><dt>KH mục tiêu</dt><dd>{discoveryBrief.target_customers}</dd></div>) : null}
+            {discoveryBrief.region ? (<div><dt>Khu vực</dt><dd>{discoveryBrief.region}</dd></div>) : null}
+            {discoveryBrief.flagship_product ? (<div><dt>Sản phẩm chủ lực</dt><dd>{discoveryBrief.flagship_product}</dd></div>) : null}
+            {discoveryBrief.services?.length ? (<div><dt>Dịch vụ quan tâm</dt><dd>{discoveryBrief.services.map((slug) => intakeServiceLabel(slug) || slug).join(', ')}</dd></div>) : null}
           </dl>
         ) : null}
       </div>
@@ -647,12 +647,12 @@ export function SolutionCaseDesk({
       </div>
       <div className="solution-desk__col">
       <div className="solution-desk__block" data-testid="solution-discovery-budget">
-        <h3>{discoveryBrief ? 'Ng?n s?ch / Th?i ?i?m' : `Ng?n s?ch / BANT ${session?.bant_total ?? 0}/30`}</h3>
+        <h3>{discoveryBrief ? 'Ngân sách / Thời điểm' : `Ngân sách / BANT ${session?.bant_total ?? 0}/30`}</h3>
         {discoveryBrief ? (
           <dl className="solution-desk__facts">
-            <div><dt>Ng?n s?ch</dt><dd>{budgetLabel(discoveryBrief.budget_band) || '?'}</dd></div>
-            <div><dt>Th?i ?i?m</dt><dd>{timelineLabel(discoveryBrief.timeline_band) || '?'}</dd></div>
-            <div><dt>K?nh ?ang d?ng</dt><dd>{channelLabels(discoveryBrief.channels) || '?'}</dd></div>
+            <div><dt>Ngân sách</dt><dd>{budgetLabel(discoveryBrief.budget_band) || '?'}</dd></div>
+            <div><dt>Thời điểm</dt><dd>{timelineLabel(discoveryBrief.timeline_band) || '?'}</dd></div>
+            <div><dt>Kênh đang dùng</dt><dd>{channelLabels(discoveryBrief.channels) || '?'}</dd></div>
           </dl>
         ) : (
         <ul className="solution-desk__bant">

@@ -83,7 +83,7 @@ export function IntakeContent({
       setUser(me);
       updateStoredUser(me);
       if (!hasCap(me, 'crm_leads', 'view')) {
-        setError('Kh?ng c? quy?n xem Sales Discovery.');
+        setError('Không có quyền xem Sales Discovery.');
         return null;
       }
       return access;
@@ -132,7 +132,7 @@ export function IntakeContent({
         setSessions(list);
         setActive(working);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Kh?ng t?i ???c Sales Discovery.');
+        setError(err instanceof Error ? err.message : 'Không tải được Sales Discovery.');
       } finally {
         setLoading(false);
       }
@@ -192,8 +192,8 @@ export function IntakeContent({
       ]}
     >
       <PageToolbar
-        title="CRM ? Sales Discovery"
-        subtitle="Brief 3 b??c ?? giao Solution cho AM"
+        title="CRM – Sales Discovery"
+        subtitle="Brief 3 bước để giao Solution cho AM"
       />
 
       <div className="page-card">
@@ -206,15 +206,15 @@ export function IntakeContent({
           </p>
         ) : null}
 
-        {loading ? <p className="muted">?ang t?i?</p> : null}
+        {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
         {!loading && leadId <= 0 ? (
           <p className="muted">
             <Link href="/crm/leads" className="nav-link">
-              ? M? danh s?ch leads
+              ← Mở danh sách leads
             </Link>{' '}
-            ?? ch?n lead v? b?t ??u Sales Discovery.
+            Để chọn lead và bắt đầu Sales Discovery.
           </p>
         ) : null}
 
@@ -242,7 +242,7 @@ export function IntakeContent({
         ) : null}
 
         {!loading && leadId > 0 && !active && !error ? (
-          <p className="muted">Ch?a c? phi?n Discovery. T?i l?i trang ho?c ki?m tra quy?n s?a lead.</p>
+          <p className="muted">Chưa có phiên Discovery. Tải lại trang hoặc kiểm tra quyền sửa lead.</p>
         ) : null}
       </div>
     </StaffPageShell>

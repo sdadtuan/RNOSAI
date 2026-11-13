@@ -1095,7 +1095,7 @@ export class IntakePgRepository implements OnModuleDestroy {
     const brief = normalizeSalesDiscoveryBrief(briefInput);
     if (!isDiscoveryComplete(brief)) {
       const missing = discoveryProgress(brief).missing.join(', ');
-      throw new Error(`Thi?u tr??ng b?t bu?c: ${missing}`);
+      throw new Error(`Thiếu trường bắt buộc: ${missing}`);
     }
     let current = await this.saveDiscoveryBrief(sessionId, brief);
     if (!current) return null;
@@ -1216,14 +1216,14 @@ export class IntakePgRepository implements OnModuleDestroy {
         ).discovery_brief.services.join(', ')
       : session.service_slug;
     const content =
-      `Sales Discovery #${session.id} ?? n?p cho AM` +
+      `Sales Discovery #${session.id} đã nộp cho AM` +
       (session.lead_temperature ? ` ? ${session.lead_temperature}` : '') +
-      (services ? ` ? D?ch v?: ${services}` : '');
+      (services ? ` · Dịch vụ: ${services}` : '');
     await this.db.query(
       `INSERT INTO crm_lead_activities (
          lead_id, user_id, activity_type, content, result,
          next_action, next_action_at, created_at, created_by, lead_status_at_log
-       ) VALUES ($1, $2, 'system', $3, 'go', 'Ch? AM nh?n Solution', NULL, NOW(), $4, $5)`,
+       ) VALUES ($1, $2, 'system', $3, 'go', 'Chờ AM nhận Solution', NULL, NOW(), $4, $5)`,
       [leadId, actorId, content.slice(0, 8000), actorId != null ? String(actorId) : '', statusSnap],
     );
   }
@@ -1240,6 +1240,6 @@ function mergeLookupOptions(
   for (const row of fromDb) {
     if (row.value) byValue.set(row.value, row);
   }
-  if (!byValue.has('other')) byValue.set('other', { value: 'other', label: 'Kh?c' });
+  if (!byValue.has('other')) byValue.set('other', { value: 'other', label: 'Khác' });
   return [...byValue.values()];
 }

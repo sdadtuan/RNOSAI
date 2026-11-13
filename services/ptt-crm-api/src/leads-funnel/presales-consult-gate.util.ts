@@ -36,19 +36,19 @@ export function validatePresalesConsultAdvance(input: ConsultAdvanceGateInput): 
   const bantTotal = Number(latest?.bant_total ?? 0);
 
   if (!input.leadTaskDone) {
-    return block(['Ho?n th?nh task Lead tr??c khi chuy?n T? v?n'], decision, bantTotal);
+    return block(['Hoàn thành task Lead trước khi chuyển Tư vấn'], decision, bantTotal);
   }
 
   const hasDiscovery = input.sessions.some((s) => sessionHasCompleteDiscovery(s.answers_json));
   const hasLegacyCompleted = input.sessions.some((s) => String(s.status || '') === 'completed');
   if (!hasDiscovery && !hasLegacyCompleted) {
-    return block(['Ho?n th?nh Sales Discovery tr??c khi giao Solution'], decision, bantTotal);
+    return block(['Hoàn thành Sales Discovery trước khi giao Solution'], decision, bantTotal);
   }
 
   return {
     ok: true,
     level: 'ok',
-    messages: ['S?n s?ng giao Solution'],
+    messages: ['Sẵn sàng giao Solution'],
     decision,
     bant_total: bantTotal,
     requires_confirm: false,
@@ -57,8 +57,8 @@ export function validatePresalesConsultAdvance(input: ConsultAdvanceGateInput): 
 }
 
 export function consultAdvanceBlockReason(gate: ConsultAdvanceGateResult, confirm = false): string {
-  if (!gate.ok) return gate.messages[0] || 'Kh?ng th? chuy?n Consult';
-  if (gate.requires_confirm && !confirm) return gate.messages[0] || 'C?n x?c nh?n';
+  if (!gate.ok) return gate.messages[0] || 'Không thể chuyển Consult';
+  if (gate.requires_confirm && !confirm) return gate.messages[0] || 'Cần xác nhận';
   return '';
 }
 

@@ -35,19 +35,19 @@ export interface SalesDiscoveryBrief {
 
 /** Edit these lists to change dropdowns in the Sales Discovery wizard. */
 export const DISCOVERY_BUDGET_OPTIONS: DiscoveryOption[] = [
-  { value: 'under_10', label: 'D??i 10 tri?u/th?ng' },
-  { value: '10_30', label: '10?30 tri?u/th?ng' },
-  { value: '30_50', label: '30?50 tri?u/th?ng' },
-  { value: '50_100', label: '50?100 tri?u/th?ng' },
-  { value: 'over_100', label: 'Tr?n 100 tri?u/th?ng' },
-  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+  { value: 'under_10', label: 'Dưới 10 triệu/tháng' },
+  { value: '10_30', label: '10–30 triệu/tháng' },
+  { value: '30_50', label: '30–50 triệu/tháng' },
+  { value: '50_100', label: '50–100 triệu/tháng' },
+  { value: 'over_100', label: 'Trên 100 triệu/tháng' },
+  { value: 'unknown', label: 'Chưa xác định' },
 ];
 
 export const DISCOVERY_TIMELINE_OPTIONS: DiscoveryOption[] = [
-  { value: 'this_month', label: 'Ngay trong th?ng' },
-  { value: '1_3', label: '1?3 th?ng' },
-  { value: '3_6', label: '3?6 th?ng' },
-  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+  { value: 'this_month', label: 'Ngay trong tháng' },
+  { value: '1_3', label: '1–3 tháng' },
+  { value: '3_6', label: '3–6 tháng' },
+  { value: 'unknown', label: 'Chưa xác định' },
 ];
 
 export const DISCOVERY_CHANNEL_OPTIONS: DiscoveryOption[] = [
@@ -56,55 +56,55 @@ export const DISCOVERY_CHANNEL_OPTIONS: DiscoveryOption[] = [
   { value: 'website', label: 'Website' },
   { value: 'tiktok', label: 'TikTok' },
   { value: 'youtube', label: 'YouTube' },
-  { value: 'none', label: 'Ch?a tri?n khai' },
+  { value: 'none', label: 'Chưa triển khai' },
 ];
 
 export const DISCOVERY_AUTHORITY_OPTIONS: Array<{ value: BudgetAuthority; label: string }> = [
-  { value: 'direct', label: 'Tr?c ti?p quy?t ??nh' },
-  { value: 'needs_approval', label: 'C?n c?p tr?n ph? duy?t' },
-  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+  { value: 'direct', label: 'Trực tiếp quyết định' },
+  { value: 'needs_approval', label: 'Cần cấp trên phê duyệt' },
+  { value: 'unknown', label: 'Chưa xác định' },
 ];
 
 export const DISCOVERY_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }> = [
-  { value: 'hot', label: 'Hot ? Mu?n tri?n khai s?m' },
-  { value: 'warm', label: 'Warm ? ?ang c?n nh?c' },
-  { value: 'cold', label: 'Cold ? Ch? t?m hi?u' },
+  { value: 'hot', label: 'Hot – Muốn triển khai sớm' },
+  { value: 'warm', label: 'Warm – Đang cân nhắc' },
+  { value: 'cold', label: 'Cold – Chỉ tìm hiểu' },
 ];
 
 export const DISCOVERY_INDUSTRY_FALLBACK: DiscoveryOption[] = [
-  { value: 'spa', label: 'Spa / L?m ??p' },
-  { value: 'bds', label: 'B?t ??ng s?n' },
-  { value: 'edu', label: 'Gi?o d?c' },
-  { value: 'healthcare', label: 'Y t? / Healthcare' },
-  { value: 'fnb', label: 'F&B / Nh? h?ng' },
+  { value: 'spa', label: 'Spa / Làm đẹp' },
+  { value: 'bds', label: 'Bất động sản' },
+  { value: 'edu', label: 'Giáo dục' },
+  { value: 'healthcare', label: 'Y tế / Healthcare' },
+  { value: 'fnb', label: 'F&B / Nhà hàng' },
   { value: 'agency', label: 'Agency / Marketing' },
-  { value: 'other', label: 'Kh?c' },
+  { value: 'other', label: 'Khác' },
 ];
 
 export const DISCOVERY_JOB_TITLE_FALLBACK: DiscoveryOption[] = [
-  { value: 'owner', label: 'Ch? DN / Owner' },
-  { value: 'mkt_director', label: 'Gi?m ??c Marketing' },
-  { value: 'sales_director', label: 'Gi?m ??c Kinh doanh' },
-  { value: 'hr_manager', label: 'Tr??ng ph?ng Nh?n s?' },
-  { value: 'mkt_manager', label: 'Tr??ng ph?ng Marketing' },
-  { value: 'other', label: 'Kh?c' },
+  { value: 'owner', label: 'Chủ DN / Owner' },
+  { value: 'mkt_director', label: 'Giám đốc Marketing' },
+  { value: 'sales_director', label: 'Giám đốc Kinh doanh' },
+  { value: 'hr_manager', label: 'Trưởng phòng Nhân sự' },
+  { value: 'mkt_manager', label: 'Trưởng phòng Marketing' },
+  { value: 'other', label: 'Khác' },
 ];
 
 /** Main groups (picker headings) and catalog slugs (sub-services with +). Easy to edit. */
 export const DISCOVERY_SERVICE_GROUPS: Array<{ key: string; title: string; slugs: string[] }> = [
   {
     key: 'brand',
-    title: 'Truy?n th?ng th??ng hi?u',
+    title: 'Truyền thông thương hiệu',
     slugs: ['nhan-dien-thuong-hieu', 'tiep-thi-noi-dung', 'thiet-ke-landing-page'],
   },
   {
     key: 'acquire',
-    title: 'Thu h?t kh?ch h?ng ti?m n?ng',
+    title: 'Thu hút khách hàng tiềm năng',
     slugs: ['quang-cao-facebook', 'dich-vu-seo-tong-the', 'lead-gen', 'van-hanh-tmdt', 'media-planning-ooh'],
   },
   {
     key: 'nurture',
-    title: 'Nu?i d??ng & T?o chuy?n ??i',
+    title: 'Nuôi dưỡng & Tạo chuyển đổi',
     slugs: [
       'nuoi-duong-khach-hang',
       'marketing-automation-nurture',
@@ -120,7 +120,7 @@ export const DISCOVERY_SERVICE_GROUPS: Array<{ key: string; title: string; slugs
   },
   {
     key: 'produce',
-    title: 'PR, s?n xu?t & activation',
+    title: 'PR, sản xuất & activation',
     slugs: [
       'pr-booking-bao-chi',
       'san-xuat-video-tvc',
@@ -135,25 +135,25 @@ export const DISCOVERY_BRIEF_KEY = 'discovery_brief';
 
 export type DiscoveryRequiredKey = keyof SalesDiscoveryBrief;
 
-/** All * required fields. Also the 14 "tr??ng c?t l?i" checklist. */
+/** All * required fields. Also the 14 "trường cốt lõi" checklist. */
 export const DISCOVERY_REQUIRED_FIELDS: Array<{
   key: DiscoveryRequiredKey;
   checklist: string;
 }> = [
-  { key: 'company_name', checklist: 'T?n DN' },
-  { key: 'industry', checklist: 'Ng?nh ngh?' },
-  { key: 'flagship_product', checklist: 'S?n ph?m ch? l?c' },
-  { key: 'contact_name', checklist: 'Ng??i li?n h?' },
-  { key: 'phone', checklist: 'S?T' },
-  { key: 'services', checklist: 'D?ch v? quan t?m' },
-  { key: 'biggest_problem', checklist: 'V?n ?? KH' },
-  { key: 'marketing_goal', checklist: 'M?c ti?u MKT' },
-  { key: 'target_customers', checklist: 'KH m?c ti?u' },
-  { key: 'region', checklist: 'Khu v?c' },
-  { key: 'budget_band', checklist: 'Ng?n s?ch' },
-  { key: 'timeline_band', checklist: 'Th?i gian b?t ??u' },
-  { key: 'call_notes', checklist: 'Ghi ch? cu?c g?i' },
-  { key: 'temperature', checklist: 'M?c ?? s?n s?ng' },
+  { key: 'company_name', checklist: 'Tên DN' },
+  { key: 'industry', checklist: 'Ngành nghề' },
+  { key: 'flagship_product', checklist: 'Sản phẩm chủ lực' },
+  { key: 'contact_name', checklist: 'Người liên hệ' },
+  { key: 'phone', checklist: 'SĐT' },
+  { key: 'services', checklist: 'Dịch vụ quan tâm' },
+  { key: 'biggest_problem', checklist: 'Vấn đề KH' },
+  { key: 'marketing_goal', checklist: 'Mục tiêu MKT' },
+  { key: 'target_customers', checklist: 'KH mục tiêu' },
+  { key: 'region', checklist: 'Khu vực' },
+  { key: 'budget_band', checklist: 'Ngân sách' },
+  { key: 'timeline_band', checklist: 'Thời gian bắt đầu' },
+  { key: 'call_notes', checklist: 'Ghi chú cuộc gọi' },
+  { key: 'temperature', checklist: 'Mức độ sẵn sàng' },
 ];
 
 export function emptySalesDiscoveryBrief(): SalesDiscoveryBrief {
@@ -498,8 +498,8 @@ export function discoveryConsultFormPatch(brief: SalesDiscoveryBrief): Record<st
   if (brief.region) patch.region = brief.region;
   if (brief.call_notes) patch.notes = brief.call_notes;
   if (brief.difficulties && brief.current_results) {
-    patch.current_status = [brief.biggest_problem, `K?nh: ${channelLabels(brief.channels)}`, `K?t qu?: ${brief.current_results}`, `Kh? kh?n: ${brief.difficulties}`]
-      .filter((s) => s && s !== 'K?nh: ')
+    patch.current_status = [brief.biggest_problem, `Kênh: ${channelLabels(brief.channels)}`, `Kết quả: ${brief.current_results}`, `Khó khăn: ${brief.difficulties}`]
+      .filter((s) => s && s !== 'Kênh: ')
       .join('\n');
   }
   return patch;
@@ -537,7 +537,7 @@ export function groupCatalogServices<T extends { slug: string; name: string }>(
   }
   const leftover = services.filter((row) => !used.has(row.slug));
   if (leftover.length) {
-    groups.push({ key: 'other', title: 'D?ch v? kh?c', services: leftover });
+    groups.push({ key: 'other', title: 'Dịch vụ khác', services: leftover });
   }
   return groups;
 }

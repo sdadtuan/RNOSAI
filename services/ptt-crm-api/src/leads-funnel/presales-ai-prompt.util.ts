@@ -9,7 +9,7 @@ export const PRESALES_AI_PROMPT_TEMPLATES: Record<string, string> = {
     'Tóm tắt Intake:\n{intake_summary}\n\n' +
     'Brief readiness:\n{consult_brief_json}\n\n' +
     'Viết phân tích 250 từ: tình trạng hiện tại, cơ hội tăng trưởng, ' +
-    'th?ch th?c, h??ng ti?p c?n ?? xu?t ? b?m s?t d? li?u Sales Discovery ? tr?n.'
+    'thách thức, hướng tiếp cận đề xuất — bám sát dữ liệu Sales Discovery ở trên.'
   ),
 };
 

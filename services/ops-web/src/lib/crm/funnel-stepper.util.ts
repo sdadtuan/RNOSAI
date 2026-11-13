@@ -388,13 +388,13 @@ export function resolvePrimaryAction(input: {
       if (context === 'intake') {
         return {
           kind: 'create_intake_session',
-          label: '+ M? Sales Discovery',
+          label: '+ Mở Sales Discovery',
           disabled: false,
         };
       }
       return {
         kind: 'link',
-        label: '+ M? Sales Discovery →',
+        label: '+ Mở Sales Discovery →',
         disabled: false,
         href: intakeLink,
       };

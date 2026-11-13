@@ -23,13 +23,13 @@ function filledBrief() {
     contact_name: 'An',
     phone: '0901234567',
     services: ['ai-chatbot-ban-hang', 'thiet-lap-crm'],
-    biggest_problem: '?t lead',
-    marketing_goal: '30 lead/th?ng',
-    target_customers: 'N? 25-45',
+    biggest_problem: 'Ít lead',
+    marketing_goal: '30 lead/tháng',
+    target_customers: 'Nữ 25-45',
     region: 'TP.HCM',
     budget_band: '10_30',
     timeline_band: 'this_month',
-    call_notes: 'G?i 10 ph?t, quan t?m chatbot',
+    call_notes: 'Gọi 10 phút, quan tâm chatbot',
     temperature: 'hot',
     websites: 'https://spa.vn https://facebook.com/spa',
     channels: ['facebook', 'none'],
@@ -41,12 +41,12 @@ describe('sales-discovery.util', () => {
     const empty = discoveryProgress(emptySalesDiscoveryBrief());
     expect(empty.total).toBe(14);
     expect(empty.filled).toBe(0);
-    expect(empty.missing).toContain('D?ch v? quan t?m');
+    expect(empty.missing).toContain('Dịch vụ quan tâm');
     expect(isDiscoveryComplete(filledBrief())).toBe(true);
     expect(discoveryProgress(filledBrief()).filled).toBe(14);
   });
 
-  it('drops "Ch?a tri?n khai" when another channel is selected', () => {
+  it('drops "Chưa triển khai" when another channel is selected', () => {
     const brief = filledBrief();
     expect(brief.channels).toEqual(['facebook']);
     expect(toggleDiscoveryChannel(['facebook'], 'none')).toEqual(['none']);
@@ -60,11 +60,11 @@ describe('sales-discovery.util', () => {
     expect(urls.tiktok).toContain('tiktok.com');
     const brief = filledBrief();
     const form = discoveryConsultFormPatch(brief);
-    expect(form.goal).toBe('30 lead/th?ng');
-    expect(form.target_audience).toBe('N? 25-45');
-    expect(form.need).toBe('?t lead');
+    expect(form.goal).toBe('30 lead/tháng');
+    expect(form.target_audience).toBe('Nữ 25-45');
+    expect(form.need).toBe('Ít lead');
     const client = discoveryClientBriefPatch(brief);
-    expect(client.goal).toBe('30 lead/th?ng');
+    expect(client.goal).toBe('30 lead/tháng');
     expect(client.website).toContain('spa.vn');
     expect(primaryServiceSlug(brief.services)).toBe('ai-chatbot-ban-hang');
   });
@@ -72,7 +72,7 @@ describe('sales-discovery.util', () => {
   it('prefills from lead + legacy session and keeps an existing brief', () => {
     const prefilled = prefillSalesDiscovery({
       company_name: 'Lead Co',
-      full_name: 'B?nh',
+      full_name: 'Bánh',
       phone: '0911',
       email: 'a@b.c',
       need: 'Need from lead',
@@ -83,7 +83,7 @@ describe('sales-discovery.util', () => {
         contact_role: 'owner',
         lead_temperature: 'warm',
         service_slug: 'thiet-ke-landing-page',
-        answers_json: { notes: 'ghi ch? c?', crm_fields: { need: 'pain' } },
+        answers_json: { notes: 'ghi chú cũ', crm_fields: { need: 'pain' } },
       },
     });
     expect(prefilled.company_name).toBe('Session Co');
@@ -93,7 +93,7 @@ describe('sales-discovery.util', () => {
     expect(prefilled.biggest_problem).toBe('pain');
     expect(prefilled.temperature).toBe('warm');
     expect(prefilled.services).toEqual(['thiet-ke-landing-page']);
-    expect(prefilled.call_notes).toBe('ghi ch? c?');
+    expect(prefilled.call_notes).toBe('ghi chú cũ');
 
     const existing = prefillSalesDiscovery({
       company_name: 'Ignored',
@@ -109,7 +109,7 @@ describe('sales-discovery.util', () => {
     const answers = buildDiscoveryCompatAnswers({ keep: 1, crm_fields: { other: 'x' } }, filledBrief());
     expect(answers.keep).toBe(1);
     expect((answers.crm_fields as { other: string; need: string }).other).toBe('x');
-    expect((answers.crm_fields as { need: string }).need).toBe('?t lead');
+    expect((answers.crm_fields as { need: string }).need).toBe('Ít lead');
     expect(answers.discovery_brief).toMatchObject({ company_name: 'Spa Hoa' });
     expect(addDiscoveryService(['a'], 'a')).toEqual(['a']);
     expect(addDiscoveryService(['a'], 'b')).toEqual(['a', 'b']);
