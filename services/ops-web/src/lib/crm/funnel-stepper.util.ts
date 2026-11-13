@@ -271,7 +271,7 @@ export function resolveGateStrip(
       tone: 'ok',
       gateKind: 'consult',
       title: 'Đã chuyển Tư vấn',
-      messages: ['Lead đã qua khảo sát BANT — tiếp tục trên trang chi tiết lead.'],
+      messages: ['Lead đã qua Sales Discovery — tiếp tục trên trang chi tiết lead.'],
       scrollAnchor: '#funnel-presales',
     };
   }
@@ -388,13 +388,13 @@ export function resolvePrimaryAction(input: {
       if (context === 'intake') {
         return {
           kind: 'create_intake_session',
-          label: '+ Tạo phiên Intake',
+          label: '+ M? Sales Discovery',
           disabled: false,
         };
       }
       return {
         kind: 'link',
-        label: '+ Tạo phiên Intake →',
+        label: '+ M? Sales Discovery →',
         disabled: false,
         href: intakeLink,
       };

@@ -26,6 +26,15 @@ import {
   type SalesKitRulesOutput,
 } from './intake-sales-kit-rules.util';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
+import {
+  discoveryClientBriefPatch,
+  isDiscoveryComplete,
+  normalizeSalesDiscoveryBrief,
+  primaryServiceSlug,
+  readDiscoveryBriefFromAnswers,
+} from './sales-discovery.util';
+import { writeClientBrief } from '../leads-funnel/client-plan-brief.util';
+
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
 import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
 import { maskSalesKitPii } from './sales-kit-pii.util';
@@ -439,6 +448,172 @@ export class IntakeService {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
     return updated;
+  }
+
+  getDiscoveryOptions() {
+    return this.pg.getDiscoveryOptions();
+  }
+
+  async saveDiscovery(
+    id: number,
+    body: { brief?: unknown },
+    actor?: IntakeStaffActor | null,
+  ) {
+    const existing = await this.pg.getSession(id);
+    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (existing.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
+    }
+    if (String(existing.status ?? '').trim() === 'completed') {
+      throw new BadRequestException({ error: 'Phi?n ?? n?p ? ch? xem, kh?ng s?a.' });
+    }
+    const brief = body?.brief ?? readDiscoveryBriefFromAnswers(existing.answers_json);
+    const updated = await this.pg.saveDiscoveryBrief(id, brief);
+    if (!updated) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    return updated;
+  }
+
+  async saveDiscoveryServices(
+    id: number,
+    body: { action: 'add' | 'remove'; slug: string },
+    actor?: IntakeStaffActor | null,
+  ) {
+    const existing = await this.pg.getSession(id);
+    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (existing.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
+    }
+    if (String(existing.status ?? '').trim() === 'completed') {
+      throw new BadRequestException({ error: 'Phi?n ?? n?p ? ch? xem, kh?ng s?a.' });
+    }
+    const brief = readDiscoveryBriefFromAnswers(existing.answers_json) ?? normalizeSalesDiscoveryBrief({});
+    const slug = String(body?.slug ?? '').trim();
+    if (!slug) throw new BadRequestException({ error: 'Thi?u m? d?ch v?' });
+    if (body.action === 'remove') {
+      brief.services = brief.services.filter((s) => s !== slug);
+    } else if (!brief.services.includes(slug)) {
+      brief.services = [...brief.services, slug];
+    }
+    const updated = await this.pg.saveDiscoveryBrief(id, brief);
+    if (!updated) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    return updated;
+  }
+
+  async submitDiscovery(
+    id: number,
+    body: { brief?: unknown; confirm?: boolean },
+    actorId: number | null,
+    actor?: IntakeStaffActor | null,
+  ) {
+    const existing = await this.pg.getSession(id);
+    if (!existing) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+    if (existing.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
+    }
+    const incoming = body?.brief
+      ? normalizeSalesDiscoveryBrief(body.brief)
+      : readDiscoveryBriefFromAnswers(existing.answers_json) ?? normalizeSalesDiscoveryBrief({});
+    if (!isDiscoveryComplete(incoming)) {
+      const { discoveryProgress } = await import('./sales-discovery.util');
+      throw new BadRequestException({
+        error: 'missing_required',
+        message: '?i?n h?t c?c tr??ng b?t bu?c (*) tr??c khi Submit to AM.',
+        missing: discoveryProgress(incoming).missing,
+      });
+    }
+    const leadId = existing.lead_id;
+    if (!leadId) {
+      throw new BadRequestException({ error: 'Phi?n ch?a g?n lead' });
+    }
+
+    const primary = primaryServiceSlug(incoming.services) || existing.service_slug || '_common';
+    const actorLabel = actorId != null ? `staff:${actorId}` : 'staff:discovery';
+    try {
+      await this.funnelPg.ensurePresales(leadId, primary, actorLabel);
+    } catch (err) {
+      this.logger.warn(
+        `ensurePresales failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    let completed;
+    try {
+      completed = await this.pg.finalizeDiscoverySession(id, incoming, actorId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException({ error: msg });
+    }
+    if (!completed) throw new NotFoundException({ error: 'Kh?ng t?m th?y phi?n' });
+
+    try {
+      await this.funnelPg.runPresalesConsultPrefill(leadId, false);
+    } catch (err) {
+      this.logger.warn(
+        `consult prefill skipped lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    await this.applyDiscoveryClientBrief(leadId, incoming, primary);
+
+    let handoff: unknown = null;
+    let handoff_error: string | null = null;
+    const staffId = actorId ?? actor?.staffId ?? 0;
+    try {
+      handoff = await this.funnelPg.handoffToSolution(leadId, staffId, { confirm: true });
+    } catch (err) {
+      handoff_error = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`handoffToSolution after discovery failed lead=${leadId}: ${handoff_error}`);
+    }
+
+    void this.lmpEnqueue.enqueueAfterIntakeGo(leadId).catch((err) => {
+      this.logger.warn(
+        `lmp enqueue skipped lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+
+    const session = await this.pg.getSession(id);
+    return {
+      session,
+      brief: incoming,
+      handoff,
+      handoff_error,
+      ok: !handoff_error,
+    };
+  }
+
+  private async applyDiscoveryClientBrief(
+    leadId: number,
+    brief: ReturnType<typeof normalizeSalesDiscoveryBrief>,
+    serviceSlug: string,
+  ): Promise<void> {
+    try {
+      const snap = await this.funnelPg.getPresalesSnapshot(leadId);
+      if (!snap) return;
+      const plan = await this.funnelPg.getOrCreatePreliminaryPlan(
+        leadId,
+        snap.presales.id,
+        serviceSlug || snap.presales.service_slug,
+      );
+      const patch = discoveryClientBriefPatch(brief);
+      const rawProf = plan.target_market_prof_json;
+      const prof =
+        rawProf && typeof rawProf === 'object' && !Array.isArray(rawProf)
+          ? (rawProf as Record<string, string>)
+          : {};
+      const next = writeClientBrief(prof, {
+        goal: patch.goal,
+        audience: patch.audience,
+        channels: patch.channels,
+        website: patch.website,
+        fanpage: patch.fanpage,
+        metrics: patch.metrics,
+      });
+      await this.funnelPg.patchMarketingPlan(leadId, { target_market_prof: next });
+    } catch (err) {
+      this.logger.warn(
+        `client brief prefill skipped lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
 

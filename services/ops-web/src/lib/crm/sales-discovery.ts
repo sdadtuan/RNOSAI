@@ -1,0 +1,543 @@
+/** Sales Discovery brief ? option lists are easy to edit in the constants below. */
+
+export type BudgetAuthority = 'direct' | 'needs_approval' | 'unknown';
+export type LeadTemperature = 'hot' | 'warm' | 'cold';
+
+export interface DiscoveryOption {
+  value: string;
+  label: string;
+}
+
+export interface SalesDiscoveryBrief {
+  company_name: string;
+  industry: string;
+  flagship_product: string;
+  websites: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  job_title: string;
+  budget_authority: BudgetAuthority | '';
+  services: string[];
+  biggest_problem: string;
+  marketing_goal: string;
+  priority_product: string;
+  target_customers: string;
+  region: string;
+  channels: string[];
+  current_results: string;
+  difficulties: string;
+  budget_band: string;
+  timeline_band: string;
+  call_notes: string;
+  temperature: LeadTemperature | '';
+}
+
+/** Edit these lists to change dropdowns in the Sales Discovery wizard. */
+export const DISCOVERY_BUDGET_OPTIONS: DiscoveryOption[] = [
+  { value: 'under_10', label: 'D??i 10 tri?u/th?ng' },
+  { value: '10_30', label: '10?30 tri?u/th?ng' },
+  { value: '30_50', label: '30?50 tri?u/th?ng' },
+  { value: '50_100', label: '50?100 tri?u/th?ng' },
+  { value: 'over_100', label: 'Tr?n 100 tri?u/th?ng' },
+  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+];
+
+export const DISCOVERY_TIMELINE_OPTIONS: DiscoveryOption[] = [
+  { value: 'this_month', label: 'Ngay trong th?ng' },
+  { value: '1_3', label: '1?3 th?ng' },
+  { value: '3_6', label: '3?6 th?ng' },
+  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+];
+
+export const DISCOVERY_CHANNEL_OPTIONS: DiscoveryOption[] = [
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'google', label: 'Google' },
+  { value: 'website', label: 'Website' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'none', label: 'Ch?a tri?n khai' },
+];
+
+export const DISCOVERY_AUTHORITY_OPTIONS: Array<{ value: BudgetAuthority; label: string }> = [
+  { value: 'direct', label: 'Tr?c ti?p quy?t ??nh' },
+  { value: 'needs_approval', label: 'C?n c?p tr?n ph? duy?t' },
+  { value: 'unknown', label: 'Ch?a x?c ??nh' },
+];
+
+export const DISCOVERY_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }> = [
+  { value: 'hot', label: 'Hot ? Mu?n tri?n khai s?m' },
+  { value: 'warm', label: 'Warm ? ?ang c?n nh?c' },
+  { value: 'cold', label: 'Cold ? Ch? t?m hi?u' },
+];
+
+export const DISCOVERY_INDUSTRY_FALLBACK: DiscoveryOption[] = [
+  { value: 'spa', label: 'Spa / L?m ??p' },
+  { value: 'bds', label: 'B?t ??ng s?n' },
+  { value: 'edu', label: 'Gi?o d?c' },
+  { value: 'healthcare', label: 'Y t? / Healthcare' },
+  { value: 'fnb', label: 'F&B / Nh? h?ng' },
+  { value: 'agency', label: 'Agency / Marketing' },
+  { value: 'other', label: 'Kh?c' },
+];
+
+export const DISCOVERY_JOB_TITLE_FALLBACK: DiscoveryOption[] = [
+  { value: 'owner', label: 'Ch? DN / Owner' },
+  { value: 'mkt_director', label: 'Gi?m ??c Marketing' },
+  { value: 'sales_director', label: 'Gi?m ??c Kinh doanh' },
+  { value: 'hr_manager', label: 'Tr??ng ph?ng Nh?n s?' },
+  { value: 'mkt_manager', label: 'Tr??ng ph?ng Marketing' },
+  { value: 'other', label: 'Kh?c' },
+];
+
+/** Main groups (picker headings) and catalog slugs (sub-services with +). Easy to edit. */
+export const DISCOVERY_SERVICE_GROUPS: Array<{ key: string; title: string; slugs: string[] }> = [
+  {
+    key: 'brand',
+    title: 'Truy?n th?ng th??ng hi?u',
+    slugs: ['nhan-dien-thuong-hieu', 'tiep-thi-noi-dung', 'thiet-ke-landing-page'],
+  },
+  {
+    key: 'acquire',
+    title: 'Thu h?t kh?ch h?ng ti?m n?ng',
+    slugs: ['quang-cao-facebook', 'dich-vu-seo-tong-the', 'lead-gen', 'van-hanh-tmdt', 'media-planning-ooh'],
+  },
+  {
+    key: 'nurture',
+    title: 'Nu?i d??ng & T?o chuy?n ??i',
+    slugs: [
+      'nuoi-duong-khach-hang',
+      'marketing-automation-nurture',
+      'marketing-automation-setup',
+      'thiet-lap-crm',
+      'email-sms-zalo-marketing',
+    ],
+  },
+  {
+    key: 'ai',
+    title: 'AI System & Intelligence',
+    slugs: ['ai-chatbot-ban-hang', 'ai-system-intelligence', 'dashboard-bao-cao-ai', 'phan-tich-thi-truong'],
+  },
+  {
+    key: 'produce',
+    title: 'PR, s?n xu?t & activation',
+    slugs: [
+      'pr-booking-bao-chi',
+      'san-xuat-video-tvc',
+      'kol-koc-booking',
+      'su-kien-activation-btl',
+      'trade-marketing-posm',
+    ],
+  },
+];
+
+export const DISCOVERY_BRIEF_KEY = 'discovery_brief';
+
+export type DiscoveryRequiredKey = keyof SalesDiscoveryBrief;
+
+/** All * required fields. Also the 14 "tr??ng c?t l?i" checklist. */
+export const DISCOVERY_REQUIRED_FIELDS: Array<{
+  key: DiscoveryRequiredKey;
+  checklist: string;
+}> = [
+  { key: 'company_name', checklist: 'T?n DN' },
+  { key: 'industry', checklist: 'Ng?nh ngh?' },
+  { key: 'flagship_product', checklist: 'S?n ph?m ch? l?c' },
+  { key: 'contact_name', checklist: 'Ng??i li?n h?' },
+  { key: 'phone', checklist: 'S?T' },
+  { key: 'services', checklist: 'D?ch v? quan t?m' },
+  { key: 'biggest_problem', checklist: 'V?n ?? KH' },
+  { key: 'marketing_goal', checklist: 'M?c ti?u MKT' },
+  { key: 'target_customers', checklist: 'KH m?c ti?u' },
+  { key: 'region', checklist: 'Khu v?c' },
+  { key: 'budget_band', checklist: 'Ng?n s?ch' },
+  { key: 'timeline_band', checklist: 'Th?i gian b?t ??u' },
+  { key: 'call_notes', checklist: 'Ghi ch? cu?c g?i' },
+  { key: 'temperature', checklist: 'M?c ?? s?n s?ng' },
+];
+
+export function emptySalesDiscoveryBrief(): SalesDiscoveryBrief {
+  return {
+    company_name: '',
+    industry: '',
+    flagship_product: '',
+    websites: '',
+    contact_name: '',
+    phone: '',
+    email: '',
+    job_title: '',
+    budget_authority: '',
+    services: [],
+    biggest_problem: '',
+    marketing_goal: '',
+    priority_product: '',
+    target_customers: '',
+    region: '',
+    channels: [],
+    current_results: '',
+    difficulties: '',
+    budget_band: '',
+    timeline_band: '',
+    call_notes: '',
+    temperature: '',
+  };
+}
+
+function asString(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    const one = asString(value);
+    return one ? [one] : [];
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of value) {
+    const s = asString(item);
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
+export function normalizeSalesDiscoveryBrief(raw: unknown): SalesDiscoveryBrief {
+  const base = emptySalesDiscoveryBrief();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+  const src = raw as Record<string, unknown>;
+  base.company_name = asString(src.company_name);
+  base.industry = asString(src.industry);
+  base.flagship_product = asString(src.flagship_product);
+  base.websites = asString(src.websites);
+  base.contact_name = asString(src.contact_name);
+  base.phone = asString(src.phone);
+  base.email = asString(src.email);
+  base.job_title = asString(src.job_title);
+  const auth = asString(src.budget_authority);
+  base.budget_authority =
+    auth === 'direct' || auth === 'needs_approval' || auth === 'unknown' ? auth : '';
+  base.services = asStringList(src.services);
+  base.biggest_problem = asString(src.biggest_problem);
+  base.marketing_goal = asString(src.marketing_goal);
+  base.priority_product = asString(src.priority_product);
+  base.target_customers = asString(src.target_customers);
+  base.region = asString(src.region);
+  let channels = asStringList(src.channels);
+  if (channels.includes('none') && channels.length > 1) {
+    channels = channels.filter((c) => c !== 'none');
+  }
+  base.channels = channels;
+  base.current_results = asString(src.current_results);
+  base.difficulties = asString(src.difficulties);
+  base.budget_band = asString(src.budget_band);
+  base.timeline_band = asString(src.timeline_band);
+  base.call_notes = asString(src.call_notes);
+  const temp = asString(src.temperature);
+  base.temperature = temp === 'hot' || temp === 'warm' || temp === 'cold' ? temp : '';
+  return base;
+}
+
+function fieldFilled(brief: SalesDiscoveryBrief, key: DiscoveryRequiredKey): boolean {
+  const val = brief[key];
+  if (Array.isArray(val)) return val.length > 0;
+  return asString(val).length > 0;
+}
+
+export function discoveryMissingFields(brief: SalesDiscoveryBrief): Array<{ key: DiscoveryRequiredKey; checklist: string }> {
+  return DISCOVERY_REQUIRED_FIELDS.filter((row) => !fieldFilled(brief, row.key));
+}
+
+export function discoveryProgress(brief: SalesDiscoveryBrief): { filled: number; total: number; missing: string[] } {
+  const missing = discoveryMissingFields(brief);
+  const total = DISCOVERY_REQUIRED_FIELDS.length;
+  return {
+    filled: total - missing.length,
+    total,
+    missing: missing.map((row) => row.checklist),
+  };
+}
+
+export function isDiscoveryComplete(brief: SalesDiscoveryBrief): boolean {
+  return discoveryMissingFields(brief).length === 0;
+}
+
+export function readDiscoveryBriefFromAnswers(answers: unknown): SalesDiscoveryBrief | null {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return null;
+  const raw = (answers as Record<string, unknown>)[DISCOVERY_BRIEF_KEY];
+  if (!raw || typeof raw !== 'object') return null;
+  return normalizeSalesDiscoveryBrief(raw);
+}
+
+export function sessionHasCompleteDiscovery(answers: unknown): boolean {
+  const brief = readDiscoveryBriefFromAnswers(answers);
+  return brief ? isDiscoveryComplete(brief) : false;
+}
+
+export function primaryServiceSlug(services: string[]): string {
+  return asString(services[0] ?? '');
+}
+
+export function parseWebsiteBundle(websites: string): { website: string; fanpage: string; tiktok: string } {
+  const tokens = asString(websites)
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let website = '';
+  let fanpage = '';
+  let tiktok = '';
+  const leftover: string[] = [];
+  for (const token of tokens) {
+    const lower = token.toLowerCase();
+    if (!fanpage && (lower.includes('facebook.com') || lower.includes('fb.com') || lower.includes('fanpage'))) {
+      fanpage = token;
+      continue;
+    }
+    if (!tiktok && lower.includes('tiktok.com')) {
+      tiktok = token;
+      continue;
+    }
+    if (!website && (lower.startsWith('http') || lower.includes('.') || lower.startsWith('www.'))) {
+      website = token;
+      continue;
+    }
+    leftover.push(token);
+  }
+  if (!website && leftover.length) website = leftover.join(' ');
+  else if (leftover.length) website = [website, ...leftover].filter(Boolean).join(' ');
+  return { website, fanpage, tiktok };
+}
+
+export function optionLabel(options: DiscoveryOption[], value: string): string {
+  return options.find((row) => row.value === value)?.label || asString(value);
+}
+
+export function channelLabels(channels: string[]): string {
+  return channels.map((c) => optionLabel(DISCOVERY_CHANNEL_OPTIONS, c)).filter(Boolean).join(', ');
+}
+
+export function budgetLabel(value: string): string {
+  return optionLabel(DISCOVERY_BUDGET_OPTIONS, value);
+}
+
+export function timelineLabel(value: string): string {
+  return optionLabel(DISCOVERY_TIMELINE_OPTIONS, value);
+}
+
+export function temperatureLabel(value: string): string {
+  return (
+    DISCOVERY_TEMPERATURE_OPTIONS.find((row) => row.value === value)?.label || asString(value)
+  );
+}
+
+export function authorityLabel(value: string): string {
+  return (
+    DISCOVERY_AUTHORITY_OPTIONS.find((row) => row.value === value)?.label || asString(value)
+  );
+}
+
+export function toggleDiscoveryChannel(current: string[], value: string): string[] {
+  if (value === 'none') {
+    return current.includes('none') ? [] : ['none'];
+  }
+  const withoutNone = current.filter((c) => c !== 'none');
+  if (withoutNone.includes(value)) return withoutNone.filter((c) => c !== value);
+  return [...withoutNone, value];
+}
+
+export function addDiscoveryService(current: string[], slug: string): string[] {
+  const next = asString(slug);
+  if (!next) return current;
+  if (current.includes(next)) return current;
+  return [...current, next];
+}
+
+export function removeDiscoveryService(current: string[], slug: string): string[] {
+  return current.filter((s) => s !== slug);
+}
+
+export interface DiscoveryPrefillSource {
+  company_name?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  need?: string | null;
+  industry?: string | null;
+  industry_slug?: string | null;
+  job_title?: string | null;
+  brand?: string | null;
+  website?: string | null;
+  fanpage?: string | null;
+  session?: {
+    company_name?: string | null;
+    contact_name?: string | null;
+    contact_role?: string | null;
+    lead_temperature?: string | null;
+    service_slug?: string | null;
+    answers_json?: unknown;
+  } | null;
+}
+
+export function prefillSalesDiscovery(source: DiscoveryPrefillSource): SalesDiscoveryBrief {
+  const fromSession = readDiscoveryBriefFromAnswers(source.session?.answers_json);
+  const brief = fromSession ? { ...fromSession } : emptySalesDiscoveryBrief();
+  const answers =
+    source.session?.answers_json && typeof source.session.answers_json === 'object'
+      ? (source.session.answers_json as Record<string, unknown>)
+      : {};
+  const crm =
+    answers.crm_fields && typeof answers.crm_fields === 'object'
+      ? (answers.crm_fields as Record<string, unknown>)
+      : {};
+
+  if (!brief.company_name) {
+    brief.company_name = asString(source.session?.company_name) || asString(source.company_name) || asString(source.brand);
+  }
+  if (!brief.contact_name) {
+    brief.contact_name = asString(source.session?.contact_name) || asString(source.full_name);
+  }
+  if (!brief.phone) brief.phone = asString(source.phone);
+  if (!brief.email) brief.email = asString(source.email);
+  if (!brief.job_title) {
+    brief.job_title = asString(source.session?.contact_role) || asString(source.job_title);
+  }
+  if (!brief.industry) {
+    brief.industry = asString(source.industry_slug) || asString(source.industry);
+  }
+  if (!brief.biggest_problem) {
+    brief.biggest_problem = asString(crm.need) || asString(answers.need) || asString(source.need);
+  }
+  if (!brief.temperature) {
+    const t = asString(source.session?.lead_temperature);
+    if (t === 'hot' || t === 'warm' || t === 'cold') brief.temperature = t;
+  }
+  if (!brief.services.length) {
+    const slug = asString(source.session?.service_slug);
+    if (slug && slug !== '_common') brief.services = [slug];
+  }
+  if (!brief.websites) {
+    const parts = [asString(source.website), asString(source.fanpage)].filter(Boolean);
+    if (parts.length) brief.websites = parts.join('\n');
+  }
+  if (!brief.call_notes) {
+    brief.call_notes = asString(answers.notes) || asString(crm.notes);
+  }
+  if (!brief.current_results) {
+    brief.current_results = asString(crm.current_state) || asString(answers.current_state);
+  }
+  return normalizeSalesDiscoveryBrief(brief);
+}
+
+export function buildDiscoveryCompatAnswers(
+  existing: Record<string, unknown> | null | undefined,
+  brief: SalesDiscoveryBrief,
+): Record<string, unknown> {
+  const prev = existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...existing } : {};
+  const crm =
+    prev.crm_fields && typeof prev.crm_fields === 'object' && !Array.isArray(prev.crm_fields)
+      ? { ...(prev.crm_fields as Record<string, unknown>) }
+      : {};
+  crm.need = brief.biggest_problem;
+  crm.notes = brief.call_notes;
+  crm.current_state = brief.current_results;
+  crm.goal = brief.marketing_goal;
+  crm.target_audience = brief.target_customers;
+  crm.budget_band = brief.budget_band;
+  crm.timeline_band = brief.timeline_band;
+  crm.region = brief.region;
+  crm.flagship_product = brief.flagship_product;
+  crm.priority_product = brief.priority_product;
+  crm.difficulties = brief.difficulties;
+  crm.budget_authority = brief.budget_authority;
+  crm.industry = brief.industry;
+  const urls = parseWebsiteBundle(brief.websites);
+  crm.website = urls.website;
+  crm.fanpage = urls.fanpage;
+  crm.tiktok = urls.tiktok;
+  return {
+    ...prev,
+    [DISCOVERY_BRIEF_KEY]: normalizeSalesDiscoveryBrief(brief),
+    crm_fields: crm,
+    need: brief.biggest_problem,
+    notes: brief.call_notes,
+    current_state: brief.current_results,
+  };
+}
+
+export function discoveryConsultFormPatch(brief: SalesDiscoveryBrief): Record<string, unknown> {
+  const urls = parseWebsiteBundle(brief.websites);
+  const patch: Record<string, unknown> = {};
+  if (brief.biggest_problem) {
+    patch.need = brief.biggest_problem;
+    patch.current_status = brief.biggest_problem;
+  }
+  if (brief.industry) {
+    patch.niche = brief.industry;
+    patch.industry = brief.industry;
+  }
+  if (brief.marketing_goal) patch.goal = brief.marketing_goal;
+  if (brief.target_customers) {
+    patch.target_audience = brief.target_customers;
+    patch.doi_tuong_muc_tieu = brief.target_customers;
+  }
+  if (brief.budget_band) patch.budget = budgetLabel(brief.budget_band);
+  if (brief.flagship_product) patch.flagship_product = brief.flagship_product;
+  if (urls.website) {
+    patch.website = urls.website;
+    patch.domain = urls.website;
+    patch.website_url = urls.website;
+  }
+  if (urls.fanpage) {
+    patch.fanpage = urls.fanpage;
+    patch.fanpage_url = urls.fanpage;
+  }
+  if (urls.tiktok) patch.tiktok = urls.tiktok;
+  if (brief.channels.length) patch.channels = channelLabels(brief.channels);
+  if (brief.current_results) patch.metrics = brief.current_results;
+  if (brief.region) patch.region = brief.region;
+  if (brief.call_notes) patch.notes = brief.call_notes;
+  if (brief.difficulties && brief.current_results) {
+    patch.current_status = [brief.biggest_problem, `K?nh: ${channelLabels(brief.channels)}`, `K?t qu?: ${brief.current_results}`, `Kh? kh?n: ${brief.difficulties}`]
+      .filter((s) => s && s !== 'K?nh: ')
+      .join('\n');
+  }
+  return patch;
+}
+
+export function discoveryClientBriefPatch(brief: SalesDiscoveryBrief): {
+  goal: string;
+  audience: string;
+  channels: string;
+  website: string;
+  fanpage: string;
+  metrics: string;
+} {
+  const urls = parseWebsiteBundle(brief.websites);
+  return {
+    goal: brief.marketing_goal,
+    audience: brief.target_customers,
+    channels: channelLabels(brief.channels),
+    website: urls.website,
+    fanpage: urls.fanpage,
+    metrics: brief.current_results,
+  };
+}
+
+export function groupCatalogServices<T extends { slug: string; name: string }>(
+  services: T[],
+): Array<{ key: string; title: string; services: T[] }> {
+  const bySlug = new Map(services.map((row) => [row.slug, row]));
+  const used = new Set<string>();
+  const groups: Array<{ key: string; title: string; services: T[] }> = [];
+  for (const group of DISCOVERY_SERVICE_GROUPS) {
+    const items = group.slugs.map((slug) => bySlug.get(slug)).filter((row): row is T => Boolean(row));
+    for (const item of items) used.add(item.slug);
+    if (items.length) groups.push({ key: group.key, title: group.title, services: items });
+  }
+  const leftover = services.filter((row) => !used.has(row.slug));
+  if (leftover.length) {
+    groups.push({ key: 'other', title: 'D?ch v? kh?c', services: leftover });
+  }
+  return groups;
+}

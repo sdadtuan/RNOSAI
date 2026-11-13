@@ -140,6 +140,22 @@ export function prefillClientBriefFromTasks(
       const page = String(form.fanpage ?? form.fanpage_url ?? '').trim();
       if (briefFieldFilled(page)) next.fanpage = page;
     }
+    if (!briefFieldFilled(next.goal)) {
+      const goal = String(form.goal ?? form.campaign_goal ?? form.marketing_goal ?? '').trim();
+      if (briefFieldFilled(goal)) next.goal = goal;
+    }
+    if (!briefFieldFilled(next.audience)) {
+      const audience = String(form.target_audience ?? form.doi_tuong_muc_tieu ?? form.audience ?? '').trim();
+      if (briefFieldFilled(audience)) next.audience = audience;
+    }
+    if (!briefFieldFilled(next.channels)) {
+      const channels = String(form.channels ?? '').trim();
+      if (briefFieldFilled(channels)) next.channels = channels;
+    }
+    if (!briefFieldFilled(next.metrics)) {
+      const metrics = String(form.metrics ?? form.current_results ?? '').trim();
+      if (briefFieldFilled(metrics)) next.metrics = metrics;
+    }
   }
   return next;
 }

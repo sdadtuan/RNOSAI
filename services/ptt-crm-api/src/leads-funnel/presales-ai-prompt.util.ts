@@ -3,13 +3,13 @@ export const PRESALES_AI_PROMPT_TEMPLATES: Record<string, string> = {
   consult_analysis: (
     'Bạn là chuyên gia {service_name} của agency PTT.\n' +
     'KH: {customer_name}, ngành: {niche}. Tình trạng hiện tại: {current_status}.\n\n' +
-    'BANT Intake: {bant_total}/30 · Quyết định: {decision}\n' +
+    'Sales Discovery: {intake_summary}\n' +
     'Red flags: {red_flags}\n' +
     'Lead qualify (JSON): {lead_form_json}\n' +
     'Tóm tắt Intake:\n{intake_summary}\n\n' +
     'Brief readiness:\n{consult_brief_json}\n\n' +
     'Viết phân tích 250 từ: tình trạng hiện tại, cơ hội tăng trưởng, ' +
-    'thách thức, hướng tiếp cận đề xuất — bám sát dữ liệu Intake/BANT ở trên.'
+    'th?ch th?c, h??ng ti?p c?n ?? xu?t ? b?m s?t d? li?u Sales Discovery ? tr?n.'
   ),
 };
 

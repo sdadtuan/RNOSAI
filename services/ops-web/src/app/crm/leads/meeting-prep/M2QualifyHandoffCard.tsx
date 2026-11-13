@@ -134,7 +134,7 @@ export function M2QualifyHandoffCard({
             M2 · Qualify &amp; handoff Solution
           </h3>
           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-            Sau BANT Go — brief pain/ROI trước cuộc gọi Solution
+            Sau Sales Discovery — brief pain/ROI trước cuộc gọi Solution
             {bantTotal != null ? ` · BANT ${bantTotal}/30` : ''}
             {temperature ? ` · ${temperature}` : ''}
           </p>
@@ -163,7 +163,7 @@ export function M2QualifyHandoffCard({
 
       {status === 'skipped' || status === 'failed' ? (
         <div className="banner banner-info">
-          <p>{prep?.error || 'Chưa có prep M2 — hoàn thành Intake Go hoặc chạy lại prep.'}</p>
+          <p>{prep?.error || 'Chưa có prep M2 — n?p Sales Discovery hoặc chạy lại prep.'}</p>
           {canRunLmp(user) ? (
             <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onRunM2Prep()}>
               Chạy prep M2
@@ -207,7 +207,7 @@ export function M2QualifyHandoffCard({
           </div>
           <ul className="lmp-m1-checklist muted">
             <li>
-              <Link href={intakeHref}>Hoàn thiện BANT</Link> nếu chưa Go
+              <Link href={intakeHref}>Hoàn thiện Sales Discovery</Link> nếu chưa nộp
             </li>
             <li>Đọc Intel + Objections trên Cockpit</li>
             <li>Handoff Solution khi gate consult OK</li>

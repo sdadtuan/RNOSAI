@@ -3576,6 +3576,70 @@ export async function completeIntakeSession(token: string, id: number): Promise<
   });
 }
 
+export type DiscoveryServiceGroup = {
+  key: string;
+  title: string;
+  services: Array<{ slug: string; name: string }>;
+};
+
+export type DiscoveryOptionsPayload = {
+  budgets: Array<{ value: string; label: string }>;
+  timelines: Array<{ value: string; label: string }>;
+  channels: Array<{ value: string; label: string }>;
+  authorities: Array<{ value: string; label: string }>;
+  temperatures: Array<{ value: string; label: string }>;
+  industries: Array<{ value: string; label: string }>;
+  job_titles: Array<{ value: string; label: string }>;
+  service_groups: DiscoveryServiceGroup[];
+};
+
+export async function fetchDiscoveryOptions(token: string): Promise<DiscoveryOptionsPayload> {
+  return crmFetch<DiscoveryOptionsPayload>(token, '/api/crm/intake/discovery/options');
+}
+
+export async function saveDiscoveryBrief(
+  token: string,
+  sessionId: number,
+  brief: unknown,
+): Promise<IntakeSessionRow> {
+  return crmFetch<IntakeSessionRow>(token, `/api/crm/intake/sessions/${sessionId}/discovery`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brief }),
+  });
+}
+
+export async function saveDiscoveryService(
+  token: string,
+  sessionId: number,
+  action: 'add' | 'remove',
+  slug: string,
+): Promise<IntakeSessionRow> {
+  return crmFetch<IntakeSessionRow>(token, `/api/crm/intake/sessions/${sessionId}/discovery/services`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, slug }),
+  });
+}
+
+export async function submitDiscoveryBrief(
+  token: string,
+  sessionId: number,
+  brief: unknown,
+): Promise<{
+  session: IntakeSessionRow;
+  brief: unknown;
+  handoff: unknown;
+  handoff_error: string | null;
+  ok: boolean;
+}> {
+  return crmFetch(token, `/api/crm/intake/sessions/${sessionId}/discovery/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brief }),
+  });
+}
+
 export async function fetchIntakeStats(
   token: string,
   params?: { am_id?: number; by_am?: boolean },

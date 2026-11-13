@@ -1,0 +1,125 @@
+/* CRM ? Sales Discovery wizard */
+.sd-page { max-width: 920px; margin: 0 auto; }
+.sd-card {
+  background: #fff;
+  border: 1px solid #e4e8ee;
+  border-radius: 16px;
+  padding: 24px 28px 28px;
+  box-shadow: 0 8px 28px rgba(16, 42, 67, 0.06);
+}
+.sd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.sd-title { margin: 0; font-size: 1.55rem; letter-spacing: -0.02em; color: #123047; }
+.sd-kicker { margin: 4px 0 0; color: #5b6b7c; font-size: 0.92rem; }
+.sd-head-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.sd-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+}
+.sd-badge--draft { background: #eef3f8; color: #3d4f63; }
+.sd-badge--done { background: #e6f6ea; color: #1c7a3a; }
+.sd-badge--pending { background: #fff4d6; color: #8a6100; }
+.sd-progress {
+  font-size: 0.85rem; font-weight: 600; color: #1f6feb;
+  background: #eaf2ff; padding: 4px 10px; border-radius: 999px;
+}
+.sd-progress--full { background: #e6f6ea; color: #1c7a3a; }
+.sd-steps { display: flex; gap: 8px; margin: 18px 0 22px; }
+.sd-step {
+  flex: 1; border: 1px solid #dbe3ec; background: #f7f9fb; color: #4a5b6b;
+  border-radius: 999px; padding: 8px 10px; font-weight: 600; font-size: 0.86rem;
+  cursor: pointer;
+}
+.sd-step.is-active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+.sd-step.is-done { background: #eaf2ff; color: #1f6feb; border-color: #c9ddff; }
+.sd-section { margin: 0 0 22px; }
+.sd-section__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 12px;
+}
+.sd-section__title { margin: 0; font-size: 1.05rem; color: #123047; }
+.sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.sd-grid--1 { grid-template-columns: 1fr; }
+.sd-field { display: flex; flex-direction: column; gap: 6px; }
+.sd-field--wide { grid-column: 1 / -1; }
+.sd-label { font-size: 0.86rem; font-weight: 600; color: #314255; }
+.sd-req { color: #d32f2f; margin-left: 2px; }
+.sd-input, .sd-select, .sd-textarea {
+  width: 100%; border: 1px solid #cfd8e3; border-radius: 10px;
+  padding: 9px 11px; font: inherit; background: #fff; color: #163047;
+}
+.sd-textarea { min-height: 88px; resize: vertical; }
+.sd-input:focus, .sd-select:focus, .sd-textarea:focus {
+  outline: 2px solid #c9ddff; border-color: #1f6feb;
+}
+.sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled { background: #f4f6f8; color: #526070; }
+.sd-hint { font-size: 0.78rem; color: #6a7a8b; }
+.sd-radios { display: flex; flex-direction: column; gap: 8px; }
+.sd-radio { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; cursor: pointer; }
+.sd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sd-chip {
+  border: 1px solid #cfd8e3; background: #fff; border-radius: 999px;
+  padding: 6px 12px; font-size: 0.86rem; cursor: pointer;
+}
+.sd-chip.is-on { background: #eaf2ff; border-color: #1f6feb; color: #1f6feb; font-weight: 600; }
+.sd-chip:disabled { cursor: default; opacity: 0.7; }
+
+.sd-svc-wrap { position: relative; }
+.sd-svc-btn {
+  border: 1px solid #1f6feb; background: #1f6feb; color: #fff;
+  border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 0.84rem;
+  cursor: pointer; white-space: nowrap;
+}
+.sd-svc-btn--ghost { background: #fff; color: #1f6feb; }
+.sd-svc-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 8;
+  width: min(420px, 80vw); background: #fff; border: 1px solid #dbe3ec;
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(16,42,67,0.14);
+  padding: 10px 12px; max-height: 320px; overflow: auto;
+}
+.sd-svc-empty { margin: 0; color: #6a7a8b; font-size: 0.88rem; }
+.sd-svc-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 4px; border-bottom: 1px solid #f0f3f6;
+}
+.sd-svc-item:last-child { border-bottom: 0; }
+.sd-svc-remove {
+  border: 0; background: transparent; color: #c62828; cursor: pointer; font-weight: 700;
+}
+
+.sd-picker { border: 1px solid #e4e8ee; border-radius: 12px; padding: 4px 0 8px; background: #fafbfc; }
+.sd-picker__group { padding: 10px 14px 6px; }
+.sd-picker__group-title { margin: 0 0 6px; font-size: 0.88rem; font-weight: 700; color: #123047; }
+.sd-picker__row {
+  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+}
+.sd-plus {
+  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 8px;
+  border: 1px solid #1f6feb; background: #fff; color: #1f6feb;
+  font-size: 1.1rem; line-height: 1; cursor: pointer; font-weight: 700;
+}
+.sd-plus:hover { background: #eaf2ff; }
+.sd-plus.is-on { background: #1f6feb; color: #fff; }
+.sd-plus:disabled { opacity: 0.5; cursor: default; }
+.sd-picker__name { font-size: 0.9rem; color: #24384c; }
+
+.sd-check { border: 1px solid #f0d9a6; background: #fff8e8; border-radius: 12px; padding: 14px 16px; margin: 8px 0 18px; }
+.sd-check__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.sd-check__head h3 { margin: 0; font-size: 0.98rem; }
+.sd-check__list { margin: 0; padding-left: 20px; color: #6a3b00; }
+.sd-check__list.is-ok { color: #1c7a3a; }
+.sd-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
+.sd-actions__right { display: flex; gap: 8px; flex-wrap: wrap; }
+.sd-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.sd-msg { margin: 10px 0 0; }
+.sd-msg--ok { color: #1c7a3a; }
+.sd-msg--err { color: #c62828; }
+.sd-history { margin-top: 22px; border-top: 1px dashed #dbe3ec; padding-top: 14px; }
+.sd-history h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.sd-history li { font-size: 0.86rem; color: #4a5b6b; margin: 0 0 4px; }
+.sd-history details { background: #f7f9fb; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; }
+@media (max-width: 720px) {
+  .sd-grid { grid-template-columns: 1fr; }
+  .sd-head { flex-direction: column; }
+  .sd-head-meta { align-items: flex-start; }
+  .sd-steps { flex-direction: column; }
+}

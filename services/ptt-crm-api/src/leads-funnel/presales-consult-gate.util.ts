@@ -1,13 +1,4 @@
-import { GO_THRESHOLDS } from '../intake/intake-definitions.util';
-import {
-  computeWinTotal,
-  intakeWinGateEnabled,
-  missingRequiredWinKeys,
-  parseWinChecklist,
-  parseWinIntel,
-  scoreWinFromChecklist,
-  WIN_THRESHOLDS,
-} from '../intake/intake-win-score.util';
+import { sessionHasCompleteDiscovery } from '../intake/sales-discovery.util';
 
 export interface IntakeSessionGateRow {
   status?: string | null;
@@ -35,100 +26,29 @@ export interface ConsultAdvanceGateResult {
   requires_override: boolean;
 }
 
+/**
+ * Submit-to-AM gate: discovery required fields (or a legacy completed BANT session)
+ * plus lead-stage tasks. BANT / WIN / Go / No-Go are no longer conditions.
+ */
 export function validatePresalesConsultAdvance(input: ConsultAdvanceGateInput): ConsultAdvanceGateResult {
-  const base = validatePresalesConsultAdvancePhase1(input);
-  if (!base.ok) return base;
-  const decision = String(base.decision || '');
-  if (!intakeWinGateEnabled() || decision !== 'go') {
-    return base;
-  }
-
-  const latestCompleted = input.sessions.find((s) => String(s.status || '') === 'completed');
-  const bantTotal = Number(latestCompleted?.bant_total ?? base.bant_total ?? 0);
-  const answers = latestCompleted?.answers_json ?? {};
-  const checklist = parseWinChecklist(answers);
-  const winTotal = computeWinTotal(scoreWinFromChecklist(checklist));
-  const missing = missingRequiredWinKeys({ winIntel: parseWinIntel(answers), winChecklist: checklist });
-  if (missing.length) {
-    return block([`Thiếu Win intel: ${missing.join(', ')}. Ghi tab Win intel rồi mở WIN.`], decision, bantTotal);
-  }
-  if (winTotal < WIN_THRESHOLDS.consult) {
-    return block([`Win ${winTotal}/30 dưới ngưỡng Tư vấn (${WIN_THRESHOLDS.consult}).`], decision, bantTotal);
-  }
-  return base;
-}
-
-function validatePresalesConsultAdvancePhase1(input: ConsultAdvanceGateInput): ConsultAdvanceGateResult {
-  const messages: string[] = [];
-  const decision = String(
-    [...input.sessions]
-      .filter((s) => String(s.status || '') === 'completed')
-      .sort((a, b) => Number(b.bant_total ?? 0) - Number(a.bant_total ?? 0))[0]?.decision || '',
-  );
-  const latestCompleted = input.sessions.find((s) => String(s.status || '') === 'completed');
-  const bantTotal = Number(latestCompleted?.bant_total ?? 0);
+  const latest = [...input.sessions].sort((a, b) => Number(b.bant_total ?? 0) - Number(a.bant_total ?? 0))[0];
+  const decision = String(latest?.decision || '');
+  const bantTotal = Number(latest?.bant_total ?? 0);
 
   if (!input.leadTaskDone) {
-    messages.push('Hoàn thành task Lead trước khi chuyển Tư vấn');
-    return block(messages, decision, bantTotal);
+    return block(['Ho?n th?nh task Lead tr??c khi chuy?n T? v?n'], decision, bantTotal);
   }
 
-  const hasAnyIntake = input.sessions.some((s) => String(s.status || '') === 'completed');
-  if (!hasAnyIntake) {
-    messages.push('Hoàn thành khảo sát BANT trước khi giao Solution');
-    return block(messages, decision, bantTotal);
+  const hasDiscovery = input.sessions.some((s) => sessionHasCompleteDiscovery(s.answers_json));
+  const hasLegacyCompleted = input.sessions.some((s) => String(s.status || '') === 'completed');
+  if (!hasDiscovery && !hasLegacyCompleted) {
+    return block(['Ho?n th?nh Sales Discovery tr??c khi giao Solution'], decision, bantTotal);
   }
 
-  if (decision === 'no_go') {
-    const reason = String(input.overrideReason || '').trim();
-    if (!reason) {
-      messages.push('Intake No-Go — không chuyển Consult (Director override + lý do)');
-      return {
-        ok: false,
-        level: 'block',
-        messages,
-        decision,
-        bant_total: bantTotal,
-        requires_confirm: false,
-        requires_override: true,
-      };
-    }
-    if (!input.allowOverride) {
-      messages.push('Cần quyền Director để override No-Go → Consult');
-      return {
-        ok: false,
-        level: 'block',
-        messages,
-        decision,
-        bant_total: bantTotal,
-        requires_confirm: false,
-        requires_override: true,
-      };
-    }
-    messages.push(`Director override No-Go: ${reason.slice(0, 500)}`);
-    return warn(messages, decision, bantTotal, true);
-  }
-
-  if (decision === 'nurture') {
-    messages.push('Nurture — cân nhắc trước khi chuyển Consult sâu');
-    return warn(messages, decision, bantTotal, false);
-  }
-
-  if (decision === 'go' && bantTotal < GO_THRESHOLDS.nurture_min) {
-    messages.push(`BANT ${bantTotal}/30 — dưới ngưỡng Nurture (${GO_THRESHOLDS.nurture_min})`);
-    return warn(messages, decision, bantTotal, false);
-  }
-
-  if (decision === 'go' && bantTotal < GO_THRESHOLDS.go) {
-    messages.push(`BANT ${bantTotal}/30 — dưới ngưỡng Go (${GO_THRESHOLDS.go})`);
-    return warn(messages, decision, bantTotal, false);
-  }
-
-  messages.push('Sẵn sàng chuyển Tư vấn');
   return {
     ok: true,
     level: 'ok',
-    messages,
+    messages: ['S?n s?ng giao Solution'],
     decision,
     bant_total: bantTotal,
     requires_confirm: false,
@@ -137,8 +57,8 @@ function validatePresalesConsultAdvancePhase1(input: ConsultAdvanceGateInput): C
 }
 
 export function consultAdvanceBlockReason(gate: ConsultAdvanceGateResult, confirm = false): string {
-  if (!gate.ok) return gate.messages[0] || 'Không thể chuyển Consult';
-  if (gate.requires_confirm && !confirm) return gate.messages[0] || 'Cần xác nhận';
+  if (!gate.ok) return gate.messages[0] || 'Kh?ng th? chuy?n Consult';
+  if (gate.requires_confirm && !confirm) return gate.messages[0] || 'C?n x?c nh?n';
   return '';
 }
 
@@ -151,22 +71,5 @@ function block(messages: string[], decision: string, bantTotal: number): Consult
     bant_total: bantTotal,
     requires_confirm: false,
     requires_override: false,
-  };
-}
-
-function warn(
-  messages: string[],
-  decision: string,
-  bantTotal: number,
-  requiresOverride: boolean,
-): ConsultAdvanceGateResult {
-  return {
-    ok: true,
-    level: 'warn',
-    messages,
-    decision,
-    bant_total: bantTotal,
-    requires_confirm: true,
-    requires_override: requiresOverride,
   };
 }

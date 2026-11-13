@@ -1,115 +1,74 @@
 import { validatePresalesConsultAdvance } from './presales-consult-gate.util';
 
-const WIN_GATE_ENV = 'PTT_INTAKE_WIN_GATE';
-
-const filledWinAnswers = {
-  win_intel: {
-    incumbent: { answer: 'Agency ABC đang làm', confidence: 'confirmed' },
-    selection_criteria: { answer: 'Giá và SLA rõ', confidence: 'confirmed' },
-    switch_risk: { answer: 'Hợp đồng khóa 12 tháng', confidence: 'confirmed' },
-  },
-  win_checklist: {
-    incumbent: 3,
-    competitor: 3,
-    selection_criteria: 3,
-    switch_risk: 3,
-    champion: 3,
-    next_step: 3,
+const completeBrief = {
+  discovery_brief: {
+    company_name: 'Spa Hoa',
+    industry: 'spa',
+    flagship_product: 'Massage',
+    contact_name: 'An',
+    phone: '0901234567',
+    services: ['ai-chatbot-ban-hang'],
+    biggest_problem: '?t lead',
+    marketing_goal: '30 lead/th?ng',
+    target_customers: 'N? 25-45',
+    region: 'TP.HCM',
+    budget_band: '10_30',
+    timeline_band: 'this_month',
+    call_notes: 'G?i 10 ph?t',
+    temperature: 'hot',
   },
 };
 
 describe('validatePresalesConsultAdvance', () => {
-  const originalWinGate = process.env[WIN_GATE_ENV];
-
-  beforeEach(() => {
-    delete process.env[WIN_GATE_ENV];
-  });
-
-  afterEach(() => {
-    if (originalWinGate === undefined) delete process.env[WIN_GATE_ENV];
-    else process.env[WIN_GATE_ENV] = originalWinGate;
-  });
-
   it('blocks when lead task incomplete', () => {
     const gate = validatePresalesConsultAdvance({
       leadTaskDone: false,
-      sessions: [{ status: 'completed', decision: 'go', bant_total: 24 }],
+      sessions: [{ status: 'draft', answers_json: completeBrief }],
     });
     expect(gate.ok).toBe(false);
     expect(gate.messages[0]).toContain('task Lead');
   });
 
-  it('blocks when no completed intake', () => {
+  it('blocks when discovery is incomplete and there is no legacy completed session', () => {
     const gate = validatePresalesConsultAdvance({
       leadTaskDone: true,
-      sessions: [{ status: 'draft', decision: '', bant_total: 0 }],
+      sessions: [{ status: 'draft', decision: '', bant_total: 0, answers_json: {} }],
     });
     expect(gate.ok).toBe(false);
-    expect(gate.messages[0]).toContain('khảo sát BANT');
+    expect(gate.messages[0]).toContain('Sales Discovery');
   });
 
-  it('requires confirm on nurture decision', () => {
+  it('allows a completed Sales Discovery brief without BANT or WIN', () => {
     const gate = validatePresalesConsultAdvance({
       leadTaskDone: true,
-      sessions: [{ status: 'completed', decision: 'nurture', bant_total: 20 }],
-    });
-    expect(gate.ok).toBe(true);
-    expect(gate.requires_confirm).toBe(true);
-  });
-
-  it('allows go with strong BANT', () => {
-    const gate = validatePresalesConsultAdvance({
-      leadTaskDone: true,
-      sessions: [{ status: 'completed', decision: 'go', bant_total: 26 }],
+      sessions: [{ status: 'draft', answers_json: completeBrief }],
     });
     expect(gate.ok).toBe(true);
     expect(gate.requires_confirm).toBe(false);
+    expect(gate.requires_override).toBe(false);
   });
 
-  it('keeps Phase 1 lead-task block when Win gate on and answers empty', () => {
-    process.env[WIN_GATE_ENV] = '1';
-    const gate = validatePresalesConsultAdvance({
-      leadTaskDone: false,
-      sessions: [{ status: 'completed', decision: 'go', bant_total: 26, answers_json: {} }],
-    });
-    expect(gate.ok).toBe(false);
-    expect(gate.messages.join(' ')).toContain('task Lead');
-    expect(gate.messages.join(' ')).not.toMatch(/Win intel|Win /);
-  });
-
-  it('blocks go when Win gate on and answers empty', () => {
-    process.env[WIN_GATE_ENV] = '1';
+  it('allows a legacy completed BANT session without discovery fields (back-compat)', () => {
     const gate = validatePresalesConsultAdvance({
       leadTaskDone: true,
-      sessions: [{ status: 'completed', decision: 'go', bant_total: 26, answers_json: {} }],
+      sessions: [{ status: 'completed', decision: 'nurture', bant_total: 12, answers_json: {} }],
     });
-    expect(gate.ok).toBe(false);
-    expect(gate.messages.join(' ')).toMatch(/Win intel|Win /);
+    expect(gate.ok).toBe(true);
   });
 
-  it('allows go when Win gate on and required intel plus checklist 18', () => {
-    process.env[WIN_GATE_ENV] = '1';
+  it('does not block No-Go or low BANT or missing Win intel', () => {
     const gate = validatePresalesConsultAdvance({
       leadTaskDone: true,
       sessions: [
         {
           status: 'completed',
-          decision: 'go',
-          bant_total: 26,
-          answers_json: filledWinAnswers,
+          decision: 'no_go',
+          bant_total: 4,
+          answers_json: {},
         },
       ],
     });
     expect(gate.ok).toBe(true);
-    expect(gate.requires_confirm).toBe(false);
-  });
-
-  it('allows go when Win gate off and answers empty', () => {
-    process.env[WIN_GATE_ENV] = '0';
-    const gate = validatePresalesConsultAdvance({
-      leadTaskDone: true,
-      sessions: [{ status: 'completed', decision: 'go', bant_total: 26, answers_json: {} }],
-    });
-    expect(gate.ok).toBe(true);
+    expect(gate.messages.join(' ')).not.toMatch(/Win intel|Win |No-Go|BANT/);
   });
 });

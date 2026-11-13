@@ -17,6 +17,13 @@ import { BANT_KEYS, type BantKey } from '@/lib/crm/intake-bant';
 import { BANT_CHECKLIST } from '@/lib/crm/intake-bant-checklist';
 import { BANT_FIELD_LABELS } from '@/lib/crm/intake-labels';
 import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
+import {
+  budgetLabel,
+  channelLabels,
+  readDiscoveryBriefFromAnswers,
+  temperatureLabel,
+  timelineLabel,
+} from '@/lib/crm/sales-discovery';
 import { attachedScopeLines, scopeFromLeadSessions } from '@/lib/crm/consult-attached-scope';
 import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
 import {
@@ -299,7 +306,8 @@ export function SolutionCaseDesk({
     void load().catch(() => setError('Không tải được hồ sơ Sales giao'));
   }, [load]);
 
-  const need = intakeNeed(session);
+  const discoveryBrief = readDiscoveryBriefFromAnswers(session?.answers_json);
+  const need = discoveryBrief?.biggest_problem || intakeNeed(session);
   const leadName = plain(lead.full_name || '');
   const companyOnCard = plain(party.company_name || '');
   const sessionCompany = plain(session?.company_name || '');
@@ -372,7 +380,9 @@ export function SolutionCaseDesk({
           <div>
             <dt>Quyết định</dt>
             <dd>
-              {DECISION_LABEL[session?.decision || ''] || session?.decision || '—'}
+              {discoveryBrief
+                ? temperatureLabel(discoveryBrief.temperature) || discoveryBrief.temperature || '?'
+                : DECISION_LABEL[session?.decision || ''] || session?.decision || '?'}
               {session?.bant_total != null ? ` · BANT ${session.bant_total}/30` : ''}
             </dd>
           </div>
@@ -558,7 +568,9 @@ export function SolutionCaseDesk({
           <div>
             <dt>Quyết định</dt>
             <dd>
-              {DECISION_LABEL[session?.decision || ''] || session?.decision || '—'}
+              {discoveryBrief
+                ? temperatureLabel(discoveryBrief.temperature) || discoveryBrief.temperature || '?'
+                : DECISION_LABEL[session?.decision || ''] || session?.decision || '?'}
               {session?.decision_reason ? ` · ${session.decision_reason}` : ''}
             </dd>
           </div>
@@ -578,6 +590,15 @@ export function SolutionCaseDesk({
       <div className="solution-desk__block" data-testid="solution-sales-needs">
         <h3>Nhu cầu</h3>
         <p>{need || 'Sales chưa ghi nhu cầu.'}</p>
+        {discoveryBrief ? (
+          <dl className="solution-desk__facts" data-testid="solution-discovery">
+            {discoveryBrief.marketing_goal ? (<div><dt>M?c ti?u Marketing</dt><dd>{discoveryBrief.marketing_goal}</dd></div>) : null}
+            {discoveryBrief.target_customers ? (<div><dt>KH m?c ti?u</dt><dd>{discoveryBrief.target_customers}</dd></div>) : null}
+            {discoveryBrief.region ? (<div><dt>Khu v?c</dt><dd>{discoveryBrief.region}</dd></div>) : null}
+            {discoveryBrief.flagship_product ? (<div><dt>S?n ph?m ch? l?c</dt><dd>{discoveryBrief.flagship_product}</dd></div>) : null}
+            {discoveryBrief.services?.length ? (<div><dt>D?ch v? quan t?m</dt><dd>{discoveryBrief.services.map((slug) => intakeServiceLabel(slug) || slug).join(', ')}</dd></div>) : null}
+          </dl>
+        ) : null}
       </div>
 
       <div className="solution-desk__block" data-testid="solution-sales-items">
@@ -599,7 +620,7 @@ export function SolutionCaseDesk({
       <div className="solution-desk__block" data-testid="solution-sales-current">
         <h3>Hiện trạng</h3>
         <p>
-          {crmField(session, 'current_state') ||
+          {discoveryBrief?.current_results || (discoveryBrief?.channels?.length ? channelLabels(discoveryBrief.channels) : '') || crmField(session, 'current_state') ||
             crmField(session, 'current_situation') ||
             crmField(session, 'as_is') ||
             (winIntelLines(session).length === 0 && shownAnswers.length === 0
@@ -625,8 +646,15 @@ export function SolutionCaseDesk({
 
       </div>
       <div className="solution-desk__col">
-      <div className="solution-desk__block">
-        <h3>Ngân sách / BANT {session?.bant_total ?? 0}/30</h3>
+      <div className="solution-desk__block" data-testid="solution-discovery-budget">
+        <h3>{discoveryBrief ? 'Ng?n s?ch / Th?i ?i?m' : `Ng?n s?ch / BANT ${session?.bant_total ?? 0}/30`}</h3>
+        {discoveryBrief ? (
+          <dl className="solution-desk__facts">
+            <div><dt>Ng?n s?ch</dt><dd>{budgetLabel(discoveryBrief.budget_band) || '?'}</dd></div>
+            <div><dt>Th?i ?i?m</dt><dd>{timelineLabel(discoveryBrief.timeline_band) || '?'}</dd></div>
+            <div><dt>K?nh ?ang d?ng</dt><dd>{channelLabels(discoveryBrief.channels) || '?'}</dd></div>
+          </dl>
+        ) : (
         <ul className="solution-desk__bant">
           {BANT_KEYS.map((key) => {
             const score = Number(bant[key] ?? 0);
@@ -645,12 +673,13 @@ export function SolutionCaseDesk({
             );
           })}
         </ul>
+        )}
       </div>
 
       <div className="solution-desk__block" data-testid="solution-sales-notes">
         <h3>Ghi chú</h3>
         <p>
-          {crmField(session, 'notes') ||
+          {discoveryBrief?.call_notes || discoveryBrief?.difficulties || crmField(session, 'notes') ||
             crmField(session, 'sales_notes') ||
             crmField(session, 'note') ||
             discoveryNotes(session) ||

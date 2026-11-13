@@ -2,7 +2,7 @@ import type { PrepStage } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.t
 
 export const PREP_STAGE_LABEL_VI: Record<PrepStage, string> = {
   m1_first_strike: 'M1 · Vũ khí cuộc gọi đầu',
-  m2_qualify_win: 'M2 · Brief sau BANT — đẩy handoff',
+  m2_qualify_win: 'M2 · Brief sau Sales Discovery — đẩy handoff',
   m3_pre_close: 'M3 · Sẵn sàng chốt — Deal Room',
   m4_learn: 'M4 · Win loop — học từ chốt/lost',
 };

@@ -69,6 +69,12 @@ export class IntakeController {
     return this.intake.getDefinition(slug);
   }
 
+  @Get('discovery/options')
+  discoveryOptions() {
+    return this.intake.getDiscoveryOptions();
+  }
+
+
   @Get('stats')
   stats(@Query('am_id') amId?: string, @Query('by_am') byAm?: string) {
     const aid = amId ? Number(amId) : undefined;
@@ -249,6 +255,39 @@ export class IntakeController {
   @Get('sessions/:id')
   async getSession(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
     return this.intake.getSession(id, await this.actorContext(req));
+  }
+
+  @Patch('sessions/:id/discovery')
+  @UseGuards(StaffIntakeWriteGuard)
+  async saveDiscovery(
+    @Req() req: IntakeRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { brief?: unknown },
+  ) {
+    return this.intake.saveDiscovery(id, body ?? {}, await this.actorContext(req));
+  }
+
+  @Post('sessions/:id/discovery/services')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async saveDiscoveryServices(
+    @Req() req: IntakeRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { action: 'add' | 'remove'; slug: string },
+  ) {
+    return this.intake.saveDiscoveryServices(id, body ?? { action: 'add', slug: '' }, await this.actorContext(req));
+  }
+
+  @Post('sessions/:id/discovery/submit')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async submitDiscovery(
+    @Req() req: IntakeRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { brief?: unknown; confirm?: boolean },
+  ) {
+    const actorId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.intake.submitDiscovery(id, body ?? {}, actorId, await this.actorContext(req));
   }
 
   @Patch('sessions/:id')

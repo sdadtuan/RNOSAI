@@ -12,6 +12,22 @@ import {
 } from './intake-definitions.util';
 import { extractDiscoveryResponseSnippets } from './intake-answers.util';
 import { syncPresalesLeadTasksFromIntake, syncPresalesServiceSlug } from './intake-presales-sync.util';
+import {
+  buildDiscoveryCompatAnswers,
+  discoveryProgress,
+  DISCOVERY_BUDGET_OPTIONS,
+  DISCOVERY_CHANNEL_OPTIONS,
+  DISCOVERY_AUTHORITY_OPTIONS,
+  DISCOVERY_INDUSTRY_FALLBACK,
+  DISCOVERY_JOB_TITLE_FALLBACK,
+  DISCOVERY_TEMPERATURE_OPTIONS,
+  DISCOVERY_TIMELINE_OPTIONS,
+  groupCatalogServices,
+  isDiscoveryComplete,
+  normalizeSalesDiscoveryBrief,
+  primaryServiceSlug,
+  type SalesDiscoveryBrief,
+} from './sales-discovery.util';
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import { reconcileAiSummaryWithLiveBant } from '../service-lifecycle/lifecycle-consult.util';
 import {
@@ -999,4 +1015,231 @@ export class IntakePgRepository implements OnModuleDestroy {
       updated_at: iso(row.updated_at),
     };
   }
+
+  async getDiscoveryOptions(): Promise<{
+    budgets: typeof DISCOVERY_BUDGET_OPTIONS;
+    timelines: typeof DISCOVERY_TIMELINE_OPTIONS;
+    channels: typeof DISCOVERY_CHANNEL_OPTIONS;
+    authorities: typeof DISCOVERY_AUTHORITY_OPTIONS;
+    temperatures: typeof DISCOVERY_TEMPERATURE_OPTIONS;
+    industries: Array<{ value: string; label: string }>;
+    job_titles: Array<{ value: string; label: string }>;
+    service_groups: Array<{ key: string; title: string; services: Array<{ slug: string; name: string }> }>;
+  }> {
+    const servicesResult = await this.db.query(
+      `SELECT slug, name FROM crm_catalog_services
+        WHERE active IS TRUE
+        ORDER BY sort_order NULLS LAST, slug`,
+    );
+    const services = (servicesResult.rows as Array<{ slug: string; name: string }>).map((row) => ({
+      slug: String(row.slug),
+      name: String(row.name),
+    }));
+    const lookups = await this.db.query(
+      `SELECT kind, option_key, label FROM crm_lead_lookup_options
+        WHERE active IS TRUE AND kind IN ('industry', 'job_title')
+        ORDER BY sort_order, id`,
+    );
+    const industries = mergeLookupOptions(
+      DISCOVERY_INDUSTRY_FALLBACK,
+      (lookups.rows as Array<{ kind: string; option_key: string; label: string }>)
+        .filter((row) => row.kind === 'industry')
+        .map((row) => ({ value: String(row.option_key), label: String(row.label) })),
+    );
+    const jobTitles = mergeLookupOptions(
+      DISCOVERY_JOB_TITLE_FALLBACK,
+      (lookups.rows as Array<{ kind: string; option_key: string; label: string }>)
+        .filter((row) => row.kind === 'job_title')
+        .map((row) => ({ value: String(row.option_key), label: String(row.label) })),
+    );
+    return {
+      budgets: DISCOVERY_BUDGET_OPTIONS,
+      timelines: DISCOVERY_TIMELINE_OPTIONS,
+      channels: DISCOVERY_CHANNEL_OPTIONS,
+      authorities: DISCOVERY_AUTHORITY_OPTIONS,
+      temperatures: DISCOVERY_TEMPERATURE_OPTIONS,
+      industries,
+      job_titles: jobTitles,
+      service_groups: groupCatalogServices(services),
+    };
+  }
+
+  async saveDiscoveryBrief(
+    sessionId: number,
+    briefInput: unknown,
+    opts: { complete?: boolean; decisionReason?: string } = {},
+  ): Promise<IntakeSessionRow | null> {
+    const prev = await this.getSession(sessionId);
+    if (!prev) return null;
+    const brief = normalizeSalesDiscoveryBrief(briefInput);
+    const answers = buildDiscoveryCompatAnswers(prev.answers_json, brief);
+    const primary = primaryServiceSlug(brief.services) || prev.service_slug || '_common';
+    const payload: PatchIntakeSessionBody = {
+      company_name: brief.company_name || prev.company_name,
+      contact_name: brief.contact_name || prev.contact_name,
+      contact_role: brief.job_title || prev.contact_role,
+      lead_temperature: brief.temperature || prev.lead_temperature,
+      service_slug: primary,
+      answers_json: answers,
+    };
+    if (brief.temperature) payload.lead_temperature = brief.temperature;
+    const updated = await this.updateSession(sessionId, payload);
+    return updated;
+  }
+
+  async finalizeDiscoverySession(
+    sessionId: number,
+    briefInput: unknown,
+    actorId: number | null,
+  ): Promise<IntakeSessionRow | null> {
+    const brief = normalizeSalesDiscoveryBrief(briefInput);
+    if (!isDiscoveryComplete(brief)) {
+      const missing = discoveryProgress(brief).missing.join(', ');
+      throw new Error(`Thi?u tr??ng b?t bu?c: ${missing}`);
+    }
+    let current = await this.saveDiscoveryBrief(sessionId, brief);
+    if (!current) return null;
+
+    const pgSessionId = await this.resolvePgSessionId(sessionId);
+    if (!pgSessionId) return null;
+
+    if (String(current.status ?? '') !== 'completed') {
+      await this.db.query(
+        `UPDATE crm_lead_intake_sessions
+            SET status = 'completed',
+                completed_at = NOW(),
+                decision = 'go',
+                decision_reason = COALESCE(NULLIF(decision_reason, ''), 'Sales Discovery submitted'),
+                updated_at = NOW()
+          WHERE id = $1`,
+        [pgSessionId],
+      );
+    } else if (String(current.decision ?? '').trim() !== 'go') {
+      await this.db.query(
+        `UPDATE crm_lead_intake_sessions
+            SET decision = 'go',
+                decision_reason = COALESCE(NULLIF(decision_reason, ''), 'Sales Discovery submitted'),
+                updated_at = NOW()
+          WHERE id = $1`,
+        [pgSessionId],
+      );
+    }
+
+    const completed = await this.getSession(sessionId);
+    if (!completed) return null;
+    await this.syncDiscoveryToLead(completed, brief);
+    await this.logDiscoveryActivity(completed, actorId);
+    await syncPresalesLeadTasksFromIntake(this.db, completed, actorId);
+    await syncPresalesServiceSlug(this.db, completed.lead_id, completed.service_slug);
+    if (completed.lead_id) {
+      await recordLifecycleMilestone(this.db, {
+        leadId: Number(completed.lead_id),
+        key: 'intake_go',
+        occurredAt: completed.completed_at || new Date(),
+        source: 'sales_discovery_submit',
+        refId: String(sessionId),
+      });
+    }
+    return this.getSession(sessionId);
+  }
+
+  async syncDiscoveryToLead(session: IntakeSessionRow, brief: SalesDiscoveryBrief): Promise<void> {
+    const leadId = session.lead_id;
+    if (!leadId) return;
+    const existing = await this.db.query(
+      `SELECT company_name, full_name, phone, email, need, meta_json FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = existing.rows[0] as
+      | {
+          company_name?: string;
+          full_name?: string;
+          phone?: string;
+          email?: string;
+          need?: string;
+          meta_json?: unknown;
+        }
+      | undefined;
+    if (!row) return;
+    const prevMeta =
+      row.meta_json && typeof row.meta_json === 'object' && !Array.isArray(row.meta_json)
+        ? (row.meta_json as Record<string, unknown>)
+        : {};
+    const meta = {
+      ...prevMeta,
+      industry: brief.industry || prevMeta.industry,
+      industry_slug: brief.industry || prevMeta.industry_slug,
+      title: brief.job_title || prevMeta.title,
+      chuc_danh: brief.job_title || prevMeta.chuc_danh,
+      job_title: brief.job_title || prevMeta.job_title,
+      brand: brief.company_name || prevMeta.brand,
+      thuong_hieu: brief.company_name || prevMeta.thuong_hieu,
+      interested_services: brief.services,
+      discovery_brief: brief,
+    };
+    await this.db.query(
+      `UPDATE crm_leads
+          SET company_name = COALESCE(NULLIF($2, ''), company_name),
+              full_name = COALESCE(NULLIF($3, ''), full_name),
+              phone = COALESCE(NULLIF($4, ''), phone),
+              email = COALESCE(NULLIF($5, ''), email),
+              need = COALESCE(NULLIF($6, ''), need),
+              meta_json = $7::jsonb,
+              updated_at = NOW()
+        WHERE sqlite_lead_id = $1`,
+      [
+        leadId,
+        brief.company_name.slice(0, 500),
+        brief.contact_name.slice(0, 500),
+        brief.phone.slice(0, 50),
+        brief.email.slice(0, 200),
+        brief.biggest_problem.slice(0, 4000),
+        JSON.stringify(meta),
+      ],
+    );
+  }
+
+  private async logDiscoveryActivity(session: IntakeSessionRow, actorId: number | null): Promise<void> {
+    const leadId = session.lead_id;
+    if (!leadId) return;
+    const statusResult = await this.db.query(
+      `SELECT status FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const statusSnap = String(statusResult.rows[0]?.status ?? 'new');
+    const services = Array.isArray(
+      (session.answers_json as { discovery_brief?: { services?: string[] } } | undefined)?.discovery_brief
+        ?.services,
+    )
+      ? (
+          session.answers_json as { discovery_brief: { services: string[] } }
+        ).discovery_brief.services.join(', ')
+      : session.service_slug;
+    const content =
+      `Sales Discovery #${session.id} ?? n?p cho AM` +
+      (session.lead_temperature ? ` ? ${session.lead_temperature}` : '') +
+      (services ? ` ? D?ch v?: ${services}` : '');
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, user_id, activity_type, content, result,
+         next_action, next_action_at, created_at, created_by, lead_status_at_log
+       ) VALUES ($1, $2, 'system', $3, 'go', 'Ch? AM nh?n Solution', NULL, NOW(), $4, $5)`,
+      [leadId, actorId, content.slice(0, 8000), actorId != null ? String(actorId) : '', statusSnap],
+    );
+  }
+
+}
+
+
+function mergeLookupOptions(
+  fallback: Array<{ value: string; label: string }>,
+  fromDb: Array<{ value: string; label: string }>,
+): Array<{ value: string; label: string }> {
+  const byValue = new Map<string, { value: string; label: string }>();
+  for (const row of fallback) byValue.set(row.value, row);
+  for (const row of fromDb) {
+    if (row.value) byValue.set(row.value, row);
+  }
+  if (!byValue.has('other')) byValue.set('other', { value: 'other', label: 'Kh?c' });
+  return [...byValue.values()];
 }

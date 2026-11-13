@@ -1,5 +1,10 @@
 import { GO_THRESHOLDS } from '../intake/intake-definitions.util';
 import { buildDiscoveryConsultPrefill } from '../intake/intake-discovery-prefill.util';
+import {
+  discoveryConsultFormPatch,
+  readDiscoveryBriefFromAnswers,
+  temperatureLabel,
+} from '../intake/sales-discovery.util';
 import { extractDiscoveryResponseSnippets } from '../intake/intake-answers.util';
 import type { IntakeSessionRow } from '../intake/intake.types';
 import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
@@ -303,6 +308,13 @@ function collectSourceValues(
   if (discoverySnippets.length && fieldEmpty(sources._discovery_summary)) {
     sources._discovery_summary = discoverySnippets.join('\n');
   }
+  const discoveryBrief = readDiscoveryBriefFromAnswers(answers);
+  if (discoveryBrief) {
+    const patch = discoveryConsultFormPatch(discoveryBrief);
+    for (const [key, val] of Object.entries(patch)) {
+      if (!fieldEmpty(val) && fieldEmpty(sources[key])) sources[key] = val;
+    }
+  }
   return sources;
 }
 
@@ -400,6 +412,23 @@ export function prefillConsultTaskForm(input: {
     setField(targetKey, sources[sourceKey], sourceKey);
   }
 
+  for (const key of [
+    'goal',
+    'target_audience',
+    'doi_tuong_muc_tieu',
+    'website',
+    'fanpage',
+    'channels',
+    'budget',
+    'niche',
+    'industry',
+    'region',
+    'notes',
+    'metrics',
+  ]) {
+    if (key in sources) setField(key, sources[key]);
+  }
+
   if (SEO_SLUGS.has(slug) || slug === 'quang-cao-google') {
     const kwHint = extractIntakeKeywordHints(input.latestIntake);
     if (kwHint) setField('target_keywords', kwHint);
@@ -413,7 +442,15 @@ export function prefillConsultTaskForm(input: {
     const n = Number(budget);
     noteLines.push(Number.isFinite(n) ? `NS: ${n.toLocaleString('vi-VN')} VND` : `NS: ${budget} VND`);
   }
-  if (input.latestIntake?.decision) {
+  const discoveryBrief = readDiscoveryBriefFromAnswers(input.latestIntake?.answers_json);
+  if (discoveryBrief) {
+    const temp = discoveryBrief.temperature
+      ? temperatureLabel(discoveryBrief.temperature)
+      : '';
+    noteLines.push(
+      `Sales Discovery #${input.latestIntake?.id}: ${discoveryBrief.marketing_goal || discoveryBrief.biggest_problem}${temp ? ` ? ${temp}` : ''}`,
+    );
+  } else if (input.latestIntake?.decision) {
     noteLines.push(
       `Intake #${input.latestIntake.id}: ${input.latestIntake.decision} BANT ${input.latestIntake.bant_total}/30`,
     );
