@@ -8,6 +8,7 @@ import {
 import { LeadFrSlaRepository } from './lead-fr-sla.repository';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
+import { TeamSlaService } from '../team-sla/team-sla.service';
 import {
   evaluateReassignDecision,
   pickRoundRobinLeastOpen,
@@ -45,6 +46,7 @@ export class LeadSlaReassignService {
     private readonly repo: LeadFrSlaRepository,
     private readonly settings: LeadSlaSettingsService,
     @Optional() private readonly notifications?: StaffNotificationsRepository,
+    @Optional() private readonly teamSla?: TeamSlaService,
   ) {}
 
   async run(now: Date = new Date(), opts?: { force?: boolean }): Promise<{
@@ -293,7 +295,7 @@ export class LeadSlaReassignService {
       await this.repo.assignFromQueue(leadId, wouldTo, fr1Due);
       if (this.notifications) {
         await this.notifications
-          .notifyStaff(wouldTo, caseStaffNotify({ kind: 'lead_assigned', leadId }))
+          .notifyStaff(wouldTo, caseStaffNotify({ kind: 'lead_assigned', leadId, claimMinutes: (await this.teamSla?.saleClaimMinutes()) ?? 15 }))
           .catch(() => undefined);
       }
       await this.repo.insertReassignEvent({

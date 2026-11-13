@@ -15,6 +15,7 @@ import { LeadFrSlaRepository } from './lead-fr-sla.repository';
 import { pickRoundRobinLeastOpen } from './lead-sla-reassign.util';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
+import { TeamSlaService } from '../team-sla/team-sla.service';
 import type {
   FrOnTimeByAm,
   LeadOpsDeskSummary,
@@ -104,6 +105,7 @@ export class LeadSlaDeskService {
     private readonly repo: LeadFrSlaRepository,
     private readonly settings: LeadSlaSettingsService,
     @Optional() private readonly notifications?: StaffNotificationsRepository,
+    @Optional() private readonly teamSla?: TeamSlaService,
   ) {}
 
   async summary(now: Date = new Date()): Promise<LeadOpsDeskSummary> {
@@ -318,7 +320,7 @@ export class LeadSlaDeskService {
     const id = Number(staffId);
     if (!this.notifications || !Number.isFinite(id) || id <= 0) return;
     await this.notifications
-      .notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId }))
+      .notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId, claimMinutes: (await this.teamSla?.saleClaimMinutes()) ?? 15 }))
       .catch(() => undefined);
   }
 

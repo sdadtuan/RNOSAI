@@ -234,6 +234,7 @@ export interface PresalesRow {
   implementation_owner_staff_id: number | null;
   implementation_accept_due_at: string;
   implementation_claimed_at: string;
+  missing_info_due_at: string;
 }
 
 export interface ImplementationQueueRow {

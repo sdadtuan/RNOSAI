@@ -38,6 +38,24 @@ describe('caseStaffNotify', () => {
     expect(n.meta_json).toEqual({ lead_id: 7, action: 'claim_lead' });
   });
 
+  it('uses the configured claim window in the assigned-lead notify', () => {
+    const n = caseStaffNotify({ kind: 'lead_assigned', leadId: 7, claimMinutes: 1 });
+    expect(n.body).toContain('1 phút');
+    expect(n.body).not.toContain('15');
+  });
+
+  it('notifies the AM when the customer agrees to Solutions', () => {
+    const n = caseStaffNotify({ kind: 'customer_agreed_solution', leadId: 11 });
+    expect(n.title).toContain('đồng ý Solutions');
+    expect(n.link_href).toBe('/crm/leads/11');
+  });
+
+  it('notifies the AM when the CEO approves the quote', () => {
+    const n = caseStaffNotify({ kind: 'quote_ceo_approved_am', leadId: 11 });
+    expect(n.title).toContain('duyệt báo giá');
+    expect(n.body).toContain('CEO đã duyệt');
+  });
+
   it('tells the original AM that the case is theirs again', () => {
     const n = caseStaffNotify({ kind: 'auto_reclaim_solution', leadId: 3 });
     expect(n.title).toContain('giao lại');

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Optional, BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
@@ -104,6 +104,7 @@ import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.se
 import { LeadsRepository } from '../leads/leads.repository';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { SOLUTION_ACCEPT_MINUTES } from './solution-case.util';
+import { TeamSlaService } from '../team-sla/team-sla.service';
 import {
   caseStaffNotify,
   salesNotifyStaffIds,
@@ -130,15 +131,37 @@ export class LeadsFunnelService {
     private readonly leadsRepo: LeadsRepository,
     private readonly aiConfig: AiIntelligenceConfigService,
     private readonly notifications: StaffNotificationsRepository,
+    @Optional() private readonly teamSla?: TeamSlaService,
   ) {}
 
+
+  private async marketingClaimMinutes(): Promise<number> {
+    try {
+      const n = await this.teamSla?.marketingClaimMinutes();
+      return n != null && Number.isFinite(n) && n >= 0 ? n : SOLUTION_ACCEPT_MINUTES;
+    } catch {
+      return SOLUTION_ACCEPT_MINUTES;
+    }
+  }
+
+  private async saleMissingInfoHours(): Promise<number> {
+    try {
+      const n = await this.teamSla?.saleMissingInfoHours();
+      return n != null && Number.isFinite(n) && n >= 0 ? n : 1;
+    } catch {
+      return 1;
+    }
+  }
+
   private async notifyAmSolutionHandoff(leadId: number): Promise<void> {
+    const acceptMinutes = await this.marketingClaimMinutes();
+    const acceptLabel = acceptMinutes === 1 ? '1 phút' : `${acceptMinutes} phút`;
     const payload = {
       kind: 'presales_solution',
       title: 'Case Solutions chờ AM nhận',
-      body: `Lead #${leadId} chờ nhận case Solutions (${SOLUTION_ACCEPT_MINUTES} phút).`,
+      body: `Lead #${leadId} chờ nhận case Solutions (${acceptLabel}).`,
       link_href: '/crm/solution/queue',
-      meta_json: { lead_id: leadId },
+      meta_json: { lead_id: leadId, accept_minutes: acceptMinutes },
     };
     const userIds = await this.pgRepo.solutionDeskAuthUserIds();
     for (const userId of userIds) {
@@ -677,9 +700,11 @@ export class LeadsFunnelService {
       );
     }
     try {
+      const acceptMinutes = await this.marketingClaimMinutes();
       const handed = await this.pgRepo.handoffToSolution(leadId, staffId, {
         confirm: Boolean(body.confirm),
         overrideReason: body.override_reason,
+        acceptMinutes,
       });
       await this.logSolutionHandoffActivity(
         leadId,
@@ -764,7 +789,10 @@ export class LeadsFunnelService {
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
-      const returned = await this.pgRepo.returnToSalesForMissingInfo(leadId, staffId, reason);
+      const missingInfoHours = await this.saleMissingInfoHours();
+      const returned = await this.pgRepo.returnToSalesForMissingInfo(leadId, staffId, reason, {
+        missingInfoHours,
+      });
       await this.logSolutionHandoffActivity(
         leadId,
         SOLUTION_HANDOFF_ACTIVITY_TYPES.returned,
@@ -818,6 +846,16 @@ export class LeadsFunnelService {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
       await this.pgRepo.approveSubmittedSolution(leadId, staffId);
+      const afterAgree = await this.pgRepo.getPresalesSnapshot(leadId);
+      const amId =
+        afterAgree?.presales.quote_assignee_staff_id ??
+        afterAgree?.presales.solution_owner_staff_id ??
+        afterAgree?.presales.last_solution_owner_staff_id ??
+        null;
+      void this.notifyResponsible(
+        amId,
+        caseStaffNotify({ kind: 'customer_agreed_solution', leadId }),
+      );
     } catch (err) {
       this.funnelError(err);
     }
@@ -872,6 +910,17 @@ export class LeadsFunnelService {
         staffId,
         caseStaffNotify({ kind: 'quote_ceo_approved', leadId }),
       );
+      const amId =
+        afterApprove?.presales.quote_assignee_staff_id ??
+        afterApprove?.presales.solution_owner_staff_id ??
+        afterApprove?.presales.last_solution_owner_staff_id ??
+        null;
+      if (amId && amId !== staffId) {
+        void this.notifyResponsible(
+          amId,
+          caseStaffNotify({ kind: 'quote_ceo_approved_am', leadId }),
+        );
+      }
     } catch (err) {
       this.funnelError(err);
     }

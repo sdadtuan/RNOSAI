@@ -9,7 +9,9 @@ export type CaseNotifyKind =
   | 'lead_assigned'
   | 'quote_submitted_ceo'
   | 'quote_ceo_rejected'
-  | 'quote_ceo_approved';
+  | 'quote_ceo_approved'
+  | 'customer_agreed_solution'
+  | 'quote_ceo_approved_am';
 
 export type CaseNotifyPayload = {
   kind: string;
@@ -30,11 +32,16 @@ export function caseStaffNotify(input: {
   kind: CaseNotifyKind;
   leadId: number;
   reason?: string;
+  /** Configured Sales / AM claim window. Defaults to 15; never assumed to be 1. */
+  claimMinutes?: number;
 }): CaseNotifyPayload {
   const leadId = Number(input.leadId);
   const reason = String(input.reason ?? '').trim();
   const link = '/crm/leads/' + leadId;
   const reasonBit = reason ? ('  Lý do: ' + reason) : '';
+  const rawMinutes = Number(input.claimMinutes);
+  const claimMinutes = Number.isFinite(rawMinutes) && rawMinutes >= 0 ? rawMinutes : 15;
+  const claimMinutesLabel = claimMinutes === 1 ? '1 phút' : `${claimMinutes} phút`;
 
   if (input.kind === 'return_missing_info') {
     return {
@@ -108,10 +115,28 @@ export function caseStaffNotify(input: {
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
   }
+  if (input.kind === 'customer_agreed_solution') {
+    return {
+      kind: 'presales_solution',
+      title: 'Khách đã đồng ý Solutions',
+      body: ('Lead #' + leadId + '  — Sales xác nhận khách đã đồng ý Solutions. Vui lòng lập báo giá.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
+  if (input.kind === 'quote_ceo_approved_am') {
+    return {
+      kind: 'presales_quote',
+      title: 'CEO đã duyệt báo giá',
+      body: ('Lead #' + leadId + '  — CEO đã duyệt báo giá bạn lập. Vui lòng xem và tiếp tục bước hợp đồng.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
+    };
+  }
   return {
     kind: 'lead_assigned',
     title: 'Lead mới được giao cho bạn',
-    body: ('Lead #' + leadId + '  — nhận trong 15 phút kể từ lúc được giao.'),
+    body: ('Lead #' + leadId + '  — nhận trong ' + claimMinutesLabel + ' kể từ lúc được giao.'),
     link_href: link,
     meta_json: { lead_id: leadId, action: 'claim_lead' },
   };

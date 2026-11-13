@@ -10,6 +10,8 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import type { B2bLeadScopeRow } from './b2b-visibility.util';
+import { TeamSlaService } from '../team-sla/team-sla.service';
+import { Optional } from '@nestjs/common';
 
 function alertTitle(kind: AlertKind, score: number | null): string {
   if (kind === 'assigned_hot') return `Lead Hot mới${score != null ? ` (${Math.round(score)})` : ''}`;
@@ -24,6 +26,7 @@ export class B2bAlertsService {
     private readonly repo: B2bAlertsRepository,
     private readonly push: B2bStaffPushSender,
     private readonly notifications: StaffNotificationsRepository,
+    @Optional() private readonly teamSla?: TeamSlaService,
   ) {}
 
   async fanoutArrival(input: {
@@ -46,7 +49,7 @@ export class B2bAlertsService {
     );
     for (const p of planned) {
       if (p.kind === 'assigned' || p.kind === 'assigned_hot') {
-        const payload = caseStaffNotify({ kind: 'lead_assigned', leadId: input.lead.leadId });
+        const payload = caseStaffNotify({ kind: 'lead_assigned', leadId: input.lead.leadId , claimMinutes: (await this.teamSla?.saleClaimMinutes()) ?? 15 });
         await this.notifications.notifyStaff(p.staffId, payload);
       }
       await this.push.send({

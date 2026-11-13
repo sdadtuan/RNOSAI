@@ -66,9 +66,10 @@ export interface SolutionCaseSource {
   solution_customer_due_at: string;
   solution_revision_note: string;
   solution_revision_due_at: string;
+  missing_info_due_at?: string;
 }
 
-export type SolutionCasePhase = 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_phan_hoi';
+export type SolutionCasePhase = 'cho_nhan' | 'dang_lam' | 'chinh_sua' | 'cho_phan_hoi' | 'bo_sung';
 
 export interface SolutionCaseView {
   phase: SolutionCasePhase;
@@ -154,7 +155,18 @@ function clock(
   return { overdue: false, warning: due - now.getTime() <= warnMinutes * 60 * 1000 };
 }
 
-export function buildSolutionCaseView(row: SolutionCaseSource, now: Date): SolutionCaseView | null {
+export function buildSolutionCaseView(
+  row: SolutionCaseSource,
+  now: Date,
+  opts?: { acceptMinutes?: number; missingInfoHours?: number },
+): SolutionCaseView | null {
+  const rawAccept = Number(opts?.acceptMinutes);
+  const acceptMinutes = Number.isFinite(rawAccept) && rawAccept >= 0 ? rawAccept : SOLUTION_ACCEPT_MINUTES;
+  const acceptLabel = acceptMinutes === 1 ? '1 phút' : `${acceptMinutes} phút`;
+  const rawHours = Number(opts?.missingInfoHours);
+  const missingHours = Number.isFinite(rawHours) && rawHours >= 0 ? rawHours : 1;
+  const missingLabel = missingHours === 1 ? '1 giờ' : `${missingHours} giờ`;
+
   if (String(row.solution_approved_at ?? '').trim()) return null;
   const handoff = String(row.handoff_status ?? '').trim();
   const revisionDue = String(row.solution_revision_due_at ?? '').trim();
@@ -164,6 +176,7 @@ export function buildSolutionCaseView(row: SolutionCaseSource, now: Date): Solut
   else if (revising) phase = 'chinh_sua';
   else if (handoff === 'with_solution') phase = 'dang_lam';
   else if (handoff === 'released') phase = 'cho_phan_hoi';
+  else if (handoff === 'returned' || handoff === 'returned_to_sales' || handoff === 'return') phase = 'bo_sung';
   if (!phase) return null;
 
   const assigneeId = Number(row.solution_owner_staff_id);
@@ -196,21 +209,30 @@ export function buildSolutionCaseView(row: SolutionCaseSource, now: Date): Solut
       due: String(row.solution_customer_due_at ?? '').trim(),
       warn: 96,
     },
+    bo_sung: {
+      step: 'Bổ sung thông tin',
+      role: 'Sale',
+      timer: 'Hạn bổ sung thông tin',
+      due: String(row.missing_info_due_at ?? '').trim(),
+      warn: 15,
+    },
   };
   const meta = labels[phase];
   const state = clock(meta.due, now, meta.warn);
   let warningNote = '';
   let slaNote = '';
-  if (state.warning && phase === 'cho_nhan') warningNote = 'Sắp hết 15 phút nhận case Solutions.';
+  if (state.warning && phase === 'cho_nhan') warningNote = 'Sắp hết ' + acceptLabel + ' nhận case Solutions.';
   if (state.warning && phase === 'dang_lam') warningNote = 'Sắp đến hạn trả Solutions.';
   if (state.warning && phase === 'chinh_sua') warningNote = 'Sắp hết 2 giờ chỉnh Solutions.';
   if (state.warning && phase === 'cho_phan_hoi') warningNote = 'Sắp hết 8 giờ phản hồi khách.';
-  if (state.overdue && phase === 'cho_nhan') slaNote = 'Quá 15 phút chưa bấm nhận case Solutions.';
+  if (state.overdue && phase === 'cho_nhan') slaNote = 'Quá ' + acceptLabel + ' chưa bấm nhận case Solutions.';
   if (state.overdue && phase === 'dang_lam') {
     slaNote = 'Quá hạn trả Solutions. Trước mốc cắt cộng số giờ cấu hình; sau mốc cắt (T2–T6) hạn là giờ đã đặt vào ngày làm việc kế tiếp.';
   }
   if (state.overdue && phase === 'chinh_sua') slaNote = 'Quá 2 giờ chưa trả Solutions đã chỉnh.';
   if (state.overdue && phase === 'cho_phan_hoi') slaNote = 'Quá 8 giờ chưa có phản hồi khách về Solutions.';
+  if (state.warning && phase === 'bo_sung') warningNote = 'Sắp hết ' + missingLabel + ' bổ sung thông tin.';
+  if (state.overdue && phase === 'bo_sung') slaNote = 'Quá ' + missingLabel + ' chưa bổ sung thông tin.';
 
   return {
     phase,

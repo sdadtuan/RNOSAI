@@ -6,6 +6,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { CrmConfigModule } from './crm-config/crm-config.module';
 import { LeadSlaSettingsModule } from './lead-sla-settings/lead-sla-settings.module';
+import { TeamSlaModule } from './team-sla/team-sla.module';
 import { LeadFrSlaModule } from './lead-fr-sla/lead-fr-sla.module';
 import { CrmBoardModule } from './crm-board/crm-board.module';
 import { CskhBoardModule } from './cskh-board/cskh-board.module';
@@ -141,6 +142,7 @@ import { P13Module } from './p13/p13.module';
     CatalogModule,
     CrmConfigModule,
     LeadSlaSettingsModule,
+    TeamSlaModule,
     LeadFrSlaModule,
     CrmLeadsLegacyModule,
     CustomersModule,

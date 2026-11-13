@@ -116,3 +116,52 @@ describe('buildSolutionCaseView', () => {
     expect(waiting?.sla_note).toContain('8 giờ');
   });
 });
+
+describe('buildSolutionCaseView missing-info + configurable accept', () => {
+  const now = new Date('2026-11-13T07:00:00.000Z');
+
+  function source(overrides: Record<string, unknown> = {}) {
+    return {
+      handoff_status: 'pending',
+      solution_approved_at: '',
+      solution_owner_staff_id: null,
+      solution_owner_name: '',
+      solution_accept_due_at: '',
+      solution_claimed_at: '',
+      solution_due_at: '',
+      solution_released_at: '',
+      solution_customer_due_at: '',
+      solution_revision_note: '',
+      solution_revision_due_at: '',
+      missing_info_due_at: '',
+      ...overrides,
+    };
+  }
+
+  it('uses the configured accept window in cho_nhan warning and overdue notes', () => {
+    const soon = buildSolutionCaseView(
+      source({ solution_accept_due_at: '2026-11-13T07:02:00.000Z' }),
+      now,
+      { acceptMinutes: 1 },
+    );
+    expect(soon?.warning_note).toContain('1 phút');
+    expect(soon?.warning_note).not.toContain('15 phút');
+  });
+
+  it('shows a Sales countdown when the case is returned for missing info', () => {
+    const view = buildSolutionCaseView(
+      source({
+        handoff_status: 'returned',
+        missing_info_due_at: '2026-11-13T08:00:00.000Z',
+        solution_revision_note: 'Thiếu ngân sách',
+      }),
+      now,
+      { missingInfoHours: 1 },
+    );
+    expect(view?.phase).toBe('bo_sung');
+    expect(view?.expected_role).toBe('Sale');
+    expect(view?.step_label).toContain('Bổ sung');
+    expect(view?.timer_due_at).toBe('2026-11-13T08:00:00.000Z');
+    expect(view?.revision_note).toContain('Thiếu ngân sách');
+  });
+});

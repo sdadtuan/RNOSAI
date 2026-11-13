@@ -42,6 +42,7 @@ import { catalogTs } from '../catalog/catalog-slug.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
+import { TeamSlaService } from '../team-sla/team-sla.service';
 
 @Injectable()
 export class LeadsWriteService {
@@ -63,6 +64,7 @@ export class LeadsWriteService {
     private readonly assignmentLog: CrmLeadsPgRepository,
     private readonly leadSlaSettings: LeadSlaSettingsService,
     @Optional() private readonly notifications?: StaffNotificationsRepository,
+    @Optional() private readonly teamSla?: TeamSlaService,
   ) {}
 
 
@@ -83,7 +85,7 @@ export class LeadsWriteService {
       return;
     }
     try {
-      await this.notifications.notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId }));
+      await this.notifications.notifyStaff(id, caseStaffNotify({ kind: 'lead_assigned', leadId, claimMinutes: (await this.teamSla?.saleClaimMinutes()) ?? 15 }));
     } catch (err) {
       this.notifyLogger.error(
         `lead_assigned notify failed lead=${leadId} staff=${id}: ${err instanceof Error ? err.stack || err.message : err}`,

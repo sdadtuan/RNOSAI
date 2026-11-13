@@ -93,6 +93,8 @@ import {
   solutionWorkDueAt,
 } from './solution-case.util';
 import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
+import { TeamSlaService } from '../team-sla/team-sla.service';
+import { Optional } from '@nestjs/common';
 import {
   IMPLEMENTATION_ACCEPT_MINUTES,
   buildImplementationHandoffView,
@@ -218,6 +220,7 @@ type PgPresalesRow = {
   implementation_owner_staff_id?: string | number | null;
   implementation_accept_due_at?: Date | string | null;
   implementation_claimed_at?: Date | string | null;
+  missing_info_due_at?: Date | string | null;
   contract_created_at?: Date | string | null;
   contract_signed_at?: Date | string | null;
   contract_amount_vnd?: string | number | null;
@@ -229,7 +232,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private quoteCaseReady: Promise<void> | null = null;
   private deliveryKpiReady: Promise<void> | null = null;
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    @Optional() private readonly teamSla?: TeamSlaService,
+  ) {}
 
   private get db(): Pool {
     if (!this.pool) {
@@ -324,6 +330,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         ? String(row.implementation_accept_due_at)
         : '',
       implementation_claimed_at: row.implementation_claimed_at ? String(row.implementation_claimed_at) : '',
+      missing_info_due_at: row.missing_info_due_at ? String(row.missing_info_due_at) : '',
     };
   }
 
@@ -358,7 +365,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              ADD COLUMN IF NOT EXISTS implementation_owner_staff_id BIGINT,
              ADD COLUMN IF NOT EXISTS implementation_accept_due_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS implementation_claimed_at TIMESTAMPTZ,
-             ADD COLUMN IF NOT EXISTS last_solution_owner_staff_id BIGINT`,
+             ADD COLUMN IF NOT EXISTS last_solution_owner_staff_id BIGINT,
+             ADD COLUMN IF NOT EXISTS missing_info_due_at TIMESTAMPTZ`,
         )
         .then(() => undefined)
         .catch((err) => {
@@ -1233,12 +1241,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       };
     }
     const handoff = await this.buildHandoffView(ps);
+    const acceptMinutes = this.teamSla
+      ? await this.teamSla.marketingClaimMinutes().catch(() => SOLUTION_ACCEPT_MINUTES)
+      : SOLUTION_ACCEPT_MINUTES;
+    const missingHours = this.teamSla
+      ? await this.teamSla.saleMissingInfoHours().catch(() => 1)
+      : 1;
     const solutionCase = buildSolutionCaseView(
       {
         ...ps,
         solution_owner_name: handoff.solution_owner_name,
       },
       now,
+      { acceptMinutes, missingInfoHours: missingHours },
     );
     const implOwnerName = await this.staffNameById(ps.implementation_owner_staff_id);
     const implementationHandoff = buildImplementationHandoffView(
@@ -2020,7 +2035,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   async handoffToSolution(
     leadId: number,
     staffId: number,
-    opts: { confirm?: boolean; overrideReason?: string } = {},
+    opts: { confirm?: boolean; overrideReason?: string; acceptMinutes?: number } = {},
   ): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
@@ -2107,10 +2122,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            solution_released_at = NULL,
            solution_customer_due_at = NULL,
            solution_revision_note = '',
-           solution_revision_due_at = NULL
+           solution_revision_due_at = NULL,
+           missing_info_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, SOLUTION_ACCEPT_MINUTES],
+      [snap.presales.id, staffId, Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
@@ -2119,7 +2135,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       leadId,
       staffId,
       status,
-      `Lead chờ AM nhận Solutions. Hạn nhận case ${SOLUTION_ACCEPT_MINUTES} phút.`,
+      `Lead chờ AM nhận Solutions. Hạn nhận case ${Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES} phút.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -2206,7 +2222,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
 
-  async returnToSalesForMissingInfo(leadId: number, staffId: number, reason: string): Promise<PresalesRow> {
+  async returnToSalesForMissingInfo(leadId: number, staffId: number, reason: string, opts: { missingInfoHours?: number } = {}): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     const handoff = snap.presales.handoff_status;
@@ -2237,10 +2253,18 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            solution_customer_due_at = NULL,
            solution_revision_note = $2,
            solution_revision_due_at = NULL,
+           missing_info_due_at = NOW() + ($4::numeric * INTERVAL '1 hour'),
            notes = TRIM(BOTH FROM COALESCE(notes, '') || E'\n' || $3)
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, note, `MKT trả lại Sales — thông tin chưa đủ: ${note}`],
+      [
+        snap.presales.id,
+        note,
+        `MKT trả lại Sales — thông tin chưa đủ: ${note}`,
+        Number.isFinite(Number(opts.missingInfoHours)) && Number(opts.missingInfoHours) >= 0
+          ? Number(opts.missingInfoHours)
+          : 1,
+      ],
     );
     const mapped = this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
     const status = await this.currentLeadStatus(leadId);
