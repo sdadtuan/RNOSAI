@@ -13,6 +13,7 @@ import {
   type LeadFunnelSnapshot,
 } from '@/lib/api';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
+import { shouldShowQuoteTransferBox } from '@/components/crm/quote-transfer-box.util';
 
 function when(value: string): string {
   const ms = Date.parse(value);
@@ -66,6 +67,7 @@ export function QuoteCasePanel({
   leadId,
   funnel,
   viewerIsCeo = false,
+  viewerIsSuperAdmin = false,
   viewerIsSales = false,
   onFunnelChange,
   onLeadReload,
@@ -76,6 +78,7 @@ export function QuoteCasePanel({
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   viewerIsCeo?: boolean;
+  viewerIsSuperAdmin?: boolean;
   viewerIsSales?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onLeadReload: () => Promise<void>;
@@ -338,7 +341,13 @@ export function QuoteCasePanel({
         {quote.phase === 'trien_khai' ? (
           <p>GĐKD đã duyệt hợp đồng. Lead đang ở Triển Khai.</p>
         ) : null}
-        {viewerIsCeo && quote.expected_role && (quote.transfer_candidates?.length ?? 0) > 0 ? (
+        {shouldShowQuoteTransferBox({
+          viewerIsCeo,
+          viewerIsSuperAdmin,
+          expectedRole: quote.expected_role,
+          candidateCount: quote.transfer_candidates?.length ?? 0,
+          assigneeStaffId: quote.assignee_staff_id,
+        }) ? (
           <>
             <label>
               {`Giao ${quote.expected_role}`}

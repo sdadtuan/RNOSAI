@@ -1766,6 +1766,7 @@ export default function CrmLeadDetailPage() {
                 leadId={leadId}
                 funnel={funnelSnap}
                 viewerIsCeo={isCeoPosition(user) || superAdmin}
+                viewerIsSuperAdmin={superAdmin}
                 viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
                 onLeadReload={async () => {
