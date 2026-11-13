@@ -149,7 +149,7 @@ describe('handoff-flow.util', () => {
     expect(complete.items.every((i) => i.ok)).toBe(true);
   });
 
-  it('lets a legacy handed-off lead pass the giao gate without Discovery-only fields', () => {
+  it('does not tick "Đủ điều kiện giao Marketing" when a legacy lead is missing goal or budget', () => {
     const legacy = amDeskChecklist(
       {
         company_name: 'Công ty Seed 915',
@@ -165,8 +165,9 @@ describe('handoff-flow.util', () => {
     expect(legacy.items[1].ok).toBe(true);
     expect(legacy.items[2].ok).toBe(false);
     expect(legacy.items[3].ok).toBe(false);
-    expect(legacy.items[4].ok).toBe(true);
-    expect(legacy.allOk).toBe(true);
+    expect(legacy.items[4].ok).toBe(false);
+    expect(legacy.allOk).toBe(false);
+    expect(legacy.legacyAssignable).toBe(true);
   });
 
   it('renders a dash for missing Discovery fields instead of inventing data', () => {

@@ -470,7 +470,7 @@ export function AmHandoffDesk({
     if (!canAssign) return 'Lead không còn ở bước Chờ Solutions.';
     if (!leaderId) return 'Chọn Marketing Leader.';
     if (!deadline) return 'Chọn Deadline Solutions.';
-    if (!checklist.allOk) return 'Hoàn thiện checklist AM trước khi giao.';
+    if (!checklist.allOk && !checklist.legacyAssignable) return 'Hoàn thiện checklist AM trước khi giao.';
     return '';
   }
 
@@ -697,11 +697,13 @@ export function AmHandoffDesk({
                 </span>
               </div>
               {temp ? (
-                <div className="ahd-person">
-                  Mức độ:{' '}
-                  <span className={`ahd-temp ahd-temp--${temp}`} data-testid="ahd-temp">
-                    {temp === 'hot' ? '🔥 ' : ''}
-                    {tempLabel}
+                <div className="ahd-person ahd-person--temp">
+                  <span className="ahd-temp-row">
+                    <span className="ahd-k">Mức độ</span>
+                    <span className={`ahd-temp ahd-temp--${temp}`} data-testid="ahd-temp" title={String(tempLabel || '')}>
+                      {temp === 'hot' ? '🔥 ' : ''}
+                      {tempLabel}
+                    </span>
                   </span>
                 </div>
               ) : null}
@@ -896,6 +898,14 @@ export function AmHandoffDesk({
                   Đạt yêu cầu
                 </span>
               </div>
+            ) : null}
+            {!checklist.allOk && (handoff?.status === 'pending' || Boolean(handoff?.handed_off_at)) ? (
+              <p className="ahd-handoff-note" data-testid="ahd-handoff-note">
+                Lead đã gửi AM (hồ sơ cũ). Checklist chưa đủ
+                {(!view.marketing_goal || !view.target_customers) ? ' — thiếu mục tiêu' : ''}
+                {(!view.budget_band || !view.timeline_band) ? ' / ngân sách' : ''}.
+                Trạng thái bàn giao: {flow.currentLabel}.
+              </p>
             ) : null}
           </section>
 

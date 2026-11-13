@@ -14,18 +14,12 @@ import {
   type LeadRow,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import {
+  normalizeIntakeSessionList,
+  pickWorkingSession,
+  shouldCreateIntakeDraft,
+} from '@/lib/crm/sales-discovery-session';
 import './sd-embed.css';
-
-function pickWorkingSession(sessions: IntakeSessionRow[], preferredId?: number): IntakeSessionRow | null {
-  if (preferredId) {
-    const preferred = sessions.find((row) => row.id === preferredId);
-    if (preferred) return preferred;
-  }
-  const drafts = sessions.filter((row) => row.status === 'draft').sort((a, b) => b.id - a.id);
-  if (drafts[0]) return drafts[0];
-  const done = sessions.filter((row) => row.status === 'completed').sort((a, b) => b.id - a.id);
-  return done[0] ?? null;
-}
 
 export function SalesDiscoveryEmbed({
   token,
@@ -55,6 +49,7 @@ export function SalesDiscoveryEmbed({
   const [options, setOptions] = useState<DiscoveryOptionsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [handoffStatus, setHandoffStatus] = useState('');
 
   const loadAll = useCallback(async () => {
     if (!token || leadId <= 0) {
@@ -73,9 +68,13 @@ export function SalesDiscoveryEmbed({
       setOptions(opt);
       if (leadRow) setLead(leadRow);
       if (funnelSnap) onFunnelChange?.(funnelSnap);
-      let list = sessionList;
+      let list = normalizeIntakeSessionList(sessionList);
       let working = pickWorkingSession(list);
-      if (!working && canEdit) {
+      const handoffStatus = String(
+        (funnelSnap?.presales?.handoff as { status?: string } | undefined)?.status ?? '',
+      ).toLowerCase();
+      setHandoffStatus(handoffStatus);
+      if (!working && canEdit && shouldCreateIntakeDraft(list)) {
         working = await createIntakeSession(token, {
           lead_id: leadId,
           mode: 'phone',
@@ -139,6 +138,7 @@ export function SalesDiscoveryEmbed({
         canEdit={canEdit}
         historicalSessions={historical}
         embedded
+        handoffStatus={handoffStatus}
         onSessionChange={(next) => {
           setActive(next);
           setSessions((prev) => {

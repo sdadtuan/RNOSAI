@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/api';
-import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief } from '@/lib/api';
+import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
+  reopenIntakeSession } from '@/lib/api';
 import {
   DISCOVERY_REQUIRED_FIELDS,
   authorityLabel,
@@ -55,6 +56,7 @@ export function SalesDiscoveryWizard({
   onSessionChange,
   historicalSessions = [],
   embedded = false,
+  handoffStatus = '',
 }: {
   token: string;
   lead: LeadRow | null;
@@ -64,9 +66,12 @@ export function SalesDiscoveryWizard({
   onSessionChange: (session: IntakeSessionRow) => void;
   historicalSessions?: IntakeSessionRow[];
   embedded?: boolean;
+  handoffStatus?: string;
 }) {
   const completed = session.status === 'completed';
-  const readOnly = completed || !canEdit;
+  const returned = String(handoffStatus || '').toLowerCase() === 'returned';
+  const [revising, setRevising] = useState(false);
+  const readOnly = (completed && !revising) || !canEdit;
   const [brief, setBrief] = useState<SalesDiscoveryBrief>(() =>
     prefillSalesDiscovery({
       company_name: lead?.company_name,
@@ -101,7 +106,8 @@ export function SalesDiscoveryWizard({
         session,
       }),
     );
-  }, [session.id, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (session.status !== 'completed') setRevising(false);
+  }, [session.id, session.status, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = useMemo(() => discoveryProgress(brief), [brief]);
   const complete = progress.filled === progress.total;
@@ -191,13 +197,28 @@ export function SalesDiscoveryWizard({
     URL.revokeObjectURL(url);
   }
 
-  const badge = completed ? (
-    <span className={`sd-badge ${handoffOk ? 'sd-badge--pending' : 'sd-badge--done'}`}>
-      {handoffOk ? 'Đã nộp — chờ AM' : 'Đã nộp'}
+  const handoffPending = String(handoffStatus || '').toLowerCase() === 'pending' || handoffOk;
+  const badge = returned ? (
+    <span className="sd-badge sd-badge--pending" data-testid="sd-badge">AM trả về — cần bổ sung</span>
+  ) : completed ? (
+    <span className={`sd-badge ${handoffPending ? 'sd-badge--pending' : 'sd-badge--done'}`} data-testid="sd-badge">
+      {handoffPending ? 'Đã nộp — chờ AM' : 'Đã nộp'}
     </span>
   ) : (
-    <span className="sd-badge sd-badge--draft">Draft</span>
+    <span className="sd-badge sd-badge--draft" data-testid="sd-badge">Draft</span>
   );
+
+  async function onRevise() {
+    if (!canEdit || !returned || revising) return;
+    setError('');
+    try {
+      const next = await reopenIntakeSession(token, session.id);
+      onSessionChange(next);
+      setRevising(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không mở lại phiên để sửa.');
+    }
+  }
 
   return (
     <div className={`sd-page${embedded ? ' sd-page--embed' : ''}`} data-testid="sales-discovery-wizard">
@@ -214,6 +235,11 @@ export function SalesDiscoveryWizard({
           )}
           <div className="sd-head-meta">
             {badge}
+            {completed && returned && canEdit && !revising ? (
+              <button type="button" className="btn btn-secondary sd-revise" data-testid="sd-revise" onClick={() => void onRevise()}>
+                Sửa
+              </button>
+            ) : null}
             <span className={`sd-progress${complete ? ' sd-progress--full' : ''}`} data-testid="sd-progress">
               {progress.filled}/{progress.total} trường cốt lõi
             </span>

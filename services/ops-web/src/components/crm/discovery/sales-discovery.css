@@ -14,6 +14,7 @@
 .sd-badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+  white-space: nowrap;
 }
 .sd-badge--draft { background: #eef3f8; color: #3d4f63; }
 .sd-badge--done { background: #e6f6ea; color: #1c7a3a; }
@@ -21,6 +22,7 @@
 .sd-progress {
   font-size: 0.85rem; font-weight: 600; color: #00762f;
   background: #e8f6ee; padding: 4px 10px; border-radius: 999px;
+  white-space: nowrap;
 }
 .sd-progress--full { background: #e6f6ea; color: #1c7a3a; }
 .sd-steps { display: flex; gap: 8px; margin: 18px 0 22px; }
@@ -127,7 +129,7 @@
 .sd-page--embed { max-width: none; margin: 0; }
 .sd-page--embed .sd-card { box-shadow: none; padding: 16px 18px 18px; }
 .sd-head--embed { margin-bottom: 4px; align-items: center; }
-.sd-head--embed .sd-head-meta { flex-direction: row; align-items: center; }
+.sd-head--embed .sd-head-meta { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
 .sd-embed .btn-primary,
 .sd-page--embed .btn-primary {
   background: #00762f;

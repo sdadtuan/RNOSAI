@@ -361,14 +361,47 @@ button.ahd-step__hit { cursor: pointer; }
 }
 .ahd-you { color: var(--ahd-muted); font-size: 11px; }
 
+.ahd-person--temp {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.ahd-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.ahd-temp-row .ahd-k {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .ahd-temp {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.ahd-handoff-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff8e8;
+  border: 1px solid #f0d9a6;
+  color: #6a3b00;
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 .ahd-temp--hot { background: var(--ahd-hot-bg); color: var(--ahd-hot); }
 .ahd-temp--warm { background: var(--ahd-warm-bg); color: var(--ahd-warm); }

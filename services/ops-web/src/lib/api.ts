@@ -3524,6 +3524,19 @@ export async function fetchIntakeDefinitionBySlug(
   return crmFetch(token, `/api/crm/intake/definitions/${encodeURIComponent(slug)}`);
 }
 
+
+function normalizeIntakeSessionList(out: unknown): IntakeSessionRow[] {
+  if (Array.isArray(out)) return out as IntakeSessionRow[];
+  if (out && typeof out === "object") {
+    const rec = out as Record<string, unknown>;
+    for (const key of ["sessions", "items", "data", "rows", "results"]) {
+      const val = rec[key];
+      if (Array.isArray(val)) return val as IntakeSessionRow[];
+    }
+  }
+  return [];
+}
+
 export async function fetchIntakeSessions(
   token: string,
   params: { lead_id?: number; lifecycle_id?: number },
@@ -3531,11 +3544,11 @@ export async function fetchIntakeSessions(
   const qs = new URLSearchParams();
   if (params.lead_id) qs.set('lead_id', String(params.lead_id));
   if (params.lifecycle_id) qs.set('lifecycle_id', String(params.lifecycle_id));
-  const out = await crmFetch<{ sessions: IntakeSessionRow[] }>(
+  const out = await crmFetch<unknown>(
     token,
     `/api/crm/intake/sessions?${qs.toString()}`,
   );
-  return out.sessions ?? [];
+  return normalizeIntakeSessionList(out);
 }
 
 export async function createIntakeSession(

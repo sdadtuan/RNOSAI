@@ -467,6 +467,8 @@ export function amDeskChecklist(
 ): {
   items: AmDeskChecklistItem[];
   allOk: boolean;
+  /** Company+contact+need exist so AM may still giao a handed-off legacy lead. Not a 5th-item tick. */
+  legacyAssignable: boolean;
 } {
   const b = brief ?? {};
   const items: AmDeskChecklistItem[] = [
@@ -504,8 +506,10 @@ export function amDeskChecklist(
     contactOk &&
     filled(b.company_name) &&
     (filled(b.biggest_problem) || (Array.isArray(b.services) && b.services.length > 0));
-  items[4] = { ...items[4], ok: discoveryReady || legacyReady };
-  return { items, allOk: items[4].ok };
+  // Item 5 must mirror the real first-four + contact checklist. A handed-off
+  // legacy lead does not get a false tick when goal/budget are missing.
+  items[4] = { ...items[4], ok: discoveryReady };
+  return { items, allOk: items[4].ok, legacyAssignable: legacyReady };
 }
 
 /** Format a timestamp in Asia/Saigon for stepper / meta rows. */

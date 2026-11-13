@@ -110,16 +110,20 @@ export function LeadSalesPipelineTab({
     <p className="muted">Không có chi tiết SLA.</p>
   );
 
+  const slaUseful =
+    slaState === 'warning' || slaState === 'breach' || Boolean(slaCountdown && String(slaCountdown).trim());
+  const discoveryStep = activeStepKey === 'intake_bant' || activeStepKey === 'presales_lead';
+
   return (
     <div className="lead-pipeline-tab" role="tabpanel" id="lead-pipeline-panel">
-      {onB2 ? null : (
+      {!onB2 && slaUseful ? (
         <LeadPipelineSlaStrip
           worstLabel={slaLabel ?? 'SLA'}
           countdown={slaCountdown ?? null}
           state={slaState ?? 'ok'}
           detail={slaDetailNode}
         />
-      )}
+      ) : null}
       <div className="lead-pipeline-tab__head">
         {activeStepKey === 'intake_bant' || activeStepKey === 'presales_lead' ? (
           <LeadPipelineIntakePanel
@@ -136,6 +140,7 @@ export function LeadSalesPipelineTab({
           />
         ) : null}
       </div>
+      {discoveryStep ? null : (
       <LeadFunnelPanel
         token={token}
         leadId={leadId}
@@ -160,7 +165,10 @@ export function LeadSalesPipelineTab({
         onStepChange={onStepChange}
         leadStatus={leadStatus}
       />
+      )}
+      {discoveryStep ? null : (
       <LeadPipelineDoneAccordion steps={stepperVm.steps} onReview={onStepChange} />
+      )}
     </div>
   );
 }

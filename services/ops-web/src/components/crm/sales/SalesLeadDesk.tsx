@@ -443,11 +443,13 @@ export function SalesLeadDesk({
                 </span>
               </div>
               {temp ? (
-                <div className="ahd-person">
-                  Mức độ:{' '}
-                  <span className={`ahd-temp ahd-temp--${temp}`} data-testid="sld-temp">
-                    {temp === 'hot' ? '🔥 ' : ''}
-                    {tempLabel}
+                <div className="ahd-person ahd-person--temp">
+                  <span className="ahd-temp-row">
+                    <span className="ahd-k">Mức độ</span>
+                    <span className={`ahd-temp ahd-temp--${temp}`} data-testid="sld-temp" title={String(tempLabel || '')}>
+                      {temp === 'hot' ? '🔥 ' : ''}
+                      {tempLabel}
+                    </span>
                   </span>
                 </div>
               ) : null}
@@ -484,6 +486,13 @@ export function SalesLeadDesk({
                   {submitted ? 'Đã gửi AM' : 'Sẵn sàng Submit to AM'}
                 </span>
               </div>
+            ) : null}
+            {submitted ? (
+              <p className="ahd-handoff-note" data-testid="sld-handoff-note">
+                Trạng thái bàn giao: {flow.currentLabel}
+                {sentAm ? ` · Đã gửi AM ${sentAm}` : ''}.
+                {!checklist.allOk ? ' Checklist chưa đủ — thiếu mục tiêu hoặc ngân sách (hồ sơ cũ).' : ''}
+              </p>
             ) : null}
           </section>
 

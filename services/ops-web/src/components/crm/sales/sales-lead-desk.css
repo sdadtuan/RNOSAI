@@ -99,3 +99,49 @@
   border-radius: 14px;
   padding: 16px 18px 18px;
 }
+
+/* Compact SLA banner that matches the AM desk cards. Hidden when unused (ok + no countdown). */
+.sld .lead-pipeline-sla {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+.sld .lead-pipeline-sla__detail summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4b5563;
+}
+.sld .lead-pipeline-tab__head {
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+
+/* Attribution chips: compact wrap, no overflow */
+.sld [class*="attribution"],
+.sld .lead-attr-chips,
+.sld .lead-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+}
+
+.sld .sd-revise {
+  border-color: #00762f;
+  color: #00762f;
+  background: #fff;
+  font-weight: 600;
+}
+.sld .sd-revise:hover {
+  background: #e8f6ee;
+}
