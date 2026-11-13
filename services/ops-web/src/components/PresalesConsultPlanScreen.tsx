@@ -23,7 +23,7 @@ import {
   mergeHumanEditedKeys,
   showClientPlanExportButton,
 } from '@/lib/crm/client-plan-brief.ui';
-import { CONSULT_CHANNEL_OPTIONS, formatChannelsBrief, parseChannelsBrief } from '@/lib/crm/consult-facts-suggest.ui';
+import { CONSULT_CHANNEL_OPTIONS, applyConsultFactsSuggest, formatChannelsBrief, parseChannelsBrief } from '@/lib/crm/consult-facts-suggest.ui';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
 import { useUploadProgress } from '@/components/ui/FileUploadProgress';
@@ -252,22 +252,26 @@ export function PresalesConsultPlanScreen({
       const out = await postLeadPresalesClientBriefSuggest(token, leadId);
       if (leadRef.current !== requestLead) return;
       const parsed = parseChannelsBrief(channels);
-      const nextUsp = mode === 'replace' || !usp.trim() ? out.usp : usp;
-      const nextClose = mode === 'replace' || !parsed.close.trim() ? out.close : parsed.close;
-      const nextSelected = mode === 'replace' || parsed.selected.length === 0 ? out.channels : parsed.selected;
-      const nextChannels = formatChannelsBrief(nextSelected, nextClose);
-      setUsp(nextUsp);
+      const applied = applyConsultFactsSuggest(
+        { usp, goal, selected: parsed.selected, close: parsed.close },
+        out,
+        mode,
+      );
+      const nextChannels = formatChannelsBrief(applied.selected, applied.close);
+      setUsp(applied.usp);
+      setGoal(applied.goal);
       setChannels(nextChannels);
-      setGoalPicks(out.goals);
-      setSuggestedChannels(out.channels);
-      if (nextUsp !== usp || nextChannels !== channels) {
+      setGoalPicks(applied.goalPicks);
+      setSuggestedChannels(out.channels ?? applied.selected);
+      if (applied.usp !== usp || applied.goal !== goal || nextChannels !== channels) {
         await patchLeadPresalesClientBrief(token, leadId, {
           ...briefPatch(false),
-          usp: nextUsp,
+          usp: applied.usp,
+          goal: applied.goal,
           channels: nextChannels,
         });
       }
-      onMessage?.('Đã điền điểm khác biệt và gợi ý mục tiêu, kênh');
+      onMessage?.('Đã điền điểm khác biệt, mục tiêu đo được và gợi ý kênh');
     } catch (err) {
       if (leadRef.current === requestLead) onError?.(err instanceof Error ? err.message : 'AI gợi ý thất bại');
     } finally {
