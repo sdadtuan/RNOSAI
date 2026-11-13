@@ -3,21 +3,14 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
-import { claimLeadSalesReceipt } from '@/lib/api';
+import { claimLeadSalesReceipt, claimLeadSolution } from '@/lib/api';
 import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import {
   fetchStaffNotifications,
   markStaffNotificationRead,
   type StaffNotificationRow,
 } from '@/lib/hr-api';
-
-function metaAction(n: StaffNotificationRow): { action: string; leadId: number | null } {
-  const meta = n.meta_json ?? {};
-  const action = String(meta.action ?? '').trim();
-  const leadIdRaw = Number(meta.lead_id);
-  const leadId = Number.isFinite(leadIdRaw) && leadIdRaw > 0 ? leadIdRaw : null;
-  return { action, leadId };
-}
+import { staffNotifyClaimKind, staffNotifyLeadId } from './staff-notification-claim.util';
 
 export function StaffNotificationBell() {
   const [open, setOpen] = useState(false);
@@ -74,6 +67,23 @@ export function StaffNotificationBell() {
     }
   }
 
+  async function onClaimCase(n: StaffNotificationRow, leadId: number) {
+    const token = getAccessToken();
+    if (!token) return;
+    setClaimingId(n.id);
+    setClaimMsg('');
+    try {
+      await claimLeadSolution(token, leadId);
+      await markStaffNotificationRead(token, n.id);
+      setClaimMsg('Đã nhận case #' + leadId + '.');
+      await reload();
+    } catch (err) {
+      setClaimMsg(err instanceof Error ? err.message : 'Không nhận được case.');
+    } finally {
+      setClaimingId(null);
+    }
+  }
+
   return (
     <div className="staff-notif-bell">
       <button
@@ -101,8 +111,8 @@ export function StaffNotificationBell() {
           <ul className="staff-notif-bell__list">
             {rows.length ? (
               rows.map((n) => {
-                const { action, leadId } = metaAction(n);
-                const showClaim = action === 'claim_lead' && leadId != null && !n.read;
+                const leadId = staffNotifyLeadId(n);
+                const claimKind = staffNotifyClaimKind(n);
                 return (
                 <li key={n.id} className={n.read ? 'is-read' : 'is-unread'}>
                   <div>
@@ -114,7 +124,7 @@ export function StaffNotificationBell() {
                     <small>{new Date(n.created_at).toLocaleString('vi-VN')}</small>
                   </div>
                   <div className="staff-notif-bell__actions">
-                    {showClaim ? (
+                    {claimKind === 'claim_lead' && leadId != null ? (
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"
@@ -122,6 +132,17 @@ export function StaffNotificationBell() {
                         onClick={() => void onClaimLead(n, leadId)}
                       >
                         {claimingId === n.id ? 'Đang nhận…' : 'Nhận lead'}
+                      </button>
+                    ) : null}
+                    {claimKind === 'claim_case' && leadId != null ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        data-testid="staff-notif-claim-case"
+                        disabled={claimingId === n.id}
+                        onClick={() => void onClaimCase(n, leadId)}
+                      >
+                        {claimingId === n.id ? 'Đang nhận…' : 'Nhận case'}
                       </button>
                     ) : null}
                     {n.link_href ? (

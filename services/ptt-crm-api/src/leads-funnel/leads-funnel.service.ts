@@ -161,7 +161,7 @@ export class LeadsFunnelService {
       title: 'Case Solutions chờ AM nhận',
       body: `Lead #${leadId} chờ nhận case Solutions (${acceptLabel}).`,
       link_href: '/crm/solution/queue',
-      meta_json: { lead_id: leadId, accept_minutes: acceptMinutes },
+      meta_json: { lead_id: leadId, accept_minutes: acceptMinutes, action: 'claim_case' },
     };
     const userIds = await this.pgRepo.solutionDeskAuthUserIds();
     for (const userId of userIds) {
