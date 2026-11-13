@@ -35,6 +35,7 @@ import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 import { buildBreachBacklogSnapshot } from './cskh-breach-backlog.util';
 import { buildShiftHandoffReport } from './cskh-shift-handoff.util';
 import { buildHomeSummary } from './home-summary.util';
+import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import {
   predictSlaRiskForRows,
   type SlaPredictRow,
@@ -425,6 +426,14 @@ export class CskhBoardService {
         sla_minutes_elapsed: sla.sla_minutes_elapsed,
         sla_deadline_at: sla.sla_deadline_at,
         next_follow_up_at: followUps.get(base.id) ?? null,
+        lead_flow_kind: resolveLeadFlowKind({
+          clientId: (row as { agency_client_id?: string | null }).agency_client_id
+            ? String((row as { agency_client_id?: string | null }).agency_client_id)
+            : null,
+          channel: base.channel,
+          source: base.source,
+          status: base.status,
+        }),
       };
     });
   }

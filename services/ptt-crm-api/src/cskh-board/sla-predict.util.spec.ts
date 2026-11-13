@@ -87,3 +87,40 @@ describe('sla-predict.util', () => {
     expect(slaPredictAlertHash(sample as never)).toContain('1:first_call_15m:high');
   });
 });
+
+describe('predictSlaRisk B2B exclusion', () => {
+  it('does not emit CSKH first_call_15m toasts for B2B leads', () => {
+    const { predictSlaRisk } = require('./sla-predict.util') as typeof import('./sla-predict.util');
+    const now = new Date('2026-11-13T07:00:00.000Z');
+    const row = {
+      id: 900000097,
+      full_name: 'Chien test Final',
+      phone: '',
+      email: '',
+      status: 'moi',
+      source: 'meta',
+      channel: 'facebook',
+      owner_id: 1,
+      owner_name: 'Sales',
+      received_at: now.toISOString(),
+      created_at: now.toISOString(),
+      first_call_at: null,
+      b2_completed_at: null,
+      closed_at: null,
+      sla_state: 'warning',
+      sla_tier: 'first_call_15m',
+      sla_tiers: [
+        {
+          tier: 'first_call_15m',
+          sla_state: 'warning',
+          deadline_at: '2026-11-13T07:04:00.000Z',
+        },
+      ],
+      sla_minutes_elapsed: 11,
+      sla_deadline_at: '2026-11-13T07:04:00.000Z',
+      next_follow_up_at: null,
+      lead_flow_kind: 'b2b_prospect',
+    };
+    expect(predictSlaRisk(row as never, now)).toEqual([]);
+  });
+});

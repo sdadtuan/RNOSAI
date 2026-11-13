@@ -48,6 +48,8 @@ export interface CskhBoardRow {
   sla_minutes_elapsed: number | null;
   sla_deadline_at: string | null;
   next_follow_up_at: string | null;
+  /** B2B prospects must not receive CSKH first_call_15m toasts. */
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect' | string | null;
 }
 
 export interface CskhBoardResponse {

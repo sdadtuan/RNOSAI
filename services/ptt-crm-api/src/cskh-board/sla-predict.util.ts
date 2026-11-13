@@ -43,8 +43,14 @@ export function classifySlaPredictRisk(minutesRemaining: number): SlaPredictRisk
   return null;
 }
 
+export function isB2bLeadForCskhSla(row: Pick<CskhBoardRow, 'lead_flow_kind'>): boolean {
+  return String(row.lead_flow_kind ?? '').trim().toLowerCase() === 'b2b_prospect';
+}
+
 export function predictSlaRisk(row: CskhBoardRow, now = new Date()): SlaPredictRow[] {
   const out: SlaPredictRow[] = [];
+  // B2B leads use First Response SLA only — never CSKH first_call_15m / 4h / 24h toasts.
+  if (isB2bLeadForCskhSla(row)) return out;
 
   for (const tier of row.sla_tiers) {
     if (tier.sla_state !== 'warning' || !tier.deadline_at) continue;
