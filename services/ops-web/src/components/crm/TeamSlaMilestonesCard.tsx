@@ -12,6 +12,8 @@ import {
   type TeamSlaDocument,
   type TeamSlaProfile,
 } from '@/lib/crm/team-sla-profiles';
+import { getAccessToken } from '@/lib/auth';
+import { fetchAdminTeamSla, saveAdminTeamSla } from '@/lib/team-sla-api';
 
 const DAY_LABELS: { day: number; label: string }[] = [
   { day: 1, label: 'T2' },
@@ -42,10 +44,10 @@ export function TeamSlaMilestonesCard({ readOnly }: { readOnly: boolean }) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch('/local-team-sla', { cache: 'no-store' });
-        if (!res.ok) throw new Error(res.status === 401 ? 'Đăng nhập lại rồi mở trang này.' : 'Không tải được mốc giờ');
-        const body = (await res.json()) as unknown;
-        if (!cancelled) setDoc(normalizeTeamSlaDocument(body));
+        const token = getAccessToken();
+        if (!token) throw new Error('Đăng nhập lại rồi mở trang này.');
+        const body = await fetchAdminTeamSla(token);
+        if (!cancelled) setDoc(body);
       } catch (e) {
         if (!cancelled) {
           setDoc(defaultTeamSlaDocument());
@@ -76,15 +78,11 @@ export function TeamSlaMilestonesCard({ readOnly }: { readOnly: boolean }) {
     setError('');
     setMsg('');
     try {
-      const res = await fetch('/local-team-sla', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(doc),
-      });
-      if (!res.ok) throw new Error(res.status === 401 ? 'Đăng nhập lại rồi lưu.' : 'Lưu mốc giờ thất bại');
-      const saved = normalizeTeamSlaDocument((await res.json()) as unknown);
+      const token = getAccessToken();
+      if (!token) throw new Error('Đăng nhập lại rồi lưu.');
+      const saved = await saveAdminTeamSla(token, doc);
       setDoc(saved);
-      setMsg('Đã lưu mốc giờ trên máy local.');
+      setMsg('Đã lưu mốc giờ lên server. Notify, hạn nhận và banner dùng giá trị này.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Lưu mốc giờ thất bại');
     } finally {
@@ -95,7 +93,7 @@ export function TeamSlaMilestonesCard({ readOnly }: { readOnly: boolean }) {
   return (
     <FormSection className="page-card" title="Mốc giờ theo nhóm">
       <p className="muted" style={{ marginTop: 0 }}>
-        Sale dịch vụ, Marketing và Sale bất động sản mỗi nhóm một bộ. Giờ 8:30, 9:00, 10:00, 11:00, 15:30, 18:30 sửa trực tiếp ở đây. Lưu trên máy local, không ghi lên server.
+        Sale dịch vụ, Marketing và Sale bất động sản mỗi nhóm một bộ. Giờ 8:30, 9:00, 10:00, 11:00, 15:30, 18:30 sửa trực tiếp ở đây. Lưu lên server — notify, hạn nhận lead/case và banner đều dùng giá trị đã lưu.
       </p>
       <div className="segmented-control__track" role="tablist" aria-label="Nhóm mốc giờ">
         {(doc?.profiles ?? TEAM_SLA_CODES.map((id) => ({ code: id, label: id }))).map((row) => (

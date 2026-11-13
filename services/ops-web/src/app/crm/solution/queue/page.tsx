@@ -242,6 +242,7 @@ export default function CrmSolutionQueuePage() {
               <tr>
                 <th>Lead</th>
                 <th>Dịch vụ</th>
+                <th>Owner Lead</th>
                 <th>AM</th>
                 <th>Trạng thái</th>
                 <th>Giao lúc</th>
@@ -258,6 +259,7 @@ export default function CrmSolutionQueuePage() {
                   </td>
                   <td>{row.service_slug || '—'}</td>
                   <td>{row.owner_name || '—'}</td>
+                  <td>{row.solution_owner_name || '—'}</td>
                   <td>{statusLabel(row)}</td>
                   <td>{row.handed_off_at ? row.handed_off_at.slice(0, 16).replace('T', ' ') : '—'}</td>
                   <td className="table-actions">
