@@ -45,7 +45,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     forwardRef(() => PortalModule),
     forwardRef(() => PerformanceModule),
     EventsModule,
-    WebhooksModule,
+    forwardRef(() => WebhooksModule),
     WorkflowsModule,
     forwardRef(() => LeadsContractModule),
     forwardRef(() => ServiceLifecycleModule),

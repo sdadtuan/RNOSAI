@@ -119,4 +119,66 @@ describe('PortalMetaWebhookService', () => {
     expect(repo.syncCases).toHaveBeenCalledWith(CLIENT_ID);
     expect(pages.findByChannelPage).toHaveBeenCalledWith('facebook', PAGE_ID);
   });
+  it('ingestMessagingFromVerifiedPayload persists messages and postbacks but does not enqueue leadgen', async () => {
+    const body = {
+      object: 'page',
+      entry: [
+        {
+          id: PAGE_ID,
+          messaging: [
+            {
+              sender: { id: 'psid-9', name: 'Tuan Truong' },
+              recipient: { id: PAGE_ID },
+              timestamp: 1762996740000,
+              message: { mid: 'm_local_webhook_test', text: 'local webhook test 10:34' },
+            },
+            {
+              sender: { id: 'psid-9' },
+              recipient: { id: PAGE_ID },
+              timestamp: 1762996741000,
+              postback: { mid: 'pb_1', title: 'Get Started', payload: 'GET_STARTED' },
+            },
+          ],
+          changes: [{ field: 'leadgen', value: { leadgen_id: 'lead-should-not-queue', form_id: 'f', page_id: PAGE_ID } }],
+        },
+      ],
+    };
+    const out = await service.ingestMessagingFromVerifiedPayload(body);
+    expect(out.messages).toBe(2);
+    expect(out.clients).toBe(1);
+    expect(repo.upsertPageMessage).toHaveBeenCalledTimes(2);
+    expect(repo.enqueueWebhookJob).not.toHaveBeenCalled();
+    expect(repo.upsertPageComment).not.toHaveBeenCalled();
+    expect(repo.syncCases).toHaveBeenCalledWith(CLIENT_ID);
+    expect(repo.upsertPageMessage.mock.calls[0][2].body).toContain('local webhook test');
+    expect(repo.upsertPageMessage.mock.calls[0][2].direction).toBe('in');
+  });
+
+  it('ingestMessagingFromVerifiedPayload ignores non-page objects and inactive pages', async () => {
+    await expect(service.ingestMessagingFromVerifiedPayload({ object: 'user' })).resolves.toEqual({
+      messages: 0,
+      clients: 0,
+    });
+    pages.findByChannelPage.mockResolvedValueOnce({ client_id: CLIENT_ID, active: false });
+    const body = {
+      object: 'page',
+      entry: [
+        {
+          id: PAGE_ID,
+          messaging: [
+            {
+              sender: { id: 'psid-x' },
+              recipient: { id: PAGE_ID },
+              timestamp: Date.now(),
+              message: { mid: 'm_x', text: 'no' },
+            },
+          ],
+        },
+      ],
+    };
+    const out = await service.ingestMessagingFromVerifiedPayload(body);
+    expect(out.messages).toBe(0);
+    expect(repo.upsertPageMessage).not.toHaveBeenCalled();
+  });
 });
+

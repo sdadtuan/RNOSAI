@@ -154,7 +154,7 @@ export class PortalCrmController {
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 2_000_000 } }))
   uploadImage(
     @PortalUser() user: PortalJwtPayload,
-    @UploadedFile() file?: { buffer: Buffer; mimetype: string; size: number },
+    @UploadedFile() file?: { buffer: Buffer; mimetype: string; size: number; originalname?: string },
   ) {
     this.assertEnabled();
     return this.care.saveProductImage(user, file);

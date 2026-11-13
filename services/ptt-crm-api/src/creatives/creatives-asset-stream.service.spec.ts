@@ -46,6 +46,7 @@ function row(overrides: Partial<CreativeRow> = {}): CreativeRow {
 function serviceWith(creative: CreativeRow | null) {
   const repo = {
     pgCreativesReady: jest.fn().mockResolvedValue(true),
+    ensureChannelColumn: jest.fn().mockResolvedValue(undefined),
     findById: jest.fn().mockResolvedValue(creative),
   };
   return new CreativesService(

@@ -69,6 +69,13 @@ export class CreativesRepository implements OnModuleDestroy {
     return Number(result.rows[0]?.c ?? 0) > 0;
   }
 
+  /** Additive: older local/prod DBs may lack `channel` which SELECT_COLS references. */
+  async ensureChannelColumn(): Promise<void> {
+    await this.db.query(
+      `ALTER TABLE creative_submissions ADD COLUMN IF NOT EXISTS channel TEXT`,
+    );
+  }
+
   async clientExists(clientId: string): Promise<boolean> {
     const result = await this.db.query(`SELECT 1 FROM clients WHERE id = $1::uuid LIMIT 1`, [
       clientId,

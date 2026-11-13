@@ -547,10 +547,15 @@ export class PortalCareService {
     return { ok: true };
   }
 
-  async saveProductImage(user: PortalJwtPayload, file?: { buffer?: Buffer; mimetype?: string; size?: number }) {
+  async saveProductImage(user: PortalJwtPayload, file?: { buffer?: Buffer; mimetype?: string; size?: number; originalname?: string }) {
     this.requireManager(user);
-    const mime = String(file?.mimetype ?? '');
-    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : mime === 'image/jpeg' ? 'jpg' : '';
+    const mime = String(file?.mimetype ?? '').toLowerCase();
+    const orig = String(file?.originalname ?? '').toLowerCase();
+    const ext =
+      mime === 'image/png' || orig.endsWith('.png') ? 'png'
+      : mime === 'image/webp' || orig.endsWith('.webp') ? 'webp'
+      : mime === 'image/jpeg' || mime === 'image/jpg' || orig.endsWith('.jpg') || orig.endsWith('.jpeg') ? 'jpg'
+      : '';
     if (!file?.buffer?.length || !ext || (file.size ?? 0) > 2_000_000) {
       throw new BadRequestException({ error: 'image_file' });
     }
@@ -572,7 +577,7 @@ export class PortalCareService {
   }
 
   async addStaff(user: PortalJwtPayload, email: string, password: string) {
-    this.requireManager(user);
+    this.requireApprover(user);
     await this.repo.ensure();
     const created = await this.users.create(user.client_id, {
       email,
@@ -630,7 +635,7 @@ export class PortalCareService {
   }
 
   async setStaffActive(user: PortalJwtPayload, userId: string, active: boolean) {
-    this.requireManager(user);
+    this.requireApprover(user);
     if (userId === user.sub) throw new BadRequestException({ error: 'cannot_change_self' });
     const staff = await this.repo.listManagedStaff(user.client_id);
     if (!staff.some((row) => row.id === userId)) throw new NotFoundException({ error: 'staff_not_found' });
@@ -916,6 +921,14 @@ export class PortalCareService {
 
   private requireManager(user: PortalJwtPayload): void {
     if (user.role === 'staff') throw new ForbiddenException({ error: 'approver_only' });
+  }
+
+  /** Staff account mutations: approver or admin only. Viewers may list, not change. */
+  private requireApprover(user: PortalJwtPayload): void {
+    // Portal JWT roles are approver | viewer | staff (no admin). Only approver may mutate staff.
+    if (user.role !== 'approver') {
+      throw new ForbiddenException({ error: 'approver_only' });
+    }
   }
 
   private async ownPage(clientId: string, pageId: string): Promise<void> {

@@ -284,6 +284,7 @@ export class CreativesService {
     if (!(await this.repo.pgCreativesReady())) {
       throw new ServiceUnavailableException({ ok: false, error: 'creatives_tables_not_ready' });
     }
+    await this.repo.ensureChannelColumn();
   }
 }
 

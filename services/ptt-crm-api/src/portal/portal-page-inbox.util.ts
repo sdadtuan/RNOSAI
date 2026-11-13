@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { parseLeadFieldData } from './portal-lead-fields.util';
 import {
   classifyGraphPath,
@@ -152,6 +153,37 @@ export async function pullFacebookPage(
   };
 }
 
+export type GraphFacebookSendError = {
+  message?: string;
+  code?: number;
+  error_subcode?: number;
+  fbtrace_id?: string;
+  type?: string;
+};
+
+const facebookSendLog = new Logger('PortalFacebookSend');
+
+export function redactGraphErrorText(value: string): string {
+  return String(value ?? '')
+    .replace(/access_token=[^&\s"'\\]+/gi, 'access_token=<redacted>')
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer <redacted>')
+    .replace(/EAA[A-Za-z0-9]+/g, '<token>');
+}
+
+export function logFacebookSendError(
+  error?: GraphFacebookSendError,
+  extra?: { httpStatus?: number },
+): void {
+  const message = redactGraphErrorText(String(error?.message ?? '')).slice(0, 240);
+  const code = Number(error?.code ?? 0) || '';
+  const sub = Number(error?.error_subcode ?? 0) || '';
+  const trace = String(error?.fbtrace_id ?? '').slice(0, 64);
+  const http = extra?.httpStatus ?? '';
+  facebookSendLog.warn(
+    `facebook send failed http=${http} code=${code} subcode=${sub} fbtrace=${trace} message=${message}`,
+  );
+}
+
 export async function sendFacebookText(
   pageId: string,
   token: string,
@@ -169,27 +201,37 @@ export async function sendFacebookText(
       }),
       signal: AbortSignal.timeout(8000),
     });
-    const body = (await response.json().catch(() => null)) as { message_id?: string; error?: { message?: string; code?: number; error_subcode?: number } } | null;
+    const body = (await response.json().catch(() => null)) as {
+      message_id?: string;
+      error?: GraphFacebookSendError;
+    } | null;
     const id = String(body?.message_id ?? '').trim();
     if (response.ok && id) return { ok: true, id };
+    logFacebookSendError(body?.error, { httpStatus: response.status });
     return { ok: false, error: facebookSendError(body?.error) };
   } catch {
     return { ok: false, error: 'Không gửi được tới Facebook. Thử lại.' };
   }
 }
 
-function facebookSendError(error?: { message?: string; code?: number; error_subcode?: number }): string {
+export function facebookSendError(error?: GraphFacebookSendError): string {
   const message = String(error?.message ?? '');
   const code = Number(error?.code ?? 0);
   const sub = Number(error?.error_subcode ?? 0);
-  if (/not admins, developers or testers|app is live|permission is reviewed/i.test(message)) {
-    return 'App Facebook của token đang ở chế độ thử nghiệm, nên khách thường không nhận tin. Chỉ admin hoặc tester của app nhận được. Cần chuyển app sang Live và được duyệt quyền nhắn tin.';
-  }
   if (sub === 2018278 || /outside of allowed window/i.test(message)) {
-    return 'Facebook không chuyển tin vì khách chưa nhắn trong 24 giờ gần nhất.';
+    return 'Facebook không chuyển tin vì khách chưa nhắn trong 24 giờ (mã 10/2018278 — ngoài cửa sổ 24 giờ).';
   }
-  if (code === 190 || code === 200 || code === 10 || /permission|pages_messaging/i.test(message)) {
-    return 'Token của Page chưa đủ quyền gửi tin Messenger.';
+  if (/not admins, developers or testers|app is live|permission is reviewed/i.test(message)) {
+    return 'Người nhận không phải admin/tester của app, hoặc pages_messaging chưa được duyệt quyền nâng cao nên Facebook từ chối gửi tin.';
+  }
+  if (code === 190 || /session has expired|expired.*token|invalid oauth|invalid access token/i.test(message)) {
+    return 'Token của Page đã hết hạn hoặc bị thu hồi (mã 190). Cần lưu lại token Business Manager.';
+  }
+  if (code === 10 || code === 200 || /pages_messaging|permission|not authorized|does not have permission|capability to make this api call/i.test(message)) {
+    return 'pages_messaging chưa được duyệt quyền nâng cao, nên Facebook từ chối gửi tin (kể cả khi token đã có quyền chuẩn).';
+  }
+  if (message) {
+    return `Facebook không nhận tin này. (${code || 'err'}${sub ? '/' + sub : ''})`;
   }
   return 'Facebook không nhận tin này.';
 }

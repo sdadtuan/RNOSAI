@@ -67,20 +67,12 @@ export class PortalMetaWebhookService {
     await this.pages.ensure();
     const { messages, comments, leadHints } = parsePortalMetaMessagingPayload(payload);
     const touchedClients = new Set<string>();
-    let msgCount = 0;
     let commentCount = 0;
     let leadQueued = 0;
 
-    for (const item of messages) {
-      const pageId = item.page_id;
-      if (!pageId) continue;
-      const binding = await this.pages.findByChannelPage('facebook', pageId);
-      if (!binding?.active) continue;
-      const clientId = binding.client_id;
-      await this.repo.upsertPageMessage(clientId, pageId, item.message);
-      msgCount += 1;
-      touchedClients.add(clientId);
-    }
+    const persisted = await this.persistVerifiedMessages(messages);
+    const msgCount = persisted.messages;
+    for (const clientId of persisted.clientIds) touchedClients.add(clientId);
 
     for (const item of comments) {
       const pageId = item.page_id || item.comment.page_id;
@@ -122,5 +114,45 @@ export class PortalMetaWebhookService {
       status: 200,
       body: { ok: true, messages: msgCount, comments: commentCount, lead_jobs: leadQueued },
     };
+  }
+
+  /**
+   * Persist Page `messages` and `messaging_postbacks` from a payload whose
+   * signature the caller already verified. Does not re-verify, and does not
+   * enqueue leadgen or comments — those stay on the original handlers.
+   */
+  async ingestMessagingFromVerifiedPayload(
+    payload: Record<string, unknown>,
+  ): Promise<{ messages: number; clients: number }> {
+    if (!portalCrmCareEnabled()) return { messages: 0, clients: 0 };
+    if (String(payload.object ?? '') !== 'page') return { messages: 0, clients: 0 };
+    await this.repo.ensure();
+    await this.pages.ensure();
+    const { messages } = parsePortalMetaMessagingPayload(payload);
+    const persisted = await this.persistVerifiedMessages(messages);
+    for (const clientId of persisted.clientIds) {
+      await this.repo.syncCases(clientId);
+    }
+    this.log.log(
+      `portal-meta-webhook (via v1) messages=${persisted.messages} clients=${persisted.clients}`,
+    );
+    return { messages: persisted.messages, clients: persisted.clients };
+  }
+
+  private async persistVerifiedMessages(
+    messages: Array<{ page_id: string; message: Parameters<PortalCareRepository['upsertPageMessage']>[2] }>,
+  ): Promise<{ messages: number; clients: number; clientIds: string[] }> {
+    const touchedClients = new Set<string>();
+    let msgCount = 0;
+    for (const item of messages) {
+      const pageId = item.page_id;
+      if (!pageId) continue;
+      const binding = await this.pages.findByChannelPage('facebook', pageId);
+      if (!binding?.active) continue;
+      await this.repo.upsertPageMessage(binding.client_id, pageId, item.message);
+      msgCount += 1;
+      touchedClients.add(binding.client_id);
+    }
+    return { messages: msgCount, clients: touchedClients.size, clientIds: [...touchedClients] };
   }
 }

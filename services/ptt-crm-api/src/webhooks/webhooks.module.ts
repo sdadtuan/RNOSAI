@@ -12,9 +12,10 @@ import { WebhookNestIngestService } from './webhook-nest-ingest.service';
 import { B2bOrphanFirstAssignService } from './b2b-orphan-first-assign.service';
 import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
+import { PortalModule } from '../portal/portal.module';
 
 @Module({
-  imports: [B2bProjectsModule, StaffAuthModule, forwardRef(() => LeadsModule)],
+  imports: [B2bProjectsModule, StaffAuthModule, forwardRef(() => LeadsModule), forwardRef(() => PortalModule)],
   controllers: [WebhooksController, B2bFacebookSyncController],
   providers: [
     WebhooksService,

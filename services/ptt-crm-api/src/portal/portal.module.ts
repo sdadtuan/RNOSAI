@@ -94,6 +94,7 @@ import { PortalPosRepository } from './pos/portal-pos.repository';
     PortalPushSenderService,
     PortalNativePushSenderService,
     PortalMobileService,
+    PortalMetaWebhookService,
     forwardRef(() => AgencyModule),
   ],
 })

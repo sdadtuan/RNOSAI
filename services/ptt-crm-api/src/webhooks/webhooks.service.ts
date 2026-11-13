@@ -20,6 +20,7 @@ import { parseZaloWebhook } from './zalo-webhook.parser';
 import { parseTikTokWebhook } from './tiktok-webhook.parser';
 import { WebhookNestIngestService } from './webhook-nest-ingest.service';
 import type { NormalizedLeadPayload } from './webhook-lead.types';
+import { PortalMetaWebhookService } from '../portal/portal-meta-webhook.service';
 
 export interface WebhookHandleResult {
   kind: 'json' | 'challenge';
@@ -40,6 +41,7 @@ export class WebhooksService {
     private readonly b2bIngest: B2bIngestService,
     private readonly b2bConversations: B2bConversationsService,
     private readonly nestIngest: WebhookNestIngestService,
+    private readonly portalMetaWebhooks: PortalMetaWebhookService,
   ) {}
 
   listChannels(): Record<string, unknown> {
@@ -234,6 +236,19 @@ export class WebhooksService {
 
     const opsResult = await this.metaOpsWebhookService.processPayload(payload);
     response.ops_webhook = opsResult;
+
+    const pagePayload =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>)
+        : {};
+    try {
+      response.portal_inbox = await this.portalMetaWebhooks.ingestMessagingFromVerifiedPayload(pagePayload);
+    } catch (err) {
+      this.logger.warn(
+        `portal inbox ingest from v1 meta webhook failed: ${err instanceof Error ? err.message : 'error'}`,
+      );
+      response.portal_inbox = { messages: 0, clients: 0, error: 'ingest_failed' };
+    }
 
     if (!parsed.leads.length) {
       return { kind: 'json', status: 200, body: response };
