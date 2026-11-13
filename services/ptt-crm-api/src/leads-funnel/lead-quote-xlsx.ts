@@ -1,5 +1,42 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import ExcelJS from 'exceljs';
 import type { QuoteSheetView } from './quote-sheet.util';
+
+
+/** Resolve the PTT Ads logo from API assets or the repo brand folder. */
+export function resolvePttLogoPath(): string | null {
+  const candidates = [
+    path.join(__dirname, '..', 'assets', 'brand', 'ptt-logo.png'),
+    path.join(__dirname, '..', '..', 'src', 'assets', 'brand', 'ptt-logo.png'),
+    path.join(process.cwd(), 'src', 'assets', 'brand', 'ptt-logo.png'),
+    path.join(process.cwd(), 'assets', 'brand', 'ptt-logo.png'),
+    path.join(process.cwd(), 'docs', 'brand', 'ptt-logo.png'),
+    path.join(process.cwd(), '..', '..', 'docs', 'brand', 'ptt-logo.png'),
+    path.join(process.cwd(), '..', 'docs', 'brand', 'ptt-logo.png'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      /* ignore unreadable paths */
+    }
+  }
+  return null;
+}
+
+function embedPttLogo(wb: ExcelJS.Workbook, sheet: ExcelJS.Worksheet): boolean {
+  const logoPath = resolvePttLogoPath();
+  if (!logoPath) return false;
+  const imageId = wb.addImage({ filename: logoPath, extension: 'png' });
+  // Top-right letterhead, clear of the "MEDIA PLAN | PTT ADS" title (cols 1-8).
+  sheet.addImage(imageId, {
+    tl: { col: 9, row: 0 },
+    ext: { width: 72, height: 72 },
+    editAs: 'oneCell',
+  });
+  return true;
+}
 
 const GREEN = 'FF174F31';
 const MID = 'FF35884D';
@@ -72,9 +109,10 @@ export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: strin
 
   const title = sheet.addRow(['MEDIA PLAN | PTT ADS']);
   sheet.mergeCells(title.number, 1, title.number, 8);
-  title.height = 28;
+  title.height = 56;
   title.getCell(1).font = { name: 'Calibri', size: 20, bold: true, color: { argb: GREEN } };
   title.getCell(1).alignment = { vertical: 'middle' };
+  embedPttLogo(wb, sheet);
   sheet.addRow([]);
 
   const included = view.groups

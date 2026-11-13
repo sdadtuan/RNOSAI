@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { hourlyFromPosition, assembleQuoteSheet, type QuoteSheetItem, type QuoteSheetStaff } from './quote-sheet.util';
-import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
+import { renderLeadQuoteXlsx, resolvePttLogoPath } from './lead-quote-xlsx';
 
 const staff: QuoteSheetStaff[] = [
   {
@@ -94,5 +94,29 @@ describe('lead quote xlsx', () => {
     expect(text).toContain('THÀNH TIỀN');
     expect(text).toContain('0');
     expect(text).not.toContain('An');
+  });
+
+  it('embeds the PTT Ads logo in the workbook', async () => {
+    expect(resolvePttLogoPath()).toBeTruthy();
+    const view = assembleQuoteSheet({
+      editable: false,
+      services: [],
+      staff,
+      items: [item],
+      selectedServiceCodes: ['WEB'],
+      overrides: [],
+      promoPercent: 0,
+      vatPercent: 0,
+    });
+    const xlsx = await renderLeadQuoteXlsx(view, 'Công ty Lan');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(xlsx as unknown as ExcelJS.Buffer);
+    const media = (wb.model as { media?: Array<{ extension?: string }> }).media ?? [];
+    expect(media.length).toBeGreaterThan(0);
+    expect(media.some((item) => item.extension === 'png')).toBe(true);
+    const sheet = wb.getWorksheet('BÁO GIÁ PTT ADS');
+    expect(sheet).toBeTruthy();
+    const images = typeof sheet!.getImages === 'function' ? sheet!.getImages() : [];
+    expect(images.length).toBeGreaterThan(0);
   });
 });
