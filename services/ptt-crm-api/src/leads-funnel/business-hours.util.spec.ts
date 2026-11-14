@@ -94,3 +94,13 @@ describe('acceptDueAt', () => {
     );
   });
 });
+
+describe('addBusinessHours iteration cap', () => {
+  it('addBusinessDays(40) is exact, not truncated (Mon 08:30 + 40 working days = 8 weeks later)', () => {
+    expect(addBusinessDays(ict(2026, 11, 16, 8, 30), 40).toISOString()).toBe(ict(2027, 1, 8, 18, 30).toISOString());
+  });
+
+  it('throws on absurd input instead of returning a wrong date', () => {
+    expect(() => addBusinessHours(ict(2026, 11, 16, 8, 30), 1e9)).toThrow(RangeError);
+  });
+});

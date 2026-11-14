@@ -9,6 +9,8 @@ export const BUSINESS_DAY_HOURS = 10;
 const WORK_START_MIN = 8 * 60 + 30;
 const WORK_END_MIN = 18 * 60 + 30;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/** ~10 years of working minutes; anything larger is bad input. */
+const MAX_BUSINESS_MINUTES = 10 * 260 * 10 * 60;
 
 export type IctParts = {
   year: number;
@@ -83,9 +85,14 @@ export function addBusinessHours(from: Date, hours: number): Date {
   const remainingMinutes = Math.round(Number(hours) * 60);
   if (!Number.isFinite(remainingMinutes) || remainingMinutes <= 0) return new Date(from.getTime());
   let remaining = remainingMinutes;
+  if (remaining > MAX_BUSINESS_MINUTES) {
+    throw new RangeError(`addBusinessHours: ${hours}h exceeds the supported range`);
+  }
   let cursor = startOfBusinessWindow(from);
-  // Safety: a 2-week cap avoids a runaway loop on bad input.
-  for (let i = 0; i < 30 && remaining > 0; i += 1) {
+  // Each pass consumes one working window or jumps to the next one, so two passes per
+  // working day (plus slack) always finish. Never truncate silently: throw if it does not.
+  const maxIterations = Math.ceil(remaining / (BUSINESS_DAY_HOURS * 60)) * 2 + 8;
+  for (let i = 0; i < maxIterations; i += 1) {
     const parts = ictParts(cursor);
     if (isWeekend(parts.weekday) || parts.minutes >= WORK_END_MIN) {
       cursor = nextWorkingDayAt(parts, WORK_START_MIN);
@@ -102,7 +109,7 @@ export function addBusinessHours(from: Date, hours: number): Date {
     remaining -= available;
     cursor = nextWorkingDayAt(parts, WORK_START_MIN);
   }
-  return cursor;
+  throw new Error(`addBusinessHours: did not converge for ${hours}h from ${from.toISOString()}`);
 }
 
 /** Add working minutes (same window as addBusinessHours). */
