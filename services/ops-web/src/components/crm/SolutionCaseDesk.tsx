@@ -881,6 +881,10 @@ export function SolutionCaseDesk({
             pending={aiDraft.status === 'pending'}
             canEdit={canEditFiles && aiDraft.status !== 'pending'}
             busy={busy}
+            companyName={companyOnCard || sessionCompany || lead.company_name || leadName}
+            contactName={leadName || sessionContact}
+            leadCode={String(lead.id)}
+            createdAt={aiDraft.requestedAt}
             onSectionChange={updateAiSection}
             onSave={() => void run(saveAiDraftSections)}
           />
@@ -1259,6 +1263,10 @@ export function SolutionCaseDesk({
             pending={aiDraft.status === 'pending'}
             canEdit={canEditFiles && aiDraft.status !== 'pending'}
             busy={busy}
+            companyName={companyOnCard || sessionCompany || lead.company_name || leadName}
+            contactName={leadName || sessionContact}
+            leadCode={String(lead.id)}
+            createdAt={aiDraft.requestedAt}
             onSectionChange={updateAiSection}
             onSave={() => void run(saveAiDraftSections)}
           />
