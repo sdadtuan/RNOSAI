@@ -135,9 +135,28 @@ export const DISCOVERY_BRIEF_KEY = 'discovery_brief';
 
 export type DiscoveryRequiredKey = keyof SalesDiscoveryBrief;
 
+/** The 14 required checklist keys (subset of the brief). */
+export type DiscoveryChecklistKey = Extract<
+  DiscoveryRequiredKey,
+  | 'company_name'
+  | 'industry'
+  | 'flagship_product'
+  | 'contact_name'
+  | 'phone'
+  | 'services'
+  | 'biggest_problem'
+  | 'marketing_goal'
+  | 'target_customers'
+  | 'region'
+  | 'budget_band'
+  | 'timeline_band'
+  | 'call_notes'
+  | 'temperature'
+>;
+
 /** All * required fields. Also the 14 "trường cốt lõi" checklist. */
 export const DISCOVERY_REQUIRED_FIELDS: Array<{
-  key: DiscoveryRequiredKey;
+  key: DiscoveryChecklistKey;
   checklist: string;
 }> = [
   { key: 'company_name', checklist: 'Tên DN' },
@@ -157,10 +176,7 @@ export const DISCOVERY_REQUIRED_FIELDS: Array<{
 ];
 
 /** Wizard tab + field testid for every required checklist key. */
-export const DISCOVERY_FIELD_FOCUS: Record<
-  (typeof DISCOVERY_REQUIRED_FIELDS)[number]['key'],
-  { step: 1 | 2 | 3; testid: string }
-> = {
+export const DISCOVERY_FIELD_FOCUS: Record<DiscoveryChecklistKey, { step: 1 | 2 | 3; testid: string }> = {
   company_name: { step: 1, testid: 'sd-company' },
   industry: { step: 1, testid: 'sd-industry' },
   flagship_product: { step: 1, testid: 'sd-flagship' },
@@ -177,7 +193,7 @@ export const DISCOVERY_FIELD_FOCUS: Record<
   temperature: { step: 3, testid: 'sd-temp' },
 };
 
-export function discoveryFieldFocus(key: (typeof DISCOVERY_REQUIRED_FIELDS)[number]['key']): {
+export function discoveryFieldFocus(key: DiscoveryChecklistKey): {
   step: 1 | 2 | 3;
   testid: string;
 } {
@@ -278,7 +294,7 @@ function fieldFilled(brief: SalesDiscoveryBrief, key: DiscoveryRequiredKey): boo
   return asString(val).length > 0;
 }
 
-export function discoveryMissingFields(brief: SalesDiscoveryBrief): Array<{ key: DiscoveryRequiredKey; checklist: string }> {
+export function discoveryMissingFields(brief: SalesDiscoveryBrief): Array<{ key: DiscoveryChecklistKey; checklist: string }> {
   return DISCOVERY_REQUIRED_FIELDS.filter((row) => !fieldFilled(brief, row.key));
 }
 

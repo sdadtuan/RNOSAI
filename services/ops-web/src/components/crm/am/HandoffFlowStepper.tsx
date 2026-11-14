@@ -15,7 +15,7 @@ export function HandoffFlowStepper({
   return (
     <div className="ahd-stepper-wrap">
     <ol
-      className="ahd-stepper" data-testid="ahd-stepper"
+      className="ahd-stepper"
       aria-label="Tiến độ bàn giao"
       data-testid="handoff-flow-stepper"
       style={{ ['--ahd-step-count' as string]: String(visible.steps.length) }}

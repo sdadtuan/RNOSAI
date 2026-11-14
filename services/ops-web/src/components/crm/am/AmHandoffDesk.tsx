@@ -409,7 +409,21 @@ export function AmHandoffDesk({
           name?: string;
           label?: string;
         }>;
-        if (groups.length) setServiceGroups(groups);
+        if (groups.length) {
+          setServiceGroups(
+            groups.map((g) => ({
+              services: (g.services ?? [])
+                .filter((s) => Boolean(s.slug))
+                .map((s) => ({
+                  slug: String(s.slug),
+                  name: String(s.name ?? s.label ?? s.slug),
+                  children: s.children
+                    ?.filter((c) => Boolean(c.slug))
+                    .map((c) => ({ slug: String(c.slug), name: String(c.name ?? c.slug) })),
+                })),
+            })),
+          );
+        }
         const flat: Array<{ slug?: string; value?: string; name?: string; label?: string }> = [];
         for (const g of groups) {
           if (Array.isArray(g.services)) {
@@ -550,14 +564,6 @@ export function AmHandoffDesk({
     } finally {
       setBusy(false);
     }
-  }
-
-  function assignDisabledReason(): string {
-    if (!canAssign) return 'Lead không còn ở bước Chờ Solutions.';
-    if (!leaderId) return 'Chọn Marketing Leader.';
-    if (!deadline) return 'Chọn Deadline Solutions.';
-    if (!checklist.allOk && !checklist.legacyAssignable) return 'Hoàn thiện checklist AM trước khi nộp.';
-    return '';
   }
 
   async function submitSolutionToSales() {
