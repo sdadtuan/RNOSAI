@@ -1,4 +1,6 @@
 import {
+  HANDOFF_SLA_ALERT_MAX_ATTEMPTS,
+  handoffSlaRetryDelayMinutes,
   HandoffSlaAlertService,
   HANDOFF_SLA_EXCLUDED_LEAD_STATUSES,
   isAlertableClock,
@@ -67,12 +69,11 @@ describe('HandoffSlaAlertService.tick', () => {
 
   function setup(rows: Array<Record<string, unknown>>, notifyResult: string | null) {
     const calls: string[] = [];
-    let page = 0;
-    const query = jest.fn(async (sql: string) => {
+    const query = jest.fn(async (sql: string, params?: unknown[]) => {
       calls.push(sql);
       if (sql.includes('FROM crm_lead_presales ps')) {
-        page += 1;
-        return { rows: page === 1 ? rows : [], rowCount: 0 };
+        // First keyset page of every tick returns the rows; later pages are empty.
+        return { rows: Number(params?.[0] ?? 0) === 0 ? rows : [], rowCount: 0 };
       }
       if (sql.includes('INSERT INTO crm_handoff_sla_alerts')) return { rows: [{ id: 11 }], rowCount: 1 };
       return { rows: [], rowCount: 0 };
@@ -102,6 +103,34 @@ describe('HandoffSlaAlertService.tick', () => {
     expect(calls.some((s) => s.includes('DELETE FROM crm_handoff_sla_alerts'))).toBe(true);
   });
 
+  it('keeps the original unique constraint (additive DDL)', async () => {
+    const { svc, calls } = setup([], 'user-42');
+    await svc.tick(now);
+    const ddl = calls.join('\n');
+    expect(ddl).not.toContain('DROP CONSTRAINT');
+    expect(ddl).toContain('CONSTRAINT crm_handoff_sla_alerts_uq UNIQUE (lead_id, clock_key, state)');
+  });
+
+  it('backs off failed deliveries and gives up after the max attempts', async () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(handoffSlaRetryDelayMinutes)).toEqual([1, 2, 4, 8, 16, 32, 60, 60]);
+    const { svc, notifications } = setup([row()], null);
+    const first = await svc.tick(now);
+    expect(first.failed).toBe(1);
+    const sameMinute = await svc.tick(new Date(now.getTime() + 30_000));
+    expect(sameMinute.failed).toBe(0);
+    expect(sameMinute.deferred).toBe(1);
+    let t = now.getTime();
+    for (let i = 1; i < HANDOFF_SLA_ALERT_MAX_ATTEMPTS; i += 1) {
+      t += handoffSlaRetryDelayMinutes(i) * 60_000;
+      const out = await svc.tick(new Date(t));
+      expect(out.failed).toBe(1);
+    }
+    const calls = notifications.notifyStaff.mock.calls.length;
+    const after = await svc.tick(new Date(t + 24 * 3600_000));
+    expect(after.deferred).toBe(1);
+    expect(notifications.notifyStaff.mock.calls.length).toBe(calls);
+  });
+
   it('does not record or count clocks without recipients', async () => {
     const { svc, calls } = setup([row({ owner_id: null })], 'user-x');
     const out = await svc.tick(now);
@@ -121,7 +150,8 @@ describe('HandoffSlaAlertService.tick', () => {
     const { svc, calls } = setup([row()], 'user-42');
     await svc.tick(now);
     const insert = calls.find((s) => s.includes('INSERT INTO crm_handoff_sla_alerts')) ?? '';
-    expect(insert).toContain('ON CONFLICT (lead_id, clock_key, state, due_at)');
+    expect(insert).toContain('ON CONFLICT (lead_id, clock_key, state) DO UPDATE');
+    expect(insert).toContain('IS DISTINCT FROM EXCLUDED.due_at');
     const scan = calls.find((s) => s.includes('FROM crm_lead_presales ps')) ?? '';
     expect(scan).toContain('ps.id > $1');
     expect(scan).toContain('ORDER BY ps.id ASC');

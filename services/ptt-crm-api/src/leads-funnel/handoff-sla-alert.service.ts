@@ -13,6 +13,19 @@ export const HANDOFF_SLA_SCAN_MAX_BATCHES = 50;
 export const HANDOFF_SLA_SCAN_WINDOW_HOURS = 8;
 /** Longest derived clock (contract 5 business days + weekend/off-hours slack). */
 export const HANDOFF_SLA_DERIVED_LOOKBACK_DAYS = 10;
+/** Failed deliveries per alert before the worker gives up on it (until the process restarts). */
+export const HANDOFF_SLA_ALERT_MAX_ATTEMPTS = 5;
+/** First retry wait; doubles per failure. */
+export const HANDOFF_SLA_ALERT_BACKOFF_BASE_MINUTES = 1;
+export const HANDOFF_SLA_ALERT_BACKOFF_MAX_MINUTES = 60;
+/** Bound on remembered failing alerts (oldest dropped first). */
+const HANDOFF_SLA_ALERT_RETRY_CAP = 5000;
+
+/** Minutes to wait before retrying after the n-th failed delivery (1, 2, 4, 8 ... capped at 60). */
+export function handoffSlaRetryDelayMinutes(failures: number): number {
+  const n = Math.max(1, Math.floor(failures));
+  return Math.min(HANDOFF_SLA_ALERT_BACKOFF_MAX_MINUTES, HANDOFF_SLA_ALERT_BACKOFF_BASE_MINUTES * 2 ** (n - 1));
+}
 
 /** Lead statuses that never raise handoff SLA alerts. */
 export const HANDOFF_SLA_EXCLUDED_LEAD_STATUSES = [
@@ -62,6 +75,8 @@ export type HandoffSlaTickResult = {
   sent: number;
   skipped_no_recipient: number;
   failed: number;
+  /** Skipped this tick because an earlier delivery failed (backoff) or retries ran out. */
+  deferred: number;
   batches: number;
 };
 
@@ -72,6 +87,8 @@ export class HandoffSlaAlertService {
   private pool: Pool | null = null;
   private ensured: Promise<void> | null = null;
   private readonly since: Date;
+  /** In-memory retry state per alert (lead|clock|state|due). */
+  private readonly retries = new Map<string, { failures: number; nextAt: number }>();
 
   constructor(
     private readonly config: AppConfigService,
@@ -108,17 +125,34 @@ export class HandoffSlaAlertService {
         clock_key   TEXT NOT NULL,
         state       TEXT NOT NULL,
         due_at      TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
-        sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT crm_handoff_sla_alerts_uq UNIQUE (lead_id, clock_key, state)
       )
     `);
     await this.db.query(`
       ALTER TABLE crm_handoff_sla_alerts
         ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
     `);
-    await this.db.query(`ALTER TABLE crm_handoff_sla_alerts DROP CONSTRAINT IF EXISTS crm_handoff_sla_alerts_uq`);
+    // Additive: keep crm_handoff_sla_alerts_uq. Only a DB that ran the earlier draft (constraint
+    // dropped) gets a replacement unique index on the same columns.
     await this.db.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS crm_handoff_sla_alerts_due_uq
-        ON crm_handoff_sla_alerts (lead_id, clock_key, state, due_at)
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+            FROM pg_index i
+            JOIN pg_class t ON t.oid = i.indrelid
+           WHERE t.relname = 'crm_handoff_sla_alerts'
+             AND i.indisunique
+             AND pg_get_indexdef(i.indexrelid) LIKE '%(lead_id, clock_key, state)'
+        ) THEN
+          DELETE FROM crm_handoff_sla_alerts a
+           USING crm_handoff_sla_alerts b
+           WHERE a.lead_id = b.lead_id AND a.clock_key = b.clock_key AND a.state = b.state AND a.id < b.id;
+          CREATE UNIQUE INDEX IF NOT EXISTS crm_handoff_sla_alerts_lcs_uq
+            ON crm_handoff_sla_alerts (lead_id, clock_key, state);
+        END IF;
+      END $$
     `);
     await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_crm_handoff_sla_alerts_sent
@@ -224,7 +258,14 @@ export class HandoffSlaAlertService {
       this.superAdminStaffIds(),
     ]);
 
-    const result: HandoffSlaTickResult = { scanned: 0, sent: 0, skipped_no_recipient: 0, failed: 0, batches: 0 };
+    const result: HandoffSlaTickResult = {
+      scanned: 0,
+      sent: 0,
+      skipped_no_recipient: 0,
+      failed: 0,
+      deferred: 0,
+      batches: 0,
+    };
     let afterId = 0;
     for (let batch = 0; batch < HANDOFF_SLA_SCAN_MAX_BATCHES; batch += 1) {
       const rows = await this.loadBatch(afterId, now);
@@ -243,7 +284,7 @@ export class HandoffSlaAlertService {
 
     if (result.sent || result.failed) {
       this.logger.log(
-        `Handoff SLA tick scanned=${result.scanned} sent=${result.sent} failed=${result.failed} no_recipient=${result.skipped_no_recipient}`,
+        `Handoff SLA tick scanned=${result.scanned} sent=${result.sent} failed=${result.failed} deferred=${result.deferred} no_recipient=${result.skipped_no_recipient}`,
       );
     }
     return result;
@@ -315,28 +356,62 @@ export class HandoffSlaAlertService {
         result.skipped_no_recipient += 1;
         continue;
       }
+      const retryKey = `${leadId}|${clock.key}|${clock.state}|${clock.due_at}`;
+      const retry = this.retries.get(retryKey);
+      if (retry && (retry.failures >= HANDOFF_SLA_ALERT_MAX_ATTEMPTS || retry.nextAt > now.getTime())) {
+        result.deferred += 1;
+        continue;
+      }
       const claimId = await this.claimAlert(leadId, clock);
       if (claimId == null) continue; // already delivered for this (lead, clock, state, due_at)
       const delivered = await this.notifyTargets(leadId, clock, unique);
       if (delivered > 0) {
         await this.db.query(`UPDATE crm_handoff_sla_alerts SET sent_at = NOW() WHERE id = $1`, [claimId]);
+        this.retries.delete(retryKey);
         result.sent += 1;
       } else {
-        // Release the claim so the next tick retries.
+        // Release the claim; retry later with exponential backoff, give up after N failures.
         await this.db.query(`DELETE FROM crm_handoff_sla_alerts WHERE id = $1`, [claimId]);
+        this.noteDeliveryFailure(retryKey, now);
         result.failed += 1;
       }
     }
   }
 
-  /** Reserve the dedupe row; returns its id, or null when this exact alert already exists. */
+  private noteDeliveryFailure(key: string, now: Date): void {
+    const failures = (this.retries.get(key)?.failures ?? 0) + 1;
+    this.retries.delete(key);
+    this.retries.set(key, { failures, nextAt: now.getTime() + handoffSlaRetryDelayMinutes(failures) * 60_000 });
+    if (failures >= HANDOFF_SLA_ALERT_MAX_ATTEMPTS) {
+      this.logger.warn(`Handoff SLA alert gave up after ${failures} failed deliveries: ${key}`);
+    }
+    while (this.retries.size > HANDOFF_SLA_ALERT_RETRY_CAP) {
+      const oldest = this.retries.keys().next().value;
+      if (oldest === undefined) break;
+      this.retries.delete(oldest);
+    }
+  }
+
+  /**
+   * Reserve the dedupe row for (lead, clock, state); returns its id, or null when it was already
+   * sent for this due_at. A new due_at (clock reset) takes the row over and alerts again.
+   */
   private async claimAlert(leadId: number, clock: HandoffSlaClock): Promise<number | null> {
+    const params = [leadId, clock.key, clock.state, clock.due_at];
+    // Rows written before due_at existed (epoch default) already alerted this clock/state: adopt them.
+    await this.db.query(
+      `UPDATE crm_handoff_sla_alerts SET due_at = $4::timestamptz
+        WHERE lead_id = $1 AND clock_key = $2 AND state = $3 AND due_at = '1970-01-01 00:00:00+00'`,
+      params,
+    );
     const res = await this.db.query(
       `INSERT INTO crm_handoff_sla_alerts (lead_id, clock_key, state, due_at)
        VALUES ($1, $2, $3, $4::timestamptz)
-       ON CONFLICT (lead_id, clock_key, state, due_at) DO NOTHING
+       ON CONFLICT (lead_id, clock_key, state) DO UPDATE
+         SET due_at = EXCLUDED.due_at, sent_at = NOW()
+         WHERE crm_handoff_sla_alerts.due_at IS DISTINCT FROM EXCLUDED.due_at
        RETURNING id`,
-      [leadId, clock.key, clock.state, clock.due_at],
+      params,
     );
     const id = res.rows[0]?.id;
     return id != null ? Number(id) : null;
