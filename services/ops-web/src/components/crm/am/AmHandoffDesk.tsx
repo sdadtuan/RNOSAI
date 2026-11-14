@@ -798,7 +798,7 @@ export function AmHandoffDesk({
           <div className="ahd-tabs" role="tablist" aria-label="Hồ sơ Sales">
             {(
               [
-                ['brief', 'Sales Brief (Tóm tắt nhu cầu)', I.brief],
+                ['brief', 'Sales Brief', I.brief],
                 ['history', 'Lịch sử', I.chat],
                 ['files', `Tệp đính kèm (${fileCount})`, I.clip],
                 ['solution', 'Solution', I.clip],

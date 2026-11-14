@@ -790,14 +790,14 @@ button.ahd-check__item:focus-visible {
   .ahd-step__label-short { display: none; }
   .ahd-step__hint { display: -webkit-box; }
   .ahd-tabs {
-    flex-wrap: wrap;
-    gap: 4px;
+    flex-wrap: nowrap;
+    gap: 2px;
     overflow: visible;
   }
   .ahd-tab {
-    gap: 4px;
+    gap: 3px;
     font-size: 12px;
-    padding: 5px 7px;
+    padding: 5px 6px;
     border-radius: 8px;
     white-space: nowrap;
     flex: 0 0 auto;
