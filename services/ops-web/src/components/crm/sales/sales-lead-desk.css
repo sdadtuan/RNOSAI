@@ -249,3 +249,19 @@
   color: #c0392b;
   font-weight: 650;
 }
+
+/* Same as AM: at viewport >= 1200px keep 220px equal sides even if the desk
+   content box is slightly under the 1180px container query (1280vw + rail). */
+@media (min-width: 1200px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
