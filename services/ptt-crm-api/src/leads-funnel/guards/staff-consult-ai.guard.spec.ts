@@ -1,4 +1,4 @@
-import { canGenerateConsultAi } from './staff-consult-ai.guard';
+import { canGenerateConsultAi, canRunSolutionAiDraft } from './staff-consult-ai.guard';
 
 describe('canGenerateConsultAi', () => {
   it('allows Account Manager consult edit plus generate, without the production board', () => {
@@ -23,5 +23,21 @@ describe('canGenerateConsultAi', () => {
         { section: 'crm_mkt_ai', action: 'generate' },
       ]),
     ).toBe(true);
+  });
+});
+
+describe('canRunSolutionAiDraft', () => {
+  it('allows Super-Admin without crm_mkt_ai generate', () => {
+    expect(canRunSolutionAiDraft({ isSuperAdmin: true, caps: [] })).toBe(true);
+  });
+
+  it('allows Account Manager without crm_mkt_ai generate', () => {
+    expect(canRunSolutionAiDraft({ isAccountManager: true, caps: [] })).toBe(true);
+  });
+
+  it('still requires caps for other roles', () => {
+    expect(canRunSolutionAiDraft({ caps: [{ section: 'crm_presales_solution', action: 'edit' }] })).toBe(
+      false,
+    );
   });
 });

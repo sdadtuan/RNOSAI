@@ -1,7 +1,7 @@
 'use client';
 
 import type { HandoffFlowStepKey, HandoffFlowView } from '@/lib/crm/handoff-flow.util';
-import { formatHandoffStamp } from '@/lib/crm/handoff-flow.util';
+import { formatHandoffStamp, visibleHandoffFlowSteps } from '@/lib/crm/handoff-flow.util';
 import { HandoffSlaCountdown, type HandoffSlaClockView } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import './am-handoff-desk.css';
@@ -15,11 +15,17 @@ export function HandoffFlowStepper({
   onStepClick?: (key: HandoffFlowStepKey) => void;
   sla?: { current?: HandoffSlaClockView | null; clocks?: HandoffSlaClockView[] | null } | null;
 }) {
-  const slaClock = pickHandoffSlaClockForStep(sla, view.currentKey);
+  const visible = visibleHandoffFlowSteps(view);
+  const slaClock = pickHandoffSlaClockForStep(sla, visible.currentKey);
   return (
     <div className="ahd-stepper-wrap">
-    <ol className="ahd-stepper" aria-label="Tiến độ bàn giao" data-testid="handoff-flow-stepper">
-      {view.steps.map((step) => (
+    <ol
+      className="ahd-stepper"
+      aria-label="Tiến độ bàn giao"
+      data-testid="handoff-flow-stepper"
+      style={{ ['--ahd-step-count' as string]: String(visible.steps.length) }}
+    >
+      {visible.steps.map((step) => (
         <li
           key={step.key}
           className={`ahd-step ahd-step--${step.state}${step.isActive ? ' is-active' : ''}`}

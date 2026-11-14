@@ -15,6 +15,7 @@ import {
   flowTimesFromFunnel,
   formatHandoffStamp,
   splitBriefIdeas,
+  visibleHandoffFlowSteps,
 } from './handoff-flow.util';
 
 describe('handoff-flow.util', () => {
@@ -161,7 +162,7 @@ describe('handoff-flow.util', () => {
     expect(complete.items.every((i) => i.ok)).toBe(true);
   });
 
-  it('does not tick "Đủ điều kiện giao Marketing" when a legacy lead is missing goal or budget', () => {
+  it('does not tick "Đủ điều kiện làm Solution" when a legacy lead is missing goal or budget', () => {
     const legacy = amDeskChecklist(
       {
         company_name: 'Công ty Seed 915',
@@ -262,5 +263,35 @@ describe('splitBriefIdeas', () => {
     const raw = 'Mục A; mục B';
     expect(splitBriefIdeas(raw).join(' ')).toContain('Mục A');
     expect(splitBriefIdeas(raw).join(' ')).toContain('mục B');
+  });
+
+  it('hides doing_solutions on the new path so the stepper shows 6 steps', () => {
+    const view = resolveHandoffFlow({
+      leadStatus: 'dang_tu_van',
+      handoffStatus: 'pending',
+    });
+    expect(view.currentKey).toBe('await_solutions');
+    const visible = visibleHandoffFlowSteps(view);
+    expect(visible.steps.map((s) => s.key)).toEqual([
+      'receive_lead',
+      'sales_brief',
+      'await_solutions',
+      'await_quote',
+      'negotiate',
+      'sign_contract',
+    ]);
+    expect(visible.steps.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(false);
+  });
+
+  it('keeps doing_solutions visible for legacy leads already on that step', () => {
+    const view = resolveHandoffFlow({
+      leadStatus: 'dang_tu_van',
+      handoffStatus: 'with_solution',
+    });
+    expect(view.currentKey).toBe('doing_solutions');
+    const visible = visibleHandoffFlowSteps(view);
+    expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(true);
+    expect(visible.steps).toHaveLength(7);
   });
 });

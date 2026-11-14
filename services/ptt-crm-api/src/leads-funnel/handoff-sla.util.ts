@@ -93,7 +93,7 @@ const LABELS: Record<HandoffSlaClockKey, { step: string; label: string; role: Ha
   sales_update: { step: 'intake', label: 'Hạn cập nhật / gọi đầu', role: 'Sales' },
   sales_brief: { step: 'sales_brief', label: 'Hạn Submit to AM', role: 'Sales' },
   missing_info: { step: 'sales_brief', label: 'Hạn bổ sung thông tin', role: 'Sales' },
-  solution_accept: { step: 'await_solution', label: 'Hạn AM nhận / giao Solutions', role: 'AM' },
+  solution_accept: { step: 'await_solution', label: 'Hạn AM nhận / làm Solution', role: 'AM' },
   solution_work: { step: 'doing_solution', label: 'Hạn trả Solutions', role: 'AM' },
   solution_revision: { step: 'doing_solution', label: 'Hạn chỉnh Solutions', role: 'AM' },
   customer_response: { step: 'await_quote', label: 'Hạn phản hồi khách', role: 'Sales' },
@@ -359,7 +359,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.solutionAcceptDueAt,
         source.handedOffAt,
         now,
-        'AM nhận case Solutions trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
+        'AM nhận và làm Solution trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
       ),
     );
   }

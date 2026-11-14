@@ -47,6 +47,7 @@ import {
 } from '@/lib/crm/solution-file-limit';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { pushToast } from '@/lib/toast';
+import { humanizeCrmApiError } from '@/lib/crm/crm-api-error';
 
 
 type Attachment = { id: string; name: string; mime: string; data_url: string };
@@ -277,6 +278,11 @@ export function SolutionCaseDesk({
   onError,
   filesOnly = false,
   submitOnly = false,
+  actionsPanel = false,
+  canSubmit = false,
+  submitDisabledReason,
+  submitBusy = false,
+  onSubmitToSales,
 }: {
   token: string;
   lead: LeadRow;
@@ -287,6 +293,11 @@ export function SolutionCaseDesk({
   onError?: (message: string) => void;
   filesOnly?: boolean;
   submitOnly?: boolean;
+  actionsPanel?: boolean;
+  canSubmit?: boolean;
+  submitDisabledReason?: string;
+  submitBusy?: boolean;
+  onSubmitToSales?: () => void | Promise<void>;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [items, setItems] = useState<Array<{ code: string; label: string }>>([]);
@@ -314,7 +325,7 @@ export function SolutionCaseDesk({
     setDeadlineIso(ymd);
     setDeadlineText(isoToViDate(storedDue));
   }, [storedDue]);
-  const canEditDeadline = !filesOnly && !submitOnly && (handoff === 'pending' || handoff === 'with_solution');
+  const canEditDeadline = !filesOnly && (Boolean(actionsPanel) || !submitOnly) && (handoff === 'pending' || handoff === 'with_solution');
 
   useEffect(() => {
     let cancelled = false;
@@ -488,7 +499,8 @@ export function SolutionCaseDesk({
     try {
       await task();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Thao tác thất bại';
+      const raw = err instanceof Error ? err.message : 'Thao tác thất bại';
+      const message = humanizeCrmApiError(undefined, raw);
       setError(message);
       onError?.(message);
     } finally {
@@ -596,16 +608,7 @@ export function SolutionCaseDesk({
           ? 'Đang xử lý…'
           : '';
 
-  if (submitOnly) {
-    return (
-      <section className="solution-desk" aria-label="Nộp Solution cho Sales" data-testid="solution-desk-submit-only">
-        <h3>Nộp Solution cho Sales</h3>
-        <p className="muted">PDF, Word, Excel hoặc ảnh. Tối đa 5 file, tổng dung lượng dưới 15MB.</p>
-        {error ? (
-          <p className="lead-alert lead-alert--error" role="alert">
-            {error}
-          </p>
-        ) : null}
+  const filePicker = (
         <input
           ref={solutionFileInputRef}
           className="sr-only"
@@ -661,10 +664,13 @@ export function SolutionCaseDesk({
             });
           }}
         />
+  );
+
+  const fileButtons = (
         <div className="solution-desk__file-row">
           <button
             type="button"
-            className="btn btn-secondary"
+            className="ahd-btn ahd-btn--ghost"
             disabled={busy || !canEditFiles}
             onClick={() => solutionFileInputRef.current?.click()}
             data-testid="solution-desk-file-btn"
@@ -674,7 +680,7 @@ export function SolutionCaseDesk({
           {canEditFiles ? (
             <button
               type="button"
-              className="btn btn-secondary"
+              className="ahd-btn ahd-btn--ghost"
               disabled={busy}
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
@@ -683,7 +689,9 @@ export function SolutionCaseDesk({
             </button>
           ) : null}
         </div>
-        {uploadLabel ? (
+  );
+
+  const uploadBar = uploadLabel ? (
           <div
             className="solution-desk__upload-progress"
             role="progressbar"
@@ -698,10 +706,102 @@ export function SolutionCaseDesk({
               <span style={{ width: `${uploadPhase === 'reading' ? Math.max(uploadProgress ?? 0, 8) : uploadProgress ?? 0}%` }} />
             </div>
           </div>
+        ) : null;
+
+  const deadlineEditor = canEditDeadline ? (
+        <div className="solution-desk__deadline" data-testid="solution-desk-deadline">
+          <label>
+            Deadline Solutions
+            <input
+              type="text"
+              inputMode="numeric"
+              lang="vi-VN"
+              placeholder="dd/MM/yyyy"
+              autoComplete="off"
+              value={deadlineText}
+              aria-label="Deadline Solutions (dd/MM/yyyy)"
+              data-testid={actionsPanel ? 'ahd-deadline' : 'solution-desk-deadline-input'}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDeadlineText(v);
+                const iso = viDateToIso(v);
+                if (iso) setDeadlineIso(iso);
+              }}
+              onBlur={() => {
+                const iso = viDateToIso(deadlineText) || deadlineIso;
+                if (iso) {
+                  setDeadlineIso(iso);
+                  setDeadlineText(isoToViDate(iso));
+                }
+              }}
+              disabled={busy}
+            />
+          </label>
+          <button
+            type="button"
+            className="ahd-btn ahd-btn--ghost ahd-btn--block"
+            data-testid={actionsPanel ? 'ahd-deadline-save' : 'solution-desk-deadline-save'}
+            disabled={busy || !deadlineIso}
+            onClick={() =>
+              void run(async () => {
+                const out = await updateLeadSolutionDeadline(token, lead.id, deadlineIso);
+                onFunnelChange(out.funnel);
+                onMessage?.('Đã lưu Deadline Solutions.');
+              })
+            }
+          >
+            Lưu Deadline
+          </button>
+        </div>
+      ) : storedDue ? (
+        <p data-testid="solution-desk-deadline-view">Deadline Solutions: {isoToViDate(storedDue)}</p>
+      ) : null;
+
+  if (actionsPanel) {
+    return (
+      <section className="solution-desk solution-desk--actions" aria-label="Thao tác Solution" data-testid="solution-desk-actions">
+        {error ? (
+          <p className="lead-alert lead-alert--error" role="alert">
+            {error}
+          </p>
         ) : null}
-        {files.length === 0 && !uploadLabel ? (
+        {deadlineEditor}
+        {filePicker}
+        {fileButtons}
+        {uploadBar}
+        {canSubmit ? (
+          <div className="solution-desk__submit">
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--primary ahd-btn--block"
+              data-testid="ahd-submit-sales"
+              disabled={busy || submitBusy || Boolean(submitDisabledReason)}
+              title={submitDisabledReason || undefined}
+              aria-disabled={busy || submitBusy || Boolean(submitDisabledReason)}
+              onClick={() => void onSubmitToSales?.()}
+            >
+              Nộp Solution cho Sales
+            </button>
+            {submitDisabledReason ? (
+              <p className="ahd-assign-hint" data-testid="ahd-submit-hint">{submitDisabledReason}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (submitOnly) {
+    return (
+      <section className="solution-desk" aria-label="File Solution" data-testid="solution-desk-submit-only">
+        {error ? (
+          <p className="lead-alert lead-alert--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
-        ) : files.length === 0 ? null : (
+        ) : (
           <ul data-testid="solution-desk-files">
             {files.map((file) => (
               <li key={file.id}>
@@ -737,7 +837,7 @@ export function SolutionCaseDesk({
         <p className="solution-desk__kicker">Hồ sơ Sales đã giao</p>
         <p className="muted">
           {solution?.phase === 'cho_nhan'
-            ? 'AM đang kiểm tra Brief và sẽ giao cho Marketing.'
+            ? 'AM đang kiểm tra Brief và làm Solution.'
             : solution?.phase === 'chinh_sua'
               ? 'Chỉnh theo yêu cầu, rồi bấm Nộp Solution trước hạn.'
               : handoff === 'with_solution'
@@ -765,7 +865,7 @@ export function SolutionCaseDesk({
               autoComplete="off"
               value={deadlineText}
               aria-label="Deadline Solutions (dd/MM/yyyy)"
-              data-testid="solution-desk-deadline-input"
+              data-testid={actionsPanel ? 'ahd-deadline' : 'solution-desk-deadline-input'}
               onChange={(e) => {
                 const v = e.target.value;
                 setDeadlineText(v);
@@ -785,7 +885,7 @@ export function SolutionCaseDesk({
           <button
             type="button"
             className="btn btn-secondary"
-            data-testid="solution-desk-deadline-save"
+            data-testid={actionsPanel ? 'ahd-deadline-save' : 'solution-desk-deadline-save'}
             disabled={busy || !deadlineIso}
             onClick={() =>
               void run(async () => {

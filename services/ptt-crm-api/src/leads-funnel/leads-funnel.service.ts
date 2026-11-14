@@ -1478,14 +1478,26 @@ export class LeadsFunnelService {
 
   private async assertPresalesMktAiGenerateCap(staffUser?: StaffJwtPayload): Promise<void> {
     if (!staffUser) return;
+    if (await this.staffAuth.isSuperAdminUser(staffUser)) return;
     const me = await this.staffAuth.me(staffUser);
+    if (isAccountManagerPosition(me.position_code)) return;
     const consultEdit = this.staffAuth.hasCap(me.caps, 'crm_presales_solution', 'edit');
     const boardEdit = this.staffAuth.hasCap(me.caps, 'crm_board', 'edit');
     if (!consultEdit && !boardEdit) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board', action: 'edit' });
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        message: 'Bạn chưa được cấp quyền thực hiện thao tác này.',
+        section: 'crm_board',
+        action: 'edit',
+      });
     }
     if (!this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'generate')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_mkt_ai', action: 'generate' });
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        message: 'Bạn chưa được cấp quyền thực hiện thao tác này.',
+        section: 'crm_mkt_ai',
+        action: 'generate',
+      });
     }
   }
 
@@ -1548,7 +1560,6 @@ export class LeadsFunnelService {
     try {
       rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, {});
       await this.assertPresalesMktAiGenerateCap(staffUser);
-      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       const loaded = await this.loadClientBrief(leadId);
       const serviceSlug = loaded.snap.presales.service_slug;
       await this.assertPresalesMktAiEnabled(serviceSlug);

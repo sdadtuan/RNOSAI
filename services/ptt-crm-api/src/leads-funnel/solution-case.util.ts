@@ -145,7 +145,7 @@ export function buildSolutionCaseView(
     cho_nhan: {
       step: 'Lead chờ Solutions',
       role: 'AM',
-      timer: 'Hạn nhận Solutions',
+      timer: 'Hạn AM nhận / làm Solution',
       due: String(row.solution_accept_due_at ?? '').trim(),
       warn: 3,
     },

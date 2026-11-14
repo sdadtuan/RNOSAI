@@ -1,3 +1,4 @@
+import { humanizeCrmApiError } from '@/lib/crm/crm-api-error';
 import type { StaffSectionCap, StoredStaffUser } from './auth';
 import { xhrWithProgress, UploadHttpError, type UploadProgressHandler } from '@/lib/http-upload';
 export type { UploadProgressHandler } from '@/lib/http-upload';
@@ -2190,7 +2191,10 @@ function nestApiErrorMessage(body: {
     if (typeof v.error === 'string') return v.error;
     return undefined;
   };
-  return pick(body.message) ?? pick(body.error);
+  const rawMessage = pick(body.message);
+  const rawError = pick(body.error);
+  if (!rawMessage && !rawError) return undefined;
+  return humanizeCrmApiError(rawError, rawMessage);
 }
 
 async function leadFunnelMutate<T>(token: string, path: string, init: RequestInit): Promise<T> {

@@ -186,7 +186,7 @@ export default function CrmSolutionQueuePage() {
         subtitle={
           aeTrackOnly
             ? 'Chỉ lead của bạn: đã chuyển Solution/AM, hoặc AM trả lại cần chỉnh bước trước — chỉ xem, không nhận case.'
-            : 'Lead đã Submit to AM — AM giao Marketing → nộp Solution sang Chờ báo giá'
+            : 'Lead đã Submit to AM — AM làm Solution rồi nộp cho Sales'
         }
       />
 

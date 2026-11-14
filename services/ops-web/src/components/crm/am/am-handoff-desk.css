@@ -223,7 +223,7 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
 /* Stepper */
 .ahd-stepper {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--ahd-step-count, 6), minmax(0, 1fr));
   gap: 0;
   list-style: none;
   margin: 14px 0 16px;
@@ -695,4 +695,47 @@ button.ahd-check__item:focus-visible {
   .ahd-title { font-size: 16px; }
   .ahd-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ahd-step:nth-child(even)::after { display: none; }
+}
+
+.ahd-card--actions .solution-desk--actions {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.ahd-card--actions .solution-desk__deadline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.ahd-card--actions .solution-desk__deadline label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ahd-card--actions .solution-desk__deadline input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #d8d9de;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.ahd-card--actions .solution-desk__file-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.ahd-card--actions .solution-desk__file-row .ahd-btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+.ahd-card--actions .solution-desk__submit {
+  margin-top: 8px;
+}
+.ahd-card--actions .solution-desk__upload-progress {
+  margin: 0 0 10px;
 }

@@ -2424,7 +2424,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         assignee,
         due.toISOString(),
         assignNote,
-        assignNote ? `AM giao Marketing — ghi chú: ${assignNote}` : '',
+        assignNote ? `AM làm Solution — ghi chú: ${assignNote}` : '',
       ],
     );
     const status = await this.currentLeadStatus(leadId);

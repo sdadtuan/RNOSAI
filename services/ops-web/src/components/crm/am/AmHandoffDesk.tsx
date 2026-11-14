@@ -4,7 +4,6 @@ import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import Link from 'next/link';
 import {
   releaseLeadToSales,
-  updateLeadSolutionDeadline,
   fetchCrmStaffList,
   fetchDiscoveryOptions,
   fetchIntakeSessions,
@@ -218,18 +217,6 @@ function saigonYmd(iso: string | null | undefined): string {
   }).format(new Date(ms));
 }
 
-function defaultDeadline(suggestedIso?: string | null): string {
-  const fromSuggested = saigonYmd(suggestedIso || '');
-  if (fromSuggested) return fromSuggested;
-  const d = new Date();
-  return saigonYmd(d.toISOString()) || new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Saigon',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
-}
-
 /** ISO yyyy-MM-dd → vi-VN dd/MM/yyyy */
 export function isoToViDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '').trim());
@@ -331,22 +318,13 @@ export function AmHandoffDesk({
   mgmtExtra?: ReactNode;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
+  const [solutionTick, setSolutionTick] = useState(0);
   const [artifactReady, setArtifactReady] = useState(false);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [consultPrefill, setConsultPrefill] = useState('');
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
   const [tab, setTab] = useState<TabKey>('brief');
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
-  const initialDue = saigonYmd(funnel?.presales?.handoff?.solution_due_at) || defaultDeadline(funnel?.presales?.handoff_sla?.suggested_solution_due_at);
-  const [deadline, setDeadline] = useState(initialDue);
-  const [deadlineText, setDeadlineText] = useState(() => isoToViDate(initialDue));
-
-  useEffect(() => {
-    const due = saigonYmd(funnel?.presales?.handoff?.solution_due_at);
-    if (!due) return;
-    setDeadline(due);
-    setDeadlineText(isoToViDate(due));
-  }, [funnel?.presales?.handoff?.solution_due_at]);
   const [assignNote, setAssignNote] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
@@ -697,25 +675,7 @@ export function AmHandoffDesk({
             <Icon d={I.chat} size={14} />
             Trao đổi nội bộ
           </button>
-          {canAssign ? (
-          <div className="ahd-assign-top-wrap">
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--primary"
-              data-testid="ahd-submit-sales-top"
-              disabled={busy || Boolean(submitDisabledReason)}
-              title={submitDisabledReason || undefined}
-              aria-disabled={busy || Boolean(submitDisabledReason)}
-              onClick={() => void submitSolutionToSales()}
-            >
-              <Icon d={I.arrow} size={14} />
-              Nộp Solution cho Sales
-            </button>
-            {submitDisabledReason ? (
-              <p className="ahd-assign-hint" data-testid="ahd-submit-hint-top">{submitDisabledReason}</p>
-            ) : null}
-          </div>
-          ) : (
+          {canAssign ? null : (
             <span className="ahd-btn ahd-btn--ghost" data-testid="ahd-assigned-badge">{flow.currentLabel}</span>
           )}
         </div>
@@ -877,9 +837,6 @@ export function AmHandoffDesk({
               <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
                 {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
               </BriefCard>
-              <BriefCard title="Ghi chú cuộc gọi (Sales)" icon={I.note} wide testId="ahd-call-notes">
-                <Bullets text={view.call_notes} />
-              </BriefCard>
             </div>
           ) : null}
 
@@ -899,6 +856,7 @@ export function AmHandoffDesk({
           {tab === 'solution' ? (
             <div data-testid="ahd-solution">
               <SolutionCaseDesk
+                key={`solution-list-${solutionTick}`}
                 token={token}
                 lead={lead}
                 party={(party ?? {}) as LeadPartyFormValue}
@@ -957,7 +915,7 @@ export function AmHandoffDesk({
           <section className="ahd-card" data-testid="ahd-checklist">
             <h3 className="ahd-card__title">
               <Icon d={I.list} />
-              Checklist AM trước khi giao Solutions
+              Checklist AM trước khi làm Solution
             </h3>
             <ul className="ahd-check">
               {checklist.items.map((item) => (
@@ -991,76 +949,34 @@ export function AmHandoffDesk({
             ) : null}
           </section>
 
-          <section className="ahd-card" data-testid="ahd-next">
+          {(handoff?.status === 'pending' || handoff?.status === 'with_solution') ? (
+          <section className="ahd-card ahd-card--actions" data-testid="ahd-solution-actions">
             <h3 className="ahd-card__title">
               <Icon d={I.bolt} />
-              Hành động tiếp theo
+              Solution
             </h3>
-            <label className="ahd-field">
-              <span>
-                Deadline Solutions <span className="ahd-req">*</span>
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                lang="vi-VN"
-                placeholder="dd/MM/yyyy"
-                autoComplete="off"
-                value={deadlineText}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setDeadlineText(v);
-                  const iso = viDateToIso(v);
-                  if (iso) setDeadline(iso);
-                }}
-                onBlur={() => {
-                  const iso = viDateToIso(deadlineText) || deadline;
-                  if (iso) {
-                    setDeadline(iso);
-                    setDeadlineText(isoToViDate(iso));
-                  }
-                }}
-                disabled={busy}
-                data-testid="ahd-deadline"
-                aria-label="Deadline Solutions (dd/MM/yyyy)"
-              />
-            </label>
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--ghost ahd-btn--block"
-              data-testid="ahd-deadline-save"
-              disabled={busy || !deadline}
-              onClick={() => void run(async () => {
-                const out = await updateLeadSolutionDeadline(token, lead.id, deadline);
-                onFunnelChange(out.funnel);
-                setNotice('Đã lưu Deadline Solutions.');
-                pushToast('Đã lưu Deadline Solutions.', 'success');
-              })}
-            >
-              Lưu Deadline
-            </button>
-            {canAssign ? (
-            <>
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--primary ahd-btn--block"
-              data-testid="ahd-submit-sales"
-              disabled={busy || Boolean(submitDisabledReason)}
-              title={submitDisabledReason || undefined}
-              aria-disabled={busy || Boolean(submitDisabledReason)}
-              onClick={() => void submitSolutionToSales()}
-            >
-              <Icon d={I.arrow} size={15} />
-              Nộp Solution cho Sales
-            </button>
-            {submitDisabledReason ? (
-              <p className="ahd-assign-hint" data-testid="ahd-submit-hint">{submitDisabledReason}</p>
-            ) : null}
-            </>
-            ) : (
-              <p className="ahd-handoff-note" data-testid="ahd-already-assigned">Đã chuyển sang {flow.currentLabel}.</p>
-            )}
+            <SolutionCaseDesk
+              key={`solution-actions-${solutionTick}`}
+              token={token}
+              lead={lead}
+              party={(party ?? {}) as LeadPartyFormValue}
+              funnel={funnel}
+              onFunnelChange={onFunnelChange}
+              onMessage={(message) => {
+                setArtifactReady(true);
+                setSolutionTick((n) => n + 1);
+                setNotice(message);
+                onMessage?.(message);
+              }}
+              onError={onError}
+              actionsPanel
+              canSubmit={canAssign}
+              submitDisabledReason={submitDisabledReason}
+              submitBusy={busy}
+              onSubmitToSales={() => void submitSolutionToSales()}
+            />
           </section>
+          ) : null}
         </div>
       </div>
 

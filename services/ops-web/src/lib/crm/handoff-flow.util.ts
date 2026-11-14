@@ -57,7 +57,7 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     index: 3,
     label: 'Chờ Solutions',
     shortLabel: 'Chờ Solutions',
-    hint: 'AM kiểm tra Brief và làm Solution',
+    hint: 'AM làm Solution',
     roleHint: 'Account Manager',
   },
   {
@@ -173,6 +173,19 @@ export interface HandoffFlowView {
   currentLabel: string;
   steps: HandoffFlowStepView[];
   returnedToSales: boolean;
+}
+
+/**
+ * New AM-made-Solution path hides the leftover Marketing step
+ * ("AM làm Solution" / doing_solutions) so the stepper shows 6 steps.
+ * Legacy leads already on doing_solutions still see that step.
+ */
+export function visibleHandoffFlowSteps(view: HandoffFlowView): HandoffFlowView {
+  if (view.currentKey === 'doing_solutions') return view;
+  const steps = view.steps
+    .filter((step) => step.key !== 'doing_solutions')
+    .map((step, index) => ({ ...step, index: index + 1 }));
+  return { ...view, steps };
 }
 
 function norm(value: string | null | undefined): string {
@@ -543,7 +556,7 @@ export function amDeskChecklist(
     },
     {
       key: 'ready',
-      label: 'Đủ điều kiện giao Marketing',
+      label: 'Đủ điều kiện làm Solution',
       ok: false,
     },
   ];
