@@ -3930,14 +3930,47 @@ html.ops-shell-bitrix .win-home__scope {
 .lead-history-tab {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 12px;
   align-items: start;
+  width: 100%;
 }
 
 @media (max-width: 720px) {
   .lead-history-tab {
     grid-template-columns: 1fr;
   }
+}
+
+.lead-history-tab .lead-history-col {
+  min-width: 0;
+  width: 100%;
+}
+
+.lead-history-tab .lead-history-col__list {
+  gap: 0;
+}
+
+.lead-history-tab .lead-history-row {
+  border: none;
+  border-bottom: 1px solid var(--surface-border);
+  border-left: none;
+  border-radius: 0;
+  padding: 6px 2px;
+  cursor: default;
+}
+
+.lead-history-tab .lead-history-row:last-child {
+  border-bottom: none;
+}
+
+.lead-history-tab .lead-history-row .lead-activity-item__content {
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.lead-history-tab .lead-empty-state {
+  margin: 6px 0 0;
+  font-size: 13px;
 }
 
 .lead-call-history-list {

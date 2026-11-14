@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstAcceptorName, isSolutionHistoryLine, mergeLeadCareHistory, presentLeadHistory, presentOwnerChange, resolveActorDisplayName } from './lead-history';
+import { firstAcceptorName, formatCompactHistoryRow, isSolutionHistoryLine, mergeLeadCareHistory, presentCallHistoryLine, presentLeadHistory, presentOwnerChange, resolveActorDisplayName, splitLeadHistoryColumns } from './lead-history';
 
 describe('presentLeadHistory', () => {
   it('shows the carer, the update, and the time in Vietnamese', () => {
@@ -293,3 +293,100 @@ describe('presentLeadHistory solution flow', () => {
     expect(received.kind).toBe('solution');
   });
 });
+
+
+describe('splitLeadHistoryColumns', () => {
+  it('puts calls and sales notes on the left, assignment/status/solution on the right', () => {
+    const owner = presentOwnerChange({
+      id: 11,
+      from_name: 'Nguyen Van A',
+      to_name: 'Tran Thi B',
+      reason: 'manual_reassign',
+      created_by: 'admin@local',
+      created_by_name: 'Admin Local',
+      created_at: '2026-11-16T03:32:20.000Z',
+    });
+    const solution = presentLeadHistory({
+      id: 21,
+      content: 'Admin Local · AI tạo Solution',
+      activity_type: 'note',
+      created_at: '2026-11-15T10:00:00.000Z',
+      user_name: 'Admin Local',
+    });
+    const note = presentLeadHistory({
+      id: 31,
+      user_name: 'Sale Local',
+      content: 'khách lại bận, hen goi lai sau',
+      created_at: '2026-11-15T04:22:00.000Z',
+    });
+    const status = mergeLeadCareHistory(
+      [],
+      [
+        {
+          id: '9',
+          old_status: 'moi',
+          new_status: 'da_lien_he',
+          changed_by: 'staff:1',
+          note: '',
+          created_at: '2026-11-14T03:16:00.000Z',
+        },
+      ],
+    )[0];
+    const { saleLines, leadLines } = splitLeadHistoryColumns({
+      activityLines: [solution, note, status],
+      ownerLines: [owner],
+      callAttempts: [
+        {
+          id: 101,
+          channel: 'phone',
+          call_result: 'ring_no_answer',
+          started_at: '2026-11-15T03:00:00.000Z',
+          counts_toward_fr1: true,
+        },
+      ],
+    });
+    expect(saleLines.map((line) => line.key)).toEqual(['activity-31', 'call-101']);
+    expect(leadLines.map((line) => line.key)).toEqual(['owner-11', 'activity-21', 'status-9']);
+    expect(saleLines.some((line) => isDup(line, leadLines))).toBe(false);
+  });
+
+  it('formats a call as who · channel, result, phản hồi đầu flag · clock', () => {
+    const line = presentCallHistoryLine({
+      id: 7,
+      channel: 'phone',
+      call_result: 'ring_no_answer',
+      started_at: '2026-11-14T07:22:00.000Z',
+      counts_toward_fr1: true,
+    });
+    expect(line.what).toBe('Sale · Điện thoại, Không nghe máy, Phản hồi đầu · 14:22 14/11/2026');
+    expect(formatCompactHistoryRow(line)).toBe(line.what);
+  });
+
+  it('drops activity call rows when FR attempts already cover them', () => {
+    const activityCall = presentLeadHistory({
+      id: 8,
+      user_name: 'Sale Local',
+      content: 'Không liên lạc được (máy bận hoặc không kết nối)',
+      activity_type: 'call',
+      created_at: '2026-11-14T07:22:00.000Z',
+    });
+    const { saleLines, leadLines } = splitLeadHistoryColumns({
+      activityLines: [activityCall],
+      callAttempts: [
+        {
+          id: 9,
+          channel: 'phone',
+          call_result: 'unreachable',
+          started_at: '2026-11-14T07:22:00.000Z',
+          counts_toward_fr1: false,
+        },
+      ],
+    });
+    expect(saleLines.map((line) => line.key)).toEqual(['call-9']);
+    expect(leadLines).toEqual([]);
+  });
+});
+
+function isDup(line: { key: string }, other: Array<{ key: string }>): boolean {
+  return other.some((row) => row.key === line.key);
+}

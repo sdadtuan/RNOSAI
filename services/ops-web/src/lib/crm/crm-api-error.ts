@@ -22,13 +22,62 @@ const CRM_API_ERROR_VI: Record<string, string> = {
   forbidden: 'Bạn không có quyền thực hiện thao tác này.',
 };
 
+const CLIENT_BRIEF_INCOMPLETE = 'client_brief_incomplete';
+const CLIENT_BRIEF_INCOMPLETE_VI = CRM_API_ERROR_VI[CLIENT_BRIEF_INCOMPLETE];
+
 function looksLikeCode(value: string): boolean {
   return /^[a-z][a-z0-9_]{2,}$/i.test(value) && !value.includes(' ');
 }
 
-export function humanizeCrmApiError(error?: string | null, message?: string | null): string {
+function uniqueFields(parts: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const text = part.replace(/\.$/, '').trim();
+    if (!text || looksLikeCode(text) || GENERIC_HTTP.has(text)) continue;
+    if (text === CLIENT_BRIEF_INCOMPLETE_VI) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+
+/** Parse the API field list ("Điểm khác biệt; Ngành KH") into a display string. */
+export function formatClientBriefMissingFields(
+  message?: string | null,
+  details?: string[] | string | null,
+): string {
+  const fromDetails = Array.isArray(details)
+    ? details.map((item) => String(item ?? '').trim())
+    : String(details ?? '').trim()
+      ? [String(details).trim()]
+      : [];
+  const fromMessage = String(message ?? '')
+    .split(/;|\n/)
+    .map((item) => item.trim());
+  return uniqueFields([...fromDetails, ...fromMessage]).join(', ');
+}
+
+function isClientBriefIncomplete(error?: string | null, message?: string | null): boolean {
   const err = String(error ?? '').trim();
   const msg = String(message ?? '').trim();
+  return err === CLIENT_BRIEF_INCOMPLETE || msg === CLIENT_BRIEF_INCOMPLETE;
+}
+
+export function humanizeCrmApiError(
+  error?: string | null,
+  message?: string | null,
+  details?: string[] | string | null,
+): string {
+  const err = String(error ?? '').trim();
+  const msg = String(message ?? '').trim();
+  if (isClientBriefIncomplete(err, msg)) {
+    const fields = formatClientBriefMissingFields(msg, details);
+    const base = CLIENT_BRIEF_INCOMPLETE_VI.replace(/\.$/, '');
+    return fields ? `${base}. Thiếu: ${fields}.` : `${base}.`;
+  }
   const mapped =
     (err && CRM_API_ERROR_VI[err]) ||
     (msg && CRM_API_ERROR_VI[msg]) ||

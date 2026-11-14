@@ -1,21 +1,65 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { LeadCallHistoryPanel } from '@/components/crm/LeadCallHistoryPanel';
-import { LeadExchangeHistoryPanel } from '@/components/crm/LeadExchangeHistoryPanel';
-import { fetchLeadActivities } from '@/lib/api';
-import { isSolutionHistoryLine, presentLeadHistory, type LeadHistoryLine } from '@/lib/crm/lead-history';
+import { fetchLeadActivities, fetchLeadFrSla, type LeadFrCallAttempt } from '@/lib/api';
+import {
+  formatCompactHistoryRow,
+  presentLeadHistory,
+  splitLeadHistoryColumns,
+  type LeadHistoryLine,
+} from '@/lib/crm/lead-history';
 
-function mergeSolutionLines(fromProps: LeadHistoryLine[], fromFetch: LeadHistoryLine[]): LeadHistoryLine[] {
+function mergeActivityLines(fromProps: LeadHistoryLine[], fromFetch: LeadHistoryLine[]): LeadHistoryLine[] {
   const byKey = new Map<string, LeadHistoryLine>();
   for (const line of [...fromProps, ...fromFetch]) {
-    if (!isSolutionHistoryLine(line)) continue;
     byKey.set(line.key || `activity-${line.id}`, line);
   }
-  return [...byKey.values()].sort((a, b) => {
-    const time = String(b.when).localeCompare(String(a.when));
-    return time !== 0 ? time : (b.id || 0) - (a.id || 0);
-  });
+  return [...byKey.values()];
+}
+
+function HistoryColumn({
+  title,
+  testId,
+  itemTestId,
+  empty,
+  lines,
+  selectedActivityId,
+  onSelectActivity,
+}: {
+  title: string;
+  testId: string;
+  itemTestId: string;
+  empty: string;
+  lines: LeadHistoryLine[];
+  selectedActivityId: number | null;
+  onSelectActivity: (id: number | null) => void;
+}) {
+  return (
+    <section className="lead-panel lead-history-col" data-testid={testId}>
+      <div className="lead-panel__head">
+        <h3 className="lead-panel__title">{title}</h3>
+      </div>
+      {lines.length === 0 ? (
+        <p className="lead-empty-state">{empty}</p>
+      ) : (
+        <ul className="lead-activity-list lead-history-col__list">
+          {lines.map((line) => {
+            const selectable = Number(line.id) > 0 && !String(line.key).startsWith('call-') && !String(line.key).startsWith('owner-') && !String(line.key).startsWith('status-');
+            return (
+              <li
+                key={line.key}
+                className={`lead-activity-item lead-history-row${selectedActivityId === line.id ? ' is-selected' : ''}`}
+                data-testid={itemTestId}
+                onClick={selectable ? () => onSelectActivity(line.id) : undefined}
+              >
+                <div className="lead-activity-item__content">{formatCompactHistoryRow(line)}</div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 export function LeadHistoryTab({
@@ -34,63 +78,52 @@ export function LeadHistoryTab({
   onSelectActivity: (id: number | null) => void;
 }) {
   const [fetched, setFetched] = useState<LeadHistoryLine[]>([]);
+  const [callAttempts, setCallAttempts] = useState<LeadFrCallAttempt[]>([]);
+
   useEffect(() => {
     let cancelled = false;
-    void fetchLeadActivities(token, leadId, 80)
-      .then((rows) => {
-        if (cancelled) return;
-        setFetched(rows.map((row) => presentLeadHistory(row)));
-      })
-      .catch(() => {
-        if (!cancelled) setFetched([]);
-      });
+    void Promise.all([
+      fetchLeadActivities(token, leadId, 80)
+        .then((rows) => rows.map((row) => presentLeadHistory(row)))
+        .catch(() => [] as LeadHistoryLine[]),
+      fetchLeadFrSla(token, leadId)
+        .then((sla) => sla.attempts ?? [])
+        .catch(() => [] as LeadFrCallAttempt[]),
+    ]).then(([activityLines, attempts]) => {
+      if (cancelled) return;
+      setFetched(activityLines);
+      setCallAttempts(attempts);
+    });
     return () => {
       cancelled = true;
     };
   }, [token, leadId]);
 
-  const solutionLines = useMemo(
-    () => mergeSolutionLines(exchangeLines, fetched),
-    [exchangeLines, fetched],
-  );
-  const otherExchange = exchangeLines.filter((line) => !isSolutionHistoryLine(line));
+  const columns = useMemo(() => {
+    return splitLeadHistoryColumns({
+      activityLines: mergeActivityLines(exchangeLines, fetched),
+      ownerLines,
+      callAttempts,
+    });
+  }, [exchangeLines, fetched, ownerLines, callAttempts]);
+
   return (
     <div className="lead-history-tab" data-testid="lead-history-tab">
-      <section className="lead-panel" data-testid="lead-solution-history">
-        <div className="lead-panel__head">
-          <h3 className="lead-panel__title">Lịch sử Solution</h3>
-        </div>
-        {solutionLines.length === 0 ? (
-          <p className="lead-empty-state">Chưa có sự kiện Solution.</p>
-        ) : (
-          <ul className="lead-activity-list">
-            {solutionLines.map((line) => (
-              <li key={line.key} className="lead-activity-item" data-testid="lead-solution-history-item">
-                <div className="lead-activity-item__content">{line.what}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <LeadCallHistoryPanel token={token} leadId={leadId} />
-      <section className="lead-panel" data-testid="lead-owner-history">
-        <div className="lead-panel__head">
-          <h3 className="lead-panel__title">Lịch sử phụ trách</h3>
-        </div>
-        {ownerLines.length === 0 ? (
-          <p className="lead-empty-state">Chưa có lần chuyển Sales.</p>
-        ) : (
-          <ul className="lead-activity-list">
-            {ownerLines.map((line) => (
-              <li key={line.key} className="lead-activity-item" data-testid="lead-owner-history-item">
-                <div className="lead-activity-item__content">{line.what}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <LeadExchangeHistoryPanel
-        lines={otherExchange}
+      <HistoryColumn
+        title="Lịch sử Sale xử lý"
+        testId="lead-sale-history"
+        itemTestId="lead-sale-history-item"
+        empty="Chưa có hoạt động Sale."
+        lines={columns.saleLines}
+        selectedActivityId={selectedActivityId}
+        onSelectActivity={onSelectActivity}
+      />
+      <HistoryColumn
+        title="Lịch sử Lead"
+        testId="lead-lead-history"
+        itemTestId="lead-lead-history-item"
+        empty="Chưa có hoạt động Lead."
+        lines={columns.leadLines}
         selectedActivityId={selectedActivityId}
         onSelectActivity={onSelectActivity}
       />

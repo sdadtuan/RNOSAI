@@ -25,7 +25,7 @@ export type LeadHistoryLine = {
   who: string;
   what: string;
   when: string;
-  kind?: 'solution' | 'care' | 'owner';
+  kind?: 'solution' | 'care' | 'owner' | 'call';
 };
 
 export function isSolutionHistoryLine(line: LeadHistoryLine | null | undefined): boolean {
@@ -337,6 +337,7 @@ export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
     who: actorDisplay(row.created_by, row.created_by_name) || 'Hệ thống',
     what: `${core} · ${why} · ${when}`,
     when: '',
+    kind: 'owner',
   };
 }
 
@@ -384,4 +385,166 @@ export function resolveStaffDisplayName(
   const raw = String(fallback ?? '').trim();
   if (raw && raw !== '—' && !/^#\d+$/.test(raw)) return raw;
   return '—';
+}
+
+
+export type LeadCallAttemptInput = {
+  id: number;
+  attempt_no?: number;
+  channel?: string | null;
+  started_at?: string | null;
+  call_result?: string | null;
+  counts_toward_fr1?: boolean;
+  warn_call_too_soon?: boolean;
+  notes?: string | null;
+};
+
+const CALL_CHANNEL_VI: Record<string, string> = {
+  phone: 'Điện thoại',
+  zalo: 'Zalo',
+  sms: 'SMS',
+  email: 'Email',
+};
+
+const CALL_RESULT_VI: Record<string, string> = {
+  ring_no_answer: 'Không nghe máy',
+  unreachable: 'Máy bận',
+  wrong_number: 'Sai số',
+  connected_meet_pending: 'Đã nói chuyện — chờ gặp mặt (1a)',
+  connected_qualified: 'Đã nói chuyện — đủ thông tin',
+  callback_requested: 'Hẹn gọi lại',
+  connected_other: 'Đã nói chuyện — kết quả khác',
+};
+
+export type HistoryColumn = 'sale' | 'lead';
+
+const CLOCK_RE = /(\d{2}:\d{2})(?::\d{2})?\s+(\d{2}\/\d{2}\/\d{4})/;
+const CLOCK_VI_RE = /(\d{2}\/\d{2}\/\d{4})[,\s]+(\d{2}:\d{2})(?::\d{2})?/;
+
+const CALL_LIKE_RE =
+  /Bắt đầu gọi|Máy bận|Không nghe máy|Sai số|Hẹn gọi lại|Đã nói chuyện|cuộc gọi|Gọi khách|Gọi quá sát|Không tính phản hồi đầu/i;
+
+const SALE_PROCESS_RE =
+  /Discovery|tư vấn Sale|Sales tư vấn|nộp bản tư vấn|ghi chú chăm sóc|Nhắc sắp hết giờ gọi|Nhắc trưởng nhóm|lead quá hạn chưa được chăm|bước Sales|Sales bước/i;
+
+const LEAD_EVENT_RE =
+  /Submit to AM|Nộp lên AM|Giao cho AM|AM nhận|Nhận case|bàn giao AM|Chuyển từ |Giao ban đầu|Trạng thái\s*:/i;
+
+export function presentCallHistoryLine(row: LeadCallAttemptInput): LeadHistoryLine {
+  const when = formatHistoryClock(row.started_at);
+  const channelKey = String(row.channel ?? '').trim().toLowerCase();
+  const channel = CALL_CHANNEL_VI[channelKey] ?? (channelKey || '—');
+  const resultKey = String(row.call_result ?? '').trim();
+  const result = CALL_RESULT_VI[resultKey] ?? (resultKey || '—');
+  const flags: string[] = [];
+  if (row.counts_toward_fr1) flags.push('Phản hồi đầu');
+  else flags.push('Không tính phản hồi đầu');
+  if (row.warn_call_too_soon) flags.push('Gọi quá sát');
+  const notes = String(row.notes ?? '').trim();
+  const action = [channel, result, ...flags, notes].filter(Boolean).join(', ');
+  const who = 'Sale';
+  return {
+    key: `call-${row.id}`,
+    id: row.id,
+    who,
+    what: `${who} · ${action} · ${when}`.trim(),
+    when,
+    kind: 'call',
+  };
+}
+
+function rowClock(line: LeadHistoryLine): string {
+  const what = String(line.what ?? '');
+  const when = String(line.when ?? '');
+  const fromWhat = what.match(CLOCK_RE);
+  if (fromWhat) return `${fromWhat[1]} ${fromWhat[2]}`;
+  const fromWhenClock = when.match(CLOCK_RE);
+  if (fromWhenClock) return `${fromWhenClock[1]} ${fromWhenClock[2]}`;
+  const fromWhenVi = when.match(CLOCK_VI_RE);
+  if (fromWhenVi) return `${fromWhenVi[2]} ${fromWhenVi[1]}`;
+  return formatHistoryClock(when) || when;
+}
+
+function stripClock(text: string): string {
+  return String(text ?? '')
+    .replace(/\s*·\s*\d{2}:\d{2}(?::\d{2})?\s+\d{2}\/\d{2}\/\d{4}\s*$/, '')
+    .replace(/\s*·\s*\d{2}\/\d{2}\/\d{4}[,\s]+\d{2}:\d{2}(?::\d{2})?\s*$/, '')
+    .trim();
+}
+
+export function formatCompactHistoryRow(line: LeadHistoryLine): string {
+  const clock = rowClock(line);
+  const who = String(line.who ?? '').trim();
+  let action = stripClock(String(line.what ?? '').trim());
+  if (who && (action === who || action.startsWith(`${who} · `))) {
+    action = action.slice(who.length).replace(/^\s*·\s*/, '');
+  }
+  return [who, action, clock].filter(Boolean).join(' · ');
+}
+
+export function historyColumnOf(line: LeadHistoryLine): HistoryColumn {
+  if (line.kind === 'solution' || isSolutionHistoryLine(line)) return 'lead';
+  if (line.kind === 'owner' || String(line.key).startsWith('owner-')) return 'lead';
+  if (String(line.key).startsWith('status-') || /Trạng thái\s*:/.test(String(line.what ?? ''))) return 'lead';
+  if (line.kind === 'call' || String(line.key).startsWith('call-')) return 'sale';
+  if (LEAD_EVENT_RE.test(String(line.what ?? ''))) return 'lead';
+  if (CALL_LIKE_RE.test(String(line.what ?? '')) || SALE_PROCESS_RE.test(String(line.what ?? ''))) return 'sale';
+  if (String(line.key).startsWith('activity-') || line.kind === 'care') return 'sale';
+  return 'lead';
+}
+
+function lineStamp(line: LeadHistoryLine): number {
+  const clock = rowClock(line);
+  const m = clock.match(/^(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const iso = `${m[5]}-${m[4]}-${m[3]}T${m[1]}:${m[2]}:00+07:00`;
+    const t = new Date(iso).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return stamp(line.when);
+}
+
+function fingerprint(line: LeadHistoryLine): string {
+  return stripClock(formatCompactHistoryRow(line)).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function mergeUniqueLines(lines: LeadHistoryLine[]): LeadHistoryLine[] {
+  const byKey = new Map<string, LeadHistoryLine>();
+  for (const line of lines) {
+    const key = line.key || `activity-${line.id}`;
+    if (!byKey.has(key)) byKey.set(key, line);
+  }
+  return [...byKey.values()];
+}
+
+export function splitLeadHistoryColumns(input: {
+  activityLines?: LeadHistoryLine[];
+  ownerLines?: LeadHistoryLine[];
+  callAttempts?: LeadCallAttemptInput[];
+}): { saleLines: LeadHistoryLine[]; leadLines: LeadHistoryLine[] } {
+  const calls = (input.callAttempts ?? []).map((row) => presentCallHistoryLine(row));
+  const merged = mergeUniqueLines([...(input.activityLines ?? []), ...(input.ownerLines ?? [])]);
+  const sale: LeadHistoryLine[] = [...calls];
+  const lead: LeadHistoryLine[] = [];
+  const seen = new Set(calls.map((line) => fingerprint(line)));
+  const hasCalls = calls.length > 0;
+  for (const line of merged) {
+    const callLike =
+      line.kind === 'call' ||
+      String(line.key).startsWith('call-') ||
+      (CALL_LIKE_RE.test(String(line.what ?? '')) &&
+        historyColumnOf(line) === 'sale' &&
+        !isSolutionHistoryLine(line));
+    if (hasCalls && callLike) continue;
+    const fp = fingerprint(line);
+    if (fp && seen.has(fp)) continue;
+    if (fp) seen.add(fp);
+    if (historyColumnOf(line) === 'sale') sale.push(line);
+    else lead.push(line);
+  }
+  const byTime = (a: LeadHistoryLine, b: LeadHistoryLine) =>
+    lineStamp(b) - lineStamp(a) || (b.id || 0) - (a.id || 0);
+  sale.sort(byTime);
+  lead.sort(byTime);
+  return { saleLines: sale, leadLines: lead };
 }

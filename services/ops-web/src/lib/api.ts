@@ -2182,6 +2182,7 @@ export interface LeadFunnelSnapshot {
 function nestApiErrorMessage(body: {
   error?: string | string[] | Record<string, unknown>;
   message?: string | string[] | Record<string, unknown>;
+  details?: string[] | string;
 }): string | undefined {
   const pick = (v: string | string[] | Record<string, unknown> | undefined): string | undefined => {
     if (v == null) return undefined;
@@ -2191,10 +2192,22 @@ function nestApiErrorMessage(body: {
     if (typeof v.error === 'string') return v.error;
     return undefined;
   };
+  const nested =
+    body.message && typeof body.message === 'object' && !Array.isArray(body.message)
+      ? body.message
+      : undefined;
   const rawMessage = pick(body.message);
-  const rawError = pick(body.error);
+  let rawError = pick(body.error);
+  if ((!rawError || rawError === 'Bad Request') && nested && typeof nested.error === 'string') {
+    rawError = nested.error;
+  }
+  const details = Array.isArray(body.details)
+    ? body.details
+    : nested && Array.isArray(nested.details)
+      ? (nested.details as string[])
+      : undefined;
   if (!rawMessage && !rawError) return undefined;
-  return humanizeCrmApiError(rawError, rawMessage);
+  return humanizeCrmApiError(rawError, rawMessage, details);
 }
 
 async function leadFunnelMutate<T>(token: string, path: string, init: RequestInit): Promise<T> {
