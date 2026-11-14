@@ -86,6 +86,12 @@ export function clientBriefPayload(
   };
 }
 
+/**
+ * AI / leave-gate completeness, aligned with fields Sales can enter in Discovery
+ * (company, industry/niche, need, marketing_goal, channels).
+ * Optional / no Sales Brief input: usp (Điểm khác biệt), audience, retain,
+ * competitors, metrics, website, fanpage — pass through empty when absent.
+ */
 export function clientBriefMissing(
   brief: Partial<ClientPlanBrief>,
   lead: ClientPlanLeadFacts,
@@ -94,7 +100,6 @@ export function clientBriefMissing(
   if (!briefFieldFilled(lead.company_name)) missing.push('Tên công ty trên hồ sơ lead');
   if (!briefFieldFilled(lead.niche)) missing.push('Ngành KH');
   if (!briefFieldFilled(lead.need)) missing.push('Nhu cầu cụ thể');
-  if (!briefFieldFilled(brief.usp)) missing.push('Điểm khác biệt');
   if (!briefFieldFilled(brief.goal)) missing.push('Mục tiêu đo được');
   if (!briefFieldFilled(brief.channels)) missing.push('Kênh muốn chạy và cách chốt đơn');
   return missing;

@@ -10,22 +10,40 @@ import {
 } from './client-plan-brief.util';
 
 describe('clientBriefMissing', () => {
-  it('flags an empty usp and ignores audience', () => {
+  it('does not require USP because Sales Brief has no Điểm khác biệt field', () => {
     expect(
       clientBriefMissing(
         { usp: '', goal: '40 lịch', channels: 'Facebook' },
         { company_name: 'A', niche: 'Spa', need: 'ít lead' },
       ),
-    ).toEqual(['Điểm khác biệt']);
+    ).toEqual([]);
   });
 
-  it('rejects placeholder tokens', () => {
+  it('still rejects placeholder tokens on required goal/channel fields, not USP', () => {
     expect(
       clientBriefMissing(
-        { usp: '[cần xác nhận]', goal: '40 lịch', channels: 'Facebook' },
+        { usp: '[cần xác nhận]', goal: '[cần xác nhận]', channels: 'Facebook' },
         { company_name: 'A', niche: 'Spa', need: 'ít lead' },
       ),
-    ).toEqual(['Điểm khác biệt']);
+    ).toEqual(['Mục tiêu đo được']);
+  });
+
+  it('passes lead 32 / plan 40 when USP is empty but Sales Brief fields are filled', () => {
+    expect(
+      clientBriefMissing(
+        { usp: '', goal: '123132', channels: 'Google' },
+        { company_name: '32213123', niche: 'spa', need: '12312312' },
+      ),
+    ).toEqual([]);
+  });
+
+  it('still flags missing goal or channels that Sales can enter', () => {
+    expect(
+      clientBriefMissing(
+        { usp: '', goal: '', channels: '' },
+        { company_name: 'A', niche: 'Spa', need: 'ít lead' },
+      ),
+    ).toEqual(['Mục tiêu đo được', 'Kênh muốn chạy và cách chốt đơn']);
   });
 
   it('lists lead facts before brief fields', () => {
