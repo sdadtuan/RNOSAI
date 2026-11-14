@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { buildHandoffSlaView, inferHandoffSlaStep, resolveHandoffSlaRecipientIds, slaNotifyCopy, type HandoffSlaClock } from './handoff-sla.util';
-import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
+import { currentSolutionWorkSettings } from './team-sla-solution-settings';
 
 /** Rows per keyset page. */
 export const HANDOFF_SLA_SCAN_BATCH = 200;
@@ -217,7 +217,7 @@ export class HandoffSlaAlertService {
 
   async tick(now = new Date()): Promise<HandoffSlaTickResult> {
     await this.ensureTable();
-    const workSettings = loadMarketingSolutionWorkSettings();
+    const workSettings = currentSolutionWorkSettings();
     const [amDeskStaffIds, ceoDeskStaffIds, superAdminStaffIds] = await Promise.all([
       this.amDeskStaffIds(),
       this.ceoDeskStaffIds(),
@@ -252,7 +252,7 @@ export class HandoffSlaAlertService {
   private async processRow(
     row: Record<string, unknown>,
     now: Date,
-    workSettings: ReturnType<typeof loadMarketingSolutionWorkSettings>,
+    workSettings: ReturnType<typeof currentSolutionWorkSettings>,
     desks: { amDeskStaffIds: number[]; ceoDeskStaffIds: number[]; superAdminStaffIds: number[] },
     result: HandoffSlaTickResult,
   ): Promise<void> {

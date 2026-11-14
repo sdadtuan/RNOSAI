@@ -1,6 +1,13 @@
 /** Solutions SLA from giai đoạn 3. Quote accept / finish timers stay in quote-case.util. */
 
-import { addBusinessHours, ictParts, nextWorkingDayAt } from './business-hours.util';
+import {
+  addBusinessHours,
+  businessCalendar,
+  ictParts,
+  isWorkingDay,
+  nextWorkingDayAt,
+  type BusinessCalendar,
+} from './business-hours.util';
 
 export const SOLUTION_ACCEPT_MINUTES = 15;
 export const SOLUTION_WORK_HOURS = 4;
@@ -10,6 +17,8 @@ export type SolutionWorkDueSettings = {
   beforeCutoffHours?: number;
   afterCutoffTime?: string;
   workStartTime?: string;
+  /** "Hạn sửa Solutions (giờ)" (business hours). */
+  revisionHours?: number;
 };
 
 export const DEFAULT_SOLUTION_WORK_SETTINGS = {
@@ -86,16 +95,24 @@ export interface SolutionCaseView {
   sla_note: string;
 }
 
-/** Before 15:30: add configured business hours (clock starts at work start if earlier). After 15:30 or weekend: next working day at 11:00. */
-export function solutionWorkDueAt(receivedAt: Date, rawSettings?: SolutionWorkDueSettings): Date {
+/**
+ * Before the cut-off (Mốc cắt, default 15:30): add the configured business hours (clock starts at the
+ * shift start if earlier). After the cut-off, or on a day off / holiday: next working day at the
+ * after-cut-off time (default 11:00). Calendar: the Marketing team's from the SLA config.
+ */
+export function solutionWorkDueAt(
+  receivedAt: Date,
+  rawSettings?: SolutionWorkDueSettings,
+  cal: BusinessCalendar = businessCalendar('marketing'),
+): Date {
   const settings = resolveSolutionWorkDueSettings(rawSettings);
   const parts = ictParts(receivedAt);
   const cutoffMin = parseClock(settings.cutoffTime, 15 * 60 + 30);
   const afterMin = parseClock(settings.afterCutoffTime, 11 * 60);
-  if (parts.weekday === 0 || parts.weekday === 6 || parts.minutes >= cutoffMin) {
-    return nextWorkingDayAt(parts, afterMin);
+  if (!isWorkingDay(parts, cal) || parts.minutes >= cutoffMin) {
+    return nextWorkingDayAt(parts, afterMin, cal);
   }
-  return addBusinessHours(receivedAt, settings.beforeCutoffHours);
+  return addBusinessHours(receivedAt, settings.beforeCutoffHours, cal);
 }
 
 function parseTime(raw: string): number | null {

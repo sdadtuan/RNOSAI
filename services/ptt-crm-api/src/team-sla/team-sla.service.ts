@@ -8,6 +8,7 @@ import {
 } from './team-sla-clocks.util';
 import { defaultTeamSlaDocument, normalizeTeamSlaDocument, type TeamSlaDocument } from './team-sla-profiles';
 import { TeamSlaRepository } from './team-sla.repository';
+import { notifyBusinessCalendarSourceChanged } from './business-calendar.util';
 
 const CACHE_MS = 15_000;
 
@@ -56,6 +57,7 @@ export class TeamSlaService {
     const document = normalizeTeamSlaDocument(raw);
     const row = await this.repo.save(document, actor);
     this.cache = { at: Date.now(), document: row.document };
+    notifyBusinessCalendarSourceChanged();
     return {
       document: row.document,
       updated_by: row.updated_by,
@@ -92,6 +94,8 @@ export class TeamSlaService {
           : Number(clocks.solution_before_cutoff_hours),
       afterCutoffTime: clocks.solution_after_cutoff_time || undefined,
       workStartTime: marketing.calendar?.start || undefined,
+      revisionHours:
+        clocks.revision_hours != null && Number(clocks.revision_hours) > 0 ? Number(clocks.revision_hours) : undefined,
     };
   }
 }

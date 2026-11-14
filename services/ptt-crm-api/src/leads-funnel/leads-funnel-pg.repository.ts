@@ -88,7 +88,7 @@ import {
   type QuoteLateEvent,
   type QuoteLateTimer,
 } from './quote-case.util';
-import { acceptDueAt, addBusinessHours } from './business-hours.util';
+import { acceptDueAt, addBusinessHours, businessCalendar } from './business-hours.util';
 import {
   buildHandoffSlaView,
   briefSubmitDueAt,
@@ -105,7 +105,7 @@ import {
   buildSolutionCaseView,
   solutionWorkDueAt,
 } from './solution-case.util';
-import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
+import { currentSolutionWorkSettings, solutionRevisionHours } from './team-sla-solution-settings';
 import { pickSolutionAssignee } from './solution-assignee-access.util';
 import {
   decideSolutionAssignee,
@@ -2291,7 +2291,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       (assignedAm > 0 || (await this.staffIsEligibleSolutionOwner(lastOwner)));
 
     if (autoReclaim && lastOwner && assignedAm <= 0) {
-      const due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
+      const due = solutionWorkDueAt(new Date(), currentSolutionWorkSettings());
       const updated = await this.db.query(
         `UPDATE crm_lead_presales
          SET stage = 'consult',
@@ -2329,7 +2329,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
     }
 
-    const workDue = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
+    const workDue = solutionWorkDueAt(new Date(), currentSolutionWorkSettings());
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET stage = 'consult',
@@ -2549,7 +2549,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         throw new Error('Chỉ AM được giao case cho Marketing Leader.');
       }
     }
-    let due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
+    let due = solutionWorkDueAt(new Date(), currentSolutionWorkSettings());
     if (opts?.dueAt) {
       const raw = String(opts.dueAt).trim();
       const parsed = raw.length <= 10 ? new Date(`${raw}T17:00:00+07:00`) : new Date(raw);
@@ -2656,6 +2656,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           Number.isFinite(Number(opts.missingInfoHours)) && Number(opts.missingInfoHours) >= 0
             ? Number(opts.missingInfoHours)
             : 1,
+          businessCalendar('sale_service'),
         ).toISOString(),
       ],
     );
@@ -2795,14 +2796,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            solution_due_at = $3::timestamptz,
            solution_customer_due_at = NULL
        WHERE id = $1`,
-      [snap.presales.id, text, revisionDueAt(new Date()).toISOString()],
+      [snap.presales.id, text, revisionDueAt(new Date(), solutionRevisionHours()).toISOString()],
     );
     const status = await this.currentLeadStatus(leadId);
     await this.noteLeadStep(
       leadId,
       staffId,
       status,
-      `Sale yêu cầu chỉnh Solutions: ${text}. Hạn trả lại ${SOLUTION_REVISION_HOURS} giờ làm việc.`,
+      `Sale yêu cầu chỉnh Solutions: ${text}. Hạn trả lại ${solutionRevisionHours()} giờ làm việc.`,
     );
   }
 

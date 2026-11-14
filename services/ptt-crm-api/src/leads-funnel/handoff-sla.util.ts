@@ -1,11 +1,14 @@
 /**
  * Canonical 7-step handoff SLA (Tú approved 14/11/2026).
- * Calendar: Mon–Fri 08:30–18:30 Asia/Saigon.
+ * Calendar: from the Admin "Lead First Response SLA" config (Sales clocks use Sale dịch vụ,
+ * Solution clocks use Marketing); T2–T6 08:30–18:30 Asia/Saigon when the config is missing.
  */
 import {
   acceptDueAt,
   addBusinessDays,
   addBusinessHours,
+  businessCalendar,
+  type BusinessCalendar,
   ictParts,
   isWeekend,
   nextWorkingDayAt,
@@ -183,43 +186,55 @@ function parseDate(raw: Date | string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function suggestedSolutionDueAt(now = new Date(), rawSettings?: SolutionWorkDueSettings): Date {
-  return solutionWorkDueAt(now, rawSettings);
+export function suggestedSolutionDueAt(
+  now = new Date(),
+  rawSettings?: SolutionWorkDueSettings,
+  cal: BusinessCalendar = businessCalendar('marketing'),
+): Date {
+  return solutionWorkDueAt(now, rawSettings, cal);
 }
 
-export function briefSubmitDueAt(startedAt: Date): Date {
-  return addBusinessDays(startedAt, HANDOFF_SLA_POLICY.briefBusinessDays);
+export function briefSubmitDueAt(startedAt: Date, cal: BusinessCalendar = businessCalendar('sale_service')): Date {
+  return addBusinessDays(startedAt, HANDOFF_SLA_POLICY.briefBusinessDays, cal);
 }
 
-export function negotiateDueAt(approvedAt: Date): Date {
-  return addBusinessDays(approvedAt, HANDOFF_SLA_POLICY.negotiateBusinessDays);
+export function negotiateDueAt(approvedAt: Date, cal: BusinessCalendar = businessCalendar('sale_service')): Date {
+  return addBusinessDays(approvedAt, HANDOFF_SLA_POLICY.negotiateBusinessDays, cal);
 }
 
-export function contractDueAt(approvedAt: Date): Date {
-  return addBusinessDays(approvedAt, HANDOFF_SLA_POLICY.contractBusinessDays);
+export function contractDueAt(approvedAt: Date, cal: BusinessCalendar = businessCalendar('sale_service')): Date {
+  return addBusinessDays(approvedAt, HANDOFF_SLA_POLICY.contractBusinessDays, cal);
 }
 
-/** Customer response: 8 business hours (Mon–Fri 08:30–18:30 Asia/Saigon) after the Solution is released. */
-export function customerResponseDueAt(releasedAt: Date): Date {
-  return addBusinessHours(releasedAt, HANDOFF_SLA_POLICY.customerResponseHours);
+/** Customer response: 8 business hours (Sale dịch vụ calendar) after the Solution is released. */
+export function customerResponseDueAt(
+  releasedAt: Date,
+  cal: BusinessCalendar = businessCalendar('sale_service'),
+): Date {
+  return addBusinessHours(releasedAt, HANDOFF_SLA_POLICY.customerResponseHours, cal);
 }
 
-/** Solution revision: 2 business hours after Sales asks for edits. */
-export function revisionDueAt(from: Date): Date {
-  return addBusinessHours(from, HANDOFF_SLA_POLICY.revisionHours);
+/** Solution revision: "Hạn sửa Solutions (giờ)" (default 2) business hours after Sales asks for edits. */
+export function revisionDueAt(
+  from: Date,
+  hours: number = HANDOFF_SLA_POLICY.revisionHours,
+  cal: BusinessCalendar = businessCalendar('marketing'),
+): Date {
+  const h = Number(hours);
+  return addBusinessHours(from, Number.isFinite(h) && h > 0 ? h : HANDOFF_SLA_POLICY.revisionHours, cal);
 }
 
-/** CEO quote approval: 24 business hours after the AM submits the quote. */
-export function ceoApproveDueAt(submittedAt: Date): Date {
-  return addBusinessHours(submittedAt, HANDOFF_SLA_POLICY.ceoApproveHours);
+/** CEO quote approval: 24 business hours (system calendar) after the AM submits the quote. */
+export function ceoApproveDueAt(submittedAt: Date, cal: BusinessCalendar = businessCalendar()): Date {
+  return addBusinessHours(submittedAt, HANDOFF_SLA_POLICY.ceoApproveHours, cal);
 }
 
-export function salesAcceptDueAt(assignedAt: Date): Date {
-  return acceptDueAt(assignedAt, HANDOFF_SLA_POLICY.salesAcceptMinutes);
+export function salesAcceptDueAt(assignedAt: Date, cal: BusinessCalendar = businessCalendar('sale_service')): Date {
+  return acceptDueAt(assignedAt, HANDOFF_SLA_POLICY.salesAcceptMinutes, cal);
 }
 
-export function firstUpdateDueAt(claimedAt: Date): Date {
-  return addBusinessHours(claimedAt, HANDOFF_SLA_POLICY.firstUpdateHours);
+export function firstUpdateDueAt(claimedAt: Date, cal: BusinessCalendar = businessCalendar('sale_service')): Date {
+  return addBusinessHours(claimedAt, HANDOFF_SLA_POLICY.firstUpdateHours, cal);
 }
 
 export interface HandoffSlaSource {

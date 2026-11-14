@@ -14,6 +14,7 @@ import {
   type LeadSlaRevisionRow,
   type LeadSlaSettingsRow,
 } from './lead-sla-settings.repository';
+import { notifyBusinessCalendarSourceChanged } from '../team-sla/business-calendar.util';
 import {
   assertCanEnableReassign,
   assertPublishNote,
@@ -153,6 +154,8 @@ export class LeadSlaSettingsService {
       actor,
       action,
     );
+    // Working hours / holidays drive every business-hours clock: reload them now.
+    notifyBusinessCalendarSourceChanged();
     const pool = await this.repo.listPoolStaff();
     return {
       ...this.toResponse(row, pool, { canEdit: true, canPublish: true }),

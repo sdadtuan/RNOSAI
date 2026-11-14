@@ -4,12 +4,13 @@ import { LeadSlaSettingsModule } from '../lead-sla-settings/lead-sla-settings.mo
 import { TeamSlaController, TeamSlaPublicController } from './team-sla.controller';
 import { TeamSlaRepository } from './team-sla.repository';
 import { TeamSlaService } from './team-sla.service';
+import { BusinessCalendarService } from './business-calendar.service';
 
 @Global()
 @Module({
   imports: [StaffAuthModule, LeadSlaSettingsModule],
   controllers: [TeamSlaController, TeamSlaPublicController],
-  providers: [TeamSlaRepository, TeamSlaService],
-  exports: [TeamSlaService],
+  providers: [TeamSlaRepository, TeamSlaService, BusinessCalendarService],
+  exports: [TeamSlaService, BusinessCalendarService],
 })
 export class TeamSlaModule {}
