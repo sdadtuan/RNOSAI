@@ -541,6 +541,19 @@ export default function CrmLeadDetailPage() {
     window.setTimeout(hold, 0);
   }, []);
 
+  useEffect(() => {
+    function openCallHistory() {
+      userPickedWorkspaceTab.current = true;
+      setMobileTab('history');
+      selectWorkspaceTab('history');
+      window.setTimeout(() => {
+        document.getElementById('lead-call-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 280);
+    }
+    window.addEventListener('sld:open-call-history', openCallHistory);
+    return () => window.removeEventListener('sld:open-call-history', openCallHistory);
+  }, [selectWorkspaceTab]);
+
   const openConsultTab = useCallback(() => {
     userPickedWorkspaceTab.current = true;
     setB2bPane('consult');

@@ -508,6 +508,15 @@ function filled(value: unknown): boolean {
   return String(value ?? '').trim().length > 0;
 }
 
+export type SalesDeskSideMode = 'notes' | 'brief' | 'stage';
+
+/** Right-rail contents on the Sales desk, keyed off the 7-step flow. */
+export function salesDeskSideMode(currentKey: string, returned = false): SalesDeskSideMode {
+  if (returned || currentKey === 'sales_brief') return 'brief';
+  if (currentKey === 'receive_lead' || !currentKey) return 'notes';
+  return 'stage';
+}
+
 export function amDeskChecklist(
   brief: DiscoveryChecklistSource | null | undefined,
   opts?: { legacyReady?: boolean },
@@ -516,6 +525,8 @@ export function amDeskChecklist(
   allOk: boolean;
   /** Company+contact+need exist so AM may still giao a handed-off legacy lead. Not a 5th-item tick. */
   legacyAssignable: boolean;
+  done: number;
+  total: number;
 } {
   const b = brief ?? {};
   const items: AmDeskChecklistItem[] = [
@@ -556,8 +567,40 @@ export function amDeskChecklist(
   // Item 5 must mirror the real first-four + contact checklist. A handed-off
   // legacy lead does not get a false tick when goal/budget are missing.
   items[4] = { ...items[4], ok: discoveryReady };
-  return { items, allOk: items[4].ok, legacyAssignable: legacyReady };
+  return { items, allOk: items[4].ok, legacyAssignable: legacyReady, done: items.filter((item) => item.ok).length, total: items.length };
 }
+
+export const DISCOVERY_CHECKLIST_TARGETS: Record<string, { step: number; testids: string[] }> = {
+  company: { step: 1, testids: ['sd-company', 'sd-industry'] },
+  need: { step: 2, testids: ['sd-service-picker', 'sd-problem'] },
+  goal: { step: 2, testids: ['sd-goal', 'sd-audience'] },
+  budget: { step: 3, testids: ['sd-budget', 'sd-timeline'] },
+  ready: { step: 1, testids: ['sd-contact', 'sd-phone'] },
+};
+
+export function discoveryTargetsForChecklistKey(
+  key: string,
+  items?: AmDeskChecklistItem[],
+  opts?: { preferSubmit?: boolean },
+): { step: number; testids: string[] } {
+  if (opts?.preferSubmit) return { step: 3, testids: ['sd-submit'] };
+  if (key === 'ready' && items?.length) {
+    const firstUnmet = items.find((item) => item.key !== 'ready' && !item.ok);
+    if (firstUnmet) return discoveryTargetsForChecklistKey(firstUnmet.key);
+  }
+  return DISCOVERY_CHECKLIST_TARGETS[key] || { step: 1, testids: ['sales-discovery-wizard', 'sd-embed'] };
+}
+
+export function focusDiscoveryChecklistItem(
+  key: string,
+  items?: AmDeskChecklistItem[],
+  opts?: { preferSubmit?: boolean },
+): void {
+  const target = discoveryTargetsForChecklistKey(key, items, opts);
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('sld:focus-discovery', { detail: target }));
+}
+
 
 /** Format a timestamp in Asia/Saigon for stepper / meta rows. */
 export function formatHandoffStamp(

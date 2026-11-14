@@ -1,11 +1,13 @@
-/** Business-hours clocks in Asia/Ho_Chi_Minh: 08:30-16:00, Monday-Friday only. */
+/** Business-hours clocks in Asia/Saigon (UTC+7): 08:30-18:30, Monday-Friday only. */
 
 export const BUSINESS_WORK_START = '08:30';
-export const BUSINESS_WORK_END = '16:00';
+export const BUSINESS_WORK_END = '18:30';
 export const BUSINESS_TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
+/** Length of one working day (08:30-18:30). */
+export const BUSINESS_DAY_HOURS = 10;
 
 const WORK_START_MIN = 8 * 60 + 30;
-const WORK_END_MIN = 16 * 60;
+const WORK_END_MIN = 18 * 60 + 30;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export type IctParts = {
@@ -51,8 +53,14 @@ export function nextWorkingDayAt(parts: IctParts, clockMinutes: number): Date {
   return ictDate(cursor.year, cursor.month, cursor.day, clockMinutes);
 }
 
-function isWeekend(weekday: number): boolean {
+export function isWeekend(weekday: number): boolean {
   return weekday === 0 || weekday === 6;
+}
+
+export function isInsideBusinessHours(at: Date): boolean {
+  const parts = ictParts(at);
+  if (isWeekend(parts.weekday)) return false;
+  return parts.minutes >= WORK_START_MIN && parts.minutes < WORK_END_MIN;
 }
 
 /** Move a moment to the start of the next (or current) working window. */
@@ -68,8 +76,8 @@ export function startOfBusinessWindow(from: Date): Date {
 }
 
 /**
- * Add working hours that only count 08:30-16:00 on weekdays (ICT).
- * Nights, lunch-after-16:00, and weekends do not consume the budget.
+ * Add working hours that only count 08:30-18:30 on weekdays (Asia/Saigon).
+ * Nights and weekends do not consume the budget.
  */
 export function addBusinessHours(from: Date, hours: number): Date {
   const remainingMinutes = Math.round(Number(hours) * 60);
@@ -102,8 +110,38 @@ export function addBusinessMinutes(from: Date, minutes: number): Date {
   return addBusinessHours(from, Number(minutes) / 60);
 }
 
+/** Add whole business days (each day is 08:30-18:30 = 10 working hours). */
+export function addBusinessDays(from: Date, days: number): Date {
+  return addBusinessHours(from, Number(days) * BUSINESS_DAY_HOURS);
+}
+
 export function parseClockMinutes(raw: string | undefined, fallback: number): number {
   const m = TIME_RE.exec(String(raw ?? '').trim());
   if (!m) return fallback;
   return Number(m[1]) * 60 + Number(m[2]);
+}
+
+/**
+ * 15-minute accept clock: in hours, now + minutes (if that crosses 18:30, due 08:30 next business day).
+ * Off-hours / weekend: due 08:30 next business day (not 08:45).
+ */
+export function acceptDueAt(from: Date, minutes = 15): Date {
+  const parts = ictParts(from);
+  if (!isInsideBusinessHours(from)) {
+    if (!isWeekend(parts.weekday) && parts.minutes < WORK_START_MIN) {
+      return ictDate(parts.year, parts.month, parts.day, WORK_START_MIN);
+    }
+    return nextWorkingDayAt(parts, WORK_START_MIN);
+  }
+  const plus = new Date(from.getTime() + Math.max(0, minutes) * 60 * 1000);
+  const plusParts = ictParts(plus);
+  if (
+    plusParts.year !== parts.year ||
+    plusParts.month !== parts.month ||
+    plusParts.day !== parts.day ||
+    plusParts.minutes > WORK_END_MIN
+  ) {
+    return nextWorkingDayAt(parts, WORK_START_MIN);
+  }
+  return plus;
 }

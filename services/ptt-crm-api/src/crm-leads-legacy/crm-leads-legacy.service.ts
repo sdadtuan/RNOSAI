@@ -19,6 +19,8 @@ import {
   LeadStatusLogRow,
 } from './crm-leads-legacy.types';
 
+import { ACTIVITY_DEDUPE_MINUTES, evaluateDuplicateActivity } from '../lead-fr-sla/lead-call-gap.util';
+
 @Injectable()
 export class CrmLeadsLegacyService {
   constructor(
@@ -48,12 +50,35 @@ export class CrmLeadsLegacyService {
     userId: number | null,
   ): Promise<{ activity: LeadActivityRow }> {
     await this.assertLead(leadId);
+    const content = String(body.content ?? '').trim();
+    if (content) {
+      const recent = await this.pg.findRecentIdenticalActivity(
+        leadId,
+        content,
+        userId,
+        actor,
+        ACTIVITY_DEDUPE_MINUTES,
+      );
+      const dup = evaluateDuplicateActivity({
+        previousAt: recent?.created_at ?? null,
+        now: new Date(),
+        cooldownMinutes: ACTIVITY_DEDUPE_MINUTES,
+      });
+      if (dup.blocked) {
+        throw new BadRequestException({
+          error: dup.message,
+          code: 'activity_duplicate',
+          elapsed_minutes: dup.elapsedMinutes,
+          next_allowed_at: dup.nextAllowedAt?.toISOString() ?? null,
+        });
+      }
+    }
     const activity = await this.pg.createActivity(leadId, body, actor, userId);
     await this.timeline.recordActivityFromLegacy(leadId, activity);
-    const content = String(body.content ?? '');
-    if (content.includes('@')) {
+    const mentionContent = String(body.content ?? '');
+    if (mentionContent.includes('@')) {
       void this.mentions
-        .notifyActivityMentions({ leadId, content, actorEmail: actor })
+        .notifyActivityMentions({ leadId, mentionContent, actorEmail: actor })
         .catch(() => undefined);
     }
     return { activity };

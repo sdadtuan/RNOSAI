@@ -24,6 +24,8 @@ import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketin
 import { StaffConsultAiGenerateGuard } from './guards/staff-consult-ai.guard';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
+import { HandoffSlaAlertService } from './handoff-sla-alert.service';
+import { HandoffSlaAlertWorker } from './handoff-sla-alert.worker';
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { StaffNotificationsModule } from '../staff-notifications/staff-notificat
     StaffPresalesSolutionReleaseGuard,
     StaffPresalesSolutionQueueGuard,
     StaffConsultAiGenerateGuard,
+    HandoffSlaAlertService,
+    HandoffSlaAlertWorker,
   ],
   exports: [LeadsFunnelService, LeadsFunnelPgRepository, LeadNotInReviewQueueGuard],
 })

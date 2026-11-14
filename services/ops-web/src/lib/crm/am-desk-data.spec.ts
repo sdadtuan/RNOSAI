@@ -3,6 +3,8 @@ import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
   firstFilled,
+  hrefForMailto,
+  hrefForTel,
   hrefForUrl,
   humanizeSource,
   isFilled,
@@ -111,6 +113,13 @@ describe('am-desk-data', () => {
     expect(hrefForUrl(view.fanpage)).toMatch(/^https?:\/\//);
   });
 
+
+  it('builds tel and mailto hrefs', () => {
+    expect(hrefForTel('0909 616 161')).toBe('tel:0909616161');
+    expect(hrefForMailto('qa@example.com')).toBe('mailto:qa@example.com');
+    expect(hrefForTel('—')).toBeUndefined();
+    expect(hrefForMailto('not-an-email')).toBeUndefined();
+  });
   it('humanizes known lead sources', () => {
     expect(humanizeSource('tiktok')).toBe('TikTok');
     expect(humanizeSource('manual')).toBe('Nhập tay');

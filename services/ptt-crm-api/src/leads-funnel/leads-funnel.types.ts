@@ -242,6 +242,10 @@ export interface PresalesRow {
   implementation_accept_due_at: string;
   implementation_claimed_at: string;
   missing_info_due_at: string;
+  brief_entered_at?: string;
+  brief_due_at?: string;
+  negotiate_due_at?: string;
+  contract_due_at?: string;
 }
 
 export interface ImplementationQueueRow {
@@ -281,6 +285,7 @@ export interface PresalesSnapshot {
   implementation_handoff: ImplementationHandoffView | null;
   l2_docs: PresalesL2DocsView;
   consult_proposal_sla: PresalesConsultProposalSla;
+  handoff_sla?: import('./handoff-sla.util').HandoffSlaView;
   tasks: Record<string, PresalesTaskRow[]>;
   progress: Record<string, { total: number; done: number }>;
   advance: {

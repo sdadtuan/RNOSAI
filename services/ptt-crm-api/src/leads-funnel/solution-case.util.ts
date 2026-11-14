@@ -1,6 +1,6 @@
 /** Solutions SLA from giai đoạn 3. Quote accept / finish timers stay in quote-case.util. */
 
-import { addBusinessHours } from './business-hours.util';
+import { addBusinessHours, ictParts, nextWorkingDayAt } from './business-hours.util';
 
 export const SOLUTION_ACCEPT_MINUTES = 15;
 export const SOLUTION_WORK_HOURS = 4;
@@ -21,7 +21,6 @@ export const DEFAULT_SOLUTION_WORK_SETTINGS = {
 export const SOLUTION_REVISION_HOURS = 2;
 export const SOLUTION_CUSTOMER_HOURS = 8;
 
-const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function parseClock(raw: string | undefined, fallback: number): number {
@@ -87,53 +86,15 @@ export interface SolutionCaseView {
   sla_note: string;
 }
 
-interface IctParts {
-  year: number;
-  month: number;
-  day: number;
-  weekday: number;
-  minutes: number;
-}
-
-function ictParts(date: Date): IctParts {
-  const shifted = new Date(date.getTime() + ICT_OFFSET_MS);
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth(),
-    day: shifted.getUTCDate(),
-    weekday: shifted.getUTCDay(),
-    minutes: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
-  };
-}
-
-function ictDate(year: number, month: number, day: number, minutes: number): Date {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return new Date(Date.UTC(year, month, day, hours, mins) - ICT_OFFSET_MS);
-}
-
-function addCalendarDays(parts: IctParts, days: number): Pick<IctParts, 'year' | 'month' | 'day'> {
-  const next = new Date(Date.UTC(parts.year, parts.month, parts.day + days));
-  return { year: next.getUTCFullYear(), month: next.getUTCMonth(), day: next.getUTCDate() };
-}
-
-function nextWorkingDayAt(parts: IctParts, clockMinutes: number): Date {
-  let cursor = addCalendarDays(parts, 1);
-  let weekday = new Date(Date.UTC(cursor.year, cursor.month, cursor.day)).getUTCDay();
-  while (weekday === 0 || weekday === 6) {
-    cursor = addCalendarDays(
-      { year: cursor.year, month: cursor.month, day: cursor.day, weekday, minutes: 0 },
-      1,
-    );
-    weekday = new Date(Date.UTC(cursor.year, cursor.month, cursor.day)).getUTCDay();
-  }
-  return ictDate(cursor.year, cursor.month, cursor.day, clockMinutes);
-}
-
-/** Before cutoff: add configured hours (clock starts at work start if earlier). After cutoff T2–T6 or weekend: next working day at the after-cutoff time. */
-/** 4 working hours (08:30-16:00 weekdays) from the moment the case is received. */
+/** Before 15:30: add configured business hours (clock starts at work start if earlier). After 15:30 or weekend: next working day at 11:00. */
 export function solutionWorkDueAt(receivedAt: Date, rawSettings?: SolutionWorkDueSettings): Date {
   const settings = resolveSolutionWorkDueSettings(rawSettings);
+  const parts = ictParts(receivedAt);
+  const cutoffMin = parseClock(settings.cutoffTime, 15 * 60 + 30);
+  const afterMin = parseClock(settings.afterCutoffTime, 11 * 60);
+  if (parts.weekday === 0 || parts.weekday === 6 || parts.minutes >= cutoffMin) {
+    return nextWorkingDayAt(parts, afterMin);
+  }
   return addBusinessHours(receivedAt, settings.beforeCutoffHours);
 }
 

@@ -85,8 +85,8 @@ function blankMarketing(): MarketingTeamClocks {
 function saleServiceClocks(): SaleTeamClocks {
   return {
     claim_in_hours_minutes: 15,
-    claim_after_hours_time: '09:00',
-    update_after_claim_hours: 2,
+    claim_after_hours_time: '08:30',
+    update_after_claim_hours: 1,
     reassign_after_claim_hours: 2,
     retry_gap_hours: 2,
     max_calls_per_day: 3,
@@ -101,7 +101,7 @@ function saleServiceClocks(): SaleTeamClocks {
 function marketingClocks(): MarketingTeamClocks {
   return {
     claim_in_hours_minutes: 15,
-    claim_after_hours_time: '09:00',
+    claim_after_hours_time: '08:30',
     claim_weekend_time: '09:00',
     solution_cutoff_time: '15:30',
     solution_before_cutoff_hours: 4,

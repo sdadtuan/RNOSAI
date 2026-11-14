@@ -46,6 +46,21 @@ export function hrefForUrl(url: string): string | undefined {
   return undefined;
 }
 
+export function hrefForTel(phone?: string | null): string | undefined {
+  const text = String(phone ?? '').trim();
+  if (!text || text === '—') return undefined;
+  const digits = text.replace(/[^\d+]/g, '');
+  if (digits.replace(/\+/g, '').length < 8) return undefined;
+  return `tel:${digits}`;
+}
+
+export function hrefForMailto(email?: string | null): string | undefined {
+  const text = String(email ?? '').trim();
+  if (!text || text === '—') return undefined;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return undefined;
+  return `mailto:${text}`;
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   tiktok: 'TikTok',
   facebook: 'Facebook',

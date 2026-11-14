@@ -58,53 +58,12 @@ export function buildPresalesConsultProposalSla(input: {
     hours_elapsed: null,
     hours_remaining: null,
     minutes_remaining: null,
-    message: 'SLA Consult → Báo giá áp dụng khi đang ở giai đoạn Tư vấn.',
-    reminder_cta: 'Tạo nhắc SLA Consult → Báo giá',
+    message: 'Đã bỏ SLA Consult → Báo giá 48 giờ. Hạn Submit to AM là 1 ngày làm việc (08:30–18:30 T2–T6).',
+    reminder_cta: '',
   };
 
-  if (String(input.presalesStage ?? '').trim() !== 'consult') {
-    return base;
-  }
-
-  const startedAt = resolveConsultStartedAt(input);
-  const started = parseTimestamp(startedAt);
-  if (!started) {
-    return {
-      ...base,
-      message: 'Chưa ghi thời điểm vào Consult — SLA 48h bắt đầu khi chuyển → Tư vấn.',
-    };
-  }
-
-  const now = input.now ?? new Date();
-  const deadline = new Date(started.getTime() + CONSULT_PROPOSAL_SLA_HOURS * 3_600_000);
-  const elapsedMs = now.getTime() - started.getTime();
-  const remainingMs = deadline.getTime() - now.getTime();
-  const hoursElapsed = Math.max(0, elapsedMs / 3_600_000);
-  const hoursRemaining = remainingMs / 3_600_000;
-  const minutesRemaining = Math.round(remainingMs / 60_000);
-
-  let slaState: PresalesConsultSlaState = 'ok';
-  let message = `Còn ${formatHoursRemaining(hoursRemaining)} để chuyển → Báo giá (SLA ≤48h sau Consult).`;
-
-  if (hoursRemaining <= 0) {
-    slaState = 'breach';
-    message = `Quá hạn SLA 48h (${formatHoursRemaining(hoursElapsed)} kể từ vào Consult) — chuyển → Báo giá ngay.`;
-  } else if (hoursRemaining <= CONSULT_PROPOSAL_WARN_HOURS_BEFORE) {
-    slaState = 'warning';
-    message = `Sắp hết SLA 48h — còn ${formatHoursRemaining(hoursRemaining)} để chuyển → Báo giá.`;
-  }
-
-  return {
-    tier: 'consult_proposal_48h',
-    sla_state: slaState,
-    started_at: startedAt,
-    deadline_at: deadline.toISOString(),
-    hours_elapsed: Math.round(hoursElapsed * 10) / 10,
-    hours_remaining: Math.round(Math.max(0, hoursRemaining) * 10) / 10,
-    minutes_remaining: minutesRemaining,
-    message,
-    reminder_cta: 'Tạo nhắc SLA Consult → Báo giá',
-  };
+  // Retired: the 48h consult→proposal clock counted Marketing/Solutions time. Always na.
+  return base;
 }
 
 export interface PresalesConsultSlaSummary {

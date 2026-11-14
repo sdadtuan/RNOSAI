@@ -5,6 +5,7 @@ import {
   discoveryClientBriefPatch,
   discoveryConsultFormPatch,
   discoveryProgress,
+  attachServiceScopeChildren,
   groupCatalogServices,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
@@ -137,5 +138,26 @@ describe('sales-discovery.util', () => {
     expect(groups.some((g) => g.services.some((s) => s.slug === 'ai-chatbot-ban-hang'))).toBe(true);
     const other = groups.find((g) => g.key === 'other');
     expect(other?.services.map((s) => s.slug)).toEqual(['mystery-svc']);
+  });
+});
+
+describe('attachServiceScopeChildren', () => {
+  it('attaches Pham vi rows as children and leaves services without rows as leaves', () => {
+    const out = attachServiceScopeChildren(
+      [
+        { slug: 'nhan-dien-thuong-hieu', name: 'He thong nhan dien Thuong hieu' },
+        { slug: 'lead-gen', name: 'Lead generation' },
+      ],
+      [
+        { service_slug: 'nhan-dien-thuong-hieu', scope_id: 11, feature: 'Logo & bien the' },
+        { service_slug: 'nhan-dien-thuong-hieu', scope_id: 17, feature: 'Brand guideline' },
+        { service_slug: 'lead-gen', scope_id: 99, feature: '   ' },
+      ],
+    );
+    expect(out[0].children).toEqual([
+      { slug: 'scope:11', name: 'Logo & bien the' },
+      { slug: 'scope:17', name: 'Brand guideline' },
+    ]);
+    expect(out[1].children).toBeUndefined();
   });
 });

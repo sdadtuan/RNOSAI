@@ -11,6 +11,7 @@ import { isStatusTransitionAllowed } from '../leads/lead-status-gate.util';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
 import { formatLeadCallActivity } from './lead-call-activity.util';
+import { evaluateCallGap, evaluateDuplicateLog } from './lead-call-gap.util';
 import {
   applyCallLogToSnapshot,
   type RecomputeResult,
@@ -130,6 +131,14 @@ export class LeadFrSlaService {
     const fr1Overdue =
       snap.fr1_breached || (fr1Open && fr1DueMs != null && now > fr1DueMs);
     const attempts = await this.repo.listAttempts(leadId, 20);
+    const lastValidPhone = attempts.find(
+      (a) => a.channel === 'phone' && a.counts_toward_sla && !a.warn_call_too_soon,
+    );
+    const phoneGap = evaluateCallGap({
+      lastCallAt: lastValidPhone ? new Date(lastValidPhone.started_at) : null,
+      now: new Date(),
+      minGapWorkingHours: payload.case_1b.min_gap_working_hours,
+    });
     return {
       lead_id: leadId,
       settings_version: payload.settings_version,
@@ -160,6 +169,10 @@ export class LeadFrSlaService {
         .includes(String(snap.pipeline_stage || '').toLowerCase()) ||
         !String(snap.pipeline_stage || '').trim(),
       attempts,
+      min_gap_working_hours: payload.case_1b.min_gap_working_hours,
+      next_call_allowed_at: phoneGap.nextAllowedAt?.toISOString() ?? null,
+      call_gap_blocked: phoneGap.blocked,
+      call_gap_message: phoneGap.message,
     };
   }
 
@@ -201,16 +214,62 @@ export class LeadFrSlaService {
     const config = await this.caseConfig();
     const before = this.rowToSnapshot(row);
 
-    // Gap warn vs last phone attempt
-    let warnTooSoon = false;
-    const lastPhone = (await this.repo.listAttempts(leadId, 5)).find(
-      (a) => a.channel === 'phone' && a.counts_toward_sla,
+    const recentAttempts = await this.repo.listAttempts(leadId, 20);
+    const lastPhone = recentAttempts.find(
+      (a) => a.channel === 'phone' && a.counts_toward_sla && !a.warn_call_too_soon,
     );
-    if (lastPhone && channel === 'phone') {
-      const gapH = config.case_1b.min_gap_working_hours;
-      const elapsedH =
-        (startedAt.getTime() - new Date(lastPhone.started_at).getTime()) / 3600_000;
-      if (elapsedH < gapH) warnTooSoon = true;
+    const gap = evaluateCallGap({
+      lastCallAt: lastPhone ? new Date(lastPhone.started_at) : null,
+      now: startedAt,
+      minGapWorkingHours: config.case_1b.min_gap_working_hours,
+    });
+    if (channel === 'phone' && gap.blocked) {
+      throw new BadRequestException({
+        error: gap.message,
+        code: 'call_too_soon',
+        elapsed_minutes: gap.elapsedMinutes,
+        next_allowed_at: gap.nextAllowedAt?.toISOString() ?? null,
+        min_gap_working_hours: gap.minGapWorkingHours,
+      });
+    }
+    const lastSame = recentAttempts.find((a) => {
+      if (a.channel !== channel || a.call_result !== result) return false;
+      if (body.staff_id != null && a.staff_id != null && Number(a.staff_id) !== Number(body.staff_id)) {
+        return false;
+      }
+      return true;
+    });
+    const dup = evaluateDuplicateLog({
+      previousAt: lastSame ? new Date(lastSame.started_at) : null,
+      now: startedAt,
+    });
+    if (dup.blocked) {
+      throw new BadRequestException({
+        error: dup.message,
+        code: 'call_duplicate',
+        elapsed_minutes: dup.elapsedMinutes,
+        next_allowed_at: dup.nextAllowedAt?.toISOString() ?? null,
+      });
+    }
+    const lastAny = recentAttempts[0] ? new Date(recentAttempts[0].started_at) : null;
+    const burst = evaluateDuplicateLog({ previousAt: lastAny, now: startedAt });
+    if (burst.blocked) {
+      const elapsedLabel =
+        burst.elapsedMinutes == null || burst.elapsedMinutes < 1
+          ? 'dưới 1 phút'
+          : `${burst.elapsedMinutes} phút`;
+      const clock = new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Saigon',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(burst.nextAllowedAt ?? startedAt);
+      throw new BadRequestException({
+        error: `Bạn vừa ghi một liên hệ (cách ${elapsedLabel}) — chưa ghi thêm. Thử lại sau ${clock}.`,
+        code: 'call_burst',
+        elapsed_minutes: burst.elapsedMinutes,
+        next_allowed_at: burst.nextAllowedAt?.toISOString() ?? null,
+      });
     }
 
     const recomputed = applyCallLogToSnapshot(
@@ -227,7 +286,7 @@ export class LeadFrSlaService {
       config,
     );
 
-    const attemptNo = recomputed.snapshot.call_attempt_count || before.call_attempt_count + 1;
+    const attemptNo = await this.repo.nextAttemptNo(leadId);
     const attempt = await this.repo.insertAttempt({
       leadId,
       attemptNo,
@@ -240,7 +299,7 @@ export class LeadFrSlaService {
       durationSec: body.duration_sec != null ? Number(body.duration_sec) : null,
       countsTowardSla: recomputed.counts_toward_sla,
       countsTowardFr1: recomputed.counts_toward_fr1,
-      warnCallTooSoon: warnTooSoon || recomputed.warn_call_too_soon,
+      warnCallTooSoon: false,
       createdBy: actor,
     });
 
@@ -296,7 +355,7 @@ export class LeadFrSlaService {
       recompute: {
         counts_toward_fr1: recomputed.counts_toward_fr1,
         counts_toward_sla: recomputed.counts_toward_sla,
-        warn_call_too_soon: warnTooSoon || recomputed.warn_call_too_soon,
+        warn_call_too_soon: false,
         sla_frozen: recomputed.sla_frozen,
       },
     };

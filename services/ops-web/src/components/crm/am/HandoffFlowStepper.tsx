@@ -2,16 +2,20 @@
 
 import type { HandoffFlowStepKey, HandoffFlowView } from '@/lib/crm/handoff-flow.util';
 import { formatHandoffStamp } from '@/lib/crm/handoff-flow.util';
+import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import './am-handoff-desk.css';
 
 export function HandoffFlowStepper({
   view,
   onStepClick,
+  sla,
 }: {
   view: HandoffFlowView;
   onStepClick?: (key: HandoffFlowStepKey) => void;
+  sla?: { current?: { key: string; label: string; role?: string; due_at?: string | null; state: 'ok' | 'warning' | 'breach' | 'na'; countdown: string; due_label: string; message?: string } | null } | null;
 }) {
   return (
+    <div className="ahd-stepper-wrap">
     <ol className="ahd-stepper" aria-label="Tiến độ bàn giao" data-testid="handoff-flow-stepper">
       {view.steps.map((step) => (
         <li
@@ -32,6 +36,12 @@ export function HandoffFlowStepper({
         </li>
       ))}
     </ol>
+    {sla?.current ? (
+      <div className="ahd-stepper__sla">
+        <HandoffSlaCountdown clock={sla.current} compact />
+      </div>
+    ) : null}
+    </div>
   );
 }
 

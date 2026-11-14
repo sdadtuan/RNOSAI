@@ -172,7 +172,18 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     };
   }
 
-  async insertAttempt(input: {
+  async nextAttemptNo(leadId: number): Promise<number> {
+    await this.ensureSchema();
+    const result = await this.db.query(
+      `SELECT COALESCE(MAX(attempt_no), 0)::int + 1 AS n
+         FROM crm_lead_call_attempts
+        WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    return Number(result.rows[0]?.n ?? 1);
+  }
+
+    async insertAttempt(input: {
     leadId: number;
     attemptNo: number;
     staffId: number | null;

@@ -1662,6 +1662,10 @@ export type LeadFrSlaState = {
   eligible: boolean;
   reassign_enabled: boolean;
   attempts: LeadFrCallAttempt[];
+  min_gap_working_hours?: number;
+  next_call_allowed_at?: string | null;
+  call_gap_blocked?: boolean;
+  call_gap_message?: string | null;
 };
 
 export async function fetchLeadFrSla(token: string, leadId: number): Promise<LeadFrSlaState> {
@@ -2088,6 +2092,19 @@ export interface LeadFunnelSnapshot {
       missing_labels: string[];
     };
     consult_proposal_sla?: PresalesConsultProposalSla;
+    handoff_sla?: {
+      current: {
+        key: string;
+        label: string;
+        role?: string;
+        due_at?: string | null;
+        state: 'ok' | 'warning' | 'breach' | 'na';
+        countdown: string;
+        due_label: string;
+        message?: string;
+      } | null;
+      suggested_solution_due_at?: string;
+    };
     tasks: Record<
       string,
       Array<{
@@ -3651,10 +3668,16 @@ export async function completeIntakeSession(token: string, id: number): Promise<
   });
 }
 
+export type DiscoveryServiceChild = { slug: string; name: string };
+export type DiscoveryServiceItem = {
+  slug: string;
+  name: string;
+  children?: DiscoveryServiceChild[];
+};
 export type DiscoveryServiceGroup = {
   key: string;
   title: string;
-  services: Array<{ slug: string; name: string }>;
+  services: DiscoveryServiceItem[];
 };
 
 export type DiscoveryOptionsPayload = {

@@ -39,11 +39,14 @@ import {
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
   hrefForUrl,
+  hrefForTel,
+  hrefForMailto,
   humanizeSource,
   isFilled,
   type AmDeskClientBriefLike,
@@ -117,7 +120,11 @@ function Field({ icon, label, value, href }: { icon: string; label: string; valu
       <dd>
         <span className="ahd-k">{label}: </span>
         {link ? (
-          <a className="ahd-link" href={link} target="_blank" rel="noreferrer">
+          <a
+            className="ahd-link"
+            href={link}
+            {...(/^https?:/i.test(link) ? { target: '_blank', rel: 'noreferrer' } : {})}
+          >
             {value}
           </a>
         ) : (
@@ -191,9 +198,10 @@ function saigonYmd(iso: string | null | undefined): string {
   }).format(new Date(ms));
 }
 
-function defaultDeadline(): string {
+function defaultDeadline(suggestedIso?: string | null): string {
+  const fromSuggested = saigonYmd(suggestedIso || '');
+  if (fromSuggested) return fromSuggested;
   const d = new Date();
-  d.setDate(d.getDate() + 3);
   return saigonYmd(d.toISOString()) || new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Saigon',
     year: 'numeric',
@@ -295,7 +303,7 @@ export function AmHandoffDesk({
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
   const [tab, setTab] = useState<TabKey>('brief');
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
-  const initialDue = saigonYmd(funnel?.presales?.handoff?.solution_due_at) || defaultDeadline();
+  const initialDue = saigonYmd(funnel?.presales?.handoff?.solution_due_at) || defaultDeadline(funnel?.presales?.handoff_sla?.suggested_solution_due_at);
   const [deadline, setDeadline] = useState(initialDue);
   const [deadlineText, setDeadlineText] = useState(() => isoToViDate(initialDue));
 
@@ -643,7 +651,8 @@ export function AmHandoffDesk({
         </div>
       </header>
 
-      <HandoffFlowStepper view={flow} />
+      <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
+      <HandoffSlaCountdown clock={funnel?.presales?.handoff_sla?.current} />
 
       {error ? <p className="ahd-error" role="alert">{error}</p> : null}
       {notice ? <p className="ahd-ok">{notice}</p> : null}
@@ -687,8 +696,8 @@ export function AmHandoffDesk({
             <FieldList>
               <Field icon={I.person} label="Họ tên" value={contactName} />
               <Field icon={I.brief} label="Chức vụ" value={view.job_title} />
-              <Field icon={I.phone} label="Điện thoại" value={view.phone} />
-              <Field icon={I.mail} label="Email" value={view.email} />
+              <Field icon={I.phone} label="Điện thoại" value={view.phone} href={hrefForTel(view.phone)} />
+              <Field icon={I.mail} label="Email" value={view.email} href={hrefForMailto(view.email)} />
               <Field icon={I.shield} label="Quyền quyết định" value={view.budget_authority ? authorityLabel(view.budget_authority) : ''} />
               <Field icon={I.person} label="Người duyệt ngân sách" value={view.budget_approver} />
             </FieldList>

@@ -24,7 +24,15 @@ const CHANNEL_VI: Record<string, string> = {
 function fmtTs(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString('vi-VN');
+    return new Date(iso).toLocaleString('vi-VN', {
+      timeZone: 'Asia/Saigon',
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour12: false,
+    });
   } catch {
     return iso;
   }
@@ -60,7 +68,7 @@ function AttemptRow({ a }: { a: LeadFrCallAttempt }) {
   );
 }
 
-export function LeadCallHistoryPanel({ token, leadId }: { token: string; leadId: number }) {
+export function LeadCallHistoryPanel({ token, leadId, refreshKey = 0 }: { token: string; leadId: number; refreshKey?: number }) {
   const [sla, setSla] = useState<LeadFrSlaState | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -77,7 +85,7 @@ export function LeadCallHistoryPanel({ token, leadId }: { token: string; leadId:
     } finally {
       setLoading(false);
     }
-  }, [token, leadId]);
+  }, [token, leadId, refreshKey]);
 
   useEffect(() => {
     void reload();
@@ -86,7 +94,7 @@ export function LeadCallHistoryPanel({ token, leadId }: { token: string; leadId:
   const attempts = sla?.attempts ?? [];
 
   return (
-    <section className="lead-panel lead-panel--call-history" data-testid="lead-call-history">
+    <section id="lead-call-history" className="lead-panel lead-panel--call-history" data-testid="lead-call-history">
       <div className="lead-panel__head">
         <h3 className="lead-panel__title">Lịch sử cuộc gọi</h3>
       </div>

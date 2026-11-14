@@ -40,8 +40,11 @@ function FieldLabel({ children, required }: { children: string; required?: boole
 function serviceName(options: DiscoveryOptionsPayload | null, slug: string): string {
   if (!options) return slug;
   for (const group of options.service_groups) {
-    const found = group.services.find((row) => row.slug === slug);
-    if (found) return found.name;
+    for (const row of group.services) {
+      if (row.slug === slug) return row.name;
+      const child = (row.children ?? []).find((item) => item.slug === slug);
+      if (child) return `${row.name} · ${child.name}`;
+    }
   }
   return slug;
 }
@@ -85,6 +88,7 @@ export function SalesDiscoveryWizard({
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [svcOpen, setSvcOpen] = useState<Record<string, boolean>>({});
   const [listOpen, setListOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(true);
   const [message, setMessage] = useState('');
@@ -107,6 +111,28 @@ export function SalesDiscoveryWizard({
     );
     if (session.status !== 'completed') setRevising(false);
   }, [session.id, session.status, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    function onFocus(ev: Event) {
+      const detail = (ev as CustomEvent<{ step?: number; testids?: string[] }>).detail || {};
+      const nextStep = Number(detail.step);
+      if (nextStep >= 1 && nextStep <= 3) setStep(nextStep);
+      const ids = Array.isArray(detail.testids) ? detail.testids : [];
+      window.setTimeout(() => {
+        for (const id of ids) {
+          const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+          if (!el) continue;
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof el.focus === 'function') el.focus();
+          el.classList.add('sd-field--flash');
+          window.setTimeout(() => el.classList.remove('sd-field--flash'), 1600);
+          break;
+        }
+      }, 60);
+    }
+    window.addEventListener('sld:focus-discovery', onFocus as EventListener);
+    return () => window.removeEventListener('sld:focus-discovery', onFocus as EventListener);
+  }, []);
 
   const progress = useMemo(() => discoveryProgress(brief), [brief]);
   const complete = progress.filled === progress.total;
@@ -137,12 +163,19 @@ export function SalesDiscoveryWizard({
     }, 700);
   }
 
+
+  function notifyDeskDiscoveryChanged() {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('sld:discovery-changed'));
+  }
+
   async function persistDraft() {
     if (readOnly) return;
     setSaving(true);
     try {
       const saved = await saveDiscoveryBrief(token, session.id, briefRef.current);
       onSessionChange(saved);
+      notifyDeskDiscoveryChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được bản nháp.');
     } finally {
@@ -156,6 +189,7 @@ export function SalesDiscoveryWizard({
     try {
       const saved = await saveDiscoveryService(token, session.id, selected ? 'remove' : 'add', slug);
       onSessionChange(saved);
+      notifyDeskDiscoveryChanged();
       const next = prefillSalesDiscovery({ session: saved, company_name: lead?.company_name, full_name: lead?.full_name, phone: lead?.phone, email: lead?.email, need: (lead as { need?: string | null } | null | undefined)?.need });
       // Keep other in-progress fields; only take services from server.
       setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }));
@@ -173,6 +207,7 @@ export function SalesDiscoveryWizard({
       if (draftTimer.current) window.clearTimeout(draftTimer.current);
       const out = await submitDiscoveryBrief(token, session.id, briefRef.current);
       if (out.session) onSessionChange(out.session);
+      notifyDeskDiscoveryChanged();
       if (out.ok) {
         setHandoffOk(true);
         setMessage('Đã Submit to AM. Lead đang ở Chờ Solutions.');
@@ -250,6 +285,9 @@ export function SalesDiscoveryWizard({
             <button
               key={item.id}
               type="button"
+              role="tab"
+              data-testid={`sd-step-${item.id}`}
+              aria-selected={step === item.id}
               className={`sd-step${step === item.id ? ' is-active' : ''}${item.id < step ? ' is-done' : ''}`}
               onClick={() => setStep(item.id)}
             >
@@ -387,7 +425,7 @@ export function SalesDiscoveryWizard({
                   {listOpen ? (
                     <div className="sd-svc-panel" data-testid="sd-service-list">
                       {brief.services.length === 0 ? (
-                        <p className="sd-svc-empty">Chưa chọn dịch vụ. Bấm + bên dưới để thêm (lưu ngay).</p>
+                        <p className="sd-svc-empty">Chưa chọn dịch vụ. Chọn hạng mục bên dưới để thêm (lưu ngay).</p>
                       ) : (
                         brief.services.map((slug) => (
                           <div key={slug} className="sd-svc-item">
@@ -406,25 +444,86 @@ export function SalesDiscoveryWizard({
               </div>
               <div className="sd-field" style={{ marginBottom: 14 }}>
                 <FieldLabel required>Dịch vụ khách hàng quan tâm</FieldLabel>
-                <p className="sd-hint">Bấm + để thêm — lưu ngay, không cần nút Save.</p>
+                <p className="sd-hint">Mở dịch vụ để chọn hạng mục — lưu ngay, không cần nút Save.</p>
                 <div className="sd-picker" data-testid="sd-service-picker">
                   {groups.map((group) => (
                     <div key={group.key} className="sd-picker__group">
                       <p className="sd-picker__group-title">{group.title}</p>
                       {group.services.map((svc) => {
-                        const on = brief.services.includes(svc.slug);
+                        const children = svc.children ?? [];
+                        const hasChildren = children.length > 0;
+                        const childOn = children.filter((item) => brief.services.includes(item.slug)).length;
+                        const parentOn = brief.services.includes(svc.slug);
+                        const ticked = hasChildren ? childOn : parentOn ? 1 : 0;
+                        const total = hasChildren ? children.length : 1;
+                        const allOn = hasChildren ? childOn === children.length && (childOn > 0 || parentOn) : parentOn;
+                        const partial = hasChildren && (childOn > 0 || parentOn) && !allOn;
+                        const open = Boolean(svcOpen[svc.slug]);
                         return (
-                          <div key={svc.slug} className="sd-picker__row">
-                            <button
-                              type="button"
-                              className={`sd-plus${on ? ' is-on' : ''}`}
-                              disabled={readOnly}
-                              title={on ? 'Đã thêm — bấm để gỡ' : 'Thêm dịch vụ'}
-                              onClick={() => void onToggleService(svc.slug, on)}
-                            >
-                              {on ? '×' : '+'}
-                            </button>
-                            <span className="sd-picker__name">{svc.name}</span>
+                          <div
+                            key={svc.slug}
+                            className={`sd-acc${allOn ? ' is-all' : partial ? ' is-partial' : ''}${open ? ' is-open' : ''}`}
+                            data-testid={`sd-svc-${svc.slug}`}
+                          >
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                className="sd-acc__head"
+                                aria-expanded={open}
+                                onClick={() => setSvcOpen((prev) => ({ ...prev, [svc.slug]: !prev[svc.slug] }))}
+                              >
+                                <span className={`sd-acc__mark${allOn ? ' is-all' : partial ? ' is-partial' : ''}`} aria-hidden="true" />
+                                <span className="sd-acc__name">{svc.name}</span>
+                                <span className="sd-acc__count" data-testid={`sd-svc-count-${svc.slug}`}>
+                                  {parentOn && childOn === 0 ? 'đã chọn' : `${childOn}/${children.length}`}
+                                </span>
+                                <span className="sd-acc__chev" aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <label className="sd-acc__head sd-acc__head--leaf">
+                                <input
+                                  type="checkbox"
+                                  disabled={readOnly}
+                                  checked={parentOn}
+                                  data-testid={`sd-svc-check-${svc.slug}`}
+                                  onChange={() => void onToggleService(svc.slug, parentOn)}
+                                />
+                                <span className="sd-acc__name">{svc.name}</span>
+                              </label>
+                            )}
+                            {hasChildren && open ? (
+                              <ul className="sd-acc__list">
+                                {children.map((item) => {
+                                  const on = brief.services.includes(item.slug) || (parentOn && childOn === 0);
+                                  return (
+                                    <li key={item.slug}>
+                                      <label className="sd-acc__item">
+                                        <input
+                                          type="checkbox"
+                                          disabled={readOnly}
+                                          checked={on}
+                                          data-testid={`sd-svc-child-${item.slug}`}
+                                          onChange={() => {
+                                            if (parentOn && childOn === 0) {
+                                              void (async () => {
+                                                await onToggleService(svc.slug, true);
+                                                for (const sib of children) {
+                                                  if (sib.slug === item.slug) continue;
+                                                  await onToggleService(sib.slug, false);
+                                                }
+                                              })();
+                                              return;
+                                            }
+                                            void onToggleService(item.slug, brief.services.includes(item.slug));
+                                          }}
+                                        />
+                                        <span>{item.name}</span>
+                                      </label>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -586,9 +685,11 @@ export function SalesDiscoveryWizard({
                 Lưu bản nháp
               </button>
             ) : null}
-            <button type="button" className="btn btn-secondary" onClick={exportJson} data-testid="sd-export">
-              Xuất dữ liệu
-            </button>
+            {!embedded ? (
+              <button type="button" className="btn btn-secondary" onClick={exportJson} data-testid="sd-export">
+                Xuất dữ liệu
+              </button>
+            ) : null}
             {step < 3 ? (
               <button
                 type="button"

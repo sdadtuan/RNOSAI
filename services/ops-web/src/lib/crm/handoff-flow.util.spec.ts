@@ -10,6 +10,7 @@ import {
   leadStatusAfterSolutionRelease,
   resolveHandoffFlow,
   resolveHandoffFlowStep,
+  salesDeskSideMode,
   timestampsForHandoffFlow,
   flowTimesFromFunnel,
   formatHandoffStamp,
@@ -206,6 +207,18 @@ describe('handoff-flow.util', () => {
     expect(text).toMatch(/00:05/);
     expect(text).not.toMatch(/11\/14\/2026/);
     expect(text).not.toMatch(/T17/);
+  });
+
+
+  it('picks Sales desk side contents by flow step', () => {
+    expect(salesDeskSideMode('receive_lead')).toBe('notes');
+    expect(salesDeskSideMode('sales_brief')).toBe('brief');
+    expect(salesDeskSideMode('await_solutions')).toBe('stage');
+    expect(salesDeskSideMode('doing_solutions')).toBe('stage');
+    expect(salesDeskSideMode('await_quote')).toBe('stage');
+    expect(salesDeskSideMode('negotiate')).toBe('stage');
+    expect(salesDeskSideMode('sign_contract')).toBe('stage');
+    expect(salesDeskSideMode('await_solutions', true)).toBe('brief');
   });
 
   it('reads release / quote / contract times from the funnel handoff payload', () => {

@@ -57,7 +57,7 @@ export function LeadPipelineB2Panel({
           <div className="lead-b2-workspace__titles">
             <h3>Liên hệ lần đầu (B2)</h3>
             <p className="lead-b2-workspace__sub">
-              B2 đã xong — hạn nhận 15 phút và hạn cập nhật sau khi nhận đã dừng.
+              B2 đã xong — hạn nhận 15 phút và hạn cập nhật 1 giờ làm việc đã dừng. Ghi cuộc gọi ở bước này đã khóa.
             </p>
           </div>
           <span className="lead-b2-workspace__chip">Đã xong</span>

@@ -145,3 +145,95 @@
 .sld .sd-revise:hover {
   background: #e8f6ee;
 }
+
+
+/* Right rail stays a real third column: notes-only at step 1, checklist+CTA+notes from step 2.
+   Never park the rail under the left column (that leaves a tall gap and clips Ghi chú nội bộ). */
+.sld .ahd-body,
+.sld .ahd-body.ahd-body--notes-only {
+  align-items: start;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 280px);
+}
+.sld .ahd-col--side,
+.sld .ahd-col--side-notes {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* AM desk wraps the side rail full-width at 1180px. On Sales, keep 3 columns through
+   a 1024px window with the sidebar open (~800–900px desk). */
+@container ahd (max-width: 1360px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(200px, 250px);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+@container ahd (max-width: 1180px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(200px, 240px);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+  }
+}
+
+/* Only when the desk is too narrow for three tracks, drop the whole rail below as one row. */
+@container ahd (max-width: 780px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(200px, 240px);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+@media (max-width: 780px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    display: flex;
+    flex-direction: column;
+  }
+}

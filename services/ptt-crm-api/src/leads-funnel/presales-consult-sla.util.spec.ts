@@ -17,7 +17,7 @@ describe('presales-consult-sla.util', () => {
     expect(sla.sla_state).toBe('na');
   });
 
-  it('breaches after 48h in consult', () => {
+  it('keeps the retired 48h consult clock in na even after 48h', () => {
     const started = new Date(now.getTime() - (CONSULT_PROPOSAL_SLA_HOURS + 2) * 3_600_000);
     const sla = buildPresalesConsultProposalSla({
       presalesStage: 'consult',
@@ -25,10 +25,11 @@ describe('presales-consult-sla.util', () => {
       stageEnteredAt: started.toISOString(),
       now,
     });
-    expect(sla.sla_state).toBe('breach');
+    expect(sla.sla_state).toBe('na');
+    expect(sla.message).toMatch(/1 ngày làm việc/);
   });
 
-  it('warns within last 12h', () => {
+  it('does not warn on the retired consult clock', () => {
     const started = new Date(now.getTime() - 40 * 3_600_000);
     const sla = buildPresalesConsultProposalSla({
       presalesStage: 'consult',
@@ -36,7 +37,7 @@ describe('presales-consult-sla.util', () => {
       stageEnteredAt: started.toISOString(),
       now,
     });
-    expect(sla.sla_state).toBe('warning');
+    expect(sla.sla_state).toBe('na');
   });
 
   it('measures 48h compliance for completed handoff', () => {

@@ -538,6 +538,30 @@ export function discoveryClientBriefPatch(brief: SalesDiscoveryBrief): {
   };
 }
 
+
+export type DiscoveryServiceChild = { slug: string; name: string };
+export type DiscoveryCatalogService = { slug: string; name: string; children?: DiscoveryServiceChild[] };
+
+/** Attach Phạm vi (scope) rows from Danh mục dịch vụ as selectable children. */
+export function attachServiceScopeChildren(
+  services: Array<{ slug: string; name: string }>,
+  rows: Array<{ service_slug: string; scope_id: number | string; feature: string }>,
+): DiscoveryCatalogService[] {
+  const byParent = new Map<string, DiscoveryServiceChild[]>();
+  for (const row of rows) {
+    const name = String(row.feature ?? '').trim();
+    if (!name) continue;
+    const slug = `scope:${row.scope_id}`;
+    const list = byParent.get(String(row.service_slug)) ?? [];
+    list.push({ slug, name });
+    byParent.set(String(row.service_slug), list);
+  }
+  return services.map((svc) => {
+    const children = byParent.get(svc.slug) ?? [];
+    return children.length ? { ...svc, children } : { slug: svc.slug, name: svc.name };
+  });
+}
+
 export function groupCatalogServices<T extends { slug: string; name: string }>(
   services: T[],
 ): Array<{ key: string; title: string; services: T[] }> {

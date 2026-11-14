@@ -18,9 +18,9 @@ function source(partial: Partial<SolutionCaseSource> = {}): SolutionCaseSource {
 }
 
 describe('solution work due', () => {
-  it('adds 4 business hours on Monday 15:00 ICT into Tuesday 11:30 ICT', () => {
+  it('adds 4 business hours on Monday 15:00 ICT into Tuesday 09:00 ICT (close 18:30)', () => {
     const due = solutionWorkDueAt(new Date('2026-11-02T08:00:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-03T04:30:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-03T02:00:00.000Z');
   });
 
   it('adds 4 hours inside Monday morning after work start', () => {
@@ -33,32 +33,32 @@ describe('solution work due', () => {
     expect(due.toISOString()).toBe('2026-11-02T05:30:00.000Z');
   });
 
-  it('carries Tuesday 15:45 ICT into Wednesday 12:15 ICT', () => {
+  it('sends Tuesday 15:45 ICT (after 15:30) to Wednesday 11:00 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-04T05:15:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-04T04:00:00.000Z');
   });
 
-  it('carries Friday 15:45 ICT into Monday 12:15 ICT', () => {
+  it('sends Friday 15:45 ICT (after 15:30) to Monday 11:00 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-06T08:45:00.000Z'));
-    expect(due.toISOString()).toBe('2026-11-09T05:15:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-09T04:00:00.000Z');
   });
 
-  it('starts Saturday and Sunday at Monday 08:30 then adds 4 business hours', () => {
+  it('sends Saturday and Sunday to Monday 11:00 ICT', () => {
     expect(solutionWorkDueAt(new Date('2026-11-07T03:00:00.000Z')).toISOString()).toBe(
-      '2026-11-09T05:30:00.000Z',
+      '2026-11-09T04:00:00.000Z',
     );
     expect(solutionWorkDueAt(new Date('2026-11-08T03:00:00.000Z')).toISOString()).toBe(
-      '2026-11-09T05:30:00.000Z',
+      '2026-11-09T04:00:00.000Z',
     );
   });
 
-  it('uses beforeCutoffHours from team settings and ignores the old cutoff clock', () => {
+  it('uses cutoffTime 16:00 so 15:45 still adds 4 business hours into Wednesday 09:45 ICT', () => {
     const due = solutionWorkDueAt(new Date('2026-11-03T08:45:00.000Z'), {
       cutoffTime: '16:00',
       beforeCutoffHours: 4,
       afterCutoffTime: '10:00',
     });
-    expect(due.toISOString()).toBe('2026-11-04T05:15:00.000Z');
+    expect(due.toISOString()).toBe('2026-11-04T02:45:00.000Z');
   });
 });
 

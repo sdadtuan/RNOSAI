@@ -21,6 +21,7 @@ import {
 } from '@/lib/crm/sales-discovery';
 import {
   amDeskChecklist,
+  focusDiscoveryChecklistItem,
   dash,
   formatHandoffStamp,
   resolveHandoffFlow,
@@ -28,10 +29,13 @@ import {
 } from '@/lib/crm/handoff-flow.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
   hrefForUrl,
+  hrefForTel,
+  hrefForMailto,
   humanizeSource,
   isFilled,
   type AmDeskClientBriefLike,
@@ -87,7 +91,11 @@ function Field({ icon, label, value, href }: { icon: string; label: string; valu
       <dd>
         <span className="ahd-k">{label}: </span>
         {link ? (
-          <a className="ahd-link" href={link} target="_blank" rel="noreferrer">
+          <a
+            className="ahd-link"
+            href={link}
+            {...(/^https?:/i.test(link) ? { target: '_blank', rel: 'noreferrer' } : {})}
+          >
             {value}
           </a>
         ) : (
@@ -144,7 +152,7 @@ function salesNextAction(
       cta: 'submit',
     };
   }
-  if (!submitted && (currentKey === 'sales_brief' || currentKey === 'receive_lead' || !currentKey)) {
+  if (!submitted && (currentKey === 'sales_brief' || !currentKey)) {
     return {
       title: 'Hoàn thiện Sales Discovery',
       body: 'Điền hết các trường bắt buộc trong form, rồi bấm Submit to AM để chuyển lead sang Chờ Solutions.',
@@ -195,15 +203,20 @@ function salesNextAction(
   };
 }
 
-function goToDiscoverySubmit() {
-  const submit = document.querySelector<HTMLButtonElement>('[data-testid="sd-submit"]');
-  if (submit) {
-    submit.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if (!submit.disabled) submit.click();
+function goToDiscoverySubmit(checklist: { items: { key: string; ok: boolean }[]; allOk: boolean }) {
+  if (checklist.allOk) {
+    focusDiscoveryChecklistItem('ready', checklist.items, { preferSubmit: true });
+    window.setTimeout(() => {
+      const submit = document.querySelector<HTMLButtonElement>('[data-testid="sd-submit"]');
+      if (submit) {
+        submit.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!submit.disabled) submit.click();
+      }
+    }, 80);
     return;
   }
-  const next = document.querySelector<HTMLButtonElement>('[data-testid="sd-next"]');
-  next?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const first = checklist.items.find((item) => !item.ok);
+  focusDiscoveryChecklistItem(first?.key || 'company', checklist.items);
 }
 
 export function SalesLeadDesk({
@@ -257,6 +270,15 @@ export function SalesLeadDesk({
   useEffect(() => {
     void load().catch(() => undefined);
   }, [load, funnel?.presales?.handoff?.status]);
+
+  useEffect(() => {
+    function onDiscoveryChanged() {
+      void load().catch(() => undefined);
+    }
+    window.addEventListener('sld:discovery-changed', onDiscoveryChanged);
+    return () => window.removeEventListener('sld:discovery-changed', onDiscoveryChanged);
+  }, [load]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -372,7 +394,7 @@ export function SalesLeadDesk({
               type="button"
               className="ahd-btn ahd-btn--primary"
               data-testid="sld-goto-submit"
-              onClick={goToDiscoverySubmit}
+              onClick={() => goToDiscoverySubmit(checklist)}
             >
               <Icon d={I.arrow} size={14} />
               Submit to AM
@@ -381,9 +403,10 @@ export function SalesLeadDesk({
         </div>
       </header>
 
-      <HandoffFlowStepper view={flow} />
+      <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
+      <HandoffSlaCountdown clock={funnel?.presales?.handoff_sla?.current} />
 
-      <div className="ahd-body">
+      <div className="ahd-body ahd-body--notes-only" data-side="notes">
         <div className="ahd-col">
           <section className="ahd-card" data-testid="sld-quick">
             <h3 className="ahd-card__title">
@@ -422,8 +445,8 @@ export function SalesLeadDesk({
             <FieldList>
               <Field icon={I.person} label="Họ tên" value={contactName} />
               <Field icon={I.brief} label="Chức vụ" value={view.job_title} />
-              <Field icon={I.phone} label="Điện thoại" value={view.phone || phone} />
-              <Field icon={I.mail} label="Email" value={view.email} />
+              <Field icon={I.phone} label="Điện thoại" value={view.phone || phone} href={hrefForTel(view.phone || phone)} />
+              <Field icon={I.mail} label="Email" value={view.email} href={hrefForMailto(view.email)} />
               <Field icon={I.shield} label="Quyền quyết định" value={view.budget_authority ? authorityLabel(view.budget_authority) : ''} />
               <Field icon={I.person} label="Người duyệt ngân sách" value={view.budget_approver} />
             </FieldList>
@@ -466,63 +489,7 @@ export function SalesLeadDesk({
 
         <div className="ahd-col ahd-col--main">{children}</div>
 
-        <div className="ahd-col ahd-col--side">
-          <section className="ahd-card" data-testid="sld-checklist">
-            <h3 className="ahd-card__title">
-              <Icon d={I.list} />
-              Checklist trước khi gửi AM
-            </h3>
-            <ul className="ahd-check">
-              {checklist.items.map((item) => (
-                <li key={item.key} className={item.ok ? 'is-ok' : undefined}>
-                  <span className="ahd-check__mark">
-                    {item.ok ? (
-                      <svg viewBox="0 0 16 16" width="10" height="10">
-                        <path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-            {checklist.allOk ? (
-              <div className="ahd-pass-wrap">
-                <span className="ahd-pass" data-testid="sld-pass">
-                  <Icon d={I.check} size={13} />
-                  {submitted ? 'Đã gửi AM' : 'Sẵn sàng Submit to AM'}
-                </span>
-              </div>
-            ) : null}
-            {submitted ? (
-              <p className="ahd-handoff-note" data-testid="sld-handoff-note">
-                Trạng thái bàn giao: {flow.currentLabel}
-                {sentAm ? ` · Đã gửi AM ${sentAm}` : ''}.
-                {!checklist.allOk ? ' Checklist chưa đủ — thiếu mục tiêu hoặc ngân sách (hồ sơ cũ).' : ''}
-              </p>
-            ) : null}
-          </section>
-
-          <section className="ahd-card" data-testid="sld-next">
-            <h3 className="ahd-card__title">
-              <Icon d={I.bolt} />
-              Hành động tiếp theo
-            </h3>
-            <p className="sld-next__title">{next.title}</p>
-            <p className="sld-next__body">{next.body}</p>
-            {next.cta === 'submit' && !submitted ? (
-              <button
-                type="button"
-                className="ahd-btn ahd-btn--primary ahd-btn--block"
-                data-testid="sld-next-submit"
-                onClick={goToDiscoverySubmit}
-              >
-                <Icon d={I.arrow} size={15} />
-                {checklist.allOk ? 'Submit to AM' : 'Đi tới form Discovery'}
-              </button>
-            ) : null}
-          </section>
-
+        <div className="ahd-col ahd-col--side ahd-col--side-notes" data-testid="sld-side" data-side="notes">
           <LeadInternalNotes
             token={token}
             leadId={lead.id}

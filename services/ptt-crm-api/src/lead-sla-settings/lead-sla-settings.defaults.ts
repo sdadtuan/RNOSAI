@@ -66,9 +66,9 @@ export function defaultLeadSlaSettingsPayload(
   return {
     schema_version: LEAD_SLA_SETTINGS_SCHEMA_VERSION,
     timezone: 'Asia/Saigon',
-    working_hours: { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' },
+    working_hours: { days: [1, 2, 3, 4, 5], start: '08:30', end: '18:30' },
     holidays: [],
-    fr1_hours: 2,
+    fr1_hours: 1,
     fr1_channels: ['phone'],
     case_1a: {
       meeting_book_max_working_days: 3,

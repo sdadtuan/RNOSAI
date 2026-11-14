@@ -189,7 +189,39 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     return '';
   }
 
-  async createActivity(
+  async findRecentIdenticalActivity(
+    leadId: number,
+    content: string,
+    userId: number | null,
+    actor: string,
+    withinMinutes: number,
+  ): Promise<{ id: number; created_at: Date } | null> {
+    const text = String(content ?? '').trim();
+    if (!text) return null;
+    const result = await this.db.query(
+      `SELECT id, created_at
+         FROM crm_lead_activities
+        WHERE lead_id = $1
+          AND btrim(content) = $2
+          AND created_at >= NOW() - ($3::int || ' minutes')::interval
+          AND (
+            ($4::int IS NOT NULL AND user_id = $4)
+            OR ($5 <> '' AND created_by = $5)
+            OR ($4::int IS NULL AND $5 = '')
+          )
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+      [leadId, text.slice(0, 8000), Math.max(1, Math.floor(withinMinutes)), userId, actor.slice(0, 120)],
+    );
+    if (!result.rows[0]) return null;
+    const created = result.rows[0].created_at;
+    return {
+      id: Number(result.rows[0].id),
+      created_at: created instanceof Date ? created : new Date(String(created)),
+    };
+  }
+
+    async createActivity(
     leadId: number,
     body: CreateLeadActivityBody,
     actor: string,

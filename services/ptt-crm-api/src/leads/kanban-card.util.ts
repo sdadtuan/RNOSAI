@@ -30,7 +30,7 @@ export function defaultKanbanCardSettings(): KanbanCardSettings {
   return {
     sla_first_contact_minutes: 15,
     sla_warning_remaining_minutes: 5,
-    working_hours: { days: [1, 2, 3, 4, 5, 6, 7], start: '08:00', end: '21:00' },
+    working_hours: { days: [1, 2, 3, 4, 5], start: '08:30', end: '18:30' },
     holidays: [],
     priority: {
       hot_sources: ['meta', 'facebook', 'zalo', 'hotline', 'form', 'google', 'google_ads', 'ads_form'],

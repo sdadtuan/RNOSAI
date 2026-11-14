@@ -22,6 +22,7 @@ import {
   DISCOVERY_JOB_TITLE_FALLBACK,
   DISCOVERY_TEMPERATURE_OPTIONS,
   DISCOVERY_TIMELINE_OPTIONS,
+  attachServiceScopeChildren,
   groupCatalogServices,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
@@ -1026,7 +1027,11 @@ export class IntakePgRepository implements OnModuleDestroy {
     temperatures: typeof DISCOVERY_TEMPERATURE_OPTIONS;
     industries: Array<{ value: string; label: string }>;
     job_titles: Array<{ value: string; label: string }>;
-    service_groups: Array<{ key: string; title: string; services: Array<{ slug: string; name: string }> }>;
+    service_groups: Array<{
+      key: string;
+      title: string;
+      services: Array<{ slug: string; name: string; children?: Array<{ slug: string; name: string }> }>;
+    }>;
   }> {
     const servicesResult = await this.db.query(
       `SELECT slug, name FROM crm_catalog_services
@@ -1037,6 +1042,29 @@ export class IntakePgRepository implements OnModuleDestroy {
       slug: String(row.slug),
       name: String(row.name),
     }));
+    const scopeResult = await this.db.query(
+      `SELECT s.slug AS service_slug,
+              r.id AS scope_id,
+              r.feature,
+              r.sort_order
+         FROM crm_catalog_services s
+         JOIN crm_services cs
+           ON lower(trim(cs.name)) = lower(trim(s.name))
+          AND cs.is_active IS TRUE
+         JOIN crm_service_scope_rows r
+           ON r.service_id = cs.id
+        WHERE s.active IS TRUE
+          AND coalesce(nullif(trim(r.feature), ''), '') <> ''
+        ORDER BY s.slug, r.sort_order NULLS LAST, r.id`,
+    );
+    const scoped = attachServiceScopeChildren(
+      services,
+      (scopeResult.rows as Array<{ service_slug: string; scope_id: number | string; feature: string }>).map((row) => ({
+        service_slug: String(row.service_slug),
+        scope_id: row.scope_id,
+        feature: String(row.feature ?? ''),
+      })),
+    );
     const lookups = await this.db.query(
       `SELECT kind, option_key, label FROM crm_lead_lookup_options
         WHERE active IS TRUE AND kind IN ('industry', 'job_title')
@@ -1062,7 +1090,7 @@ export class IntakePgRepository implements OnModuleDestroy {
       temperatures: DISCOVERY_TEMPERATURE_OPTIONS,
       industries,
       job_titles: jobTitles,
-      service_groups: groupCatalogServices(services),
+      service_groups: groupCatalogServices(scoped),
     };
   }
 

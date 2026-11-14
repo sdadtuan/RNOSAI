@@ -1,7 +1,7 @@
 'use client';
 
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   claimLeadSalesReceipt,
   fetchLeadFrSla,
@@ -101,7 +101,15 @@ function fmtRemain(ms: number | null | undefined): string {
 function fmtTs(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString('vi-VN');
+    return new Date(iso).toLocaleString('vi-VN', {
+      timeZone: 'Asia/Saigon',
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour12: false,
+    });
   } catch {
     return iso;
   }
@@ -156,6 +164,7 @@ export function LeadFrSlaPanel({
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [callResult, setCallResult] = useState('ring_no_answer');
   const [channel, setChannel] = useState('phone');
   const [notes, setNotes] = useState('');
@@ -166,6 +175,7 @@ export function LeadFrSlaPanel({
   const [teamSla, setTeamSla] = useState<TeamSlaDocument | null>(null);
   const [claimedAt, setClaimedAt] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [historyKey, setHistoryKey] = useState(0);
 
   const reload = useCallback(async () => {
     try {
@@ -217,13 +227,49 @@ export function LeadFrSlaPanel({
     [callResult],
   );
 
+
+  const gapBlocked = Boolean(
+    sla?.call_gap_blocked ||
+      (sla?.next_call_allowed_at && now.getTime() < new Date(sla.next_call_allowed_at).getTime()),
+  );
+  const gapMessage = useMemo(() => {
+    const nextIso = sla?.next_call_allowed_at;
+    const lastIso = sla?.last_call_at;
+    if (!nextIso || !lastIso) return sla?.call_gap_message ?? null;
+    const next = new Date(nextIso);
+    if (Number.isNaN(next.getTime()) || now.getTime() >= next.getTime()) return null;
+    const last = new Date(lastIso);
+    const elapsedMinutes = Number.isNaN(last.getTime())
+      ? null
+      : Math.max(0, Math.floor((now.getTime() - last.getTime()) / 60_000));
+    const elapsedLabel =
+      elapsedMinutes == null ? '' : elapsedMinutes < 1 ? 'dưới 1 phút' : `${elapsedMinutes} phút`;
+    const when = next.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Saigon',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      day: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Saigon' }) ===
+        next.toLocaleDateString('en-CA', { timeZone: 'Asia/Saigon' })
+        ? undefined
+        : '2-digit',
+      month:
+        now.toLocaleDateString('en-CA', { timeZone: 'Asia/Saigon' }) ===
+        next.toLocaleDateString('en-CA', { timeZone: 'Asia/Saigon' })
+        ? undefined
+        : '2-digit',
+    });
+    return `Cuộc gọi quá sát lần trước (cách ${elapsedLabel}) — chưa ghi. Gọi lại sau ${when}.`;
+  }, [sla?.next_call_allowed_at, sla?.last_call_at, sla?.call_gap_message, now]);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!canWrite) return;
+    if (!canWrite || inFlight.current || busy || gapBlocked) return;
     if (callResult === 'callback_requested' && !callbackAt) {
       setError('Cần chọn giờ hẹn gọi lại.');
       return;
     }
+    inFlight.current = true;
     setBusy(true);
     setMsg('');
     setError('');
@@ -238,14 +284,15 @@ export function LeadFrSlaPanel({
       });
       setSla(out.sla);
       const bits: string[] = ['Đã ghi nhận cuộc gọi'];
-      if (out.recompute.warn_call_too_soon) bits.push('· khoảng cách giữa 2 lần gọi quá gần');
       if (out.recompute.sla_frozen) bits.push('· SLA tạm đóng băng (giai đoạn ngoài phạm vi)');
       if (!out.recompute.counts_toward_fr1) bits.push('· lần này không tính phản hồi đầu');
       setMsg(bits.join(' '));
       setNotes('');
+      setHistoryKey((n) => n + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ghi nhận cuộc gọi thất bại');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -300,7 +347,7 @@ export function LeadFrSlaPanel({
   }
 
   const claimMinutes = saleProfile?.sale.claim_in_hours_minutes ?? 15;
-  const updateHours = saleProfile?.sale.update_after_claim_hours ?? 2;
+  const updateHours = saleProfile?.sale.update_after_claim_hours ?? 1;
   const clockClosed = leadClock.phase === 'done' || clockCompleted;
   const showClockBadge = true;
   const clockBadgeView = clockClosed
@@ -318,17 +365,19 @@ export function LeadFrSlaPanel({
           {embedded ? null : <h3>Hạn lead mới</h3>}
           {clockClosed ? (
             <p className="lead-fr-sla__sub">
-              Hạn nhận {claimMinutes} phút và hạn cập nhật {updateHours} giờ đã đóng — B2 đã xong.
+              {clockCompleted
+                ? `Hạn nhận ${claimMinutes} phút và hạn cập nhật ${updateHours} giờ làm việc đã đóng — B2 đã xong.`
+                : `Hạn nhận ${claimMinutes} phút và hạn cập nhật ${updateHours} giờ làm việc đã đóng. Vẫn ghi thêm cuộc gọi bên dưới.`}
             </p>
           ) : embedded ? (
             <p className="lead-fr-sla__sub">
-              Lead mới · nhận trong {claimMinutes} phút · sau khi nhận, cập nhật trong {updateHours}{' '}
-              giờ.
+              Lead mới · nhận trong {claimMinutes} phút (trong giờ; ngoài giờ hạn 08:30 ngày làm việc
+              kế). Sau khi nhận, cập nhật trong {updateHours} giờ làm việc (08:30–18:30 T2–T6).
             </p>
           ) : (
             <p className="lead-fr-sla__sub">
-              Nhận lead trong {claimMinutes} phút. Bấm Nhận lead rồi mới tính {updateHours} giờ cập
-              nhật.
+              Nhận lead trong {claimMinutes} phút. Bấm Nhận lead rồi mới tính {updateHours} giờ làm
+              việc cập nhật (08:30–18:30 T2–T6).
             </p>
           )}
         </div>
@@ -360,14 +409,14 @@ export function LeadFrSlaPanel({
       {guideOpen ? (
         <div className="lead-fr-sla__guide" role="note">
           <p>
-            <strong>Lead mới</strong> có hai mốc. Trong ca, bấm{' '}
+            <strong>Lead mới</strong> có hai mốc. Trong ca (08:30–18:30 T2–T6), bấm{' '}
             <strong>Nhận lead</strong> trong <strong>{claimMinutes} phút</strong> kể từ lúc gán.
-            Sau khi nhận, ghi cuộc gọi trong <strong>{updateHours} giờ</strong>.
+            Sau khi nhận, ghi cuộc gọi trong <strong>{updateHours} giờ làm việc</strong>.
           </p>
           <ul>
             <li>
-              Ngoài ca, hạn nhận là giờ trong admin (mặc định 9:00 sáng ngày làm việc kế tiếp). Bấm
-              Nhận lead rồi đồng hồ 1 giờ cập nhật mới chạy.
+              Ngoài ca hoặc cuối ngày (sau 18:30 / T7–CN), hạn nhận là 08:30 ngày làm việc kế tiếp. Bấm
+              Nhận lead rồi đồng hồ 1 giờ làm việc cập nhật mới chạy.
             </li>
             <li>
               Ghi cuộc gọi điện thoại thì đóng hạn cập nhật. Zalo, SMS, email không đóng hạn này.
@@ -387,44 +436,7 @@ export function LeadFrSlaPanel({
       {error ? <p className="error">{error}</p> : null}
       {msg ? <p className="ok">{msg}</p> : null}
 
-      {sla ? (
-        <div className="lead-fr-sla__metrics" role="list">
-          <div role="listitem" title={leadClock.detail}>
-            <span className="lead-fr-sla__metric-label">{leadClock.label}</span>
-            <strong>{leadClock.dueAt ? fmtTs(leadClock.dueAt) : '—'}</strong>
-            <span className="lead-fr-sla__hint">{leadClock.detail}</span>
-          </div>
-          <div
-            role="listitem"
-            title="Thời điểm hệ thống còn giữ lead cho AE trước khi thu hồi / chuyển"
-          >
-            <span className="lead-fr-sla__metric-label">Giữ đến</span>
-            <strong>
-              {sla.hold_until ? fmtTs(sla.hold_until) : 'Chưa có (chưa ghi nhận gọi ĐT)'}
-            </strong>
-          </div>
-          <div role="listitem" title="Trạng thái liên lạc hiện tại của lead">
-            <span className="lead-fr-sla__metric-label">Trạng thái liên lạc</span>
-            <strong>{contactLabel(sla.contact_status)}</strong>
-          </div>
-          <div role="listitem" title="Số lần gọi sau giao / tổng số lần gọi trên lead">
-            <span className="lead-fr-sla__metric-label">Lần gọi</span>
-            <strong>
-              {sla.attempts_since_assign} sau giao · {sla.call_attempt_count} tổng
-            </strong>
-          </div>
-          <div role="listitem" title="Kết quả lần gọi gần nhất">
-            <span className="lead-fr-sla__metric-label">Kết quả gần nhất</span>
-            <strong>{resultLabel(sla.last_call_result)}</strong>
-          </div>
-          <div role="listitem" title="Lý do hệ thống đang giữ / gia hạn lead">
-            <span className="lead-fr-sla__metric-label">Lý do giữ</span>
-            <strong>{holdReasonLabel(sla.hold_reason)}</strong>
-          </div>
-        </div>
-      ) : null}
-
-      {canWrite && !clockClosed ? (
+      {canWrite && !clockCompleted ? (
         <form className="lead-fr-sla__form" onSubmit={(e) => void onSubmit(e)}>
           <div className="lead-fr-sla__form-head">
             <h4>Ghi cuộc gọi — phản hồi đầu</h4>
@@ -492,12 +504,75 @@ export function LeadFrSlaPanel({
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={busy || (callResult === 'callback_requested' && !callbackAt)}
+            data-testid="lead-fr-sla-submit"
+            disabled={busy || gapBlocked || (callResult === 'callback_requested' && !callbackAt)}
           >
             {busy ? 'Đang lưu…' : 'Ghi cuộc gọi — phản hồi đầu'}
           </button>
+          {gapBlocked && gapMessage ? (
+            <p className="lead-fr-sla__gap" data-testid="lead-fr-sla-gap" role="status">
+              {gapMessage}
+            </p>
+          ) : null}
         </form>
       ) : null}
+
+      {sla ? (
+        <div className="lead-fr-sla__metrics" role="list" data-testid="lead-fr-sla-metrics">
+          <div role="listitem" className="lead-fr-sla__metric lead-fr-sla__metric--readonly" title={leadClock.detail}>
+            <span className="lead-fr-sla__metric-label">{leadClock.label}</span>
+            <strong>{leadClock.dueAt ? fmtTs(leadClock.dueAt) : '—'}</strong>
+            <span className="lead-fr-sla__hint">{leadClock.detail}</span>
+          </div>
+          <div
+            role="listitem"
+            className="lead-fr-sla__metric lead-fr-sla__metric--readonly"
+            title="Thời điểm hệ thống còn giữ lead cho AE trước khi thu hồi / chuyển. Chỉ GĐKD được gia hạn."
+          >
+            <span className="lead-fr-sla__metric-label">Giữ đến</span>
+            <strong>
+              {sla.hold_until ? fmtTs(sla.hold_until) : 'Chưa có (chưa ghi nhận gọi ĐT)'}
+            </strong>
+          </div>
+          <div role="listitem" className="lead-fr-sla__metric lead-fr-sla__metric--readonly" title="Trạng thái liên lạc hiện tại của lead">
+            <span className="lead-fr-sla__metric-label">Trạng thái liên lạc</span>
+            <strong>{contactLabel(sla.contact_status)}</strong>
+          </div>
+          <button
+            type="button"
+            role="listitem"
+            className="lead-fr-sla__metric lead-fr-sla__metric--link"
+            title="Xem lịch sử cuộc gọi"
+            onClick={() => {
+              if (typeof window === 'undefined') return;
+              window.dispatchEvent(new CustomEvent('sld:open-call-history'));
+            }}
+          >
+            <span className="lead-fr-sla__metric-label">Lần gọi</span>
+            <strong>
+              {sla.attempts_since_assign} sau giao · {sla.call_attempt_count} tổng
+            </strong>
+          </button>
+          <button
+            type="button"
+            role="listitem"
+            className="lead-fr-sla__metric lead-fr-sla__metric--link"
+            title="Xem lịch sử cuộc gọi"
+            onClick={() => {
+              if (typeof window === 'undefined') return;
+              window.dispatchEvent(new CustomEvent('sld:open-call-history'));
+            }}
+          >
+            <span className="lead-fr-sla__metric-label">Kết quả gần nhất</span>
+            <strong>{resultLabel(sla.last_call_result)}</strong>
+          </button>
+          <div role="listitem" className="lead-fr-sla__metric lead-fr-sla__metric--readonly" title="Lý do hệ thống đang giữ / gia hạn lead">
+            <span className="lead-fr-sla__metric-label">Lý do giữ</span>
+            <strong>{holdReasonLabel(sla.hold_reason)}</strong>
+          </div>
+        </div>
+      ) : null}
+
 
       <style jsx>{`
         .lead-fr-sla {
@@ -602,11 +677,35 @@ export function LeadFrSlaPanel({
           background: #fff;
           border: 1px solid rgba(0, 0, 0, 0.06);
         }
-        .lead-fr-sla__metrics > div {
+        .lead-fr-sla__metrics > div,
+        .lead-fr-sla__metrics > button {
           display: flex;
           flex-direction: column;
           gap: 0.18rem;
           min-width: 0;
+          text-align: left;
+          background: transparent;
+          border: 0;
+          padding: 0;
+          color: inherit;
+          font: inherit;
+          box-shadow: none;
+          cursor: default;
+        }
+        .lead-fr-sla__metric--readonly {
+          pointer-events: none;
+          cursor: default;
+        }
+        .lead-fr-sla__metric--link {
+          pointer-events: auto;
+          cursor: pointer;
+          border-radius: 6px;
+          padding: 0.1rem 0.15rem;
+        }
+        .lead-fr-sla__metric--link:hover,
+        .lead-fr-sla__metric--link:focus-visible {
+          outline: 2px solid rgba(23, 105, 47, 0.28);
+          background: #f3f8f4;
         }
         .lead-fr-sla__metric-label {
           font-size: 0.72rem;

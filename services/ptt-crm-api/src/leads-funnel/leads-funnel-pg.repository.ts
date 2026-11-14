@@ -87,7 +87,13 @@ import {
   type QuoteLateEvent,
   type QuoteLateTimer,
 } from './quote-case.util';
-import { addBusinessHours } from './business-hours.util';
+import { acceptDueAt, addBusinessHours } from './business-hours.util';
+import {
+  buildHandoffSlaView,
+  briefSubmitDueAt,
+  contractDueAt,
+  negotiateDueAt,
+} from './handoff-sla.util';
 import {
   SOLUTION_ACCEPT_MINUTES,
   SOLUTION_CUSTOMER_HOURS,
@@ -225,6 +231,10 @@ type PgPresalesRow = {
   implementation_accept_due_at?: Date | string | null;
   implementation_claimed_at?: Date | string | null;
   missing_info_due_at?: Date | string | null;
+  brief_entered_at?: Date | string | null;
+  brief_due_at?: Date | string | null;
+  negotiate_due_at?: Date | string | null;
+  contract_due_at?: Date | string | null;
   contract_created_at?: Date | string | null;
   contract_signed_at?: Date | string | null;
   contract_amount_vnd?: string | number | null;
@@ -335,6 +345,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         : '',
       implementation_claimed_at: row.implementation_claimed_at ? String(row.implementation_claimed_at) : '',
       missing_info_due_at: row.missing_info_due_at ? String(row.missing_info_due_at) : '',
+      brief_entered_at: row.brief_entered_at ? String(row.brief_entered_at) : '',
+      brief_due_at: row.brief_due_at ? String(row.brief_due_at) : '',
+      negotiate_due_at: row.negotiate_due_at ? String(row.negotiate_due_at) : '',
+      contract_due_at: row.contract_due_at ? String(row.contract_due_at) : '',
     };
   }
 
@@ -370,7 +384,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              ADD COLUMN IF NOT EXISTS implementation_accept_due_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS implementation_claimed_at TIMESTAMPTZ,
              ADD COLUMN IF NOT EXISTS last_solution_owner_staff_id BIGINT,
-             ADD COLUMN IF NOT EXISTS missing_info_due_at TIMESTAMPTZ`,
+             ADD COLUMN IF NOT EXISTS missing_info_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS brief_entered_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS brief_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS negotiate_due_at TIMESTAMPTZ,
+             ADD COLUMN IF NOT EXISTS contract_due_at TIMESTAMPTZ`,
         )
         .then(() => undefined)
         .catch((err) => {
@@ -1183,7 +1201,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const psResult = await this.db.query(`SELECT * FROM crm_lead_presales WHERE lead_id = $1`, [leadId]);
     const psRow = psResult.rows[0] as PgPresalesRow | undefined;
     if (!psRow) return null;
-    const ps = this.mapPresalesRow(psRow);
+    let ps = this.mapPresalesRow(psRow);
+    ps = await this.ensureBriefClock(ps);
 
     const taskResult = await this.db.query(
       `SELECT * FROM crm_lead_presales_tasks
@@ -1333,6 +1352,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         consultEnteredAt: ps.consult_entered_at,
         stageEnteredAt: ps.stage_entered_at,
       }),
+      handoff_sla: await this.buildLeadHandoffSla(ps, now),
       tasks,
       progress,
       advance: {
@@ -1346,6 +1366,93 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         status: ps.status,
       },
     };
+  }
+
+
+  private async loadLeadSlaSource(leadId: number): Promise<{
+    assignedAt: string | null;
+    claimedAt: string | null;
+    firstCallAt: string | null;
+    status: string;
+  }> {
+    const result = await this.db.query(
+      `SELECT l.assigned_at,
+              l.sales_claimed_at,
+              l.status,
+              (SELECT MIN(a.created_at)
+                 FROM crm_lead_activities a
+                WHERE a.lead_id = l.sqlite_lead_id
+                  AND a.activity_type = 'call') AS first_call_at
+         FROM crm_leads l
+        WHERE l.sqlite_lead_id = $1
+        LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0] as
+      | { assigned_at?: Date; sales_claimed_at?: Date; status?: string; first_call_at?: Date }
+      | undefined;
+    return {
+      assignedAt: row?.assigned_at ? String(row.assigned_at) : null,
+      claimedAt: row?.sales_claimed_at ? String(row.sales_claimed_at) : null,
+      firstCallAt: row?.first_call_at ? String(row.first_call_at) : null,
+      status: String(row?.status ?? ''),
+    };
+  }
+
+  private async ensureBriefClock(ps: PresalesRow): Promise<PresalesRow> {
+    if (ps.handed_off_at || ps.brief_due_at) return ps;
+    const lead = await this.loadLeadSlaSource(ps.lead_id);
+    const startRaw = lead.firstCallAt || lead.claimedAt;
+    if (!startRaw) return ps;
+    const start = new Date(startRaw);
+    if (Number.isNaN(start.getTime())) return ps;
+    const due = briefSubmitDueAt(start);
+    await this.db.query(
+      `UPDATE crm_lead_presales
+          SET brief_entered_at = COALESCE(brief_entered_at, $2::timestamptz),
+              brief_due_at = $3::timestamptz,
+              updated_at = NOW()
+        WHERE id = $1
+          AND brief_due_at IS NULL
+          AND handed_off_at IS NULL`,
+      [ps.id, start.toISOString(), due.toISOString()],
+    );
+    return {
+      ...ps,
+      brief_entered_at: ps.brief_entered_at || start.toISOString(),
+      brief_due_at: due.toISOString(),
+    };
+  }
+
+  private async buildLeadHandoffSla(ps: PresalesRow, now: Date) {
+    const lead = await this.loadLeadSlaSource(ps.lead_id);
+    return buildHandoffSlaView(
+      {
+        assignedAt: lead.assignedAt,
+        claimedAt: lead.claimedAt,
+        firstCallAt: lead.firstCallAt,
+        briefEnteredAt: ps.brief_entered_at || null,
+        briefDueAt: ps.brief_due_at || null,
+        handedOffAt: ps.handed_off_at || null,
+        missingInfoDueAt: ps.missing_info_due_at || null,
+        handoffStatus: ps.handoff_status || null,
+        solutionAcceptDueAt: ps.solution_accept_due_at || null,
+        solutionClaimedAt: ps.solution_claimed_at || null,
+        solutionDueAt: ps.solution_due_at || null,
+        solutionRevisionDueAt: ps.solution_revision_due_at || null,
+        solutionReleasedAt: ps.solution_released_at || null,
+        customerDueAt: ps.solution_customer_due_at || null,
+        quoteAcceptDueAt: ps.quote_accept_due_at || null,
+        quoteAcceptedAt: ps.quote_accepted_at || null,
+        quoteDueAt: ps.quote_due_at || null,
+        quoteSentBackAt: ps.quote_sent_back_at || null,
+        quoteApprovedAt: ps.quote_approved_at || null,
+        negotiateDueAt: ps.negotiate_due_at || null,
+        contractDueAt: ps.contract_due_at || null,
+        contractSignedAt: ps.contract_signed_at || null,
+      },
+      now,
+    );
   }
 
   async listIntakeAnswersForLead(leadId: number): Promise<Array<{ answers_json?: unknown }>> {
@@ -2164,7 +2271,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         leadId,
         staffId,
         status,
-        'Case tự động giữ AM phụ trách trước. SLA Solutions 4 giờ làm việc (8:30–16:00).',
+        'Case tự động giữ AM phụ trách trước. SLA Solutions 4 giờ làm việc (08:30–18:30).',
       );
       return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
     }
@@ -2182,7 +2289,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            handed_off_at = NOW(),
            handed_off_by_staff_id = $2,
            solution_owner_staff_id = NULL,
-           solution_accept_due_at = NOW() + ($3::int * INTERVAL '1 minute'),
+           solution_accept_due_at = $3::timestamptz,
            solution_claimed_at = NULL,
            solution_due_at = NULL,
            solution_released_at = NULL,
@@ -2192,7 +2299,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            missing_info_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES],
+      [snap.presales.id, staffId, acceptDueAt(new Date(), Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES).toISOString()],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
@@ -2311,7 +2418,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       status,
       assignee !== staffId
         ? `AM đã giao case Solutions cho Marketing Leader (staff ${assignee}). Hạn ${due.toISOString()}.`
-        : 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 8:30–16:00.',
+        : 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 08:30–18:30.',
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -2370,7 +2477,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            solution_customer_due_at = NULL,
            solution_revision_note = $2,
            solution_revision_due_at = NULL,
-           missing_info_due_at = NOW() + ($4::numeric * INTERVAL '1 hour'),
+           missing_info_due_at = $4::timestamptz,
            notes = TRIM(BOTH FROM COALESCE(notes, '') || E'\n' || $3)
        WHERE id = $1
        RETURNING *`,
@@ -2378,9 +2485,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         snap.presales.id,
         note,
         `AM trả về Sales — bổ sung thông tin Pre Sale: ${note}`,
-        Number.isFinite(Number(opts.missingInfoHours)) && Number(opts.missingInfoHours) >= 0
-          ? Number(opts.missingInfoHours)
-          : 1,
+        addBusinessHours(
+          new Date(),
+          Number.isFinite(Number(opts.missingInfoHours)) && Number(opts.missingInfoHours) >= 0
+            ? Number(opts.missingInfoHours)
+            : 1,
+        ).toISOString(),
       ],
     );
     const mapped = this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
@@ -2722,7 +2832,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
     const accepted = Boolean(ps.quote_accepted_at);
     const note = accepted
-      ? `CEO chuyển case báo giá cho ${target.name}. Hạn nộp ${QUOTE_FINISH_HOURS} giờ làm việc (8:30–16:00).`
+      ? `CEO chuyển case báo giá cho ${target.name}. Hạn nộp ${QUOTE_FINISH_HOURS} giờ làm việc (08:30–18:30).`
       : `CEO chuyển case báo giá cho ${target.name}. Hạn nhận case ${QUOTE_ACCEPT_MINUTES} phút.`;
     const updated = accepted
       ? await this.db.query(
@@ -2742,7 +2852,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       : await this.db.query(
           `UPDATE crm_lead_presales
               SET quote_assignee_staff_id = $2,
-                  quote_accept_due_at = NOW() + ($3::int * INTERVAL '1 minute'),
+                  quote_accept_due_at = $3::timestamptz,
                   quote_ceo_escalated_at = NULL,
                   quote_reassign_note = $4,
                   updated_at = NOW()
@@ -2750,7 +2860,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               AND quote_accepted_at IS NULL
               AND quote_approved_at IS NULL
             RETURNING id`,
-          [ps.id, targetStaffId, QUOTE_ACCEPT_MINUTES, note.slice(0, 500)],
+          [ps.id, targetStaffId, acceptDueAt(new Date(), QUOTE_ACCEPT_MINUTES).toISOString(), note.slice(0, 500)],
         );
     if (!updated.rowCount) throw new Error('Không chuyển được case báo giá.');
     const status = await this.currentLeadStatus(leadId);
@@ -3110,7 +3220,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [snap.presales.id, assigneeId, this.quoteFinishDueAt().toISOString()],
     );
     const who = assigneeName
-      ? ` ${assigneeName} lập báo giá trong ${QUOTE_FINISH_HOURS} giờ làm việc (8:30–16:00).`
+      ? ` ${assigneeName} lập báo giá trong ${QUOTE_FINISH_HOURS} giờ làm việc (08:30–18:30).`
       : '';
     await this.setLeadStatus(
       leadId,
@@ -3193,15 +3303,23 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.quote_approved_at) {
       throw new Error('Báo giá đã được Approve.');
     }
+    const approvedAt = new Date();
     await this.db.query(
       `UPDATE crm_lead_presales
-       SET quote_approved_at = NOW(),
+       SET quote_approved_at = $2::timestamptz,
            implementation_status = '',
            quote_accept_due_at = NULL,
            quote_due_at = NULL,
+           negotiate_due_at = $3::timestamptz,
+           contract_due_at = $4::timestamptz,
            updated_at = NOW()
        WHERE id = $1`,
-      [snap.presales.id],
+      [
+        snap.presales.id,
+        approvedAt.toISOString(),
+        negotiateDueAt(approvedAt).toISOString(),
+        contractDueAt(approvedAt).toISOString(),
+      ],
     );
     const status = await this.currentLeadStatus(leadId);
     await this.noteLeadStep(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addLeadInternalNote,
   fetchLeadInternalNotes,
@@ -30,6 +30,8 @@ export function LeadInternalNotes({
   const [notes, setNotes] = useState<LeadActivityRow[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const [saveError, setSaveError] = useState('');
   const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
@@ -48,8 +50,10 @@ export function LeadInternalNotes({
 
   async function save() {
     const content = text.trim();
-    if (!content || busy) return;
+    if (!content || busy || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
+    setSaveError('');
     try {
       const rows = await addLeadInternalNote(token, leadId, content);
       setNotes(rows);
@@ -57,8 +61,10 @@ export function LeadInternalNotes({
       onMessage?.('Đã lưu ghi chú nội bộ. Các thành viên liên quan sẽ được thông báo.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Không lưu được ghi chú nội bộ.';
+      setSaveError(msg);
       onError?.(msg);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -82,9 +88,21 @@ export function LeadInternalNotes({
           data-testid="lin-send"
           onClick={() => void save()}
           disabled={busy || text.trim().length < 2}
+          aria-disabled={busy || text.trim().length < 2}
+          title={busy ? 'Đang lưu…' : text.trim().length < 2 ? 'Nhập ít nhất 2 ký tự để lưu.' : 'Lưu ghi chú nội bộ'}
         >
           {busy ? 'Đang lưu…' : 'Lưu ghi chú'}
         </button>
+        {!busy && text.trim().length < 2 ? (
+          <p className="lin-notes__why muted" data-testid="lin-disabled-reason">
+            Nhập ít nhất 2 ký tự để lưu.
+          </p>
+        ) : null}
+        {saveError ? (
+          <p className="lin-notes__why" data-testid="lin-save-error" role="status" style={{ color: '#9a3412' }}>
+            {saveError}
+          </p>
+        ) : null}
       </div>
       {loadError ? <p className="ahd-empty">{loadError}</p> : null}
       {notes.length ? (

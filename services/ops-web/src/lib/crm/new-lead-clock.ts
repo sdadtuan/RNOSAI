@@ -173,7 +173,7 @@ export function resolveNewLeadClock(input: {
   }
 
   const claimMinutes = profile.sale.claim_in_hours_minutes ?? 15;
-  const updateHours = profile.sale.update_after_claim_hours ?? 2;
+  const updateHours = profile.sale.update_after_claim_hours ?? 1;
   const reassignHours = profile.sale.reassign_after_claim_hours ?? 2;
   const claimed = input.claimedAt ? new Date(input.claimedAt) : null;
 
@@ -201,7 +201,7 @@ export function resolveNewLeadClock(input: {
     due: updateDue,
     now,
     detail: reassignDue
-      ? `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (8:30–16:00, trừ cuối tuần). Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignDue.toLocaleString('vi-VN')}).`
-      : `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (8:30–16:00, trừ cuối tuần).`,
+      ? `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (08:30–18:30, trừ cuối tuần). Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignDue.toLocaleString('vi-VN')}).`
+      : `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (08:30–18:30, trừ cuối tuần).`,
   });
 }
