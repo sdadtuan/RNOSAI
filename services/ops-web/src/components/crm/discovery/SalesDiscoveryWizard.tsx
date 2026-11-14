@@ -90,6 +90,39 @@ export function SalesDiscoveryWizard({
   const [submitting, setSubmitting] = useState(false);
   const [svcOpen, setSvcOpen] = useState<Record<string, boolean>>({});
   const [listOpen, setListOpen] = useState(false);
+  const listWrapRef = useRef<HTMLDivElement | null>(null);
+  const listCloseTimer = useRef<number | null>(null);
+
+  function cancelListClose() {
+    if (listCloseTimer.current != null) {
+      window.clearTimeout(listCloseTimer.current);
+      listCloseTimer.current = null;
+    }
+  }
+
+  function scheduleListClose() {
+    cancelListClose();
+    listCloseTimer.current = window.setTimeout(() => setListOpen(false), 200);
+  }
+
+  useEffect(() => {
+    if (!listOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setListOpen(false);
+    };
+    const onDown = (event: MouseEvent) => {
+      const root = listWrapRef.current;
+      if (root && !root.contains(event.target as Node)) setListOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+      cancelListClose();
+    };
+  }, [listOpen]);
+
   const [pickerOpen, setPickerOpen] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -413,17 +446,23 @@ export function SalesDiscoveryWizard({
             <section className="sd-section">
               <div className="sd-section__head">
                 <h2 className="sd-section__title">C. Nhu cầu Marketing</h2>
-                <div className="sd-svc-wrap">
+                <div
+                  className="sd-svc-wrap"
+                  ref={listWrapRef}
+                  onMouseEnter={cancelListClose}
+                  onMouseLeave={scheduleListClose}
+                >
                   <button
                     type="button"
                     className={brief.services.length ? 'sd-svc-btn' : 'sd-svc-btn sd-svc-btn--ghost'}
                     onClick={() => setListOpen((open) => !open)}
                     data-testid="sd-service-list-btn"
+                    aria-expanded={listOpen}
                   >
                     Danh sách dịch vụ ({brief.services.length})
                   </button>
                   {listOpen ? (
-                    <div className="sd-svc-panel" data-testid="sd-service-list">
+                    <div className="sd-svc-panel" data-testid="sd-service-list" role="menu">
                       {brief.services.length === 0 ? (
                         <p className="sd-svc-empty">Chưa chọn dịch vụ. Chọn hạng mục bên dưới để thêm (lưu ngay).</p>
                       ) : (
@@ -431,8 +470,13 @@ export function SalesDiscoveryWizard({
                           <div key={slug} className="sd-svc-item">
                             <span>{serviceName(options, slug)}</span>
                             {readOnly ? null : (
-                              <button type="button" className="sd-svc-remove" onClick={() => void onToggleService(slug, true)} aria-label="Gỡ dịch vụ">
-                                ?
+                              <button
+                                type="button"
+                                className="sd-svc-remove"
+                                data-testid={`sd-svc-remove-${slug}`}
+                                onClick={() => void onToggleService(slug, true)}
+                              >
+                                Xóa
                               </button>
                             )}
                           </div>
@@ -472,12 +516,11 @@ export function SalesDiscoveryWizard({
                                 aria-expanded={open}
                                 onClick={() => setSvcOpen((prev) => (prev[svc.slug] ? {} : { [svc.slug]: true }))}
                               >
-                                <span className={`sd-acc__mark${allOn ? ' is-all' : partial ? ' is-partial' : ''}`} aria-hidden="true" />
+                                <span className="sd-acc__chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
                                 <span className="sd-acc__name">{svc.name}</span>
                                 <span className="sd-acc__count" data-testid={`sd-svc-count-${svc.slug}`}>
                                   {parentOn && childOn === 0 ? 'đã chọn' : `${childOn}/${children.length}`}
                                 </span>
-                                <span className="sd-acc__chev" aria-hidden="true" />
                               </button>
                             ) : (
                               <label className="sd-acc__head sd-acc__head--leaf">

@@ -30,6 +30,7 @@ import {
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
+import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
@@ -404,7 +405,7 @@ export function SalesLeadDesk({
       </header>
 
       <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
-      <HandoffSlaCountdown clock={funnel?.presales?.handoff_sla?.current} />
+      <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
       <div className="ahd-body ahd-body--notes-only" data-side="notes">
         <div className="ahd-col">

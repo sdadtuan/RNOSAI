@@ -40,6 +40,7 @@ import {
 } from '@/lib/crm/handoff-flow.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
+import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import {
   buildAmDeskBrief,
@@ -652,7 +653,7 @@ export function AmHandoffDesk({
       </header>
 
       <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
-      <HandoffSlaCountdown clock={funnel?.presales?.handoff_sla?.current} />
+      <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
       {error ? <p className="ahd-error" role="alert">{error}</p> : null}
       {notice ? <p className="ahd-ok">{notice}</p> : null}

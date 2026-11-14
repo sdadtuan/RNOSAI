@@ -2102,7 +2102,19 @@ export interface LeadFunnelSnapshot {
         countdown: string;
         due_label: string;
         message?: string;
+        step_key?: string;
       } | null;
+      clocks?: Array<{
+        key: string;
+        label: string;
+        role?: string;
+        due_at?: string | null;
+        state: 'ok' | 'warning' | 'breach' | 'na';
+        countdown: string;
+        due_label: string;
+        message?: string;
+        step_key?: string;
+      }>;
       suggested_solution_due_at?: string;
     };
     tasks: Record<

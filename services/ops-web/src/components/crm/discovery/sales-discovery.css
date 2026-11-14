@@ -85,7 +85,21 @@
 }
 .sd-svc-item:last-child { border-bottom: 0; }
 .sd-svc-remove {
-  border: 0; background: transparent; color: #c62828; cursor: pointer; font-weight: 700;
+  border: 0;
+  background: transparent;
+  color: #c62828;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.84rem;
+  line-height: 1.2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.sd-svc-remove:hover,
+.sd-svc-remove:focus-visible {
+  background: #fde8e8;
+  color: #8a1f1f;
+  text-decoration: underline;
 }
 
 .sd-picker {
@@ -130,31 +144,32 @@
 .sd-acc__head:focus-visible { background: #f3f8f4; }
 .sd-acc__head--leaf { cursor: default; }
 .sd-acc__head--leaf:hover { background: transparent; }
-.sd-acc__mark {
-  width: 14px; height: 14px; flex: 0 0 14px;
-  border-radius: 3px;
-  border: 1.5px solid #9aa3ad;
-  background: #fff;
-  box-sizing: border-box;
-}
-.sd-acc__mark.is-partial {
-  border-color: #00762f;
-  background: linear-gradient(90deg, #00762f 50%, #fff 50%);
-}
-.sd-acc__mark.is-all { border-color: #00762f; background: #00762f; }
 .sd-acc__name { flex: 1 1 auto; font-size: 0.9rem; color: #24384c; min-width: 0; }
-.sd-acc__count { font-size: 0.75rem; font-weight: 700; color: #17692f; white-space: nowrap; }
+.sd-acc__count { font-size: 0.75rem; font-weight: 700; color: #17692f; white-space: nowrap; margin-left: auto; }
 .sd-acc__chev {
-  width: 0; height: 0; border: 4px solid transparent; border-top-color: #6b6b70;
-  margin-top: 3px; transition: transform 0.15s ease;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: #4b5563;
 }
-.sd-acc.is-open .sd-acc__chev { transform: rotate(180deg); margin-top: -2px; }
-.sd-acc__list { list-style: none; margin: 0; padding: 0 0 6px 22px; }
+.sd-acc__list { list-style: none; margin: 0; padding: 0 0 6px 26px; }
 .sd-acc__item {
   display: flex; align-items: flex-start; gap: 8px;
   padding: 4px 0; font-size: 0.86rem; color: #24384c; cursor: pointer;
 }
-.sd-acc__item input, .sd-acc__head--leaf input { margin-top: 2px; accent-color: #00762f; }
+.sd-acc__item input,
+.sd-acc__head--leaf input[type='checkbox'] {
+  flex: 0 0 18px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #00762f;
+}
 @container sd-picker (max-width: 900px) {
   .sd-picker { column-count: 1; }
 }

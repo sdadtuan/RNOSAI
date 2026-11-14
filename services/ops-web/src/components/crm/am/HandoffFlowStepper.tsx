@@ -2,7 +2,8 @@
 
 import type { HandoffFlowStepKey, HandoffFlowView } from '@/lib/crm/handoff-flow.util';
 import { formatHandoffStamp } from '@/lib/crm/handoff-flow.util';
-import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
+import { HandoffSlaCountdown, type HandoffSlaClockView } from '@/components/crm/HandoffSlaCountdown';
+import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import './am-handoff-desk.css';
 
 export function HandoffFlowStepper({
@@ -12,8 +13,9 @@ export function HandoffFlowStepper({
 }: {
   view: HandoffFlowView;
   onStepClick?: (key: HandoffFlowStepKey) => void;
-  sla?: { current?: { key: string; label: string; role?: string; due_at?: string | null; state: 'ok' | 'warning' | 'breach' | 'na'; countdown: string; due_label: string; message?: string } | null } | null;
+  sla?: { current?: HandoffSlaClockView | null; clocks?: HandoffSlaClockView[] | null } | null;
 }) {
+  const slaClock = pickHandoffSlaClockForStep(sla, view.currentKey);
   return (
     <div className="ahd-stepper-wrap">
     <ol className="ahd-stepper" aria-label="Tiến độ bàn giao" data-testid="handoff-flow-stepper">
@@ -36,9 +38,9 @@ export function HandoffFlowStepper({
         </li>
       ))}
     </ol>
-    {sla?.current ? (
-      <div className="ahd-stepper__sla">
-        <HandoffSlaCountdown clock={sla.current} compact />
+    {slaClock ? (
+      <div className="ahd-stepper__sla" data-testid="handoff-flow-sla-chip">
+        <HandoffSlaCountdown clock={slaClock} compact />
       </div>
     ) : null}
     </div>

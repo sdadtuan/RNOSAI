@@ -11,6 +11,7 @@ import {
   type StaffNotificationRow,
 } from '@/lib/hr-api';
 import { staffNotifyClaimKind, staffNotifyLeadId } from './staff-notification-claim.util';
+import { formatStaffNotificationAt, stripNotificationOpenLeadPath } from '@/lib/crm/staff-notification-format.util';
 
 export function StaffNotificationBell() {
   const [open, setOpen] = useState(false);
@@ -120,8 +121,8 @@ export function StaffNotificationBell() {
                     {n.kind === 'mkt_ai_kpi_drift' ? (
                       <small className="staff-notif-bell__kind"> · KPI drift</small>
                     ) : null}
-                    {n.body ? <p>{n.body}</p> : null}
-                    <small>{new Date(n.created_at).toLocaleString('vi-VN')}</small>
+                    {n.body ? <p>{stripNotificationOpenLeadPath(n.body)}</p> : null}
+                    <small>{formatStaffNotificationAt(n.created_at)}</small>
                   </div>
                   <div className="staff-notif-bell__actions">
                     {claimKind === 'claim_lead' && leadId != null ? (
