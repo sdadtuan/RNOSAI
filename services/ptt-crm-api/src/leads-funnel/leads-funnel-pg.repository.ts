@@ -93,8 +93,10 @@ import {
   buildHandoffSlaView,
   briefSubmitDueAt,
   contractDueAt,
+  customerResponseDueAt,
   inferHandoffSlaStep,
   negotiateDueAt,
+  revisionDueAt,
 } from './handoff-sla.util';
 import {
   SOLUTION_ACCEPT_MINUTES,
@@ -1454,6 +1456,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         solutionReleasedAt: ps.solution_released_at || null,
         customerDueAt: ps.solution_customer_due_at || null,
         quoteAcceptDueAt: ps.quote_accept_due_at || null,
+        quoteOfferedAt: ps.quote_offered_at || null,
         quoteAcceptedAt: ps.quote_accepted_at || null,
         quoteDueAt: ps.quote_due_at || null,
         quoteSentBackAt: ps.quote_sent_back_at || null,
@@ -2570,7 +2573,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            handoff_status = 'released',
            solution_released_at = NOW(),
            solution_due_at = NULL,
-           solution_customer_due_at = NOW() + ($2::int * INTERVAL '1 hour'),
+           solution_customer_due_at = $2::timestamptz,
            solution_revision_note = '',
            solution_revision_due_at = NULL,
            consult_entered_at = CASE
@@ -2580,7 +2583,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            END
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, SOLUTION_CUSTOMER_HOURS],
+      [snap.presales.id, customerResponseDueAt(new Date()).toISOString()],
     );
     await this.promoteLeadStatusOnSolutionRelease(leadId, `staff:${staffId}`);
     const status = await this.currentLeadStatus(leadId);
@@ -2588,7 +2591,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       leadId,
       staffId,
       status,
-      `AM đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi.`,
+      `AM đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ làm việc để phản hồi.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -2641,18 +2644,18 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            updated_at = NOW(),
            handoff_status = 'with_solution',
            solution_revision_note = $2,
-           solution_revision_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
-           solution_due_at = NOW() + ($3::int * INTERVAL '1 hour'),
+           solution_revision_due_at = $3::timestamptz,
+           solution_due_at = $3::timestamptz,
            solution_customer_due_at = NULL
        WHERE id = $1`,
-      [snap.presales.id, text, SOLUTION_REVISION_HOURS],
+      [snap.presales.id, text, revisionDueAt(new Date()).toISOString()],
     );
     const status = await this.currentLeadStatus(leadId);
     await this.noteLeadStep(
       leadId,
       staffId,
       status,
-      `Sale yêu cầu chỉnh Solutions: ${text}. Hạn trả lại ${SOLUTION_REVISION_HOURS} giờ.`,
+      `Sale yêu cầu chỉnh Solutions: ${text}. Hạn trả lại ${SOLUTION_REVISION_HOURS} giờ làm việc.`,
     );
   }
 

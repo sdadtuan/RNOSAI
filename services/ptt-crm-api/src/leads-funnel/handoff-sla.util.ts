@@ -199,16 +199,19 @@ export function contractDueAt(approvedAt: Date): Date {
   return addBusinessDays(approvedAt, HANDOFF_SLA_POLICY.contractBusinessDays);
 }
 
+/** Customer response: 8 business hours (Mon–Fri 08:30–18:30 Asia/Saigon) after the Solution is released. */
 export function customerResponseDueAt(releasedAt: Date): Date {
-  return new Date(releasedAt.getTime() + HANDOFF_SLA_POLICY.customerResponseHours * 3_600_000);
+  return addBusinessHours(releasedAt, HANDOFF_SLA_POLICY.customerResponseHours);
 }
 
+/** Solution revision: 2 business hours after Sales asks for edits. */
 export function revisionDueAt(from: Date): Date {
-  return new Date(from.getTime() + HANDOFF_SLA_POLICY.revisionHours * 3_600_000);
+  return addBusinessHours(from, HANDOFF_SLA_POLICY.revisionHours);
 }
 
+/** CEO quote approval: 24 business hours after the AM submits the quote. */
 export function ceoApproveDueAt(submittedAt: Date): Date {
-  return new Date(submittedAt.getTime() + HANDOFF_SLA_POLICY.ceoApproveHours * 3_600_000);
+  return addBusinessHours(submittedAt, HANDOFF_SLA_POLICY.ceoApproveHours);
 }
 
 export function salesAcceptDueAt(assignedAt: Date): Date {
@@ -236,6 +239,8 @@ export interface HandoffSlaSource {
   solutionReleasedAt?: string | null;
   customerDueAt?: string | null;
   quoteAcceptDueAt?: string | null;
+  /** When the quote case was offered to the AM (start of the quote_accept clock). */
+  quoteOfferedAt?: string | null;
   quoteAcceptedAt?: string | null;
   quoteDueAt?: string | null;
   quoteSentBackAt?: string | null;
@@ -346,7 +351,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
       clockOf(
         'missing_info',
         source.missingInfoDueAt,
-        source.missingInfoDueAt,
+        null,
         now,
         'Bổ sung thông tin trong 1 giờ làm việc (08:30–18:30 T2–T6).',
       ),
@@ -379,9 +384,9 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
       clockOf(
         'solution_revision',
         source.solutionRevisionDueAt,
-        source.solutionRevisionDueAt,
+        null,
         now,
-        'Trả Solutions đã chỉnh trong 2 giờ.',
+        'Trả Solutions đã chỉnh trong 2 giờ làm việc (08:30–18:30 T2–T6).',
       ),
     );
   } else if (status === 'with_solution' && (source.solutionDueAt || source.solutionClaimedAt)) {
@@ -407,18 +412,18 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.customerDueAt,
         source.solutionReleasedAt,
         now,
-        'Sales lấy phản hồi khách trong 8 giờ sau khi nộp Solution.',
+        'Sales lấy phản hồi khách trong 8 giờ làm việc (08:30–18:30 T2–T6) sau khi nộp Solution.',
       ),
     );
   }
-  if (source.quoteSentBackAt && !source.quoteApprovedAt && source.quoteSentBackAt) {
+  if (source.quoteSentBackAt && !source.quoteApprovedAt) {
     clocks.push(
       clockOf(
         'ceo_approve',
         ceoApproveDueAt(new Date(source.quoteSentBackAt)),
         source.quoteSentBackAt,
         now,
-        'CEO duyệt hoặc từ chối báo giá trong 24 giờ.',
+        'CEO duyệt hoặc từ chối báo giá trong 24 giờ làm việc (08:30–18:30 T2–T6).',
       ),
     );
   } else if (source.quoteAcceptedAt && source.quoteDueAt && !source.quoteSentBackAt && !source.quoteApprovedAt) {
@@ -436,7 +441,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
       clockOf(
         'quote_accept',
         source.quoteAcceptDueAt,
-        source.quoteAcceptDueAt,
+        source.quoteOfferedAt ?? null,
         now,
         'AM nhận case báo giá trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
       ),

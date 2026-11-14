@@ -10,6 +10,9 @@ import {
   resolveHandoffSlaRecipientIds,
   slaNotifyCopy,
   inferHandoffSlaStep,
+  ceoApproveDueAt,
+  customerResponseDueAt,
+  revisionDueAt,
 } from './handoff-sla.util';
 import { solutionWorkDueAt } from './solution-case.util';
 
@@ -277,5 +280,44 @@ describe('slaNotifyCopy', () => {
     expect(copy.body).toMatch(/hạn \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}/);
     expect(copy.body).not.toMatch(/\d{2}:\d{2}:\d{2}/);
     expect(copy.title).toMatch(/^SLA /);
+  });
+});
+
+describe('business-hours revision / customer / CEO clocks (Mon–Fri 08:30–18:30)', () => {
+  // 13/11/2026 is a Friday.
+  it('Fri 17:30 + 2h revision lands Mon 09:30', () => {
+    expect(revisionDueAt(ict(2026, 11, 13, 17, 30)).toISOString()).toBe(ict(2026, 11, 16, 9, 30).toISOString());
+  });
+
+  it('Fri 16:00 + 8h customer response lands Mon 14:00', () => {
+    expect(customerResponseDueAt(ict(2026, 11, 13, 16, 0)).toISOString()).toBe(
+      ict(2026, 11, 16, 14, 0).toISOString(),
+    );
+  });
+
+  it('Fri 17:00 + 24 business hours CEO approval lands Wed 11:00 (never a night or weekend)', () => {
+    // Fri 1.5h + Mon 10h + Tue 10h + Wed 2.5h.
+    expect(ceoApproveDueAt(ict(2026, 11, 13, 17, 0)).toISOString()).toBe(ict(2026, 11, 18, 11, 0).toISOString());
+  });
+
+  it('a release after hours starts counting at 08:30 next working day', () => {
+    expect(customerResponseDueAt(ict(2026, 11, 14, 19, 26)).toISOString()).toBe(
+      ict(2026, 11, 16, 16, 30).toISOString(),
+    );
+  });
+
+  it('quote_accept started_at is the offer time; missing_info / revision have no fake start', () => {
+    const view = buildHandoffSlaView(
+      {
+        handoffStatus: 'with_solution',
+        solutionRevisionDueAt: ict(2026, 11, 16, 10, 0).toISOString(),
+        quoteOfferedAt: ict(2026, 11, 16, 9, 0).toISOString(),
+        quoteAcceptDueAt: ict(2026, 11, 16, 9, 15).toISOString(),
+      },
+      ict(2026, 11, 16, 9, 5),
+    );
+    const byKey = Object.fromEntries(view.clocks.map((c) => [c.key, c]));
+    expect(byKey.solution_revision.started_at).toBeNull();
+    expect(byKey.quote_accept.started_at).toBe(ict(2026, 11, 16, 9, 0).toISOString());
   });
 });
