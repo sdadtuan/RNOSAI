@@ -470,7 +470,7 @@ export function SalesDiscoveryWizard({
                                 type="button"
                                 className="sd-acc__head"
                                 aria-expanded={open}
-                                onClick={() => setSvcOpen((prev) => ({ ...prev, [svc.slug]: !prev[svc.slug] }))}
+                                onClick={() => setSvcOpen((prev) => (prev[svc.slug] ? {} : { [svc.slug]: true }))}
                               >
                                 <span className={`sd-acc__mark${allOn ? ' is-all' : partial ? ' is-partial' : ''}`} aria-hidden="true" />
                                 <span className="sd-acc__name">{svc.name}</span>

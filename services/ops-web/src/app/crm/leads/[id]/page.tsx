@@ -1515,7 +1515,8 @@ export default function CrmLeadDetailPage() {
     !loading &&
     accessToken &&
     solutionDesk &&
-    handoffStatus === 'pending'
+    handoffStatus === 'pending' &&
+    !salesViewer
   ) {
     return (
       <StaffPageShell
@@ -1903,7 +1904,7 @@ export default function CrmLeadDetailPage() {
               <LeadDeliveryKpi token={accessToken} leadId={leadId} />
             ) : null}
 
-            {solutionDesk && accessToken && lead && handoffStatus === 'pending' ? (
+            {solutionDesk && accessToken && lead && handoffStatus === 'pending' && !salesViewer ? (
               <AmHandoffDesk
                 token={accessToken}
                 lead={lead}
