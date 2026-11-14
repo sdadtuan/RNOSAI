@@ -571,13 +571,13 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-field select,
 .ahd-field textarea {
   width: 100%;
-  border: 1px solid #d7d8de;
+  border: 1px solid #cfd8e3;
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
   color: var(--ahd-ink);
-  background: #fff;
+  background: #ffffcd;
 }
 .ahd-field textarea { min-height: 88px; resize: vertical; }
 .ahd-field { display: grid; gap: 5px; margin-bottom: 10px; }
@@ -831,9 +831,10 @@ button.ahd-check__item:focus-visible {
   width: 100%;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid #d8d9de;
+  border: 1px solid #cfd8e3;
   border-radius: 8px;
   font-size: 14px;
+  background: #ffffcd;
 }
 .ahd-card--actions .solution-desk__file-row {
   display: flex;

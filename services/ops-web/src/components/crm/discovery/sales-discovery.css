@@ -47,7 +47,7 @@
 .sd-req { color: #d32f2f; margin-left: 2px; }
 .sd-input, .sd-select, .sd-textarea {
   width: 100%; border: 1px solid #cfd8e3; border-radius: 10px;
-  padding: 9px 11px; font: inherit; background: #fff; color: #163047;
+  padding: 9px 11px; font: inherit; background: #ffffcd; color: #163047;
 }
 .sd-textarea { min-height: 88px; resize: vertical; }
 .sd-input:focus, .sd-select:focus, .sd-textarea:focus {

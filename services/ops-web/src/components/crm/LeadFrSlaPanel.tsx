@@ -753,10 +753,10 @@ export function LeadFrSlaPanel({
         .lead-fr-sla__form textarea {
           font: inherit;
           font-weight: 450;
-          border: 1px solid rgba(0, 0, 0, 0.14);
+          border: 1px solid #cfd8e3;
           border-radius: 6px;
           padding: 0.4rem 0.5rem;
-          background: #fff;
+          background: #ffffcd;
         }
         .lead-fr-sla__form select:focus,
         .lead-fr-sla__form input:focus,
