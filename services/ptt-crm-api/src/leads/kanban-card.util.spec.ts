@@ -10,7 +10,18 @@ import {
   kanbanHoldPatch,
 } from './kanban-card.util';
 
-const HOURS = defaultKanbanCardSettings();
+// Clock maths below is written against a 08:00–21:00 every-day window; pin it so the tests do
+// not depend on the default calendar (now Mon–Fri 08:30–18:30, Tú 14/11/2026).
+const HOURS = {
+  ...defaultKanbanCardSettings(),
+  working_hours: { days: [1, 2, 3, 4, 5, 6, 7], start: '08:00', end: '21:00' },
+};
+
+describe('kanban card default calendar', () => {
+  it('defaults to Mon–Fri 08:30–18:30', () => {
+    expect(defaultKanbanCardSettings().working_hours).toEqual({ days: [1, 2, 3, 4, 5], start: '08:30', end: '18:30' });
+  });
+});
 
 describe('kanban card clock', () => {
   it('counts 20 working minutes inside 08:00–21:00', () => {

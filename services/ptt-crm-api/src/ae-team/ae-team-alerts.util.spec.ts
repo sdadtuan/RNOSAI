@@ -10,7 +10,11 @@ import {
   type AeStoredAlert,
 } from './ae-team-alerts.util';
 
-const kanban = defaultKanbanCardSettings();
+// Pinned to the 08:00–21:00 every-day window these cases were written for (default is now Mon–Fri 08:30–18:30).
+const kanban = {
+  ...defaultKanbanCardSettings(),
+  working_hours: { days: [1, 2, 3, 4, 5, 6, 7], start: '08:00', end: '21:00' },
+};
 const thresholds = aeTeamSettingsFromPayload({});
 const now = new Date('2026-10-13T03:00:00.000Z');
 
