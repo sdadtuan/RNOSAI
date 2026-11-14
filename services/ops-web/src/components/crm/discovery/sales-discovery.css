@@ -118,23 +118,34 @@
   page-break-inside: avoid;
   display: inline-block;
   width: 100%;
-  padding: 4px 4px 10px;
+  padding: 6px 6px 8px;
   margin: 0 0 8px;
   background: #fff;
   border: 1px solid #eef1f4;
   border-radius: 10px;
 }
-.sd-picker__group-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: #123047; }
+.sd-picker__group-title {
+  margin: 0;
+  padding: 6px 8px 4px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #123047;
+  cursor: default;
+  pointer-events: none;
+}
 .sd-acc { margin: 0; }
 .sd-acc__head {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
   text-align: left;
   border: 0;
   background: transparent;
-  padding: 6px 4px;
+  padding: 0 8px;
   border-radius: 8px;
   cursor: pointer;
   color: inherit;
@@ -142,10 +153,22 @@
 }
 .sd-acc__head:hover,
 .sd-acc__head:focus-visible { background: #f3f8f4; }
-.sd-acc__head--leaf { cursor: default; }
-.sd-acc__head--leaf:hover { background: transparent; }
-.sd-acc__name { flex: 1 1 auto; font-size: 0.9rem; color: #24384c; min-width: 0; }
-.sd-acc__count { font-size: 0.75rem; font-weight: 700; color: #17692f; white-space: nowrap; margin-left: auto; }
+.sd-acc__head--leaf { cursor: pointer; }
+.sd-acc__name {
+  flex: 1 1 auto;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  color: #24384c;
+  min-width: 0;
+}
+.sd-acc__count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #17692f;
+  white-space: nowrap;
+  margin-left: auto;
+  line-height: 1;
+}
 .sd-acc__chev {
   flex: 0 0 18px;
   width: 18px;
@@ -157,18 +180,26 @@
   line-height: 1;
   color: #4b5563;
 }
-.sd-picker__group > .sd-acc__head { padding: 8px 8px; }
-.sd-picker__group.is-active { border-color: #cfe6d6; }
-.sd-picker__group.is-open { box-shadow: 0 0 0 1px #d7eadc; }
-.sd-acc__list { list-style: none; margin: 0; padding: 0 6px 8px; }
+.sd-acc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 6px 34px;
+}
 .sd-acc__list > li { margin: 0; padding: 0; }
 .sd-acc__item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 4px; font-size: 0.88rem; color: #24384c; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  color: #24384c;
+  cursor: pointer;
 }
 .sd-acc__item input,
-.sd-acc__head--leaf input[type='checkbox'] {
-  flex: 0 0 18px;
+.sd-acc__head--leaf .sd-acc__chev input[type='checkbox'] {
+  flex: 0 0 16px;
   width: 16px;
   height: 16px;
   margin: 0;
