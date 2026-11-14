@@ -265,11 +265,13 @@
   text-decoration: underline;
 }
 .sd-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
-.sd-actions__left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sd-actions__left { display: flex; flex-direction: row; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
 .sd-save-status {
   display: inline-flex;
   align-items: center;
-  min-width: 7.5rem;
+  flex: 0 0 auto;
+  min-width: 8.75rem;
+  width: 8.75rem;
   min-height: 1.25rem;
   font-size: 0.78rem;
   line-height: 1.25rem;

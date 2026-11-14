@@ -794,3 +794,22 @@ export function groupCatalogServices<T extends { slug: string; name: string }>(
   }
   return groups;
 }
+
+/** Footer autosave label: 'Đang lưu…' while saving, otherwise 'Đã lưu HH:mm' in Asia/Saigon. */
+export function formatDiscoverySaveStatus(
+  saving: boolean,
+  savedAt: Date | string | number | null | undefined,
+): string {
+  if (saving) return 'Đang lưu…';
+  if (savedAt == null || savedAt === '') return '';
+  const date = savedAt instanceof Date ? savedAt : new Date(savedAt);
+  if (Number.isNaN(date.getTime())) return 'Đã lưu';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Saigon',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `Đã lưu ${get('hour')}:${get('minute')}`;
+}

@@ -312,7 +312,7 @@ button.ahd-step__hit { cursor: pointer; }
 /* 3-column body */
 .ahd-body {
   display: grid;
-  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px);
   gap: 14px;
   align-items: start;
   min-width: 0;
@@ -702,13 +702,16 @@ button.ahd-check__item:focus-visible {
 .ahd-modal p { margin: 0 0 10px; color: var(--ahd-muted); font-size: 13px; }
 .ahd-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
-/* Container queries use the desk's width inside the app shell (sidebar open),
-   not the viewport — at 1024px + icon rail the desk is ~950px. */
+/* Desk width is narrower than the viewport (sidebar + padding).
+   At 1280vw + 64px rail the desk content is ~1176px, which used to
+   trip a 1180px query and drop the right column / shorten stepper labels.
+   Keep 3 columns down to ~1000px desk, and always at viewport >= 1200px.
+   Slim side columns so the center Brief grid still fits two equal cards. */
 @container ahd (max-width: 1360px) {
-  .ahd-body { grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(210px, 250px); }
+  .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px); }
 }
-@container ahd (max-width: 1180px) {
-  .ahd-body { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
+@container ahd (max-width: 1000px) {
+  .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); }
   .ahd-col--side {
     grid-column: 1 / -1;
     display: grid;
@@ -716,9 +719,6 @@ button.ahd-check__item:focus-visible {
     gap: 12px;
     align-items: start;
   }
-  .ahd-step__label-full { display: none; }
-  .ahd-step__label-short { display: inline; }
-  .ahd-step__hint { display: none; }
 }
 @container ahd (max-width: 720px) {
   .ahd-body { grid-template-columns: 1fr; }
@@ -726,6 +726,9 @@ button.ahd-check__item:focus-visible {
   .ahd-brief-grid { grid-template-columns: 1fr; }
   .ahd-stepper { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 0; }
   .ahd-step:nth-child(4)::after { display: none; }
+  .ahd-step__label-full { display: none; }
+  .ahd-step__label-short { display: inline; }
+  .ahd-step__hint { display: none; }
 }
 @container ahd (max-width: 640px) {
   .ahd { padding: 8px; }
@@ -738,7 +741,7 @@ button.ahd-check__item:focus-visible {
 
 /* Viewport fallback when container queries are unavailable. */
 @media (max-width: 1100px) {
-  .ahd-body { grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(210px, 250px); }
+  .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px); }
 }
 @media (max-width: 900px) {
   .ahd-body { grid-template-columns: 1fr; }
@@ -757,6 +760,23 @@ button.ahd-check__item:focus-visible {
   .ahd-title { font-size: 16px; }
   .ahd-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ahd-step:nth-child(even)::after { display: none; }
+}
+
+/* Viewport >= 1200px always keeps the 3-column desk and full stepper labels,
+   even if the desk content box is slightly under a container threshold. */
+@media (min-width: 1200px) {
+  .ahd-body {
+    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px);
+  }
+  .ahd-col--side {
+    grid-column: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ahd-step__label-full { display: inline; }
+  .ahd-step__label-short { display: none; }
+  .ahd-step__hint { display: -webkit-box; }
 }
 
 .ahd-card--actions .solution-desk--actions {

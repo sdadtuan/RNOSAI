@@ -5,6 +5,7 @@ import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/a
 import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
   reopenIntakeSession } from '@/lib/api';
 import {
+  formatDiscoverySaveStatus,
   DISCOVERY_REQUIRED_FIELDS,
   authorityLabel,
   budgetLabel,
@@ -92,7 +93,8 @@ export function SalesDiscoveryWizard({
   );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
-  const [savedOk, setSavedOk] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [edited, setEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [svcOpen, setSvcOpen] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState('');
@@ -175,7 +177,7 @@ export function SalesDiscoveryWizard({
       briefRef.current = next;
       return next;
     });
-    setSavedOk(false);
+    setEdited(true);
     setError('');
     if (readOnly) return;
     if (opts?.immediate) {
@@ -201,7 +203,8 @@ export function SalesDiscoveryWizard({
       const payload = normalizeSalesDiscoveryBrief(briefRef.current);
       const saved = await saveDiscoveryBrief(token, session.id, payload);
       onSessionChange(saved);
-      setSavedOk(true);
+      setSavedAt(new Date());
+      setEdited(true);
       notifyDeskDiscoveryChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được bản nháp.');
@@ -705,11 +708,18 @@ export function SalesDiscoveryWizard({
         ) : null}
         <div className="sd-actions">
           <div className="sd-actions__left">
-            <button type="button" className="btn btn-secondary" disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>
-              Quay lại
-            </button>
+            {step > 1 ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-testid="sd-back"
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+              >
+                Quay lại
+              </button>
+            ) : null}
             <span className="sd-save-status" data-testid="sd-save-status" aria-live="polite">
-              {!readOnly && saving ? 'Đang lưu…' : !readOnly && savedOk ? 'Đã lưu' : ''}
+              {readOnly ? '' : saving || (edited && !savedAt) ? 'Đang lưu…' : formatDiscoverySaveStatus(false, savedAt)}
             </span>
           </div>
           <div className="sd-actions__right">

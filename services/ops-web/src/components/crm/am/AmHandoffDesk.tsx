@@ -941,7 +941,7 @@ export function AmHandoffDesk({
 
         </div>
 
-        <div className="ahd-col ahd-col--side">
+        <div className="ahd-col ahd-col--side" data-testid="ahd-col-side">
           <section className="ahd-card" data-testid="ahd-checklist">
             <h3 className="ahd-card__title">
               <Icon d={I.list} />

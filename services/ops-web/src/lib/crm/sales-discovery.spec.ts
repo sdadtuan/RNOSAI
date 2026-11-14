@@ -9,6 +9,7 @@ import {
   liftDiscoveryServiceCodes,
   isDiscoveryScopeSlug,
   discoveryServiceChips,
+  formatDiscoverySaveStatus,
   groupDiscoveryServiceChips,
   isDiscoveryParentSelected,
   discoveryParentStoredCode,
@@ -302,5 +303,15 @@ describe('groupDiscoveryServiceChips', () => {
     const scopeTitles = (groups[1]?.items ?? []).map((item) => item.title).join(' ');
     expect(heading).toBe('Hệ thống nhận diện Thương hiệu');
     expect(scopeTitles).not.toMatch(/…|\.\.\./);
+  });
+});
+
+describe('formatDiscoverySaveStatus', () => {
+  it('shows Đang lưu… while saving, then Đã lưu HH:mm in Asia/Saigon without seconds', () => {
+    expect(formatDiscoverySaveStatus(true, null)).toBe('Đang lưu…');
+    expect(formatDiscoverySaveStatus(true, '2026-11-14T13:04:00.000Z')).toBe('Đang lưu…');
+    expect(formatDiscoverySaveStatus(false, null)).toBe('');
+    expect(formatDiscoverySaveStatus(false, '2026-11-14T13:04:00.000Z')).toBe('Đã lưu 20:04');
+    expect(formatDiscoverySaveStatus(false, '2026-11-14T13:04:00.000Z')).not.toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 });
