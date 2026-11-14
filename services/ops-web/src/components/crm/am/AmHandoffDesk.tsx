@@ -681,7 +681,7 @@ export function AmHandoffDesk({
         </div>
       </header>
 
-      <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
+      <HandoffFlowStepper view={flow} />
       <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
       {error ? <p className="ahd-error" role="alert">{error}</p> : null}
@@ -806,7 +806,19 @@ export function AmHandoffDesk({
               <BriefCard title="Mục tiêu Marketing" icon={I.goal} testId="ahd-goal">
                 <Bullets text={view.marketing_goal} />
               </BriefCard>
-              <BriefCard title="Dịch vụ quan tâm" icon={I.box} testId="ahd-services">
+              <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
+                <Bullets text={view.biggest_problem} />
+              </BriefCard>
+              <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
+                <Bullets text={view.target_customers} />
+              </BriefCard>
+              <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
+                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
+              </BriefCard>
+              <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
+                {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
+              </BriefCard>
+              <BriefCard title="Dịch vụ quan tâm" icon={I.box} wide testId="ahd-services">
                 {serviceChips.length ? (
                   <div className="ahd-chips">
                     {serviceChips.map((chip) => (
@@ -824,18 +836,6 @@ export function AmHandoffDesk({
                     ))}
                   </div>
                 ) : null}
-              </BriefCard>
-              <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
-                <Bullets text={view.biggest_problem} />
-              </BriefCard>
-              <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
-                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
-              </BriefCard>
-              <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
-                <Bullets text={view.target_customers} />
-              </BriefCard>
-              <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
-                {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
               </BriefCard>
             </div>
           ) : null}

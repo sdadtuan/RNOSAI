@@ -324,7 +324,7 @@ export function SalesLeadDesk({
         </div>
       </header>
 
-      <HandoffFlowStepper view={flow} sla={funnel?.presales?.handoff_sla ?? null} />
+      <HandoffFlowStepper view={flow} />
       <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
       <div className="ahd-body ahd-body--notes-only" data-side="notes">

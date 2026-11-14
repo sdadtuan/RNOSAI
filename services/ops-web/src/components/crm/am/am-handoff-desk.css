@@ -464,6 +464,11 @@ button.ahd-step__hit { cursor: pointer; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: start;
+}
+.ahd-brief-grid > .ahd-card {
+  height: auto;
+  align-self: start;
 }
 .ahd-brief-grid .ahd-card--wide { grid-column: 1 / -1; }
 .ahd-brief h3,

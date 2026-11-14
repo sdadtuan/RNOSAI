@@ -2,21 +2,16 @@
 
 import type { HandoffFlowStepKey, HandoffFlowView } from '@/lib/crm/handoff-flow.util';
 import { formatHandoffStamp, visibleHandoffFlowSteps } from '@/lib/crm/handoff-flow.util';
-import { HandoffSlaCountdown, type HandoffSlaClockView } from '@/components/crm/HandoffSlaCountdown';
-import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import './am-handoff-desk.css';
 
 export function HandoffFlowStepper({
   view,
   onStepClick,
-  sla,
 }: {
   view: HandoffFlowView;
   onStepClick?: (key: HandoffFlowStepKey) => void;
-  sla?: { current?: HandoffSlaClockView | null; clocks?: HandoffSlaClockView[] | null } | null;
 }) {
   const visible = visibleHandoffFlowSteps(view);
-  const slaClock = pickHandoffSlaClockForStep(sla, visible.currentKey);
   return (
     <div className="ahd-stepper-wrap">
     <ol
@@ -44,11 +39,6 @@ export function HandoffFlowStepper({
         </li>
       ))}
     </ol>
-    {slaClock ? (
-      <div className="ahd-stepper__sla" data-testid="handoff-flow-sla-chip">
-        <HandoffSlaCountdown clock={slaClock} compact />
-      </div>
-    ) : null}
     </div>
   );
 }
