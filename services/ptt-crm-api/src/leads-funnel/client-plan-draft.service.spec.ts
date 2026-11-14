@@ -151,7 +151,7 @@ describe('generatePresalesMarketingPlanAiDraft', () => {
     expect(body.target_market_prof[PRESALES_AI_DRAFT_MODEL_KEY]).toBe('gpt-4o-mini');
   });
 
-  it('does not call the LLM when the brief is incomplete', async () => {
+  it('drafts when only the optional USP (Điểm khác biệt) is empty', async () => {
     pgRepo.getOrCreatePreliminaryPlan.mockResolvedValue({
       id: 3,
       name: '',
@@ -159,6 +159,19 @@ describe('generatePresalesMarketingPlanAiDraft', () => {
       objectives: '',
       strategy_framework_json: {},
       target_market_prof_json: { client_brief: JSON.stringify(readyBrief({ usp: '' })) },
+    });
+
+    await expect(service().generatePresalesMarketingPlanAiDraft(7)).resolves.toMatchObject({ ok: true });
+  });
+
+  it('does not call the LLM when a still-required brief field (goal) is missing', async () => {
+    pgRepo.getOrCreatePreliminaryPlan.mockResolvedValue({
+      id: 3,
+      name: '',
+      north_star: '',
+      objectives: '',
+      strategy_framework_json: {},
+      target_market_prof_json: { client_brief: JSON.stringify(readyBrief({ goal: '' })) },
     });
 
     await expect(service().generatePresalesMarketingPlanAiDraft(7)).rejects.toBeTruthy();
