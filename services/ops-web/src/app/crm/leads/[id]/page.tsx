@@ -1635,6 +1635,14 @@ export default function CrmLeadDetailPage() {
             ) : null
           }
         />
+        <LeadHistoryTab
+          token={accessToken}
+          leadId={leadId}
+          exchangeLines={careHistory}
+          ownerLines={ownerLines}
+          selectedActivityId={selectedActivityId}
+          onSelectActivity={setSelectedActivityId}
+        />
       </StaffPageShell>
     );
   }
@@ -2062,7 +2070,7 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {!solutionDesk && showOverviewMain ? (
+            {(!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
               <div className="lead-zone">

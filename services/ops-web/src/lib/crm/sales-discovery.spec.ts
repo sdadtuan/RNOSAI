@@ -19,6 +19,8 @@ import {
   sessionHasCompleteDiscovery,
   toggleDiscoveryChannel,
   emptySalesDiscoveryBrief,
+  DISCOVERY_REQUIRED_FIELDS,
+  discoveryFieldFocus,
 } from './sales-discovery';
 
 function filledBrief() {
@@ -256,3 +258,17 @@ describe('normalizeSalesDiscoveryBrief trim option', () => {
   });
 });
 
+
+
+describe('discoveryFieldFocus', () => {
+  it('covers every required missing-item key with a wizard tab and testid', () => {
+    const keys = DISCOVERY_REQUIRED_FIELDS.map((row) => row.key);
+    expect(keys).toHaveLength(14);
+    for (const key of keys) {
+      const dest = discoveryFieldFocus(key);
+      expect(dest.step).toBeGreaterThanOrEqual(1);
+      expect(dest.step).toBeLessThanOrEqual(3);
+      expect(dest.testid).toMatch(/^sd-/);
+    }
+  });
+});

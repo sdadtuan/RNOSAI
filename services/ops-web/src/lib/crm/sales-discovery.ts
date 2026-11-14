@@ -156,6 +156,34 @@ export const DISCOVERY_REQUIRED_FIELDS: Array<{
   { key: 'temperature', checklist: 'Mức độ sẵn sàng' },
 ];
 
+/** Wizard tab + field testid for every required checklist key. */
+export const DISCOVERY_FIELD_FOCUS: Record<
+  (typeof DISCOVERY_REQUIRED_FIELDS)[number]['key'],
+  { step: 1 | 2 | 3; testid: string }
+> = {
+  company_name: { step: 1, testid: 'sd-company' },
+  industry: { step: 1, testid: 'sd-industry' },
+  flagship_product: { step: 1, testid: 'sd-flagship' },
+  contact_name: { step: 1, testid: 'sd-contact' },
+  phone: { step: 1, testid: 'sd-phone' },
+  services: { step: 2, testid: 'sd-service-picker' },
+  biggest_problem: { step: 2, testid: 'sd-problem' },
+  marketing_goal: { step: 2, testid: 'sd-goal' },
+  target_customers: { step: 2, testid: 'sd-audience' },
+  region: { step: 2, testid: 'sd-region' },
+  budget_band: { step: 3, testid: 'sd-budget' },
+  timeline_band: { step: 3, testid: 'sd-timeline' },
+  call_notes: { step: 3, testid: 'sd-notes' },
+  temperature: { step: 3, testid: 'sd-temp' },
+};
+
+export function discoveryFieldFocus(key: (typeof DISCOVERY_REQUIRED_FIELDS)[number]['key']): {
+  step: 1 | 2 | 3;
+  testid: string;
+} {
+  return DISCOVERY_FIELD_FOCUS[key];
+}
+
 export function emptySalesDiscoveryBrief(): SalesDiscoveryBrief {
   return {
     company_name: '',

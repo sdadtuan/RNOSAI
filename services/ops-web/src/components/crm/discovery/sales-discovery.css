@@ -250,6 +250,20 @@
 .sd-check__head h3 { margin: 0; font-size: 0.98rem; }
 .sd-check__list { margin: 0; padding-left: 20px; color: #6a3b00; }
 .sd-check__list.is-ok { color: #1c7a3a; }
+.sd-check__link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+}
+.sd-check__link:hover,
+.sd-check__link:focus-visible {
+  text-decoration: underline;
+}
 .sd-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
 .sd-actions__left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .sd-save-status {

@@ -9,6 +9,8 @@ import {
   authorityLabel,
   budgetLabel,
   channelLabels,
+  discoveryFieldFocus,
+  discoveryMissingFields,
   discoveryProgress,
   emptySalesDiscoveryBrief,
   isDiscoveryComplete,
@@ -138,6 +140,25 @@ export function SalesDiscoveryWizard({
 
   const progress = useMemo(() => discoveryProgress(brief), [brief]);
   const complete = progress.filled === progress.total;
+  const missingFields = useMemo(() => discoveryMissingFields(brief), [brief]);
+
+  function goToMissingField(key: Parameters<typeof discoveryFieldFocus>[0]) {
+    const dest = discoveryFieldFocus(key);
+    setStep(dest.step);
+    window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="${dest.testid}"]`);
+      if (!el) return;
+      const flashEl = el.closest('.sd-field') ?? el;
+      flashEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const focusEl =
+        el.matches('input, select, textarea, button')
+          ? el
+          : (el.querySelector<HTMLElement>('input, select, textarea, button') ?? el);
+      if (typeof focusEl.focus === 'function') focusEl.focus();
+      flashEl.classList.add('sd-field--flash');
+      window.setTimeout(() => flashEl.classList.remove('sd-field--flash'), 1600);
+    }, 80);
+  }
   const industries = options?.industries ?? [];
   const jobTitles = options?.job_titles ?? [];
   const budgets = options?.budgets ?? [];
@@ -630,7 +651,7 @@ export function SalesDiscoveryWizard({
                 </label>
                 <div className="sd-field">
                   <FieldLabel required>Mức độ sẵn sàng</FieldLabel>
-                  <div className="sd-radios">
+                  <div className="sd-radios" data-testid="sd-temp">
                     {temperatures.map((row) => (
                       <label key={row.value} className="sd-radio">
                         <input
@@ -658,8 +679,17 @@ export function SalesDiscoveryWizard({
                 <p className="sd-check__list is-ok">Đã đủ {progress.total} trường cốt lõi.</p>
               ) : (
                 <ul className="sd-check__list">
-                  {progress.missing.map((item) => (
-                    <li key={item}>{item}</li>
+                  {missingFields.map((row) => (
+                    <li key={row.key}>
+                      <button
+                        type="button"
+                        className="sd-check__link"
+                        data-testid={`sd-missing-${row.key}`}
+                        onClick={() => goToMissingField(row.key)}
+                      >
+                        {row.checklist}
+                      </button>
+                    </li>
                   ))}
                 </ul>
               )}
