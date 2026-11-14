@@ -24,7 +24,7 @@ describe('leadListSituation', () => {
       'Chờ Solutions',
     );
     expect(leadListSituation({ status: 'dang_tu_van', solution_handoff: 'with_solution' }).solution).toBe(
-      'Đang làm Solutions',
+      'AM làm Solution',
     );
     expect(leadListSituation({ status: 'dang_tu_van', solution_handoff: 'released' }).solution).toBeNull();
   });

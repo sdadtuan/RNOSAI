@@ -98,7 +98,7 @@ describe('leadStatusSearchOptions', () => {
       'Sai số',
       'Đã nói chuyện',
       'Lead chờ Solutions',
-      'Đang làm Solutions',
+      'AM làm Solution',
       'Chờ dọn',
     ]);
     expect(leadStatusSearchStatuses('hen_goi_lai', 'b2b_prospect')).toEqual([]);

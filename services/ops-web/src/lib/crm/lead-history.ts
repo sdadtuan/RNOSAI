@@ -102,11 +102,56 @@ function statusWho(actor: string): string {
   return value;
 }
 
+const SOLUTION_FLOW_ACTIVITY_TYPES = new Set([
+  'solution_file_uploaded',
+  'solution_ai_draft',
+  'solution_released',
+  'solution_received',
+  'solution_viewed',
+  'solution_deadline_changed',
+]);
+
+function solutionFlowAction(row: LeadHistoryInput): string {
+  const raw = String(row.content ?? '').trim();
+  if (raw.includes(' · ')) {
+    const parts = raw.split(' · ').map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 2) return parts.slice(1).join(' · ');
+  }
+  const type = String(row.activity_type ?? '').trim();
+  if (type === 'solution_file_uploaded') return raw || 'Tải file Solution';
+  if (type === 'solution_ai_draft') return 'AI tạo Solution';
+  if (type === 'solution_released') return 'Nộp Solution cho Sales';
+  if (type === 'solution_received') return 'Sales nhận Solution';
+  if (type === 'solution_viewed') return 'Sales xem Solution';
+  if (type === 'solution_deadline_changed') return raw || 'Đổi Deadline Solutions';
+  return raw;
+}
+
 export function presentLeadHistory(row: LeadHistoryInput): LeadHistoryLine {
+  const type = String(row.activity_type ?? '').trim();
+  const when = formatHistoryClock(row.created_at) || formatWhen(row.created_at);
+  const who = whoLabel(row);
+  if (SOLUTION_FLOW_ACTIVITY_TYPES.has(type)) {
+    const action = solutionFlowAction(row);
+    const whoFromContent = String(row.content ?? '').split(' · ')[0]?.trim();
+    const actor =
+      who && who !== 'Hệ thống'
+        ? who
+        : whoFromContent && whoFromContent !== 'Hệ thống'
+          ? whoFromContent
+          : who || 'Hệ thống';
+    return {
+      key: `activity-${row.id}`,
+      id: row.id,
+      who: actor,
+      what: `${actor} · ${action} · ${when}`.trim(),
+      when,
+    };
+  }
   return {
     key: `activity-${row.id}`,
     id: row.id,
-    who: whoLabel(row),
+    who,
     what: plainWhat(row),
     when: formatWhen(row.created_at),
   };
@@ -226,7 +271,7 @@ const OWNER_ROLE_LABEL: Record<string, string> = {
   sales: 'Sales',
   am: 'AM',
   acm: 'ACM',
-  solution: 'Marketing',
+  solution: 'AM',
   quote_am: 'AM',
 };
 

@@ -14,7 +14,6 @@ export function isLeadOwnerReassignKind(value: string): value is LeadOwnerReassi
 /** Column on crm_lead_presales for a non-sales owner kind; null for sales. */
 export function presalesOwnerColumn(kind: LeadOwnerReassignKind): PresalesOwnerColumn | null {
   if (kind === 'sales') return null;
-  if (kind === 'am' || kind === 'acm') return 'assigned_am';
-  if (kind === 'solution') return 'solution_owner_staff_id';
+  if (kind === 'am' || kind === 'acm' || kind === 'solution') return 'assigned_am';
   return 'quote_assignee_staff_id';
 }

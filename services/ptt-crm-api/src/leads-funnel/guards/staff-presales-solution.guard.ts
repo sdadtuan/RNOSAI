@@ -10,6 +10,7 @@ import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 import { hasGdkdSolutionDesk } from '../../staff-permissions/staff-gdkd.util';
 import { assertPresalesSolutionCap } from '../presales-solution-rbac.util';
+import { isAccountManagerPosition } from '../../b2b-projects/b2b-director.util';
 
 function assertCapOrThrow(
   caps: Array<{ section: string; action: string }>,
@@ -47,8 +48,10 @@ export class StaffPresalesSolutionReleaseGuard implements CanActivate {
     >();
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
     if (await this.staffAuth.canReceiveSolution(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
+    if (isAccountManagerPosition(me.position_code)) return true;
     assertCapOrThrow(me.caps, 'release');
     return true;
   }

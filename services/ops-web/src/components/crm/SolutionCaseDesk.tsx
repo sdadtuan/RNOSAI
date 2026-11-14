@@ -10,6 +10,8 @@ import {
   returnLeadToSales,
   updateLeadSolutionDeadline,
   postLeadPresalesMarketingPlanAiDraft,
+  fetchDiscoveryOptions,
+  type DiscoveryServiceGroup,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -21,6 +23,7 @@ import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import {
   budgetLabel,
   channelLabels,
+  discoveryServiceChips,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
   timelineLabel,
@@ -298,6 +301,7 @@ export function SolutionCaseDesk({
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
   const [aiResult, setAiResult] = useState('');
+  const [serviceGroups, setServiceGroups] = useState<DiscoveryServiceGroup[]>([]);
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
   const solution = funnel?.presales?.solution_case;
@@ -311,6 +315,18 @@ export function SolutionCaseDesk({
     setDeadlineText(isoToViDate(storedDue));
   }, [storedDue]);
   const canEditDeadline = !filesOnly && !submitOnly && (handoff === 'pending' || handoff === 'with_solution');
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchDiscoveryOptions(token)
+      .then((opts) => {
+        if (!cancelled && opts?.service_groups?.length) setServiceGroups(opts.service_groups);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
   const canEditFiles = handoff === 'pending' || handoff === 'with_solution';
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
 
@@ -852,7 +868,7 @@ export function SolutionCaseDesk({
             {discoveryBrief.target_customers ? (<div><dt>KH mục tiêu</dt><dd>{discoveryBrief.target_customers}</dd></div>) : null}
             {discoveryBrief.region ? (<div><dt>Khu vực</dt><dd>{discoveryBrief.region}</dd></div>) : null}
             {discoveryBrief.flagship_product ? (<div><dt>Sản phẩm chủ lực</dt><dd>{discoveryBrief.flagship_product}</dd></div>) : null}
-            {discoveryBrief.services?.length ? (<div><dt>Dịch vụ quan tâm</dt><dd>{discoveryBrief.services.map((slug) => intakeServiceLabel(slug) || slug).join(', ')}</dd></div>) : null}
+            {discoveryBrief.services?.length ? (<div><dt>Dịch vụ quan tâm</dt><dd>{discoveryServiceChips(discoveryBrief.services, serviceGroups).map((chip) => (chip.parent ? `${chip.parent} – ${chip.title}` : chip.title)).join(', ')}</dd></div>) : null}
           </dl>
         ) : null}
       </div>

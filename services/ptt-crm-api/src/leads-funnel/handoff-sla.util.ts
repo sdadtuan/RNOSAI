@@ -94,8 +94,8 @@ const LABELS: Record<HandoffSlaClockKey, { step: string; label: string; role: Ha
   sales_brief: { step: 'sales_brief', label: 'Hạn Submit to AM', role: 'Sales' },
   missing_info: { step: 'sales_brief', label: 'Hạn bổ sung thông tin', role: 'Sales' },
   solution_accept: { step: 'await_solution', label: 'Hạn AM nhận / giao Solutions', role: 'AM' },
-  solution_work: { step: 'doing_solution', label: 'Hạn trả Solutions', role: 'Marketing' },
-  solution_revision: { step: 'doing_solution', label: 'Hạn chỉnh Solutions', role: 'Marketing' },
+  solution_work: { step: 'doing_solution', label: 'Hạn trả Solutions', role: 'AM' },
+  solution_revision: { step: 'doing_solution', label: 'Hạn chỉnh Solutions', role: 'AM' },
   customer_response: { step: 'await_quote', label: 'Hạn phản hồi khách', role: 'Sales' },
   quote_accept: { step: 'await_quote', label: 'Hạn AM nhận case báo giá', role: 'AM' },
   quote_finish: { step: 'await_quote', label: 'Hạn lập báo giá', role: 'AM' },
@@ -352,14 +352,25 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
       ),
     );
   }
-  if (status === 'pending' && source.solutionAcceptDueAt) {
+  if (status === 'pending' && source.solutionAcceptDueAt && !source.solutionDueAt) {
     clocks.push(
       clockOf(
         'solution_accept',
         source.solutionAcceptDueAt,
         source.handedOffAt,
         now,
-        'AM nhận hoặc giao Marketing trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
+        'AM nhận case Solutions trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
+      ),
+    );
+  }
+  if (status === 'pending' && source.solutionDueAt) {
+    clocks.push(
+      clockOf(
+        'solution_work',
+        source.solutionDueAt,
+        source.handedOffAt,
+        now,
+        'Trước 15:30: 4 giờ làm việc. Sau 15:30 hoặc cuối tuần: 11:00 ngày làm việc kế tiếp.',
       ),
     );
   }

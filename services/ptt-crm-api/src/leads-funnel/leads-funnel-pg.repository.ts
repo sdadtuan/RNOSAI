@@ -71,6 +71,7 @@ import {
   resolveLeadNiche,
 } from './client-plan-brief.util';
 import { SOLUTION_HANDOFF_ACTIVITY_TYPES } from './presales-solution-handoff-activity.util';
+import { parsePresalesAiDraftMeta, parseTargetMarketProfJson } from './presales-ai-draft-meta.util';
 import {
   QUOTE_ACCEPT_MINUTES,
   QUOTE_FINISH_HOURS,
@@ -2243,13 +2244,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
 
-    const lastOwner = snap.presales.last_solution_owner_staff_id;
+    const assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
+    const lastOwner = assignedAm > 0 ? assignedAm : snap.presales.last_solution_owner_staff_id;
     const autoReclaim =
       lastOwner != null &&
       lastOwner > 0 &&
-      (await this.staffIsEligibleSolutionOwner(lastOwner));
+      (assignedAm > 0 || (await this.staffIsEligibleSolutionOwner(lastOwner)));
 
-    if (autoReclaim && lastOwner) {
+    if (autoReclaim && lastOwner && assignedAm <= 0) {
       const due = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
       const updated = await this.db.query(
         `UPDATE crm_lead_presales
@@ -2288,6 +2290,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
     }
 
+    const workDue = solutionWorkDueAt(new Date(), loadMarketingSolutionWorkSettings());
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET stage = 'consult',
@@ -2300,10 +2303,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            handoff_status = 'pending',
            handed_off_at = NOW(),
            handed_off_by_staff_id = $2,
-           solution_owner_staff_id = NULL,
-           solution_accept_due_at = $3::timestamptz,
-           solution_claimed_at = NULL,
-           solution_due_at = NULL,
+           solution_owner_staff_id = COALESCE(assigned_am, $2),
+           last_solution_owner_staff_id = COALESCE(assigned_am, last_solution_owner_staff_id, $2),
+           solution_accept_due_at = NULL,
+           solution_claimed_at = NOW(),
+           solution_due_at = $3,
            solution_released_at = NULL,
            solution_customer_due_at = NULL,
            solution_revision_note = '',
@@ -2311,7 +2315,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            missing_info_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, acceptDueAt(new Date(), Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES).toISOString()],
+      [snap.presales.id, staffId, workDue.toISOString()],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
@@ -2516,25 +2520,45 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return mapped;
   }
 
+  async hasSolutionViewActivity(leadId: number): Promise<boolean> {
+    const out = await this.db.query(
+      `SELECT 1
+         FROM crm_lead_activities
+        WHERE lead_id = $1
+          AND activity_type = $2
+        LIMIT 1`,
+      [leadId, SOLUTION_HANDOFF_ACTIVITY_TYPES.viewed],
+    );
+    return Boolean(out.rows[0]);
+  }
+
   async releaseToSales(leadId: number, staffId: number): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (snap.presales.handoff_status === 'released') {
       throw new Error('Solution đã nộp cho Sales.');
     }
-    if (snap.presales.handoff_status !== 'with_solution') {
-      throw new Error('Nhận case trước khi nộp Solution.');
+    const handoffNow = String(snap.presales.handoff_status ?? '').trim();
+    if (handoffNow !== 'with_solution' && handoffNow !== 'pending') {
+      throw new Error('Chỉ nộp Solution khi lead đang ở bước AM làm Solution.');
     }
-    if (
-      snap.presales.solution_owner_staff_id &&
-      snap.presales.solution_owner_staff_id !== staffId
-    ) {
-      throw new Error('Chỉ Solution owner được trả Sales.');
+    const assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
+    const ownerId = snap.presales.solution_owner_staff_id != null ? Number(snap.presales.solution_owner_staff_id) : 0;
+    const canRelease =
+      (assignedAm > 0 && assignedAm === staffId) ||
+      (ownerId > 0 && ownerId === staffId) ||
+      !ownerId;
+    if (!canRelease) {
+      throw new Error('Chỉ AM phụ trách hoặc người làm Solution được nộp cho Sales.');
     }
     const plan = await this.getPreliminaryPlan(snap.presales.id);
     const gaps = solutionSubmitGaps(plan);
     if (gaps.length) {
-      throw new Error(gaps.join('\n'));
+      const rawProf = plan?.target_market_prof_json ?? plan?.target_market_prof ?? null;
+      const prof = parseTargetMarketProfJson(rawProf);
+      if (!parsePresalesAiDraftMeta(prof).is_ai_draft) {
+        throw new Error(gaps.join('\n'));
+      }
     }
 
     const updated = await this.db.query(
@@ -2564,7 +2588,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       leadId,
       staffId,
       status,
-      `Đã nộp Solution. Lead chuyển sang Chờ báo giá. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi.`,
+      `AM đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách. Khách có ${SOLUTION_CUSTOMER_HOURS} giờ để phản hồi.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }

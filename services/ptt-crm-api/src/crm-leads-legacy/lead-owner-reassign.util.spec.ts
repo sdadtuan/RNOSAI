@@ -14,7 +14,7 @@ describe('lead-owner-reassign.util', () => {
     expect(presalesOwnerColumn('sales')).toBeNull();
     expect(presalesOwnerColumn('am')).toBe('assigned_am');
     expect(presalesOwnerColumn('acm')).toBe('assigned_am');
-    expect(presalesOwnerColumn('solution')).toBe('solution_owner_staff_id');
+    expect(presalesOwnerColumn('solution')).toBe('assigned_am');
     expect(presalesOwnerColumn('quote_am')).toBe('quote_assignee_staff_id');
   });
 });

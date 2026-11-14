@@ -3,7 +3,7 @@
 import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
-  claimLeadSolution,
+  releaseLeadToSales,
   updateLeadSolutionDeadline,
   fetchCrmStaffList,
   fetchDiscoveryOptions,
@@ -22,6 +22,7 @@ import {
   budgetLabel,
   channelLabels,
   discoveryIndustryLabel,
+  discoveryServiceChips,
   discoveryServiceLabel,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
@@ -330,6 +331,7 @@ export function AmHandoffDesk({
   mgmtExtra?: ReactNode;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
+  const [artifactReady, setArtifactReady] = useState(false);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [consultPrefill, setConsultPrefill] = useState('');
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
@@ -353,6 +355,7 @@ export function AmHandoffDesk({
   const [notice, setNotice] = useState('');
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
   const [serviceOptions, setServiceOptions] = useState<Array<{ slug?: string; value?: string; name?: string; label?: string }>>([]);
+  const [serviceGroups, setServiceGroups] = useState<Array<{ services?: Array<{ slug: string; name: string; children?: Array<{ slug: string; name: string }> }> }>>([]);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
 
@@ -387,7 +390,9 @@ export function AmHandoffDesk({
     const draft = [...sessions].filter((s) => s.status === 'draft').sort((a, b) => b.id - a.id);
     setSession(completed[0] ?? draft[0] ?? sessions[0] ?? null);
     const planRec = (plan && typeof plan === 'object' ? (plan as { plan?: Record<string, unknown> }).plan ?? plan : null) as Record<string, unknown> | null;
-    setFiles(readFiles(planRec));
+    const nextFiles = readFiles(planRec);
+    setFiles(nextFiles);
+    if (nextFiles.some((file) => String(file?.name ?? '').trim())) setArtifactReady(true);
     const briefRec = consult && typeof consult === 'object' ? (consult as { brief?: Record<string, unknown> }).brief : null;
     const prefillParts = [
       briefRec && typeof briefRec.goal === 'string' ? String(briefRec.goal) : '',
@@ -411,15 +416,20 @@ export function AmHandoffDesk({
         const industries = (opts.industries ?? []) as DiscoveryOption[];
         if (industries.length) setIndustryOptions(industries);
         const groups = (opts.service_groups ?? []) as Array<{
-          services?: Array<{ slug?: string; name?: string; label?: string }>;
+          services?: Array<{ slug?: string; name?: string; label?: string; children?: Array<{ slug?: string; name?: string }> }>;
           slug?: string;
           name?: string;
           label?: string;
         }>;
+        if (groups.length) setServiceGroups(groups);
         const flat: Array<{ slug?: string; value?: string; name?: string; label?: string }> = [];
         for (const g of groups) {
-          if (Array.isArray(g.services)) flat.push(...g.services);
-          else if (g.slug || g.name) flat.push(g);
+          if (Array.isArray(g.services)) {
+            for (const svc of g.services) {
+              flat.push(svc);
+              if (Array.isArray(svc.children)) flat.push(...svc.children);
+            }
+          } else if (g.slug || g.name) flat.push(g);
         }
         if (flat.length) setServiceOptions(flat);
       })
@@ -533,6 +543,12 @@ export function AmHandoffDesk({
   });
 
   const canAssign = flow.currentKey === 'await_solutions';
+  const hasSolutionArtifact = files.some((file) => String((file as { name?: string }).name ?? '').trim()) || artifactReady;
+  const submitDisabledReason = !canAssign
+    ? 'Lead không còn ở bước Chờ Solutions.'
+    : hasSolutionArtifact
+      ? ''
+      : 'Tải file Solution hoặc dùng AI tạo Solution trước khi nộp.';
 
   async function run(task: () => Promise<void>) {
     setBusy(true);
@@ -552,24 +568,21 @@ export function AmHandoffDesk({
     if (!canAssign) return 'Lead không còn ở bước Chờ Solutions.';
     if (!leaderId) return 'Chọn Marketing Leader.';
     if (!deadline) return 'Chọn Deadline Solutions.';
-    if (!checklist.allOk && !checklist.legacyAssignable) return 'Hoàn thiện checklist AM trước khi giao.';
+    if (!checklist.allOk && !checklist.legacyAssignable) return 'Hoàn thiện checklist AM trước khi nộp.';
     return '';
   }
 
-  async function assignToMarketing() {
-    const reason = assignDisabledReason();
+  async function submitSolutionToSales() {
+    const reason = submitDisabledReason;
     if (reason) {
       setError(reason);
       return;
     }
+    if (!window.confirm(HANDOFF_FLOW_COPY.confirmRelease)) return;
     await run(async () => {
-      const out = await claimLeadSolution(token, lead.id, {
-        assignee_staff_id: Number(leaderId),
-        deadline,
-        note: assignNote.trim(),
-      });
+      const out = await releaseLeadToSales(token, lead.id);
       onFunnelChange(out.funnel);
-      const msg = HANDOFF_FLOW_COPY.assignedToMarketing;
+      const msg = HANDOFF_FLOW_COPY.releasedToQuote;
       setNotice(msg);
       onMessage?.(msg);
       pushToast(msg, 'success');
@@ -593,7 +606,7 @@ export function AmHandoffDesk({
     });
   }
 
-  const serviceChips = (view.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
+  const serviceChips = discoveryServiceChips(view.services ?? [], serviceGroups.length ? serviceGroups : [{ services: serviceOptions.map((row) => ({ slug: String(row.slug || row.value || ''), name: String(row.name || row.label || '') })) }]);
   const currentRows = [
     view.channels.length
       ? { label: 'Kênh đang sử dụng', value: channelLabels(view.channels) }
@@ -609,7 +622,6 @@ export function AmHandoffDesk({
     view.timeline_band ? { label: 'Thời điểm', value: timelineLabel(view.timeline_band) } : null,
     view.flagship_product ? { label: 'Sản phẩm chủ lực', value: view.flagship_product } : null,
   ].filter((row): row is { label: string; value: string } => Boolean(row));
-  const needLeaderHint = canAssign && !leaderId;
   const fileCount = files.length;
 
   return (
@@ -690,17 +702,17 @@ export function AmHandoffDesk({
             <button
               type="button"
               className="ahd-btn ahd-btn--primary"
-              data-testid="ahd-assign-top"
-              disabled={busy || Boolean(assignDisabledReason())}
-              title={assignDisabledReason() || undefined}
-              aria-disabled={busy || Boolean(assignDisabledReason())}
-              onClick={() => void assignToMarketing()}
+              data-testid="ahd-submit-sales-top"
+              disabled={busy || Boolean(submitDisabledReason)}
+              title={submitDisabledReason || undefined}
+              aria-disabled={busy || Boolean(submitDisabledReason)}
+              onClick={() => void submitSolutionToSales()}
             >
               <Icon d={I.arrow} size={14} />
-              Giao cho Marketing
+              Nộp Solution cho Sales
             </button>
-            {needLeaderHint ? (
-              <p className="ahd-assign-hint" data-testid="ahd-assign-hint-top">Chọn Marketing Leader để giao</p>
+            {submitDisabledReason ? (
+              <p className="ahd-assign-hint" data-testid="ahd-submit-hint-top">{submitDisabledReason}</p>
             ) : null}
           </div>
           ) : (
@@ -837,9 +849,17 @@ export function AmHandoffDesk({
               <BriefCard title="Dịch vụ quan tâm" icon={I.box} testId="ahd-services">
                 {serviceChips.length ? (
                   <div className="ahd-chips">
-                    {serviceChips.map((name) => (
-                      <span className="ahd-chip" key={name}>
-                        {name}
+                    {serviceChips.map((chip) => (
+                      <span className="ahd-chip" key={chip.slug} title={chip.parent ? `${chip.parent} – ${chip.title}` : chip.title}>
+                        {chip.parent ? (
+                          <>
+                            <span className="ahd-chip__parent">{chip.parent}</span>
+                            <span className="ahd-chip__sep"> – </span>
+                            <span className="ahd-chip__name">{chip.title}</span>
+                          </>
+                        ) : (
+                          <span className="ahd-chip__name">{chip.title}</span>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -884,7 +904,10 @@ export function AmHandoffDesk({
                 party={(party ?? {}) as LeadPartyFormValue}
                 funnel={funnel}
                 onFunnelChange={onFunnelChange}
-                onMessage={onMessage}
+                onMessage={(message) => {
+                  setArtifactReady(true);
+                  onMessage?.(message);
+                }}
                 onError={onError}
                 submitOnly
               />
@@ -975,25 +998,6 @@ export function AmHandoffDesk({
             </h3>
             <label className="ahd-field">
               <span>
-                Giao cho Marketing Leader <span className="ahd-req">*</span>
-              </span>
-              <select
-                value={leaderId}
-                onChange={(e) => setLeaderId(e.target.value)}
-                disabled={busy || !canAssign}
-                data-testid="ahd-leader"
-              >
-                <option value="">— Chọn Marketing Leader —</option>
-                {leaders.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                    {row.title ? ` — ${row.title}` : ' — Marketing Leader'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="ahd-field">
-              <span>
                 Deadline Solutions <span className="ahd-req">*</span>
               </span>
               <input
@@ -1035,32 +1039,22 @@ export function AmHandoffDesk({
             >
               Lưu Deadline
             </button>
-            <label className="ahd-field">
-              <span>Yêu cầu / Ghi chú cho Marketing</span>
-              <textarea
-                value={assignNote}
-                onChange={(e) => setAssignNote(e.target.value)}
-                disabled={busy || !canAssign}
-                data-testid="ahd-assign-note"
-                rows={5}
-              />
-            </label>
             {canAssign ? (
             <>
             <button
               type="button"
               className="ahd-btn ahd-btn--primary ahd-btn--block"
-              data-testid="ahd-assign"
-              disabled={busy || Boolean(assignDisabledReason())}
-              title={assignDisabledReason() || undefined}
-              aria-disabled={busy || Boolean(assignDisabledReason())}
-              onClick={() => void assignToMarketing()}
+              data-testid="ahd-submit-sales"
+              disabled={busy || Boolean(submitDisabledReason)}
+              title={submitDisabledReason || undefined}
+              aria-disabled={busy || Boolean(submitDisabledReason)}
+              onClick={() => void submitSolutionToSales()}
             >
               <Icon d={I.arrow} size={15} />
-              Giao cho Marketing
+              Nộp Solution cho Sales
             </button>
-            {needLeaderHint ? (
-              <p className="ahd-assign-hint" data-testid="ahd-assign-hint">Chọn Marketing Leader để giao</p>
+            {submitDisabledReason ? (
+              <p className="ahd-assign-hint" data-testid="ahd-submit-hint">{submitDisabledReason}</p>
             ) : null}
             </>
             ) : (

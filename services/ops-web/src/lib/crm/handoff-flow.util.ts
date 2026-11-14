@@ -5,7 +5,7 @@
  *
  * Stored codes stay backward-compatible:
  *   handoff pending      → Chờ Solutions
- *   handoff with_solution → Đang làm Solutions
+ *   handoff with_solution → AM làm Solution
  *   handoff released / lead status bao_gia → Chờ báo giá
  *   dam_phan             → Thương thảo
  *   won / chot / contract → Ký hợp đồng
@@ -57,16 +57,16 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     index: 3,
     label: 'Chờ Solutions',
     shortLabel: 'Chờ Solutions',
-    hint: 'AM kiểm tra & giao Case',
+    hint: 'AM kiểm tra Brief và làm Solution',
     roleHint: 'Account Manager',
   },
   {
     key: 'doing_solutions',
     index: 4,
-    label: 'Đang làm Solutions',
-    shortLabel: 'Đang làm',
-    hint: 'Marketing Leader',
-    roleHint: 'Marketing Leader',
+    label: 'AM làm Solution',
+    shortLabel: 'AM làm',
+    hint: 'Account Manager',
+    roleHint: 'Account Manager',
   },
   {
     key: 'await_quote',
@@ -98,7 +98,7 @@ export const HANDOFF_FLOW_STATUS_LABELS: Record<HandoffFlowStepKey, string> = {
   receive_lead: 'Tiếp nhận Lead',
   sales_brief: 'Sales tư vấn & nhập Brief',
   await_solutions: 'Chờ Solutions',
-  doing_solutions: 'Đang làm Solutions',
+  doing_solutions: 'AM làm Solution',
   await_quote: 'Chờ báo giá',
   negotiate: 'Thương thảo',
   sign_contract: 'Ký hợp đồng',
@@ -354,7 +354,7 @@ export interface HandoffKanbanColumn {
 
 /**
  * B2B Kanban columns for this flow. Stored status codes are unchanged;
- * handoff_status pulls leads out of "Đang tư vấn" into Chờ / Đang làm Solutions.
+ * handoff_status pulls leads out of "Đang tư vấn" into Chờ / AM làm Solution.
  */
 export const HANDOFF_FLOW_KANBAN_COLUMNS: readonly HandoffKanbanColumn[] = [
   {
@@ -381,7 +381,7 @@ export const HANDOFF_FLOW_KANBAN_COLUMNS: readonly HandoffKanbanColumn[] = [
   },
   {
     id: 'dang_lam_solutions',
-    label: 'Đang làm Solutions',
+    label: 'AM làm Solution',
     stepKey: 'doing_solutions',
     statuses: [],
     handoffs: ['with_solution'],
@@ -655,9 +655,9 @@ export function splitBriefIdeas(value: string | null | undefined): string[] {
 
 export const HANDOFF_FLOW_COPY = {
   submitToAm: 'Đã Submit to AM. Lead đang ở Chờ Solutions.',
-  assignedToMarketing: 'Đã giao cho Marketing. Lead đang ở Đang làm Solutions.',
+  assignedToMarketing: 'Đã giao case Solutions.',
   returnedToSales: 'Đã trả về Sales. Lead quay lại Pre Sale (Sales tư vấn & nhập Brief).',
-  releasedToQuote: 'Đã nộp Solution. Lead chuyển sang Chờ báo giá.',
-  confirmRelease: 'Nộp Solution và chuyển lead sang Chờ báo giá?',
+  releasedToQuote: 'Đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách.',
+  confirmRelease: 'Nộp Solution cho Sales và chuyển lead sang bước Sales lấy phản hồi khách?',
   confirmReturn: 'Trả về Sales? Lead sẽ quay lại bước Sales tư vấn & nhập Brief để bổ sung thông tin.',
 } as const;

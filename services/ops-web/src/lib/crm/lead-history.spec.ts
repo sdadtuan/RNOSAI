@@ -238,3 +238,18 @@ describe('resolveActorDisplayName', () => {
     expect(resolveActorDisplayName('system', staff)).toBe('');
   });
 });
+
+describe('presentLeadHistory solution flow', () => {
+  it('formats AM solution events as who · action · HH:mm dd/MM/yyyy', () => {
+    const line = presentLeadHistory({
+      id: 91,
+      user_name: 'Admin',
+      created_by: 'admin@local',
+      activity_type: 'solution_released',
+      content: 'Admin · Nộp Solution cho Sales',
+      created_at: '2026-11-14T10:32:00.000Z',
+    });
+    expect(line.who).toBe('Admin');
+    expect(line.what).toMatch(/^Admin · Nộp Solution cho Sales · \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/);
+  });
+});

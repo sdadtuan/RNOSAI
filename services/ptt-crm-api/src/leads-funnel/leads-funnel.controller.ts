@@ -449,6 +449,25 @@ export class LeadsFunnelController {
     }
   }
 
+  @Post(':id/presales/solution-viewed')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, PresalesOnLeadGuard)
+  async markSolutionViewed(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.markSolutionViewed(
+        id,
+        await this.userId(req),
+        this.actor(req),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Post(':id/presales/approve-solution')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)

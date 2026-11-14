@@ -2533,6 +2533,16 @@ export async function releaseLeadToSales(
   });
 }
 
+export async function markLeadSolutionViewed(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot; already?: boolean }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/solution-viewed`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function approveLeadSolution(
   token: string,
   leadId: number,

@@ -1,12 +1,13 @@
 'use client';
 
-import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Children, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   fetchDiscoveryOptions,
   fetchIntakeSessions,
   fetchLeadPresalesClientBrief,
   fetchLeadPresalesConsultBrief,
+  markLeadSolutionViewed,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -163,6 +164,7 @@ export function SalesLeadDesk({
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
+  const solutionViewedRef = useRef<number | null>(null);
 
   const brief: SalesDiscoveryBrief | null = useMemo(
     () => readDiscoveryBriefFromAnswers(session?.answers_json) ?? null,
@@ -225,6 +227,15 @@ export function SalesLeadDesk({
   }, [token]);
 
   const handoff = funnel?.presales?.handoff;
+
+  useEffect(() => {
+    if (handoff?.status !== 'released' || !token || !lead.id) return;
+    if (solutionViewedRef.current === lead.id) return;
+    solutionViewedRef.current = lead.id;
+    void markLeadSolutionViewed(token, lead.id).catch(() => {
+      if (solutionViewedRef.current === lead.id) solutionViewedRef.current = null;
+    });
+  }, [handoff?.status, token, lead.id]);
   const submitted = session?.status === 'completed' || Boolean(handoff?.handed_off_at) || handoff?.status === 'pending' || handoff?.status === 'with_solution' || handoff?.status === 'released';
   const returned = handoff?.status === 'returned';
   const flow = resolveHandoffFlow({

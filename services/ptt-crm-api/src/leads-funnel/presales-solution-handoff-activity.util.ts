@@ -3,6 +3,11 @@ export const SOLUTION_HANDOFF_ACTIVITY_TYPES = {
   claimed: 'solution_claimed',
   released: 'solution_released',
   returned: 'solution_returned',
+  uploaded: 'solution_file_uploaded',
+  ai_draft: 'solution_ai_draft',
+  deadline: 'solution_deadline_changed',
+  received: 'solution_received',
+  viewed: 'solution_viewed',
 } as const;
 
 export type SolutionHandoffActivityType =
@@ -15,6 +20,8 @@ export interface SolutionHandoffActivityInput {
   amOwnerName?: string;
   solutionOwnerName?: string;
   returnReason?: string;
+  fileName?: string;
+  deadlineLabel?: string;
 }
 
 export function buildSolutionHandoffActivity(
@@ -49,11 +56,44 @@ export function buildSolutionHandoffActivity(
     case SOLUTION_HANDOFF_ACTIVITY_TYPES.released:
       return {
         activity_type: kind,
-        content: `[Solution handoff] ${input.actorName} trả Sales lead #${input.leadId}${slug} — sẵn sàng Báo giá`,
-        result: 'Stage → proposal; AM tiếp tục chốt KH',
-        next_action: input.amOwnerName
-          ? `AM ${input.amOwnerName}: tiếp tục Proposal & gửi KH`
-          : 'AM: tiếp tục Proposal trên lead',
+        content: `${input.actorName} · Nộp Solution cho Sales`,
+        result: 'Lead chuyển sang bước Sales lấy phản hồi khách',
+        next_action: 'Sales xem Solution và lấy phản hồi khách',
+      };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.uploaded:
+      return {
+        activity_type: kind,
+        content: `${input.actorName} · Tải file Solution${input.fileName ? `: ${input.fileName}` : ''}`,
+        result: 'Đã tải file Solution',
+        next_action: '',
+      };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.ai_draft:
+      return {
+        activity_type: kind,
+        content: `${input.actorName} · AI tạo Solution`,
+        result: 'Đã tạo bản nháp Solution bằng AI',
+        next_action: '',
+      };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.deadline:
+      return {
+        activity_type: kind,
+        content: `${input.actorName} · Đổi Deadline Solutions${input.deadlineLabel ? `: ${input.deadlineLabel}` : ''}`,
+        result: 'Đã lưu Deadline Solutions',
+        next_action: '',
+      };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.received:
+      return {
+        activity_type: kind,
+        content: `${input.actorName} · Sales nhận Solution`,
+        result: 'Sales đã nhận Solution',
+        next_action: 'Sales xem Solution và lấy phản hồi khách',
+      };
+    case SOLUTION_HANDOFF_ACTIVITY_TYPES.viewed:
+      return {
+        activity_type: kind,
+        content: `${input.actorName} · Sales xem Solution`,
+        result: 'Sales đã mở Solution',
+        next_action: '',
       };
     default:
       return {

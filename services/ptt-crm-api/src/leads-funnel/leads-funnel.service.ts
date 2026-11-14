@@ -223,6 +223,26 @@ export class LeadsFunnelService {
     }
   }
 
+  async markSolutionViewed(leadId: number, staffId: number | null, actor: string, staffUser?: StaffJwtPayload) {
+    const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+    if (!snap) throw new NotFoundException({ error: 'Lead not found' });
+    if (String(snap.presales.handoff_status ?? '').trim() !== 'released') {
+      return { ok: true, funnel: await this.getFunnel(leadId), already: true };
+    }
+    const existing = await this.pgRepo.hasSolutionViewActivity(leadId);
+    if (existing) {
+      return { ok: true, funnel: await this.getFunnel(leadId), already: true };
+    }
+    await this.logSolutionHandoffActivity(
+      leadId,
+      SOLUTION_HANDOFF_ACTIVITY_TYPES.viewed,
+      actor,
+      staffId,
+      staffUser,
+    );
+    return { ok: true, funnel: await this.getFunnel(leadId), already: false };
+  }
+
   async getFunnel(leadId: number): Promise<LeadFunnelSnapshot> {
     const snap = await this.pgRepo.buildSnapshot(leadId, this.config.presalesOnLead);
     if (!snap) throw new NotFoundException({ error: 'Lead not found' });
@@ -699,6 +719,7 @@ export class LeadsFunnelService {
     staffId: number | null,
     staffUser?: StaffJwtPayload,
     returnReason?: string,
+    extra?: { fileName?: string; deadlineLabel?: string; actorName?: string },
   ): Promise<void> {
     const snap = await this.pgRepo.getPresalesSnapshot(leadId);
     if (!snap) return;
@@ -713,11 +734,37 @@ export class LeadsFunnelService {
     const payload = buildSolutionHandoffActivity(kind, {
       leadId,
       serviceSlug: snap.presales.service_slug,
-      actorName: await this.resolveStaffDisplayName(staffUser, actor, staffId),
+      actorName:
+        extra?.actorName?.trim() ||
+        (await this.resolveStaffDisplayName(staffUser, actor, staffId)),
       amOwnerName,
       returnReason,
+      fileName: extra?.fileName,
+      deadlineLabel: extra?.deadlineLabel,
     });
     await this.legacyLeads.createActivity(leadId, payload, actor, staffId);
+  }
+
+  private marketingPlanFileNames(plan: { strategy_framework_json?: unknown; strategy_framework?: unknown } | null | undefined): string[] {
+    const raw = plan?.strategy_framework_json ?? plan?.strategy_framework;
+    const packed =
+      raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? String((raw as { mkt_files?: unknown }).mkt_files ?? '')
+        : '';
+    const text = packed || (typeof raw === 'string' ? raw : '');
+    try {
+      const parsed = text.trim().startsWith('[')
+        ? (JSON.parse(text) as unknown)
+        : raw && typeof raw === 'object'
+          ? JSON.parse(String((raw as { mkt_files?: unknown }).mkt_files ?? '[]'))
+          : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((row) => (row && typeof row === 'object' ? String((row as { name?: string }).name ?? '').trim() : ''))
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   }
 
   async handoffToSolution(
@@ -874,6 +921,19 @@ export class LeadsFunnelService {
         staffId,
         caseStaffNotify({ kind: 'release_to_sales', leadId }),
       );
+      const salesId = await this.pgRepo.leadOwnerStaffId(leadId);
+      const salesName = salesId
+        ? (await this.leadPg.staffNamesByIds([salesId])).get(salesId)
+        : '';
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.received,
+        actor,
+        salesId ?? staffId,
+        staffUser,
+        undefined,
+        { actorName: salesName || 'Sales' },
+      );
       const amIds = await this.pgRepo.amDeskStaffIds();
       const salesIds = new Set(
         salesNotifyStaffIds({
@@ -1020,6 +1080,20 @@ export class LeadsFunnelService {
     }
     try {
       await this.pgRepo.updateSolutionDeadline(leadId, deadline);
+      const raw = String(deadline ?? '').trim();
+      const parsed = raw.length <= 10 ? new Date(`${raw}T17:00:00+07:00`) : new Date(raw);
+      const deadlineLabel = Number.isNaN(parsed.getTime())
+        ? raw
+        : parsed.toLocaleDateString('vi-VN', { timeZone: 'Asia/Saigon' });
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.deadline,
+        staffUser?.email || `staff:${staffId}`,
+        staffId,
+        staffUser,
+        undefined,
+        { deadlineLabel },
+      );
     } catch (err) {
       this.funnelError(err);
     }
@@ -1378,8 +1452,25 @@ export class LeadsFunnelService {
     const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
     if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
     const existing = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+    const beforeFiles = this.marketingPlanFileNames(existing);
     const patchBody = this.mergeManualMarketingPlanPatch(existing, body);
     const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
+    const afterFiles = this.marketingPlanFileNames(plan);
+    const added = afterFiles.filter((name) => !beforeFiles.includes(name));
+    if (added.length) {
+      const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+      for (const fileName of added) {
+        await this.logSolutionHandoffActivity(
+          leadId,
+          SOLUTION_HANDOFF_ACTIVITY_TYPES.uploaded,
+          staffUser?.email || (staffId ? `staff:${staffId}` : 'system'),
+          staffId ?? null,
+          staffUser,
+          undefined,
+          { fileName },
+        );
+      }
+    }
     const validation = validatePreliminaryPlan(plan);
     const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
     return { ok: true, plan, validation, ai_draft, funnel: await this.getFunnel(leadId) };
@@ -1525,6 +1616,14 @@ export class LeadsFunnelService {
       });
       const validation = validatePreliminaryPlan(plan);
       const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+      const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.ai_draft,
+        staffUser?.email || (staffId ? `staff:${staffId}` : 'system'),
+        staffId ?? null,
+        staffUser,
+      );
       return {
         ok: true,
         plan,

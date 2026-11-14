@@ -296,7 +296,7 @@ const CALL_SITUATIONS: readonly LeadStatusSearchOption[] = [
   },
   {
     id: 'dang_lam_solutions',
-    label: 'Đang làm Solutions',
+    label: 'AM làm Solution',
     handoffs: ['with_solution'],
   },
 ];

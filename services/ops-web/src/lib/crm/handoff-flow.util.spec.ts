@@ -23,7 +23,7 @@ describe('handoff-flow.util', () => {
       'Tiếp nhận Lead',
       'Sales tư vấn & nhập Brief',
       'Chờ Solutions',
-      'Đang làm Solutions',
+      'AM làm Solution',
       'Chờ báo giá',
       'Thương thảo',
       'Ký hợp đồng',
@@ -53,7 +53,7 @@ describe('handoff-flow.util', () => {
     ).toBe('Chờ Solutions');
   });
 
-  it('maps with_solution to Đang làm Solutions', () => {
+  it('maps with_solution to AM làm Solution', () => {
     expect(
       resolveHandoffFlowStep({ leadStatus: 'dang_tu_van', handoffStatus: 'with_solution' }),
     ).toBe('doing_solutions');

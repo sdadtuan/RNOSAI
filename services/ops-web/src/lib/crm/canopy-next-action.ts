@@ -79,8 +79,8 @@ export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefine
   }
   if (handoff === 'with_solution') {
     return isAm
-      ? 'Bước tiếp: hoàn thiện Solution và nộp cho Sales (Đang làm Solutions → Chờ báo giá).'
-      : 'Bước tiếp: Marketing đang làm Solutions — bạn chỉ xem.';
+      ? 'Bước tiếp: hoàn thiện Solution và nộp cho Sales (AM làm Solution → Sales lấy phản hồi khách).'
+      : 'Bước tiếp: AM đang làm Solution — bạn chỉ xem.';
   }
   if (handoff === 'pending') {
     return isAm
