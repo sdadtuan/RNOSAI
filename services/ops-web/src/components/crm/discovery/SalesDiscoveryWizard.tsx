@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/api';
-import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
-  reopenIntakeSession } from '@/lib/api';
+import { saveDiscoveryBrief, submitDiscoveryBrief, reopenIntakeSession } from '@/lib/api';
 import {
   DISCOVERY_REQUIRED_FIELDS,
   authorityLabel,
@@ -13,6 +12,7 @@ import {
   emptySalesDiscoveryBrief,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
+  liftDiscoveryServiceCodes,
   optionLabel,
   prefillSalesDiscovery,
   temperatureLabel,
@@ -42,11 +42,23 @@ function serviceName(options: DiscoveryOptionsPayload | null, slug: string): str
   for (const group of options.service_groups) {
     for (const row of group.services) {
       if (row.slug === slug) return row.name;
-      const child = (row.children ?? []).find((item) => item.slug === slug);
-      if (child) return `${row.name} · ${child.name}`;
     }
   }
   return slug;
+}
+
+function withLiftedServices(
+  brief: SalesDiscoveryBrief,
+  options: DiscoveryOptionsPayload | null,
+): SalesDiscoveryBrief {
+  const lifted = liftDiscoveryServiceCodes(brief.services, options?.service_groups ?? []);
+  if (
+    lifted.length === brief.services.length &&
+    lifted.every((slug, index) => slug === brief.services[index])
+  ) {
+    return brief;
+  }
+  return { ...brief, services: lifted };
 }
 
 export function SalesDiscoveryWizard({
@@ -75,15 +87,18 @@ export function SalesDiscoveryWizard({
   const [revising, setRevising] = useState(false);
   const readOnly = (completed && !revising) || !canEdit;
   const [brief, setBrief] = useState<SalesDiscoveryBrief>(() =>
-    prefillSalesDiscovery({
-      company_name: lead?.company_name,
-      full_name: lead?.full_name,
-      phone: lead?.phone,
-      email: lead?.email,
-      need: (lead as { need?: string | null } | null | undefined)?.need,
-      industry: (lead as { industry?: string } | null)?.industry,
-      session,
-    }),
+    withLiftedServices(
+      prefillSalesDiscovery({
+        company_name: lead?.company_name,
+        full_name: lead?.full_name,
+        phone: lead?.phone,
+        email: lead?.email,
+        need: (lead as { need?: string | null } | null | undefined)?.need,
+        industry: (lead as { industry?: string } | null)?.industry,
+        session,
+      }),
+      options,
+    ),
   );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -133,14 +148,17 @@ export function SalesDiscoveryWizard({
 
   useEffect(() => {
     setBrief(
-      prefillSalesDiscovery({
-        company_name: lead?.company_name,
-        full_name: lead?.full_name,
-        phone: lead?.phone,
-        email: lead?.email,
-        need: (lead as { need?: string | null } | null | undefined)?.need,
-        session,
-      }),
+      withLiftedServices(
+        prefillSalesDiscovery({
+          company_name: lead?.company_name,
+          full_name: lead?.full_name,
+          phone: lead?.phone,
+          email: lead?.email,
+          need: (lead as { need?: string | null } | null | undefined)?.need,
+          session,
+        }),
+        options,
+      ),
     );
     if (session.status !== 'completed') setRevising(false);
   }, [session.id, session.status, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -177,6 +195,18 @@ export function SalesDiscoveryWizard({
   const authorities = options?.authorities ?? [];
   const temperatures = options?.temperatures ?? [];
   const groups = options?.service_groups ?? [];
+  const liftPersistRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (readOnly || !options) return;
+    const current = briefRef.current;
+    const lifted = withLiftedServices(current, options);
+    if (lifted.services === current.services) return;
+    if (liftPersistRef.current === session.id && lifted.services.join('|') === current.services.join('|')) return;
+    liftPersistRef.current = session.id;
+    patch({ services: lifted.services }, { immediate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options, session.id, readOnly]);
+
 
   function patch(partial: Partial<SalesDiscoveryBrief>, opts?: { immediate?: boolean }) {
     setBrief((prev) => {
@@ -216,19 +246,17 @@ export function SalesDiscoveryWizard({
     }
   }
 
+  function selectedServiceCodes(): string[] {
+    return liftDiscoveryServiceCodes(brief.services, groups);
+  }
+
   async function onToggleService(slug: string, selected: boolean) {
     if (readOnly) return;
-    setError('');
-    try {
-      const saved = await saveDiscoveryService(token, session.id, selected ? 'remove' : 'add', slug);
-      onSessionChange(saved);
-      notifyDeskDiscoveryChanged();
-      const next = prefillSalesDiscovery({ session: saved, company_name: lead?.company_name, full_name: lead?.full_name, phone: lead?.phone, email: lead?.email, need: (lead as { need?: string | null } | null | undefined)?.need });
-      // Keep other in-progress fields; only take services from server.
-      setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không lưu được dịch vụ.');
-    }
+    const code = String(slug ?? '').trim();
+    if (!code) return;
+    const current = liftDiscoveryServiceCodes(briefRef.current.services, groups);
+    const next = selected ? current.filter((item) => item !== code) : (current.includes(code) ? current : [...current, code]);
+    patch({ services: next }, { immediate: true });
   }
 
   async function onSubmit() {
@@ -459,14 +487,14 @@ export function SalesDiscoveryWizard({
                     data-testid="sd-service-list-btn"
                     aria-expanded={listOpen}
                   >
-                    Danh sách dịch vụ ({brief.services.length})
+                    Danh sách dịch vụ ({selectedServiceCodes().length})
                   </button>
                   {listOpen ? (
                     <div className="sd-svc-panel" data-testid="sd-service-list" role="menu">
-                      {brief.services.length === 0 ? (
+                      {selectedServiceCodes().length === 0 ? (
                         <p className="sd-svc-empty">Chưa chọn dịch vụ. Chọn hạng mục bên dưới để thêm (lưu ngay).</p>
                       ) : (
-                        brief.services.map((slug) => (
+                        selectedServiceCodes().map((slug) => (
                           <div key={slug} className="sd-svc-item">
                             <span>{serviceName(options, slug)}</span>
                             {readOnly ? null : (
@@ -488,90 +516,57 @@ export function SalesDiscoveryWizard({
               </div>
               <div className="sd-field" style={{ marginBottom: 14 }}>
                 <FieldLabel required>Dịch vụ khách hàng quan tâm</FieldLabel>
-                <p className="sd-hint">Mở dịch vụ để chọn hạng mục — lưu ngay, không cần nút Save.</p>
+                <p className="sd-hint">Mở nhóm để chọn dịch vụ — lưu ngay, không cần nút Save.</p>
                 <div className="sd-picker" data-testid="sd-service-picker">
-                  {groups.map((group) => (
-                    <div key={group.key} className="sd-picker__group">
-                      <p className="sd-picker__group-title">{group.title}</p>
-                      {group.services.map((svc) => {
-                        const children = svc.children ?? [];
-                        const hasChildren = children.length > 0;
-                        const childOn = children.filter((item) => brief.services.includes(item.slug)).length;
-                        const parentOn = brief.services.includes(svc.slug);
-                        const ticked = hasChildren ? childOn : parentOn ? 1 : 0;
-                        const total = hasChildren ? children.length : 1;
-                        const allOn = hasChildren ? childOn === children.length && (childOn > 0 || parentOn) : parentOn;
-                        const partial = hasChildren && (childOn > 0 || parentOn) && !allOn;
-                        const open = Boolean(svcOpen[svc.slug]);
-                        return (
-                          <div
-                            key={svc.slug}
-                            className={`sd-acc${allOn ? ' is-all' : partial ? ' is-partial' : ''}${open ? ' is-open' : ''}`}
-                            data-testid={`sd-svc-${svc.slug}`}
-                          >
-                            {hasChildren ? (
-                              <button
-                                type="button"
-                                className="sd-acc__head"
-                                aria-expanded={open}
-                                onClick={() => setSvcOpen((prev) => (prev[svc.slug] ? {} : { [svc.slug]: true }))}
-                              >
-                                <span className="sd-acc__chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
-                                <span className="sd-acc__name">{svc.name}</span>
-                                <span className="sd-acc__count" data-testid={`sd-svc-count-${svc.slug}`}>
-                                  {parentOn && childOn === 0 ? 'đã chọn' : `${childOn}/${children.length}`}
-                                </span>
-                              </button>
-                            ) : (
-                              <label className="sd-acc__head sd-acc__head--leaf">
-                                <input
-                                  type="checkbox"
-                                  disabled={readOnly}
-                                  checked={parentOn}
-                                  data-testid={`sd-svc-check-${svc.slug}`}
-                                  onChange={() => void onToggleService(svc.slug, parentOn)}
-                                />
-                                <span className="sd-acc__name">{svc.name}</span>
-                              </label>
-                            )}
-                            {hasChildren && open ? (
-                              <ul className="sd-acc__list">
-                                {children.map((item) => {
-                                  const on = brief.services.includes(item.slug) || (parentOn && childOn === 0);
-                                  return (
-                                    <li key={item.slug}>
-                                      <label className="sd-acc__item">
-                                        <input
-                                          type="checkbox"
-                                          disabled={readOnly}
-                                          checked={on}
-                                          data-testid={`sd-svc-child-${item.slug}`}
-                                          onChange={() => {
-                                            if (parentOn && childOn === 0) {
-                                              void (async () => {
-                                                await onToggleService(svc.slug, true);
-                                                for (const sib of children) {
-                                                  if (sib.slug === item.slug) continue;
-                                                  await onToggleService(sib.slug, false);
-                                                }
-                                              })();
-                                              return;
-                                            }
-                                            void onToggleService(item.slug, brief.services.includes(item.slug));
-                                          }}
-                                        />
-                                        <span>{item.name}</span>
-                                      </label>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                  {groups.map((group) => {
+                    const slugs = group.services.map((svc) => svc.slug);
+                    const ticked = slugs.filter((slug) => selectedServiceCodes().includes(slug)).length;
+                    const open = Boolean(svcOpen[group.key]);
+                    return (
+                      <div
+                        key={group.key}
+                        className={`sd-picker__group${open ? ' is-open' : ''}${ticked ? ' is-active' : ''}`}
+                        data-testid={`sd-cat-${group.key}`}
+                      >
+                        <button
+                          type="button"
+                          className="sd-acc__head"
+                          aria-expanded={open}
+                          data-testid={`sd-cat-toggle-${group.key}`}
+                          onClick={() =>
+                            setSvcOpen((prev) => ({ ...prev, [group.key]: !prev[group.key] }))
+                          }
+                        >
+                          <span className="sd-acc__chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                          <span className="sd-acc__name">{group.title}</span>
+                          <span className="sd-acc__count" data-testid={`sd-cat-count-${group.key}`}>
+                            {ticked}/{slugs.length}
+                          </span>
+                        </button>
+                        {open ? (
+                          <ul className="sd-acc__list">
+                            {group.services.map((svc) => {
+                              const on = selectedServiceCodes().includes(svc.slug);
+                              return (
+                                <li key={svc.slug}>
+                                  <label className="sd-acc__item">
+                                    <input
+                                      type="checkbox"
+                                      disabled={readOnly}
+                                      checked={on}
+                                      data-testid={`sd-svc-check-${svc.slug}`}
+                                      onChange={() => void onToggleService(svc.slug, on)}
+                                    />
+                                    <span className="sd-acc__name">{svc.name}</span>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div className="sd-grid sd-grid--1">

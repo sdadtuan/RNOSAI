@@ -124,8 +124,8 @@
   border: 1px solid #eef1f4;
   border-radius: 10px;
 }
-.sd-picker__group-title { margin: 0 0 6px; font-size: 0.88rem; font-weight: 700; color: #123047; }
-.sd-acc { margin: 0 0 4px; }
+.sd-picker__group-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: #123047; }
+.sd-acc { margin: 0; }
 .sd-acc__head {
   display: flex;
   align-items: center;
@@ -157,10 +157,14 @@
   line-height: 1;
   color: #4b5563;
 }
-.sd-acc__list { list-style: none; margin: 0; padding: 0 0 6px 26px; }
+.sd-picker__group > .sd-acc__head { padding: 8px 8px; }
+.sd-picker__group.is-active { border-color: #cfe6d6; }
+.sd-picker__group.is-open { box-shadow: 0 0 0 1px #d7eadc; }
+.sd-acc__list { list-style: none; margin: 0; padding: 0 6px 8px; }
+.sd-acc__list > li { margin: 0; padding: 0; }
 .sd-acc__item {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 4px 0; font-size: 0.86rem; color: #24384c; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 4px; font-size: 0.88rem; color: #24384c; cursor: pointer;
 }
 .sd-acc__item input,
 .sd-acc__head--leaf input[type='checkbox'] {

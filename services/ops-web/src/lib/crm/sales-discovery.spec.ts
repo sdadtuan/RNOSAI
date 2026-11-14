@@ -6,6 +6,8 @@ import {
   discoveryConsultFormPatch,
   discoveryProgress,
   groupCatalogServices,
+  liftDiscoveryServiceCodes,
+  isDiscoveryScopeSlug,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
   parseWebsiteBundle,
@@ -142,3 +144,35 @@ describe('parseWebsiteBundle labeled and compact forms', () => {
   });
 });
 
+
+describe("liftDiscoveryServiceCodes", () => {
+  const groups = [
+    {
+      services: [
+        {
+          slug: "dich-vu-seo-tong-the",
+          children: [
+            { slug: "scope:11" },
+            { slug: "scope:12" },
+          ],
+        },
+        { slug: "lead-gen" },
+      ],
+    },
+  ];
+
+  it("maps scope slugs back to the parent service code and de-duplicates", () => {
+    expect(
+      liftDiscoveryServiceCodes(
+        ["scope:11", "scope:12", "lead-gen", "scope:11", "mystery"],
+        groups,
+      ),
+    ).toEqual(["dich-vu-seo-tong-the", "lead-gen", "mystery"]);
+  });
+
+  it("drops unknown scope slugs and ignores empties", () => {
+    expect(isDiscoveryScopeSlug("scope:99")).toBe(true);
+    expect(isDiscoveryScopeSlug("dich-vu-seo-tong-the")).toBe(false);
+    expect(liftDiscoveryServiceCodes(["scope:99", "", "lead-gen"], groups)).toEqual(["lead-gen"]);
+  });
+});

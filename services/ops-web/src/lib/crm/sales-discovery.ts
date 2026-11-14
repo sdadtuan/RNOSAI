@@ -275,6 +275,44 @@ export function sessionHasCompleteDiscovery(answers: unknown): boolean {
   return brief ? isDiscoveryComplete(brief) : false;
 }
 
+export function isDiscoveryScopeSlug(slug: string): boolean {
+  return /^scope:\d+$/i.test(String(slug ?? "").trim());
+}
+
+export type DiscoveryServiceLiftGroup = {
+  services?: Array<{ slug?: string; children?: Array<{ slug?: string }> }>;
+};
+
+/** Map scope:{id} ticks back to the parent catalog service code; drop unknown scope slugs. */
+export function liftDiscoveryServiceCodes(
+  services: string[],
+  groups: DiscoveryServiceLiftGroup[] = [],
+): string[] {
+  const parentOf = new Map<string, string>();
+  for (const group of groups) {
+    for (const svc of group.services ?? []) {
+      const parent = String(svc.slug ?? "").trim();
+      if (!parent) continue;
+      for (const child of svc.children ?? []) {
+        const childSlug = String(child.slug ?? "").trim();
+        if (childSlug) parentOf.set(childSlug, parent);
+      }
+    }
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of services ?? []) {
+    const slug = String(raw ?? "").trim();
+    if (!slug) continue;
+    const lifted = isDiscoveryScopeSlug(slug) ? parentOf.get(slug) ?? "" : slug;
+    if (!lifted || isDiscoveryScopeSlug(lifted)) continue;
+    if (seen.has(lifted)) continue;
+    seen.add(lifted);
+    out.push(lifted);
+  }
+  return out;
+}
+
 export function primaryServiceSlug(services: string[]): string {
   return asString(services[0] ?? '');
 }
