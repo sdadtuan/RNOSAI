@@ -26,6 +26,7 @@ export type LeadHistoryLine = {
   what: string;
   when: string;
   kind?: 'solution' | 'care' | 'owner' | 'call';
+  tag?: string;
 };
 
 export function isSolutionHistoryLine(line: LeadHistoryLine | null | undefined): boolean {
@@ -327,6 +328,16 @@ export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
   const to = displayStaffName(row.would_to_name || row.to_name);
   const why = ownerChangeReasonLabel(row.reason, row.created_by, row.dry_run, row.created_by_name);
   const when = formatHistoryClock(row.created_at);
+  if (/^solution_auto_assign/i.test(String(row.reason ?? '').trim())) {
+    return {
+      key: `owner-${row.id}`,
+      id: Number(row.id) || 0,
+      who: 'Hệ thống',
+      what: `Giao Solution cho ${to} (tự động) · ${when}`,
+      when: '',
+      kind: 'owner',
+    };
+  }
   const core =
     from === '—'
       ? `Giao ban đầu cho ${role} ${to}`
@@ -438,7 +449,6 @@ export function presentCallHistoryLine(row: LeadCallAttemptInput): LeadHistoryLi
   const result = CALL_RESULT_VI[resultKey] ?? (resultKey || '—');
   const flags: string[] = [];
   if (row.counts_toward_fr1) flags.push('Phản hồi đầu');
-  else flags.push('Không tính phản hồi đầu');
   if (row.warn_call_too_soon) flags.push('Gọi quá sát');
   const notes = String(row.notes ?? '').trim();
   const action = [channel, result, ...flags, notes].filter(Boolean).join(', ');
@@ -450,6 +460,7 @@ export function presentCallHistoryLine(row: LeadCallAttemptInput): LeadHistoryLi
     what: `${who} · ${action} · ${when}`.trim(),
     when,
     kind: 'call',
+    tag: row.counts_toward_fr1 ? 'Phản hồi đầu' : undefined,
   };
 }
 
@@ -472,14 +483,101 @@ function stripClock(text: string): string {
     .trim();
 }
 
-export function formatCompactHistoryRow(line: LeadHistoryLine): string {
-  const clock = rowClock(line);
+export function formatHistoryClockShort(raw: string | null | undefined): string {
+  const full = formatHistoryClock(raw) || rowClock({ key: '', id: 0, who: '', what: '', when: String(raw ?? '') });
+  return full.replace(/\/\d{4}$/, '');
+}
+
+function shortClockFromLine(line: LeadHistoryLine): string {
+  return rowClock(line).replace(/\/\d{4}$/, '');
+}
+
+function isoToShortClock(raw: string): string {
+  return formatHistoryClock(raw).replace(/\/\d{4}$/, '') || raw;
+}
+
+export function shortenHistoryAction(action: string): string {
+  let text = String(action ?? '').trim();
+  text = text.replace(/\s*·?\s*Dịch vụ:\s*[^·]*/gi, '');
+  text = text.replace(/(?:^|[,\s/])scope:\d+/gi, '');
+  text = text.replace(/\s*,\s*,+/g, ',').replace(/^,+|,+$/g, '');
+
+  if (/Sales Discovery/i.test(text) && /nộp cho AM|đã nộp/i.test(text)) {
+    text = 'Nộp Sales Discovery cho AM';
+  }
+
+  if (/Submit to AM/i.test(text)) {
+    text = 'Submit to AM';
+  } else if (/Lead chờ AM nhận|chờ AM nhận/i.test(text)) {
+    text = 'Chờ AM nhận';
+  }
+  text = text.replace(/\s*[—\-–]?\s*lead vào Chờ Solutions\.?/gi, '');
+  text = text.replace(/\s*Hạn nhận case[^·.]*(?:\.|$)/gi, '');
+
+  text = text.replace(/^Trạng thái:\s*/i, 'Trạng thái ');
+  text = text.replace(/Hẹn gọi lại\s*[—\-–]\s*Hẹn gọi lại/gi, 'Hẹn gọi lại');
+  text = text.replace(
+    /Hẹn gọi lại:\s*(\d{4}-\d{2}-\d{2}T[0-9:.Z+\-]+)/gi,
+    (_, iso: string) => `Hẹn gọi lại ${isoToShortClock(iso)}`,
+  );
+  text = text.replace(/\d{4}-\d{2}-\d{2}T[0-9:.]+Z/g, (iso) => isoToShortClock(iso));
+
+  text = text.replace(/\.\s*Ghi chú:\s*[^·]*/g, '');
+
+  text = text.replace(
+    /^Giao ban đầu cho (?:Sales|AM)\s+(.+?)\s*·\s*(tự động|thủ công)\b.*/i,
+    'Giao $1 ($2)',
+  );
+  text = text.replace(
+    /^Chuyển từ (?:Sales|AM)\s+(.+?)\s*→\s*(?:Sales|AM)\s+(.+?)\s*·\s*(.+)$/i,
+    (_m, from: string, to: string, why: string) => {
+      const shortWhy = String(why)
+        .replace(/^thủ công bởi .*/i, 'thủ công')
+        .replace(/\(chạy thử, chưa chuyển\)/g, 'chạy thử')
+        .trim();
+      return `Chuyển ${from} → ${to} (${shortWhy})`;
+    },
+  );
+
+  text = text.replace(/,?\s*Không tính phản hồi đầu/gi, '');
+  text = text.replace(/,?\s*Phản hồi đầu/gi, '');
+  text = text.replace(/,?\s*Gọi quá sát/gi, '');
+
+  // Call "SMS, Hẹn gọi lại" → "SMS · Hẹn gọi lại"
+  if (/^(Điện thoại|Zalo|SMS|Email)\s*,\s*/i.test(text) && text.split('·').length === 1) {
+    text = text.replace(/\s*,\s*/g, ' · ');
+  }
+
+  text = text.replace(/\s{2,}/g, ' ').replace(/\s*·\s*·+/g, ' · ').replace(/^[\s·]+|[\s·]+$/g, '').trim();
+  return text;
+}
+
+export type ShortHistoryRowView = {
+  who: string;
+  action: string;
+  clock: string;
+  title: string;
+  tag?: string;
+};
+
+export function presentShortHistoryRow(line: LeadHistoryLine): ShortHistoryRowView {
   const who = String(line.who ?? '').trim();
   let action = stripClock(String(line.what ?? '').trim());
   if (who && (action === who || action.startsWith(`${who} · `))) {
     action = action.slice(who.length).replace(/^\s*·\s*/, '');
   }
-  return [who, action, clock].filter(Boolean).join(' · ');
+  action = shortenHistoryAction(action);
+  const clock = shortClockFromLine(line);
+  const title = [who, stripClock(String(line.what ?? '').trim()).replace(new RegExp('^' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*·\\s*'), ''), rowClock(line)]
+    .filter(Boolean)
+    .join(' · ');
+  const fullTitle = String(line.what ?? '').trim() || title;
+  return { who, action, clock, title: fullTitle, tag: line.tag };
+}
+
+export function formatCompactHistoryRow(line: LeadHistoryLine): string {
+  const row = presentShortHistoryRow(line);
+  return [row.who, row.action, row.clock].filter(Boolean).join(' · ');
 }
 
 export function historyColumnOf(line: LeadHistoryLine): HistoryColumn {
@@ -498,14 +596,43 @@ function lineStamp(line: LeadHistoryLine): number {
   const m = clock.match(/^(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})$/);
   if (m) {
     const iso = `${m[5]}-${m[4]}-${m[3]}T${m[1]}:${m[2]}:00+07:00`;
-    const t = new Date(iso).getTime();
-    if (!Number.isNaN(t)) return t;
+    const t0 = new Date(iso).getTime();
+    if (!Number.isNaN(t0)) return t0;
   }
   return stamp(line.when);
 }
 
 function fingerprint(line: LeadHistoryLine): string {
   return stripClock(formatCompactHistoryRow(line)).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function semanticBucket(line: LeadHistoryLine): string {
+  const action = presentShortHistoryRow(line).action.toLowerCase();
+  if (/submit to am|chờ am nhận|nộp lên am/.test(action)) return 'submit-to-am';
+  return action;
+}
+
+function preferSemantic(current: LeadHistoryLine, next: LeadHistoryLine): LeadHistoryLine {
+  const a = presentShortHistoryRow(current).action;
+  const b = presentShortHistoryRow(next).action;
+  const score = (value: string) => (value === 'Submit to AM' ? 3 : value === 'Chờ AM nhận' ? 1 : 2);
+  if (score(a) !== score(b)) return score(a) > score(b) ? current : next;
+  return String(current.what ?? '').length >= String(next.what ?? '').length ? current : next;
+}
+
+function dedupeSemanticLines(lines: LeadHistoryLine[]): LeadHistoryLine[] {
+  const byKey = new Map<string, LeadHistoryLine>();
+  const order: string[] = [];
+  for (const line of lines) {
+    const key = `${semanticBucket(line)}@${Math.floor(lineStamp(line) / 60000)}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, line);
+      order.push(key);
+    } else {
+      byKey.set(key, preferSemantic(byKey.get(key) as LeadHistoryLine, line));
+    }
+  }
+  return order.map((key) => byKey.get(key) as LeadHistoryLine);
 }
 
 function mergeUniqueLines(lines: LeadHistoryLine[]): LeadHistoryLine[] {
@@ -546,5 +673,5 @@ export function splitLeadHistoryColumns(input: {
     lineStamp(b) - lineStamp(a) || (b.id || 0) - (a.id || 0);
   sale.sort(byTime);
   lead.sort(byTime);
-  return { saleLines: sale, leadLines: lead };
+  return { saleLines: dedupeSemanticLines(sale), leadLines: dedupeSemanticLines(lead) };
 }

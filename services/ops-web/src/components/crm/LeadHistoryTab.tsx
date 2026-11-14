@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchLeadActivities, fetchLeadFrSla, type LeadFrCallAttempt } from '@/lib/api';
 import {
-  formatCompactHistoryRow,
   presentLeadHistory,
+  presentShortHistoryRow,
   splitLeadHistoryColumns,
   type LeadHistoryLine,
 } from '@/lib/crm/lead-history';
@@ -44,15 +44,26 @@ function HistoryColumn({
       ) : (
         <ul className="lead-activity-list lead-history-col__list">
           {lines.map((line) => {
-            const selectable = Number(line.id) > 0 && !String(line.key).startsWith('call-') && !String(line.key).startsWith('owner-') && !String(line.key).startsWith('status-');
+            const short = presentShortHistoryRow(line);
+            const selectable =
+              Number(line.id) > 0 &&
+              !String(line.key).startsWith('call-') &&
+              !String(line.key).startsWith('owner-') &&
+              !String(line.key).startsWith('status-');
             return (
               <li
                 key={line.key}
                 className={`lead-activity-item lead-history-row${selectedActivityId === line.id ? ' is-selected' : ''}`}
                 data-testid={itemTestId}
+                title={short.title}
                 onClick={selectable ? () => onSelectActivity(line.id) : undefined}
               >
-                <div className="lead-activity-item__content">{formatCompactHistoryRow(line)}</div>
+                <div className="lead-history-row-inner">
+                  <span className="lead-history-who">{short.who}</span>
+                  <span className="lead-history-action">{short.action}</span>
+                  {short.tag ? <span className="lead-history-tag">{short.tag}</span> : null}
+                  <time className="lead-history-time">{short.clock}</time>
+                </div>
               </li>
             );
           })}

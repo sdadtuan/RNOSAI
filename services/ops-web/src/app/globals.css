@@ -3955,7 +3955,7 @@ html.ops-shell-bitrix .win-home__scope {
   border-bottom: 1px solid var(--surface-border);
   border-left: none;
   border-radius: 0;
-  padding: 6px 2px;
+  padding: 5px 2px;
   cursor: default;
 }
 
@@ -3963,9 +3963,51 @@ html.ops-shell-bitrix .win-home__scope {
   border-bottom: none;
 }
 
-.lead-history-tab .lead-history-row .lead-activity-item__content {
+.lead-history-tab .lead-history-row-inner {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
   font-size: 12.5px;
-  line-height: 1.4;
+  line-height: 1.35;
+}
+
+.lead-history-who {
+  flex: 0 0 auto;
+  font-weight: 650;
+  color: var(--text, #163047);
+  white-space: nowrap;
+}
+
+.lead-history-action {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lead-history-tag {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e8f6ee;
+  color: #17692f;
+  white-space: nowrap;
+}
+
+.lead-history-time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .lead-history-tab .lead-empty-state {

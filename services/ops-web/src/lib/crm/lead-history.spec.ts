@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstAcceptorName, formatCompactHistoryRow, isSolutionHistoryLine, mergeLeadCareHistory, presentCallHistoryLine, presentLeadHistory, presentOwnerChange, resolveActorDisplayName, splitLeadHistoryColumns } from './lead-history';
+import { firstAcceptorName, formatCompactHistoryRow, isSolutionHistoryLine, mergeLeadCareHistory, presentCallHistoryLine, presentLeadHistory, presentOwnerChange, presentShortHistoryRow, resolveActorDisplayName, shortenHistoryAction, splitLeadHistoryColumns } from './lead-history';
 
 describe('presentLeadHistory', () => {
   it('shows the carer, the update, and the time in Vietnamese', () => {
@@ -75,6 +75,20 @@ describe('presentLeadHistory', () => {
 });
 
 describe('presentOwnerChange', () => {
+  it('shows the Solution auto-assign as "Hệ thống · Giao Solution cho X (tự động)"', () => {
+    const line = presentOwnerChange({
+      id: 12,
+      from_name: null,
+      to_name: 'Le Van AM',
+      reason: 'solution_auto_assign',
+      created_by: 'system',
+      owner_kind: 'solution',
+      created_at: '2026-11-16T03:32:20.000Z',
+    });
+    expect(line.who).toBe('Hệ thống');
+    expect(line.what).toBe('Giao Solution cho Le Van AM (tự động) · 10:32 16/11/2026');
+  });
+
   it('formats a manual reassign as one short line with no seconds', () => {
     const line = presentOwnerChange({
       id: 11,
@@ -350,7 +364,7 @@ describe('splitLeadHistoryColumns', () => {
     expect(saleLines.some((line) => isDup(line, leadLines))).toBe(false);
   });
 
-  it('formats a call as who · channel, result, phản hồi đầu flag · clock', () => {
+  it('formats a call as who · channel · result · short clock, with a Phản hồi đầu tag when true', () => {
     const line = presentCallHistoryLine({
       id: 7,
       channel: 'phone',
@@ -358,8 +372,9 @@ describe('splitLeadHistoryColumns', () => {
       started_at: '2026-11-14T07:22:00.000Z',
       counts_toward_fr1: true,
     });
-    expect(line.what).toBe('Sale · Điện thoại, Không nghe máy, Phản hồi đầu · 14:22 14/11/2026');
-    expect(formatCompactHistoryRow(line)).toBe(line.what);
+    expect(line.tag).toBe('Phản hồi đầu');
+    expect(formatCompactHistoryRow(line)).toBe('Sale · Điện thoại · Không nghe máy · 14:22 14/11');
+    expect(presentShortHistoryRow(line).title).toContain('14:22 14/11/2026');
   });
 
   it('drops activity call rows when FR attempts already cover them', () => {
@@ -390,3 +405,49 @@ describe('splitLeadHistoryColumns', () => {
 function isDup(line: { key: string }, other: Array<{ key: string }>): boolean {
   return other.some((row) => row.key === line.key);
 }
+
+
+describe('shortenHistoryAction', () => {
+  it('compacts discovery, submit, assignment, status, and call tails', () => {
+    expect(
+      shortenHistoryAction(
+        'Sales Discovery #239 đã nộp cho AM ? hot · Dịch vụ: ai-chatbot-ban-hang, scope:138, scope:139',
+      ),
+    ).toBe('Nộp Sales Discovery cho AM');
+    expect(shortenHistoryAction('Đã Submit to AM — lead vào Chờ Solutions.')).toBe('Submit to AM');
+    expect(shortenHistoryAction('Lead chờ AM nhận Solutions. Hạn nhận case 15 phút.')).toBe('Chờ AM nhận');
+    expect(shortenHistoryAction('Giao ban đầu cho Sales Sale Local · tự động · 22:34 12/11/2026')).toBe(
+      'Giao Sale Local (tự động)',
+    );
+    expect(
+      shortenHistoryAction(
+        'Trạng thái: Mới → Chăm sóc lại. Hẹn gọi lại — Hẹn gọi lại: 2026-11-26T08:22:00.000Z',
+      ),
+    ).toBe('Trạng thái Mới → Chăm sóc lại. Hẹn gọi lại 15:22 26/11');
+    expect(shortenHistoryAction('SMS, Hẹn gọi lại, Không tính phản hồi đầu')).toBe('SMS · Hẹn gọi lại');
+    expect(
+      shortenHistoryAction('Hoàn thành bước: Liên hệ lần đầu. Ghi chú: Đã liên hệ KH — xác nhận nhu cầu'),
+    ).toBe('Hoàn thành bước: Liên hệ lần đầu');
+  });
+});
+
+describe('splitLeadHistoryColumns dedupe', () => {
+  it('keeps one Submit to AM row when a wait-for-AM event lands in the same minute', () => {
+    const submit = presentLeadHistory({
+      id: 41,
+      user_name: 'Admin',
+      content: 'Đã Submit to AM — lead vào Chờ Solutions.',
+      created_at: '2026-11-14T10:31:00.000Z',
+    });
+    const wait = presentLeadHistory({
+      id: 42,
+      user_name: 'Admin',
+      content: 'Lead chờ AM nhận Solutions. Hạn nhận case 15 phút.',
+      created_at: '2026-11-14T10:31:20.000Z',
+    });
+    const { leadLines, saleLines } = splitLeadHistoryColumns({ activityLines: [submit, wait] });
+    expect(saleLines.map((line) => line.key)).toEqual([]);
+    expect(leadLines.map((line) => line.key)).toEqual(['activity-41']);
+    expect(formatCompactHistoryRow(leadLines[0])).toBe('Admin · Submit to AM · 17:31 14/11');
+  });
+});
