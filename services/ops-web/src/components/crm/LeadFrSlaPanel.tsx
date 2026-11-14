@@ -15,6 +15,7 @@ import {
   type TeamSlaDocument,
 } from '@/lib/crm/team-sla-profiles';
 import { fetchTeamSlaDocument } from '@/lib/team-sla-api';
+import { ensureBusinessCalendars } from '@/lib/crm/business-calendar-api';
 import { setLeadPageClaimed, setLeadPageClaimMinutes } from '@/lib/crm/lead-page-next-hint';
 
 const CALL_RESULTS: { value: string; label: string; hint: string }[] = [
@@ -202,7 +203,8 @@ export function LeadFrSlaPanel({
     let cancelled = false;
     void (async () => {
       try {
-        const body = await fetchTeamSlaDocument(token);
+        // Calendar first so the countdown that renders with the document uses backend hours.
+        const [body] = await Promise.all([fetchTeamSlaDocument(token), ensureBusinessCalendars(token)]);
         if (!cancelled) {
           setTeamSla(body);
           const minutes = body.profiles.find((row) => row.code === 'sale_service')?.sale.claim_in_hours_minutes;

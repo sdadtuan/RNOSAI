@@ -8,7 +8,7 @@ import {
 
 const SAIGON_OFFSET_MS = 7 * 60 * 60 * 1000;
 
-import { addBusinessHours, addBusinessMinutes } from '@/lib/crm/business-hours';
+import { addBusinessHours, businessCalendar, businessCalendarLabel } from '@/lib/crm/business-hours';
 
 export type NewLeadClockPhase = 'claim' | 'update' | 'done' | 'unset';
 
@@ -201,7 +201,7 @@ export function resolveNewLeadClock(input: {
     const due = saleClaimDueAt(assigned, profile.calendar, profile.sale);
     const outside = !isInsideSaleShift(assigned, profile.calendar);
     const dueText = due ? formatNewLeadDueLabel(due) : '—';
-    const hoursHint = `${profile.calendar.start || '08:30'}–${profile.calendar.end || '18:30'}`;
+    const hoursHint = businessCalendarLabel(businessCalendar('sale_service'));
     return clockOf({
       phase: 'claim',
       label: `Chưa nhận · nhận trước ${dueText}`,
@@ -209,16 +209,16 @@ export function resolveNewLeadClock(input: {
       now,
       detail: outside
         ? `Ngoài ca ${hoursHint}. Hạn nhận ${profile.sale.claim_after_hours_time || '08:30'} ngày làm việc kế.`
-        : `Trong ca (${hoursHint} T2–T6). Nhận trong ${claimMinutes} phút kể từ lúc gán.`,
+        : `Trong ca (${hoursHint}). Nhận trong ${claimMinutes} phút kể từ lúc gán.`,
     });
   }
 
-  const updateDue =
-    updateHours > 0 ? addBusinessHours(claimed, updateHours) : null;
-  const reassignDue =
-    reassignHours > 0 ? addBusinessHours(claimed, reassignHours) : null;
+  // Same calendar as the API clocks (loaded from /api/team-sla/business-calendar).
+  const saleCal = businessCalendar('sale_service');
+  const updateDue = updateHours > 0 ? addBusinessHours(claimed, updateHours, saleCal) : null;
+  const reassignDue = reassignHours > 0 ? addBusinessHours(claimed, reassignHours, saleCal) : null;
   const dueText = updateDue ? formatNewLeadDueLabel(updateDue) : '—';
-  const hoursHint = `${profile.calendar.start || '08:30'}–${profile.calendar.end || '18:30'} T2–T6`;
+  const hoursHint = businessCalendarLabel(saleCal);
   const reassignText = reassignDue ? formatNewLeadDueLabel(reassignDue) : '';
   return clockOf({
     phase: 'update',

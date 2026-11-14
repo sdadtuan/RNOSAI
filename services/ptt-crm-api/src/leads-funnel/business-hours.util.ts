@@ -255,3 +255,38 @@ export function acceptDueAt(from: Date, minutes = 15, cal: BusinessCalendar = bu
   }
   return plus;
 }
+
+const DAY_SHORT = ['', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+/** 510 -> "08:30". */
+export function formatClockMinutes(min: number): string {
+  const m = Math.max(0, Math.min(24 * 60, Math.round(Number(min) || 0)));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** ISO weekdays -> "T2–T6" (a run of 3+ days) or "T2, T4, T6". */
+export function businessDaysLabel(days: readonly number[]): string {
+  const sorted = [...new Set(days)].filter((d) => Number.isInteger(d) && d >= 1 && d <= 7).sort((a, b) => a - b);
+  if (!sorted.length) return '';
+  const contiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1);
+  if (contiguous && sorted.length > 2) return `${DAY_SHORT[sorted[0]]}–${DAY_SHORT[sorted[sorted.length - 1]]}`;
+  return sorted.map((d) => DAY_SHORT[d]).join(', ');
+}
+
+/** "08:30–18:30 T2–T6" for clock / timeline messages. */
+export function businessCalendarLabel(cal: BusinessCalendar = businessCalendar()): string {
+  return `${formatClockMinutes(cal.startMin)}–${formatClockMinutes(cal.endMin)} ${businessDaysLabel(cal.days)}`.trim();
+}
+
+export type BusinessCalendarDto = { days: number[]; start: string; end: string; holidays: string[]; label: string };
+
+/** JSON shape served to ops-web (GET /api/team-sla/business-calendar). */
+export function businessCalendarDto(cal: BusinessCalendar = businessCalendar()): BusinessCalendarDto {
+  return {
+    days: [...cal.days],
+    start: formatClockMinutes(cal.startMin),
+    end: formatClockMinutes(cal.endMin),
+    holidays: [...cal.holidays],
+    label: businessCalendarLabel(cal),
+  };
+}

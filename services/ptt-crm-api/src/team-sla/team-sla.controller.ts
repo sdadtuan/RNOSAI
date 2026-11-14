@@ -7,6 +7,8 @@ import {
   StaffLeadSlaViewGuard,
 } from '../lead-sla-settings/guards/staff-lead-sla.guard';
 import { TeamSlaService } from './team-sla.service';
+import { businessCalendar, businessCalendarDto } from '../leads-funnel/business-hours.util';
+import { currentSolutionWorkSettings } from '../leads-funnel/team-sla-solution-settings';
 
 type TeamSlaReq = {
   staffUser?: StaffJwtPayload;
@@ -55,5 +57,22 @@ export class TeamSlaPublicController {
   async get() {
     const document = await this.service.getDocument();
     return document;
+  }
+
+  /**
+   * Business calendars the API clocks use right now (Admin "Lead First Response SLA" default +
+   * team overrides, reloaded by BusinessCalendarService), so ops-web countdowns match the backend.
+   */
+  @Get('business-calendar')
+  businessCalendar() {
+    return {
+      default: businessCalendarDto(businessCalendar()),
+      groups: {
+        sale_service: businessCalendarDto(businessCalendar('sale_service')),
+        marketing: businessCalendarDto(businessCalendar('marketing')),
+        sale_real_estate: businessCalendarDto(businessCalendar('sale_real_estate')),
+      },
+      solution: currentSolutionWorkSettings(),
+    };
   }
 }
