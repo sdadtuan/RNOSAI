@@ -275,13 +275,21 @@ describe('discoveryFieldFocus', () => {
 });
 
 describe('groupDiscoveryServiceChips', () => {
-  it('groups scope chips under the parent service and leaves standalone services as a single chip', () => {
+  it('groups scope chips under the parent service and collects standalone services in one row group', () => {
     const groups = groupDiscoveryServiceChips([
       { slug: 'brand-workshop', title: 'Brand workshop với lãnh đạo', parent: 'Hệ thống nhận diện Thương hiệu' },
-      { slug: 'nc-kh', title: 'Nghiên cứu khách hàng/khảo sát nhận thức', parent: 'Hệ thống nhận diện Thương hiệu' },
       { slug: 'seo', title: 'SEO tổng thể' },
+      { slug: 'nc-kh', title: 'Nghiên cứu khách hàng/khảo sát nhận thức', parent: 'Hệ thống nhận diện Thương hiệu' },
+      { slug: 'content', title: 'Content marketing' },
     ]);
     expect(groups).toEqual([
+      {
+        parent: null,
+        items: [
+          { slug: 'seo', title: 'SEO tổng thể' },
+          { slug: 'content', title: 'Content marketing' },
+        ],
+      },
       {
         parent: 'Hệ thống nhận diện Thương hiệu',
         items: [
@@ -289,9 +297,10 @@ describe('groupDiscoveryServiceChips', () => {
           { slug: 'nc-kh', title: 'Nghiên cứu khách hàng/khảo sát nhận thức', parent: 'Hệ thống nhận diện Thương hiệu' },
         ],
       },
-      { parent: null, items: [{ slug: 'seo', title: 'SEO tổng thể' }] },
     ]);
-    const headingChip = groups[0].items.map((item) => item.title).join(' ');
-    expect(headingChip).not.toMatch(/…|\.\.\./);
+    const heading = groups[1]?.parent ?? '';
+    const scopeTitles = (groups[1]?.items ?? []).map((item) => item.title).join(' ');
+    expect(heading).toBe('Hệ thống nhận diện Thương hiệu');
+    expect(scopeTitles).not.toMatch(/…|\.\.\./);
   });
 });

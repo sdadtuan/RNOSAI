@@ -462,34 +462,58 @@ button.ahd-step__hit { cursor: pointer; }
 }
 .ahd-brief-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 .ahd-brief-col {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align-items: stretch;
+  gap: 14px;
   min-width: 0;
+  width: 100%;
 }
 .ahd-brief-grid > .ahd-card,
 .ahd-brief-col > .ahd-card {
+  width: 100%;
+  max-width: 100%;
   height: auto;
-  align-self: start;
+  align-self: stretch;
+  box-sizing: border-box;
+  padding: 14px 14px 12px;
 }
 .ahd-brief-grid .ahd-card--wide { grid-column: 1 / -1; }
-.ahd-brief h3,
-.ahd-card h3.ahd-card__title { /* already styled */ }
+.ahd-brief-grid .ahd-card__title,
+.ahd-brief-col .ahd-card__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ahd-primary);
+  line-height: 1.3;
+}
 .ahd-bullets { margin: 0; padding: 0 0 0 18px; }
 .ahd-bullets li { margin: 0 0 4px; font-size: 12.5px; }
 .ahd-prose { margin: 0; white-space: pre-wrap; font-size: 12.5px; }
 
-.ahd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ahd-chips--compact { gap: 4px; }
-.ahd-service-groups { display: flex; flex-direction: column; gap: 8px; }
+.ahd-chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+}
+.ahd-chips--compact { gap: 6px; }
+.ahd-service-groups { display: flex; flex-direction: column; gap: 10px; }
 .ahd-service-group__title {
-  margin: 0 0 4px;
-  font-size: 12px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--ahd-ink);
   line-height: 1.35;
@@ -501,23 +525,26 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-chip__sep { opacity: 0.7; }
 .ahd-chip__name { font-weight: 600; }
 .ahd-chip {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  max-width: 100%;
   background: var(--ahd-chip);
   color: var(--ahd-chip-ink);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
-}
-.ahd-chips--compact .ahd-chip {
-  padding: 2px 8px;
-  font-size: 11px;
   line-height: 1.35;
   white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  max-width: 100%;
-  height: auto;
   word-break: break-word;
+  box-sizing: border-box;
+  height: auto;
+}
+.ahd-brief-grid .ahd-chip,
+.ahd-chips--compact .ahd-chip {
+  padding: 3px 10px;
+  font-size: 12px;
 }
 
 .ahd-history { display: flex; flex-direction: column; gap: 10px; }

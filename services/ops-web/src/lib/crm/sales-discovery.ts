@@ -418,14 +418,15 @@ export type DiscoveryServiceChipGroup = {
   items: DiscoveryServiceChip[];
 };
 
-/** Group scope chips under their parent service. Standalone services stay ungrouped. */
+/** Group scope chips under their parent service. Standalone (no-scope) services share one unheaded group. */
 export function groupDiscoveryServiceChips(chips: DiscoveryServiceChip[]): DiscoveryServiceChipGroup[] {
+  const unscoped: DiscoveryServiceChip[] = [];
   const groups: DiscoveryServiceChipGroup[] = [];
   const byParent = new Map<string, DiscoveryServiceChip[]>();
   for (const chip of chips ?? []) {
     const parent = String(chip.parent ?? '').trim();
     if (!parent) {
-      groups.push({ parent: null, items: [chip] });
+      unscoped.push(chip);
       continue;
     }
     const existing = byParent.get(parent);
@@ -437,7 +438,7 @@ export function groupDiscoveryServiceChips(chips: DiscoveryServiceChip[]): Disco
     byParent.set(parent, items);
     groups.push({ parent, items });
   }
-  return groups;
+  return unscoped.length ? [{ parent: null, items: unscoped }, ...groups] : groups;
 }
 
 export function primaryServiceSlug(services: string[]): string {
