@@ -10,12 +10,13 @@ describe('team-sla-profiles', () => {
 
     expect(sale.calendar).toMatchObject({ start: '08:30', end: '18:30' });
     expect(sale.sale.claim_in_hours_minutes).toBe(15);
-    expect(sale.sale.claim_after_hours_time).toBe('09:00');
-    expect(sale.sale.update_after_claim_hours).toBe(2);
+    // Tú 14/11/2026: off-hours claims are due 08:30 next working day; first update within 1h.
+    expect(sale.sale.claim_after_hours_time).toBe('08:30');
+    expect(sale.sale.update_after_claim_hours).toBe(1);
     expect(sale.sale.max_open_leads).toBe(6);
 
     expect(marketing.marketing.claim_in_hours_minutes).toBe(15);
-    expect(marketing.marketing.claim_after_hours_time).toBe('09:00');
+    expect(marketing.marketing.claim_after_hours_time).toBe('08:30');
     expect(marketing.marketing.solution_cutoff_time).toBe('15:30');
     expect(marketing.marketing.solution_after_cutoff_time).toBe('11:00');
     expect(marketing.marketing).not.toHaveProperty('solution_friday_time');

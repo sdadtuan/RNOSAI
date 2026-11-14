@@ -25,14 +25,17 @@ describe('presales-solution-handoff-activity.util', () => {
     expect(out.result).toContain('Consult + R5');
   });
 
-  it('builds released activity with AM next action', () => {
+  // AM makes the Solution and submits it straight to Sales (Tú 14/11/2026).
+  it('builds released activity: AM nộp Solution cho Sales, Sales gets the next action', () => {
     const out = buildSolutionHandoffActivity(SOLUTION_HANDOFF_ACTIVITY_TYPES.released, {
       ...base,
+      actorName: 'Trần B',
       amOwnerName: 'Trần B',
     });
     expect(out.activity_type).toBe('solution_released');
-    expect(out.next_action).toContain('AM Trần B');
-    expect(out.result).toContain('proposal');
+    expect(out.content).toBe('Trần B · Nộp Solution cho Sales');
+    expect(out.result).toContain('Sales lấy phản hồi khách');
+    expect(out.next_action).toBe('Sales xem Solution và lấy phản hồi khách');
   });
 
   it('builds a return activity Sales can see as cần chỉnh', () => {
@@ -48,6 +51,7 @@ describe('presales-solution-handoff-activity.util', () => {
 
   it('builds released activity without AM name', () => {
     const out = buildSolutionHandoffActivity(SOLUTION_HANDOFF_ACTIVITY_TYPES.released, base);
-    expect(out.next_action).toBe('AM: tiếp tục Proposal trên lead');
+    expect(out.content).toBe('Nguyễn A · Nộp Solution cho Sales');
+    expect(out.next_action).toBe('Sales xem Solution và lấy phản hồi khách');
   });
 });

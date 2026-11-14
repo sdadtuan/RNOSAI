@@ -31,12 +31,12 @@ function baseAssign(assignedAt: Date): LeadFrSlaSnapshot {
 
 describe('P10.a lead-fr-sla hold recompute', () => {
   it('FR1 outside hours rolls to next working window', () => {
-    // Friday 2026-09-25 12:00 UTC = 19:00 Saigon (after 18:00) → next Mon 09:00 + 2h
+    // Friday 2026-09-25 12:00 UTC = 19:00 Saigon (after 18:30) → next Mon 08:30 + 2h
     const fridayEve = new Date('2026-09-25T12:00:00.000Z');
     const due = computeFr1DueAt(fridayEve, 2, cfg().working_hours, []);
     const parts = new Date(due.getTime() + 7 * 3600_000); // Saigon wall
-    // Due should be Monday 11:00 Saigon = Mon 04:00 UTC
-    expect(due.toISOString()).toBe('2026-09-28T04:00:00.000Z');
+    // Due should be Monday 10:30 Saigon = Mon 03:30 UTC
+    expect(due.toISOString()).toBe('2026-09-28T03:30:00.000Z');
     expect(parts.getUTCDay()).toBe(1); // Monday in Saigon offset view
   });
 
@@ -82,8 +82,8 @@ describe('P10.a lead-fr-sla hold recompute', () => {
     expect(out.snapshot.hold_reason).toBe('fr_chain_1b');
     expect(out.snapshot.contact_status).toBe('attempting');
     expect(out.snapshot.attempts_since_assign).toBe(1);
-    // 3 working days × 9h = 27 working hours from assigned
-    const expected = computeFr1DueAt(assigned, 3 * 9, cfg().working_hours, []);
+    // 3 working days × 10h (08:30–18:30) = 30 working hours from assigned
+    const expected = computeFr1DueAt(assigned, 3 * 10, cfg().working_hours, []);
     expect(out.snapshot.hold_until!.toISOString()).toBe(expected.toISOString());
   });
 
@@ -124,7 +124,7 @@ describe('P10.a lead-fr-sla hold recompute', () => {
     expect(out.snapshot.contact_status).toBe('meet_pending');
     expect(out.snapshot.hold_reason).toBe('meet_pending');
     expect(out.snapshot.hold_until).not.toBeNull();
-    const expected = computeFr1DueAt(started, 3 * 9, cfg().working_hours, []);
+    const expected = computeFr1DueAt(started, 3 * 10, cfg().working_hours, []);
     expect(out.snapshot.hold_until!.toISOString()).toBe(expected.toISOString());
   });
 

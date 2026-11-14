@@ -54,7 +54,8 @@ describe('lead-sla-settings.validate', () => {
   it('preview impact mentions new-assign FR1 rule', () => {
     const prev = defaultLeadSlaSettingsPayload();
     const next = defaultLeadSlaSettingsPayload();
-    next.fr1_hours = 1;
+    // Default FR1 is 1h (Tú 14/11/2026), so change it to something else.
+    next.fr1_hours = prev.fr1_hours + 1;
     const lines = previewImpactCopy(prev, next);
     expect(lines[0]).toMatch(/gán MỚI/);
   });

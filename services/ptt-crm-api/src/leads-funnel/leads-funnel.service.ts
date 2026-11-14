@@ -1,4 +1,4 @@
-import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
@@ -713,6 +713,26 @@ export class LeadsFunnelService {
   }
 
   private async logSolutionHandoffActivity(
+    leadId: number,
+    kind: SolutionHandoffActivityType,
+    actor: string,
+    staffId: number | null,
+    staffUser?: StaffJwtPayload,
+    returnReason?: string,
+    extra?: { fileName?: string; deadlineLabel?: string; actorName?: string },
+  ): Promise<void> {
+    // History is best-effort: the action it describes has already been saved, so a failed
+    // history write must not turn a successful upload / AI draft / Nộp into an error.
+    try {
+      await this.writeSolutionHandoffActivity(leadId, kind, actor, staffId, staffUser, returnReason, extra);
+    } catch (err) {
+      new Logger(LeadsFunnelService.name).warn(
+        `Solution history not recorded lead=${leadId} kind=${kind}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async writeSolutionHandoffActivity(
     leadId: number,
     kind: SolutionHandoffActivityType,
     actor: string,
