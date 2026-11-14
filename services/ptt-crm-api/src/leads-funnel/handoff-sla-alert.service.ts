@@ -1,9 +1,8 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
-import { buildHandoffSlaView, slaNotifyCopy, type HandoffSlaClock, type HandoffSlaRole } from './handoff-sla.util';
+import { buildHandoffSlaView, resolveHandoffSlaRecipientIds, slaNotifyCopy, type HandoffSlaClock } from './handoff-sla.util';
 import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
 
 const SCAN_LIMIT = 200;
@@ -98,8 +97,10 @@ export class HandoffSlaAlertService {
 
     const workSettings = loadMarketingSolutionWorkSettings();
     let sent = 0;
-    const adminIds = await this.superAdminStaffIds();
-    const ceoIds = await this.staffIdsByCodes(['CEO', 'SUPER-ADMIN']);
+    const [amDeskStaffIds, ceoDeskStaffIds] = await Promise.all([
+      this.amDeskStaffIds(),
+      this.ceoDeskStaffIds(),
+    ]);
 
     for (const row of rows) {
       const leadId = Number(row.lead_id);
@@ -138,40 +139,23 @@ export class HandoffSlaAlertService {
         if (clock.state !== 'warning' && clock.state !== 'breach') continue;
         const first = await this.claimAlert(leadId, clock.key, clock.state);
         if (!first) continue;
-        const targets = new Set<number>([
-          ...this.ownerIdsFor(clock.role, row),
-          ...adminIds,
-          ...(clock.role === 'CEO' || (clock.key === 'quote_accept' && clock.state === 'breach') || (clock.key === 'quote_finish' && clock.state === 'breach')
-            ? ceoIds
-            : []),
-        ]);
-        await this.notifyTargets(leadId, clock, [...targets]);
+        const targets = resolveHandoffSlaRecipientIds({
+          role: clock.role,
+          clockKey: clock.key,
+          ownerId: row.owner_id != null ? Number(row.owner_id) : null,
+          quoteAssigneeStaffId: row.quote_assignee_staff_id != null ? Number(row.quote_assignee_staff_id) : null,
+          lastSolutionOwnerStaffId: row.last_solution_owner_staff_id != null ? Number(row.last_solution_owner_staff_id) : null,
+          solutionOwnerStaffId: row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
+          amDeskStaffIds,
+          ceoDeskStaffIds,
+        });
+        await this.notifyTargets(leadId, clock, targets);
         sent += 1;
       }
     }
 
     this.logger.log(`Handoff SLA tick scanned=${rows.length} sent=${sent}`);
     return { scanned: rows.length, sent };
-  }
-
-  private ownerIdsFor(role: HandoffSlaRole, row: Record<string, unknown>): number[] {
-    const ids: number[] = [];
-    const push = (raw: unknown) => {
-      const n = Number(raw);
-      if (Number.isInteger(n) && n > 0) ids.push(n);
-    };
-    if (role === 'Sales') {
-      push(row.owner_id);
-      push(row.handed_off_by_staff_id);
-    } else if (role === 'AM') {
-      push(row.quote_assignee_staff_id);
-      push(row.last_solution_owner_staff_id);
-      push(row.solution_owner_staff_id);
-    } else if (role === 'Marketing') {
-      push(row.solution_owner_staff_id);
-      push(row.last_solution_owner_staff_id);
-    }
-    return ids;
   }
 
   private async claimAlert(leadId: number, clockKey: string, state: string): Promise<boolean> {
@@ -204,29 +188,54 @@ export class HandoffSlaAlertService {
     }
   }
 
-  private async staffIdsByCodes(codes: string[]): Promise<number[]> {
-    const normalized = codes.map((c) => c.toLowerCase().replace(/\s+/g, ''));
+  private async accountManagerStaffIds(): Promise<number[]> {
     const result = await this.db.query(
-      `SELECT s.id
+      `SELECT DISTINCT s.id AS staff_id
          FROM crm_staff s
          JOIN crm_positions p ON p.id = s.position_id
         WHERE s.active IS TRUE
-          AND lower(replace(p.code, ' ', '')) = ANY($1::text[])`,
-      [normalized],
+          AND lower(replace(p.code, ' ', '')) IN ('acm', 'kd-01', 'kd01')`,
     );
-    return result.rows.map((r) => Number(r.id)).filter((id) => Number.isInteger(id) && id > 0);
+    return result.rows
+      .map((r) => Number(r.staff_id))
+      .filter((id) => Number.isInteger(id) && id > 0);
   }
 
   private async superAdminStaffIds(): Promise<number[]> {
     const result = await this.db.query(
-      `SELECT s.id, p.code
+      `SELECT DISTINCT s.id AS staff_id
          FROM crm_staff s
          JOIN crm_positions p ON p.id = s.position_id
-        WHERE s.active IS TRUE`,
+        WHERE s.active IS TRUE
+          AND lower(replace(replace(p.code, ' ', ''), '_', '-')) IN ('super-admin', 'superadmin')`,
     );
     return result.rows
-      .filter((r) => isSuperAdminPositionCode(String(r.code ?? '')))
-      .map((r) => Number(r.id))
+      .map((r) => Number(r.staff_id))
       .filter((id) => Number.isInteger(id) && id > 0);
+  }
+
+  /** AM desk operators: Account Managers plus SUPER-ADMIN (UAT AM desk). */
+  private async amDeskStaffIds(): Promise<number[]> {
+    const [am, supers] = await Promise.all([this.accountManagerStaffIds(), this.superAdminStaffIds()]);
+    return [...new Set([...am, ...supers])];
+  }
+
+  private async ceoStaffIds(): Promise<number[]> {
+    const result = await this.db.query(
+      `SELECT DISTINCT s.id AS staff_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) = 'ceo'`,
+    );
+    return result.rows
+      .map((r) => Number(r.staff_id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+  }
+
+  /** CEO desk operators: CEO position plus SUPER-ADMIN (UAT has no dedicated CEO stub). */
+  private async ceoDeskStaffIds(): Promise<number[]> {
+    const [ceos, supers] = await Promise.all([this.ceoStaffIds(), this.superAdminStaffIds()]);
+    return [...new Set([...ceos, ...supers])];
   }
 }

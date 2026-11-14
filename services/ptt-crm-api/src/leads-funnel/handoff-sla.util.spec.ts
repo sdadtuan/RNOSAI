@@ -7,6 +7,7 @@ import {
   formatSlaDueVi,
   negotiateDueAt,
   suggestedSolutionDueAt,
+  resolveHandoffSlaRecipientIds,
 } from './handoff-sla.util';
 import { solutionWorkDueAt } from './solution-case.util';
 
@@ -102,5 +103,91 @@ describe('classify + format', () => {
     const label = formatSlaDueVi(ict(2026, 11, 18, 18, 0).toISOString());
     expect(label).not.toMatch(/:\d{2}:\d{2}/);
     expect(label).toMatch(/18/);
+  });
+});
+
+
+describe('resolveHandoffSlaRecipientIds', () => {
+  const amDesk = [108, 1, 103];
+  const ceoDesk = [200, 1];
+
+  it('sends unclaimed pending AM accept clocks to the AM desk pool', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'solution_accept',
+        amDeskStaffIds: amDesk,
+        ceoDeskStaffIds: ceoDesk,
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 103, 108]);
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'quote_accept',
+        amDeskStaffIds: amDesk,
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 103, 108]);
+  });
+
+  it('sends a claimed AM clock to the assignee, not the whole pool', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'quote_accept',
+        quoteAssigneeStaffId: 108,
+        amDeskStaffIds: amDesk,
+      }),
+    ).toEqual([108]);
+  });
+
+  it('sends Marketing clocks to the solution owner, or the AM pool when unowned', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'Marketing',
+        clockKey: 'solution_work',
+        solutionOwnerStaffId: 55,
+        amDeskStaffIds: amDesk,
+      }),
+    ).toEqual([55]);
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'Marketing',
+        clockKey: 'solution_work',
+        amDeskStaffIds: amDesk,
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 103, 108]);
+  });
+
+  it('sends Sales clocks to lead owner_id only', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'Sales',
+        clockKey: 'sales_brief',
+        ownerId: 107,
+        amDeskStaffIds: amDesk,
+        ceoDeskStaffIds: ceoDesk,
+      }),
+    ).toEqual([107]);
+  });
+
+  it('sends CEO clocks to ceoDeskStaffIds', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'CEO',
+        clockKey: 'ceo_approve',
+        amDeskStaffIds: amDesk,
+        ceoDeskStaffIds: ceoDesk,
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 200]);
+  });
+
+  it('drops invalid ids and de-duplicates the desk pool', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'solution_accept',
+        amDeskStaffIds: [108, 108, 0, -1, Number.NaN],
+      }),
+    ).toEqual([108]);
   });
 });

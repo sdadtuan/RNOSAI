@@ -418,3 +418,54 @@ export function slaNotifyCopy(clock: HandoffSlaClock, leadId: number): { title: 
     body: `Lead #${leadId}: ${clock.label} sắp đến hạn (hạn ${due}, ${clock.countdown}). ${clock.message} Mở lead: ${link}`,
   };
 }
+
+
+export type HandoffSlaRecipientInput = {
+  role: HandoffSlaRole;
+  clockKey: HandoffSlaClockKey;
+  ownerId?: number | null;
+  quoteAssigneeStaffId?: number | null;
+  lastSolutionOwnerStaffId?: number | null;
+  solutionOwnerStaffId?: number | null;
+  amDeskStaffIds?: number[] | null;
+  ceoDeskStaffIds?: number[] | null;
+};
+
+function pushStaffId(ids: Set<number>, raw: unknown): void {
+  const n = Number(raw);
+  if (Number.isInteger(n) && n > 0) ids.add(n);
+}
+
+function assignedAmIds(input: HandoffSlaRecipientInput): number[] {
+  const ids = new Set<number>();
+  pushStaffId(ids, input.quoteAssigneeStaffId);
+  pushStaffId(ids, input.solutionOwnerStaffId);
+  pushStaffId(ids, input.lastSolutionOwnerStaffId);
+  return [...ids];
+}
+
+function assignedMarketingIds(input: HandoffSlaRecipientInput): number[] {
+  const ids = new Set<number>();
+  pushStaffId(ids, input.solutionOwnerStaffId);
+  pushStaffId(ids, input.lastSolutionOwnerStaffId);
+  return [...ids];
+}
+
+/** Map a clock to notify recipients. Unclaimed AM / unowned Marketing clocks use the AM desk pool (ACM + SUPER-ADMIN). */
+export function resolveHandoffSlaRecipientIds(input: HandoffSlaRecipientInput): number[] {
+  const desk = [...new Set((input.amDeskStaffIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+  const ceoDesk = [...new Set((input.ceoDeskStaffIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+  if (input.role === 'Sales') {
+    const ids = new Set<number>();
+    pushStaffId(ids, input.ownerId);
+    return [...ids];
+  }
+  if (input.role === 'CEO') return ceoDesk;
+  if (input.role === 'Marketing') {
+    const owned = assignedMarketingIds(input);
+    return owned.length ? owned : desk;
+  }
+  // AM — unclaimed / pending accept (and any AM clock without an assignee) goes to the AM desk pool.
+  const assigned = assignedAmIds(input);
+  return assigned.length ? assigned : desk;
+}
