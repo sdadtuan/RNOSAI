@@ -65,42 +65,63 @@
 .sd-chip.is-on { background: #e8f6ee; border-color: #00762f; color: #00762f; font-weight: 600; }
 .sd-chip:disabled { cursor: default; opacity: 0.7; }
 
-.sd-svc-wrap { position: relative; }
-.sd-svc-btn {
-  border: 1px solid #00762f; background: #00762f; color: #fff;
-  border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 0.84rem;
-  cursor: pointer; white-space: nowrap;
+.sd-pick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin: 2px 0 4px;
 }
-.sd-svc-btn--ghost { background: #fff; color: #00762f; }
-.sd-svc-panel {
-  position: absolute; right: 0; top: calc(100% + 8px); z-index: 8;
-  width: min(420px, 80vw); background: #fff; border: 1px solid #dbe3ec;
-  border-radius: 12px; box-shadow: 0 12px 32px rgba(16,42,67,0.14);
-  padding: 10px 12px; max-height: 320px; overflow: auto;
+.sd-pick-chips__empty {
+  margin: 0;
+  color: #6a7a8b;
+  font-size: 0.88rem;
+  font-style: italic;
 }
-.sd-svc-empty { margin: 0; color: #6a7a8b; font-size: 0.88rem; }
-.sd-svc-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 7px 4px; border-bottom: 1px solid #f0f3f6;
+.sd-pick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  background: #e8f6ee;
+  border: 1px solid #b7e0c6;
+  color: #0e4620;
+  border-radius: 999px;
+  padding: 5px 6px 5px 12px;
+  font-size: 0.84rem;
+  line-height: 1.25;
 }
-.sd-svc-item:last-child { border-bottom: 0; }
-.sd-svc-remove {
+.sd-pick-chip__text { display: inline-flex; align-items: baseline; gap: 0; min-width: 0; flex-wrap: wrap; }
+.sd-pick-chip__parent { color: #3d6b4d; font-weight: 500; }
+.sd-pick-chip__sep { color: #5b8a6a; }
+.sd-pick-chip__name { font-weight: 600; color: #0e4620; }
+.sd-pick-chip__x {
+  flex: 0 0 auto;
   border: 0;
   background: transparent;
-  color: #c62828;
+  color: #3d6b4d;
   cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0;
   font-weight: 600;
-  font-size: 0.84rem;
-  line-height: 1.2;
-  padding: 2px 6px;
-  border-radius: 4px;
 }
-.sd-svc-remove:hover,
-.sd-svc-remove:focus-visible {
-  background: #fde8e8;
-  color: #8a1f1f;
-  text-decoration: underline;
+.sd-pick-chip__x:hover,
+.sd-pick-chip__x:focus-visible {
+  background: #cfe9d7;
+  color: #0e4620;
 }
+.sd-acc.is-active .sd-acc__head,
+.sd-acc.is-parent-on .sd-acc__head {
+  background: #e8f6ee;
+}
+.sd-acc.is-parent-on .sd-acc__name { font-weight: 600; color: #0e4620; }
+.sd-acc.is-parent-on .sd-acc__count,
+.sd-acc.is-active .sd-acc__count { color: #00762f; }
 
 .sd-picker {
   border: 1px solid #e4e8ee;

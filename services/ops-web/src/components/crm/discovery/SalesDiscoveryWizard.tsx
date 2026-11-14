@@ -18,6 +18,9 @@ import {
   temperatureLabel,
   timelineLabel,
   toggleDiscoveryChannel,
+  discoveryServiceChips,
+  isDiscoveryParentSelected,
+  discoveryParentStoredCode,
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
 import './sales-discovery.css';
@@ -89,41 +92,6 @@ export function SalesDiscoveryWizard({
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [svcOpen, setSvcOpen] = useState<Record<string, boolean>>({});
-  const [listOpen, setListOpen] = useState(false);
-  const listWrapRef = useRef<HTMLDivElement | null>(null);
-  const listCloseTimer = useRef<number | null>(null);
-
-  function cancelListClose() {
-    if (listCloseTimer.current != null) {
-      window.clearTimeout(listCloseTimer.current);
-      listCloseTimer.current = null;
-    }
-  }
-
-  function scheduleListClose() {
-    cancelListClose();
-    listCloseTimer.current = window.setTimeout(() => setListOpen(false), 200);
-  }
-
-  useEffect(() => {
-    if (!listOpen) return undefined;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setListOpen(false);
-    };
-    const onDown = (event: MouseEvent) => {
-      const root = listWrapRef.current;
-      if (root && !root.contains(event.target as Node)) setListOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onDown);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onDown);
-      cancelListClose();
-    };
-  }, [listOpen]);
-
-  const [pickerOpen, setPickerOpen] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [handoffOk, setHandoffOk] = useState(false);
@@ -446,48 +414,41 @@ export function SalesDiscoveryWizard({
             <section className="sd-section">
               <div className="sd-section__head">
                 <h2 className="sd-section__title">C. Nhu cầu Marketing</h2>
-                <div
-                  className="sd-svc-wrap"
-                  ref={listWrapRef}
-                  onMouseEnter={cancelListClose}
-                  onMouseLeave={scheduleListClose}
-                >
-                  <button
-                    type="button"
-                    className={brief.services.length ? 'sd-svc-btn' : 'sd-svc-btn sd-svc-btn--ghost'}
-                    onClick={() => setListOpen((open) => !open)}
-                    data-testid="sd-service-list-btn"
-                    aria-expanded={listOpen}
-                  >
-                    Danh sách dịch vụ ({brief.services.length})
-                  </button>
-                  {listOpen ? (
-                    <div className="sd-svc-panel" data-testid="sd-service-list" role="menu">
-                      {brief.services.length === 0 ? (
-                        <p className="sd-svc-empty">Chưa chọn dịch vụ. Chọn hạng mục bên dưới để thêm (lưu ngay).</p>
-                      ) : (
-                        brief.services.map((slug) => (
-                          <div key={slug} className="sd-svc-item">
-                            <span>{serviceName(options, slug)}</span>
-                            {readOnly ? null : (
-                              <button
-                                type="button"
-                                className="sd-svc-remove"
-                                data-testid={`sd-svc-remove-${slug}`}
-                                onClick={() => void onToggleService(slug, true)}
-                              >
-                                Xóa
-                              </button>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
               </div>
               <div className="sd-field" style={{ marginBottom: 14 }}>
                 <FieldLabel required>Dịch vụ khách hàng quan tâm</FieldLabel>
+                <div className="sd-pick-chips" data-testid="sd-service-chips">
+                  {brief.services.length === 0 ? (
+                    <p className="sd-pick-chips__empty" data-testid="sd-chips-empty">Chưa chọn dịch vụ</p>
+                  ) : (
+                    discoveryServiceChips(brief.services, options?.service_groups).map((chip) => (
+                      <span key={chip.slug} className="sd-pick-chip" data-testid={`sd-chip-${chip.slug}`}>
+                        <span className="sd-pick-chip__text">
+                          {chip.parent ? (
+                            <>
+                              <span className="sd-pick-chip__parent">{chip.parent}</span>
+                              <span className="sd-pick-chip__sep"> – </span>
+                              <span className="sd-pick-chip__name">{chip.title}</span>
+                            </>
+                          ) : (
+                            <span className="sd-pick-chip__name">{chip.title}</span>
+                          )}
+                        </span>
+                        {readOnly ? null : (
+                          <button
+                            type="button"
+                            className="sd-pick-chip__x"
+                            data-testid={`sd-svc-remove-${chip.slug}`}
+                            aria-label={`Xóa ${chip.parent ? `${chip.parent} – ${chip.title}` : chip.title}`}
+                            onClick={() => void onToggleService(chip.slug, true)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))
+                  )}
+                </div>
                 <p className="sd-hint">Mở dịch vụ để chọn hạng mục — lưu ngay, không cần nút Save.</p>
                 <div className="sd-picker" data-testid="sd-service-picker">
                   {groups.map((group) => (
@@ -497,13 +458,18 @@ export function SalesDiscoveryWizard({
                         const children = svc.children ?? [];
                         const hasChildren = children.length > 0;
                         const childOn = children.filter((item) => brief.services.includes(item.slug)).length;
-                        const parentOn = brief.services.includes(svc.slug);
+                        const parentOn = isDiscoveryParentSelected(brief.services, svc);
+                        const parentCode = discoveryParentStoredCode(brief.services, svc);
                         const open = Boolean(svcOpen[svc.slug]);
+                        const countLabel = parentOn
+                          ? (childOn > 0 ? `Đã chọn · ${childOn}/${children.length}` : 'Đã chọn')
+                          : `${childOn}/${children.length}`;
                         return (
                           <div
                             key={svc.slug}
-                            className={`sd-acc${open ? ' is-open' : ''}${childOn || parentOn ? ' is-active' : ''}`}
+                            className={`sd-acc${open ? ' is-open' : ''}${childOn || parentOn ? ' is-active' : ''}${parentOn ? ' is-parent-on' : ''}`}
                             data-testid={`sd-svc-${svc.slug}`}
+                            data-parent-selected={parentOn ? 'true' : 'false'}
                           >
                             {hasChildren ? (
                               <button
@@ -516,7 +482,7 @@ export function SalesDiscoveryWizard({
                                 <span className="sd-acc__chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
                                 <span className="sd-acc__name">{svc.name}</span>
                                 <span className="sd-acc__count" data-testid={`sd-svc-count-${svc.slug}`}>
-                                  {`${childOn}/${children.length}`}
+                                  {countLabel}
                                 </span>
                               </button>
                             ) : (
@@ -527,7 +493,7 @@ export function SalesDiscoveryWizard({
                                     disabled={readOnly}
                                     checked={parentOn}
                                     data-testid={`sd-svc-check-${svc.slug}`}
-                                    onChange={() => void onToggleService(svc.slug, parentOn)}
+                                    onChange={() => void onToggleService(parentCode || svc.slug, Boolean(parentCode))}
                                   />
                                 </span>
                                 <span className="sd-acc__name">{svc.name}</span>

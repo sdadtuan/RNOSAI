@@ -313,6 +313,73 @@ export function liftDiscoveryServiceCodes(
   return out;
 }
 
+
+export type DiscoveryPickerService = {
+  slug: string;
+  name: string;
+  children?: Array<{ slug: string; name: string }>;
+};
+
+export type DiscoveryServiceChip = {
+  slug: string;
+  title: string;
+  parent?: string;
+};
+
+/** True when the saved brief includes this service as a parent-level code (slug or legacy name). */
+export function isDiscoveryParentSelected(
+  selected: string[],
+  service: { slug: string; name: string },
+): boolean {
+  const codes = new Set((selected ?? []).map((s) => String(s ?? '').trim()).filter(Boolean));
+  const slug = String(service.slug ?? '').trim();
+  const name = String(service.name ?? '').trim();
+  return Boolean((slug && codes.has(slug)) || (name && codes.has(name)));
+}
+
+/** Stored parent-level code for this service (slug or legacy name), if any. */
+export function discoveryParentStoredCode(
+  selected: string[],
+  service: { slug: string; name: string },
+): string | null {
+  const codes = (selected ?? []).map((s) => String(s ?? '').trim()).filter(Boolean);
+  const slug = String(service.slug ?? '').trim();
+  const name = String(service.name ?? '').trim();
+  if (slug && codes.includes(slug)) return slug;
+  if (name && codes.includes(name)) return name;
+  return null;
+}
+
+/** Chips for the current selection. Scope picks expose the parent name separately; the stored slug is preserved for remove. */
+export function discoveryServiceChips(
+  selected: string[],
+  groups: Array<{ services?: DiscoveryPickerService[] }> | null | undefined,
+): DiscoveryServiceChip[] {
+  const catalog: DiscoveryPickerService[] = [];
+  for (const group of groups ?? []) {
+    for (const svc of group.services ?? []) catalog.push(svc);
+  }
+  const chips: DiscoveryServiceChip[] = [];
+  for (const raw of selected ?? []) {
+    const slug = String(raw ?? '').trim();
+    if (!slug) continue;
+    let found: DiscoveryServiceChip | null = null;
+    for (const svc of catalog) {
+      if (svc.slug === slug || svc.name === slug) {
+        found = { slug, title: svc.name || slug };
+        break;
+      }
+      const child = (svc.children ?? []).find((item) => item.slug === slug || item.name === slug);
+      if (child) {
+        found = { slug, title: child.name || slug, parent: svc.name };
+        break;
+      }
+    }
+    chips.push(found ?? { slug, title: slug });
+  }
+  return chips;
+}
+
 export function primaryServiceSlug(services: string[]): string {
   return asString(services[0] ?? '');
 }
@@ -530,7 +597,14 @@ export function prefillSalesDiscovery(source: DiscoveryPrefillSource): SalesDisc
     const t = asString(source.session?.lead_temperature);
     if (t === 'hot' || t === 'warm' || t === 'cold') brief.temperature = t;
   }
-  if (!brief.services.length) {
+  const answersHaveExplicitServices = Array.isArray(
+    (answers[DISCOVERY_BRIEF_KEY] && typeof answers[DISCOVERY_BRIEF_KEY] === 'object' && !Array.isArray(answers[DISCOVERY_BRIEF_KEY])
+      ? (answers[DISCOVERY_BRIEF_KEY] as { services?: unknown }).services
+      : undefined),
+  );
+  // An explicit (even empty) brief.services list wins over a leftover session.service_slug
+  // so removing the last selected service, including a scope:{id} tick, does not come back.
+  if (!brief.services.length && !answersHaveExplicitServices) {
     const slug = asString(source.session?.service_slug);
     if (slug && slug !== '_common') brief.services = [slug];
   }

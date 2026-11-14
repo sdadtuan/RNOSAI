@@ -8,6 +8,9 @@ import {
   groupCatalogServices,
   liftDiscoveryServiceCodes,
   isDiscoveryScopeSlug,
+  discoveryServiceChips,
+  isDiscoveryParentSelected,
+  discoveryParentStoredCode,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
   parseWebsiteBundle,
@@ -108,6 +111,25 @@ describe('sales-discovery.util', () => {
     expect(sessionHasCompleteDiscovery({ discovery_brief: filledBrief() })).toBe(true);
   });
 
+  it('does not revive a leftover service_slug when discovery_brief.services is an explicit empty list', () => {
+    const cleared = prefillSalesDiscovery({
+      session: {
+        service_slug: 'scope:125',
+        answers_json: { discovery_brief: { ...emptySalesDiscoveryBrief(), services: [] } },
+      },
+    });
+    expect(cleared.services).toEqual([]);
+
+    const legacy = prefillSalesDiscovery({
+      session: {
+        service_slug: 'thiet-ke-landing-page',
+        answers_json: { notes: 'x' },
+      },
+    });
+    expect(legacy.services).toEqual(['thiet-ke-landing-page']);
+  });
+
+
   it('merges compat answers and adds services without duplicates', () => {
     const answers = buildDiscoveryCompatAnswers({ keep: 1, crm_fields: { other: 'x' } }, filledBrief());
     expect(answers.keep).toBe(1);
@@ -174,5 +196,46 @@ describe("liftDiscoveryServiceCodes", () => {
     expect(isDiscoveryScopeSlug("scope:99")).toBe(true);
     expect(isDiscoveryScopeSlug("dich-vu-seo-tong-the")).toBe(false);
     expect(liftDiscoveryServiceCodes(["scope:99", "", "lead-gen"], groups)).toEqual(["lead-gen"]);
+  });
+});
+
+
+describe("discovery service chips and parent-level selection", () => {
+  const groups = [
+    {
+      services: [
+        {
+          slug: "ai-chatbot-ban-hang",
+          name: "AI Chatbot & Tro ly ban hang AI",
+          children: [
+            { slug: "scope:1", name: "Kich ban hoi thoai" },
+            { slug: "scope:2", name: "Tich hop CRM" },
+          ],
+        },
+        { slug: "lead-gen", name: "Lead generation" },
+      ],
+    },
+  ];
+
+  it("builds chips for a scope pick with the parent shown separately", () => {
+    expect(discoveryServiceChips(["scope:1"], groups)).toEqual([
+      { slug: "scope:1", title: "Kich ban hoi thoai", parent: "AI Chatbot & Tro ly ban hang AI" },
+    ]);
+  });
+
+  it("builds a chip for a childless service and a legacy parent name code", () => {
+    expect(discoveryServiceChips(["lead-gen", "AI Chatbot & Tro ly ban hang AI"], groups)).toEqual([
+      { slug: "lead-gen", title: "Lead generation" },
+      { slug: "AI Chatbot & Tro ly ban hang AI", title: "AI Chatbot & Tro ly ban hang AI" },
+    ]);
+  });
+
+  it("detects a parent-level selection by slug or legacy name without requiring scope ticks", () => {
+    const svc = groups[0].services[0];
+    expect(isDiscoveryParentSelected(["ai-chatbot-ban-hang"], svc)).toBe(true);
+    expect(isDiscoveryParentSelected(["AI Chatbot & Tro ly ban hang AI"], svc)).toBe(true);
+    expect(discoveryParentStoredCode(["AI Chatbot & Tro ly ban hang AI"], svc)).toBe("AI Chatbot & Tro ly ban hang AI");
+    expect(isDiscoveryParentSelected(["scope:1"], svc)).toBe(false);
+    expect(isDiscoveryParentSelected(["lead-gen"], svc)).toBe(false);
   });
 });

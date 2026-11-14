@@ -20,8 +20,6 @@ import {
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
 import {
-  amDeskChecklist,
-  focusDiscoveryChecklistItem,
   dash,
   formatHandoffStamp,
   resolveHandoffFlow,
@@ -33,7 +31,6 @@ import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import {
   buildAmDeskBrief,
-  checklistSourceFromMerged,
   hrefForUrl,
   hrefForTel,
   hrefForMailto,
@@ -141,85 +138,6 @@ export type SalesLeadDeskProps = {
   children?: ReactNode;
 };
 
-function salesNextAction(
-  currentKey: string,
-  submitted: boolean,
-  returned: boolean,
-): { title: string; body: string; cta?: 'submit' | 'complete' } {
-  if (returned) {
-    return {
-      title: 'AM trả về Sales',
-      body: 'Bổ sung thông tin Pre Sale theo lý do trả về, rồi Submit to AM lại.',
-      cta: 'submit',
-    };
-  }
-  if (!submitted && (currentKey === 'sales_brief' || !currentKey)) {
-    return {
-      title: 'Hoàn thiện Sales Discovery',
-      body: 'Điền hết các trường bắt buộc trong form, rồi bấm Submit to AM để chuyển lead sang Chờ Solutions.',
-      cta: 'submit',
-    };
-  }
-  if (currentKey === 'await_solutions') {
-    return {
-      title: 'Đã gửi AM',
-      body: 'Lead đang ở Chờ Solutions. AM sẽ kiểm tra brief và giao cho Marketing.',
-    };
-  }
-  if (currentKey === 'doing_solutions') {
-    return {
-      title: 'Đang làm Solutions',
-      body: 'Marketing đang làm Solutions — bạn chỉ xem. Khi xong, lead chuyển sang Chờ báo giá.',
-    };
-  }
-  if (currentKey === 'receive_lead') {
-    return {
-      title: 'Tiếp nhận Lead',
-      body: 'Nhận lead và bắt đầu Sales Discovery (Pre Sale).',
-      cta: 'submit',
-    };
-  }
-  if (currentKey === 'await_quote') {
-    return {
-      title: 'Chờ báo giá',
-      body: 'Solution đã xong. Xem Solution, phản hồi khách, rồi bấm «Khách đồng ý — Chờ báo giá» để AM lập báo giá.',
-    };
-  }
-  if (currentKey === 'negotiate') {
-    return {
-      title: 'Thương thảo',
-      body: 'Báo giá đã có. Thương thảo với khách, xem và tải báo giá, cập nhật tiến độ chốt.',
-    };
-  }
-  if (currentKey === 'sign_contract') {
-    return {
-      title: 'Ký hợp đồng',
-      body: 'AM soạn hợp đồng. Sales xem và tải hợp đồng; hoàn tất ký để chuyển sang triển khai.',
-    };
-  }
-  return {
-    title: 'Bước tiếp theo',
-    body: submitted ? 'Theo dõi tiến độ trên thanh 7 bước.' : 'Hoàn thiện Sales Discovery, rồi Submit to AM.',
-    cta: submitted ? undefined : 'submit',
-  };
-}
-
-function goToDiscoverySubmit(checklist: { items: { key: string; ok: boolean }[]; allOk: boolean }) {
-  if (checklist.allOk) {
-    focusDiscoveryChecklistItem('ready', checklist.items, { preferSubmit: true });
-    window.setTimeout(() => {
-      const submit = document.querySelector<HTMLButtonElement>('[data-testid="sd-submit"]');
-      if (submit) {
-        submit.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (!submit.disabled) submit.click();
-      }
-    }, 80);
-    return;
-  }
-  const first = checklist.items.find((item) => !item.ok);
-  focusDiscoveryChecklistItem(first?.key || 'company', checklist.items);
-}
-
 export function SalesLeadDesk({
   token,
   lead,
@@ -310,9 +228,6 @@ export function SalesLeadDesk({
     returnedToSales: returned,
     ...flowTimesFromFunnel(funnel),
   });
-  const checklist = amDeskChecklist(checklistSourceFromMerged(view), {
-    legacyReady: view.isLegacy && submitted,
-  });
   const salesName = dash((lead as { owner_name?: string }).owner_name || (salesViewer ? userName : ''));
   const amName = dash(
     (lead as { am_name?: string; account_manager_name?: string }).am_name ||
@@ -328,7 +243,6 @@ export function SalesLeadDesk({
   const leadCode = lead.project_code || `LD-${lead.id}`;
   const contactName = view.contact_name;
   const phone = view.phone || lead.phone || '';
-  const next = salesNextAction(flow.currentKey, submitted, returned);
   const fanpage = view.fanpage;
   const tiktok = view.tiktok;
   const site = view.website;
@@ -382,25 +296,6 @@ export function SalesLeadDesk({
               </li>
             </ul>
           </div>
-        </div>
-        <div className="ahd-head__actions">
-          {phone ? (
-            <a className="ahd-btn ahd-btn--ghost" href={`tel:${phone}`} data-testid="sld-call">
-              <Icon d={I.phone} size={14} />
-              Gọi khách
-            </a>
-          ) : null}
-          {next.cta === 'submit' && !submitted ? (
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--primary"
-              data-testid="sld-goto-submit"
-              onClick={() => goToDiscoverySubmit(checklist)}
-            >
-              <Icon d={I.arrow} size={14} />
-              Submit to AM
-            </button>
-          ) : null}
         </div>
       </header>
 
