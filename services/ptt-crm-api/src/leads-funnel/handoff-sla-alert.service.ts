@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
-import { buildHandoffSlaView, resolveHandoffSlaRecipientIds, slaNotifyCopy, type HandoffSlaClock } from './handoff-sla.util';
+import { buildHandoffSlaView, inferHandoffSlaStep, resolveHandoffSlaRecipientIds, slaNotifyCopy, type HandoffSlaClock } from './handoff-sla.util';
 import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
 
 const SCAN_LIMIT = 200;
@@ -81,6 +81,7 @@ export class HandoffSlaAlertService {
              ps.quote_approved_at,
              ps.quote_assignee_staff_id,
              ps.quote_ceo_escalated_at,
+             ps.implementation_status,
              ps.negotiate_due_at,
              ps.contract_due_at,
              ps.contract_signed_at,
@@ -97,9 +98,10 @@ export class HandoffSlaAlertService {
 
     const workSettings = loadMarketingSolutionWorkSettings();
     let sent = 0;
-    const [amDeskStaffIds, ceoDeskStaffIds] = await Promise.all([
+    const [amDeskStaffIds, ceoDeskStaffIds, superAdminStaffIds] = await Promise.all([
       this.amDeskStaffIds(),
       this.ceoDeskStaffIds(),
+      this.superAdminStaffIds(),
     ]);
 
     for (const row of rows) {
@@ -107,7 +109,14 @@ export class HandoffSlaAlertService {
       if (!Number.isInteger(leadId) || leadId <= 0) continue;
       const view = buildHandoffSlaView(
         {
-          currentStep: null,
+          currentStep: inferHandoffSlaStep({
+            leadStatus: row.status ? String(row.status) : null,
+            handoffStatus: row.handoff_status ? String(row.handoff_status) : null,
+            quoteApprovedAt: row.quote_approved_at ? String(row.quote_approved_at) : null,
+            contractSignedAt: row.contract_signed_at ? String(row.contract_signed_at) : null,
+            implementationStatus: row.implementation_status ? String(row.implementation_status) : null,
+          }),
+          leadStatus: row.status ? String(row.status) : null,
           assignedAt: row.assigned_at ? String(row.assigned_at) : null,
           claimedAt: row.sales_claimed_at ? String(row.sales_claimed_at) : null,
           firstCallAt: row.first_call_at ? String(row.first_call_at) : null,
@@ -148,6 +157,7 @@ export class HandoffSlaAlertService {
           solutionOwnerStaffId: row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
           amDeskStaffIds,
           ceoDeskStaffIds,
+          superAdminStaffIds,
         });
         await this.notifyTargets(leadId, clock, targets);
         sent += 1;

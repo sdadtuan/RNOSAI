@@ -8,6 +8,8 @@ import {
   negotiateDueAt,
   suggestedSolutionDueAt,
   resolveHandoffSlaRecipientIds,
+  slaNotifyCopy,
+  inferHandoffSlaStep,
 } from './handoff-sla.util';
 import { solutionWorkDueAt } from './solution-case.util';
 
@@ -101,8 +103,8 @@ describe('classify + format', () => {
 
   it('formats due time in vi-VN without seconds', () => {
     const label = formatSlaDueVi(ict(2026, 11, 18, 18, 0).toISOString());
-    expect(label).not.toMatch(/:\d{2}:\d{2}/);
-    expect(label).toMatch(/18/);
+    expect(label).toBe('18:00 18/11/2026');
+    expect(label).not.toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 });
 
@@ -181,6 +183,33 @@ describe('resolveHandoffSlaRecipientIds', () => {
     ).toEqual([1, 200]);
   });
 
+  it('sends negotiate and contract clocks to the AM owner plus SUPER-ADMIN', () => {
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'negotiate',
+        quoteAssigneeStaffId: 108,
+        amDeskStaffIds: amDesk,
+        superAdminStaffIds: [1],
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 108]);
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'contract',
+        amDeskStaffIds: amDesk,
+        superAdminStaffIds: [1],
+      }).sort((a, b) => a - b),
+    ).toEqual([1]);
+    expect(
+      resolveHandoffSlaRecipientIds({
+        role: 'AM',
+        clockKey: 'negotiate',
+        amDeskStaffIds: amDesk,
+      }).sort((a, b) => a - b),
+    ).toEqual([1, 103, 108]);
+  });
+
   it('drops invalid ids and de-duplicates the desk pool', () => {
     expect(
       resolveHandoffSlaRecipientIds({
@@ -189,5 +218,64 @@ describe('resolveHandoffSlaRecipientIds', () => {
         amDeskStaffIds: [108, 108, 0, -1, Number.NaN],
       }),
     ).toEqual([108]);
+  });
+});
+
+
+describe('negotiate and contract clocks from CEO approval', () => {
+  const approved = ict(2026, 11, 11, 11, 0);
+  const now = ict(2026, 11, 12, 10, 0);
+
+  it('computes negotiate (3 business days) and contract (5) even without stored dues', () => {
+    const view = buildHandoffSlaView(
+      {
+        leadStatus: 'dam_phan',
+        quoteApprovedAt: approved.toISOString(),
+      },
+      now,
+    );
+    const negotiate = view.clocks.find((c) => c.key === 'negotiate');
+    const contract = view.clocks.find((c) => c.key === 'contract');
+    expect(negotiate?.due_at).toBe(negotiateDueAt(approved).toISOString());
+    expect(contract?.due_at).toBe(contractDueAt(approved).toISOString());
+    expect(view.current?.key).toBe('negotiate');
+    expect(negotiate?.due_label).toBe(formatSlaDueVi(negotiateDueAt(approved).toISOString()));
+    expect(negotiate?.due_label).toMatch(/^\d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/);
+  });
+
+  it('hides the negotiate clock and shows contract after the lead moves to chot', () => {
+    const view = buildHandoffSlaView(
+      {
+        leadStatus: 'chot',
+        quoteApprovedAt: approved.toISOString(),
+      },
+      now,
+    );
+    expect(view.clocks.some((c) => c.key === 'negotiate')).toBe(false);
+    expect(view.current?.key).toBe('contract');
+  });
+
+  it('inferHandoffSlaStep maps dam_phan / quote approved to negotiate and chot to contract', () => {
+    expect(inferHandoffSlaStep({ leadStatus: 'dam_phan', quoteApprovedAt: approved.toISOString() })).toBe('negotiate');
+    expect(inferHandoffSlaStep({ quoteApprovedAt: approved.toISOString() })).toBe('negotiate');
+    expect(inferHandoffSlaStep({ leadStatus: 'chot', quoteApprovedAt: approved.toISOString() })).toBe('contract');
+  });
+});
+
+describe('slaNotifyCopy', () => {
+  it('omits the raw open-lead path and uses HH:mm dd/MM/yyyy with no seconds', () => {
+    const approved = ict(2026, 11, 11, 11, 0);
+    const view = buildHandoffSlaView(
+      { leadStatus: 'dam_phan', quoteApprovedAt: approved.toISOString() },
+      ict(2026, 11, 12, 10, 0),
+    );
+    const clock = view.clocks.find((c) => c.key === 'negotiate');
+    expect(clock).toBeTruthy();
+    const copy = slaNotifyCopy(clock!, 900000136);
+    expect(copy.body).not.toMatch(/Mở lead:/);
+    expect(copy.body).not.toMatch(/\/crm\/leads\//);
+    expect(copy.body).toMatch(/hạn \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}/);
+    expect(copy.body).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(copy.title).toMatch(/^SLA /);
   });
 });

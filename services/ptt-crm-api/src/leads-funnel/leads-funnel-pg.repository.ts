@@ -92,6 +92,7 @@ import {
   buildHandoffSlaView,
   briefSubmitDueAt,
   contractDueAt,
+  inferHandoffSlaStep,
   negotiateDueAt,
 } from './handoff-sla.util';
 import {
@@ -1428,6 +1429,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const lead = await this.loadLeadSlaSource(ps.lead_id);
     return buildHandoffSlaView(
       {
+        currentStep: inferHandoffSlaStep({
+          leadStatus: lead.status,
+          handoffStatus: ps.handoff_status,
+          quoteApprovedAt: ps.quote_approved_at || null,
+          contractSignedAt: ps.contract_signed_at || null,
+          contractCreatedAt: ps.contract_created_at || null,
+          implementationStatus: ps.implementation_status || null,
+        }),
+        leadStatus: lead.status,
         assignedAt: lead.assignedAt,
         claimedAt: lead.claimedAt,
         firstCallAt: lead.firstCallAt,
@@ -1450,6 +1460,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         negotiateDueAt: ps.negotiate_due_at || null,
         contractDueAt: ps.contract_due_at || null,
         contractSignedAt: ps.contract_signed_at || null,
+        contractCreatedAt: ps.contract_created_at || null,
+        implementationStatus: ps.implementation_status || null,
       },
       now,
     );
@@ -3320,6 +3332,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         negotiateDueAt(approvedAt).toISOString(),
         contractDueAt(approvedAt).toISOString(),
       ],
+    );
+    await this.db.query(
+      `UPDATE crm_leads
+          SET status = 'dam_phan'
+        WHERE sqlite_lead_id = $1
+          AND lower(COALESCE(status, '')) NOT IN (
+            'dam_phan', 'negotiation', 'chot', 'won', 'post_sale', 'lost', 'mat', 'huy', 'cancelled'
+          )`,
+      [leadId],
     );
     const status = await this.currentLeadStatus(leadId);
     await this.noteLeadStep(

@@ -123,7 +123,7 @@ export function formatSlaDueVi(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat('vi-VN', {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Saigon',
     hour: '2-digit',
     minute: '2-digit',
@@ -131,7 +131,15 @@ export function formatSlaDueVi(iso: string | null | undefined): string {
     month: '2-digit',
     year: 'numeric',
     hour12: false,
-  }).format(d);
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  const hh = get('hour');
+  const mm = get('minute');
+  const day = get('day');
+  const month = get('month');
+  const year = get('year');
+  if (!hh || !mm || !day || !month || !year) return '—';
+  return `${hh}:${mm} ${day}/${month}/${year}`;
 }
 
 export function classifySlaState(dueAt: Date | null, now: Date, warnMs: number): HandoffSlaState {
@@ -235,7 +243,49 @@ export interface HandoffSlaSource {
   negotiateDueAt?: string | null;
   contractDueAt?: string | null;
   contractSignedAt?: string | null;
+  leadStatus?: string | null;
+  contractCreatedAt?: string | null;
+  implementationStatus?: string | null;
   workSettings?: SolutionWorkDueSettings;
+}
+
+const CONTRACT_STATUSES = new Set(['chot', 'won', 'post_sale', 'ky_hop_dong']);
+const NEGOTIATE_STATUSES = new Set(['dam_phan', 'negotiation']);
+
+/** Infer the SLA step_key used by pickCurrent / clock gating. */
+export function inferHandoffSlaStep(input: {
+  currentStep?: string | null;
+  leadStatus?: string | null;
+  handoffStatus?: string | null;
+  quoteApprovedAt?: string | null;
+  contractSignedAt?: string | null;
+  contractCreatedAt?: string | null;
+  implementationStatus?: string | null;
+}): string | null {
+  const given = String(input.currentStep ?? '').trim();
+  if (given) return given;
+  const status = String(input.leadStatus ?? '').trim().toLowerCase();
+  const handoff = String(input.handoffStatus ?? '').trim().toLowerCase();
+  const impl = String(input.implementationStatus ?? '').trim().toLowerCase();
+  if (input.contractSignedAt || CONTRACT_STATUSES.has(status) || impl === 'trien_khai') return 'contract';
+  if (NEGOTIATE_STATUSES.has(status) || input.quoteApprovedAt) return 'negotiate';
+  if (status === 'bao_gia' || status === 'proposal' || handoff === 'released') return 'await_quote';
+  if (handoff === 'with_solution') return 'doing_solution';
+  if (handoff === 'pending') return 'await_solution';
+  if (status === 'da_lien_he' || status === 'dang_tu_van') return 'sales_brief';
+  if (status) return 'intake';
+  return null;
+}
+
+function isContractStep(step: string | null | undefined, leadStatus?: string | null): boolean {
+  const s = String(step ?? '').trim();
+  const status = String(leadStatus ?? '').trim().toLowerCase();
+  return (
+    s === 'contract' ||
+    s === 'sign_contract' ||
+    s === 'ky_hop_dong' ||
+    CONTRACT_STATUSES.has(status)
+  );
 }
 
 function pickCurrent(clocks: HandoffSlaClock[], step: string | null | undefined): HandoffSlaClock | null {
@@ -382,40 +432,57 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
     );
   }
   if (source.quoteApprovedAt && !source.contractSignedAt) {
-    if (source.negotiateDueAt || step === 'negotiate' || step === 'dam_phan') {
-      const due = source.negotiateDueAt || negotiateDueAt(new Date(source.quoteApprovedAt)).toISOString();
+    const approved = new Date(source.quoteApprovedAt);
+    const inferred = inferHandoffSlaStep({
+      currentStep: step,
+      leadStatus: source.leadStatus,
+      handoffStatus: source.handoffStatus,
+      quoteApprovedAt: source.quoteApprovedAt,
+      contractSignedAt: source.contractSignedAt,
+      contractCreatedAt: source.contractCreatedAt,
+      implementationStatus: source.implementationStatus,
+    });
+    const atContract = isContractStep(inferred, source.leadStatus);
+    if (!atContract) {
+      const due = source.negotiateDueAt || negotiateDueAt(approved).toISOString();
       clocks.push(
         clockOf('negotiate', due, source.quoteApprovedAt, now, 'Thương thảo trong 3 ngày làm việc sau khi CEO duyệt.'),
       );
     }
-    if (source.contractDueAt || step === 'contract' || step === 'ky_hop_dong') {
-      const due = source.contractDueAt || contractDueAt(new Date(source.quoteApprovedAt)).toISOString();
-      clocks.push(
-        clockOf('contract', due, source.quoteApprovedAt, now, 'Ký hợp đồng trong 5 ngày làm việc sau khi CEO duyệt.'),
-      );
-    }
+    const contractDue = source.contractDueAt || contractDueAt(approved).toISOString();
+    clocks.push(
+      clockOf('contract', contractDue, source.quoteApprovedAt, now, 'Ký hợp đồng trong 5 ngày làm việc sau khi CEO duyệt.'),
+    );
   }
 
+  const resolvedStep = inferHandoffSlaStep({
+    currentStep: step,
+    leadStatus: source.leadStatus,
+    handoffStatus: source.handoffStatus,
+    quoteApprovedAt: source.quoteApprovedAt,
+    contractSignedAt: source.contractSignedAt,
+    contractCreatedAt: source.contractCreatedAt,
+    implementationStatus: source.implementationStatus,
+  });
   return {
     policy: HANDOFF_SLA_POLICY,
     clocks,
-    current: pickCurrent(clocks, step),
+    current: pickCurrent(clocks, resolvedStep),
     suggested_solution_due_at: suggestedSolutionDueAt(now, source.workSettings).toISOString(),
   };
 }
 
 export function slaNotifyCopy(clock: HandoffSlaClock, leadId: number): { title: string; body: string } {
   const due = clock.due_label;
-  const link = `/crm/leads/${leadId}`;
   if (clock.state === 'breach') {
     return {
       title: `SLA trễ — ${clock.label}`,
-      body: `Lead #${leadId}: ${clock.label} đã quá hạn (hạn ${due}). ${clock.message} Mở lead: ${link}`,
+      body: `Lead #${leadId}: ${clock.label} đã quá hạn (hạn ${due}). ${clock.message}`.trim(),
     };
   }
   return {
     title: `SLA sắp trễ — ${clock.label}`,
-    body: `Lead #${leadId}: ${clock.label} sắp đến hạn (hạn ${due}, ${clock.countdown}). ${clock.message} Mở lead: ${link}`,
+    body: `Lead #${leadId}: ${clock.label} sắp đến hạn (hạn ${due}, ${clock.countdown}). ${clock.message}`.trim(),
   };
 }
 
@@ -429,6 +496,7 @@ export type HandoffSlaRecipientInput = {
   solutionOwnerStaffId?: number | null;
   amDeskStaffIds?: number[] | null;
   ceoDeskStaffIds?: number[] | null;
+  superAdminStaffIds?: number[] | null;
 };
 
 function pushStaffId(ids: Set<number>, raw: unknown): void {
@@ -464,6 +532,16 @@ export function resolveHandoffSlaRecipientIds(input: HandoffSlaRecipientInput): 
   if (input.role === 'Marketing') {
     const owned = assignedMarketingIds(input);
     return owned.length ? owned : desk;
+  }
+  // Negotiate / contract: AM owner plus SUPER-ADMIN. Unowned falls back to the AM desk pool.
+  if (input.clockKey === 'negotiate' || input.clockKey === 'contract') {
+    const ids = new Set<number>();
+    for (const id of assignedAmIds(input)) ids.add(id);
+    for (const id of input.superAdminStaffIds ?? []) pushStaffId(ids, id);
+    if (!ids.size) {
+      for (const id of desk) ids.add(id);
+    }
+    return [...ids];
   }
   // AM — unclaimed / pending accept (and any AM clock without an assignee) goes to the AM desk pool.
   const assigned = assignedAmIds(input);

@@ -73,6 +73,13 @@ describe('handoff-flow.util', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'won', hasContract: true })).toBe('sign_contract');
   });
 
+  it('keeps CEO-approved hop_dong on Thương thảo until the lead is actually at contract', () => {
+    expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan', quotePhase: 'hop_dong' })).toBe('negotiate');
+    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'hop_dong' })).toBe('negotiate');
+    expect(resolveHandoffFlowStep({ leadStatus: 'chot', quotePhase: 'hop_dong' })).toBe('sign_contract');
+    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'trien_khai' })).toBe('sign_contract');
+  });
+
   it('returns a lead to Sales Brief after AM trả về Sales', () => {
     expect(
       resolveHandoffFlowStep({

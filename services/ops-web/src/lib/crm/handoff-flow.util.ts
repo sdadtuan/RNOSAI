@@ -200,27 +200,18 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
   const handoff = norm(input.handoffStatus);
   const quote = norm(input.quotePhase);
   const contractStatus = norm(input.contractStatus);
-  const signedContract =
-    Boolean(input.hasContract) ||
-    status === 'won' ||
-    status === 'chot' ||
-    status === 'post_sale' ||
-    contractStatus === 'signed' ||
-    contractStatus === 'active' ||
-    quote === 'trien_khai' ||
-    quote === 'hop_dong';
-
-  if (signedContract && quote !== 'hop_dong' && (status === 'won' || status === 'chot' || status === 'post_sale' || Boolean(input.hasContract) && contractStatus === 'signed')) {
+  if (status === 'won' || status === 'chot' || status === 'post_sale') return 'sign_contract';
+  if (quote === 'trien_khai') return 'sign_contract';
+  if (Boolean(input.hasContract) && (contractStatus === 'signed' || contractStatus === 'active')) {
     return 'sign_contract';
   }
-  if (status === 'won' || status === 'chot' || status === 'post_sale') return 'sign_contract';
-  if (quote === 'hop_dong' || quote === 'trien_khai') {
-    return quote === 'trien_khai' && !input.hasContract ? 'sign_contract' : 'sign_contract';
-  }
 
+  // CEO approval flips quote phase to hop_dong; that is still Thương thảo (3 business days),
+  // not Ký hợp đồng, until the lead is actually at contract/won or triển khai.
   if (
     status === 'dam_phan' ||
     status === 'negotiation' ||
+    quote === 'hop_dong' ||
     quote === 'sale_review' ||
     quote === 'ceo_review'
   ) {
