@@ -107,8 +107,14 @@ import {
 } from './solution-case.util';
 import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
 import { pickSolutionAssignee } from './solution-assignee-access.util';
+import {
+  decideSolutionAssignee,
+  SOLUTION_AUTO_ASSIGN_POOL_KEY,
+  SOLUTION_AUTO_ASSIGN_PREVIOUS_REASON,
+  SOLUTION_AUTO_ASSIGN_REASON,
+} from './solution-auto-assign.util';
 import { TeamSlaService } from '../team-sla/team-sla.service';
-import { Optional } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import {
   IMPLEMENTATION_ACCEPT_MINUTES,
   buildImplementationHandoffView,
@@ -2270,7 +2276,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
 
-    const assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
+    let assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
+    const autoAssigned = await this.autoAssignSolutionOwner(
+      leadId,
+      snap.presales.id,
+      assignedAm,
+      snap.presales.last_solution_owner_staff_id ?? null,
+    );
+    if (autoAssigned) assignedAm = autoAssigned;
     const lastOwner = assignedAm > 0 ? assignedAm : snap.presales.last_solution_owner_staff_id;
     const autoReclaim =
       lastOwner != null &&
@@ -2353,6 +2366,117 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       `Lead chờ AM nhận Solutions. Hạn nhận case ${Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES} phút.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  /** Solution pool member: active and AM position (ACM/KD-01) or HR "Nhận Solution". */
+  async isSolutionPoolMember(staffId: number): Promise<boolean> {
+    if (!Number.isInteger(staffId) || staffId <= 0) return false;
+    return this.staffIsEligibleSolutionOwner(staffId);
+  }
+
+  private assignmentLogOwnerKind: Promise<boolean> | null = null;
+
+  private hasAssignmentLogOwnerKind(): Promise<boolean> {
+    if (!this.assignmentLogOwnerKind) {
+      this.assignmentLogOwnerKind = this.db
+        .query(
+          `SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'crm_lead_assignment_log' AND column_name = 'owner_kind'
+            LIMIT 1`,
+        )
+        .then((r) => r.rows.length > 0)
+        .catch(() => {
+          this.assignmentLogOwnerKind = null;
+          return false;
+        });
+    }
+    return this.assignmentLogOwnerKind;
+  }
+
+  /**
+   * Sales submit-to-AM: when assigned_am is not in the Solution pool, give the case to the previous
+   * pool owner or the next pool member (round-robin, pool key solution_am) and log it as
+   * "Hệ thống · Giao Solution cho X (tự động)". Returns the new assigned_am, or null when unchanged.
+   * Empty pool keeps the old behaviour (AM desk claim) and logs a warning.
+   */
+  private async autoAssignSolutionOwner(
+    leadId: number,
+    presalesId: number,
+    assignedAm: number,
+    lastOwnerRaw: number | null,
+  ): Promise<number | null> {
+    const lastOwner = Number(lastOwnerRaw ?? 0);
+    const assignedAmInPool = assignedAm > 0 ? await this.isSolutionPoolMember(assignedAm) : false;
+    const lastOwnerInPool = lastOwner > 0 ? await this.isSolutionPoolMember(lastOwner) : false;
+    if (assignedAmInPool || (assignedAm <= 0 && lastOwnerInPool)) return null;
+    const ownerKindColumn = await this.hasAssignmentLogOwnerKind();
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      // Serialise concurrent submits so two leads never take the same rotation slot.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [SOLUTION_AUTO_ASSIGN_POOL_KEY]);
+      const pool = await client.query(
+        `SELECT s.id
+           FROM crm_staff s
+           LEFT JOIN crm_positions p ON p.id = s.position_id
+          WHERE s.active IS TRUE
+            AND (
+              lower(replace(COALESCE(p.code, ''), ' ', '')) IN ('acm', 'kd-01', 'kd01')
+              OR COALESCE(s.can_receive_solution, FALSE) IS TRUE
+            )`,
+      );
+      const lastAuto = await client.query(
+        `SELECT to_owner_id FROM crm_lead_assignment_log
+          WHERE reason = $1
+          ORDER BY id DESC
+          LIMIT 1`,
+        [SOLUTION_AUTO_ASSIGN_REASON],
+      );
+      const decision = decideSolutionAssignee({
+        assignedAm,
+        assignedAmInPool,
+        lastOwner,
+        lastOwnerInPool,
+        poolIds: pool.rows.map((r) => Number(r.id)),
+        lastAutoStaffId: lastAuto.rows[0]?.to_owner_id ?? null,
+      });
+      if (decision.action !== 'assign') {
+        await client.query('ROLLBACK');
+        if (decision.action === 'none') {
+          new Logger(LeadsFunnelPgRepository.name).warn(
+            `Solution auto-assign: pool is empty (no active AM / Nhận Solution staff); lead=${leadId} stays on the AM desk queue`,
+          );
+        }
+        return null;
+      }
+      await client.query(`UPDATE crm_lead_presales SET assigned_am = $2, updated_at = NOW() WHERE id = $1`, [
+        presalesId,
+        decision.staffId,
+      ]);
+      const reason = decision.why === 'round_robin' ? SOLUTION_AUTO_ASSIGN_REASON : SOLUTION_AUTO_ASSIGN_PREVIOUS_REASON;
+      if (ownerKindColumn) {
+        await client.query(
+          `INSERT INTO crm_lead_assignment_log
+             (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at, owner_kind)
+           VALUES ($1, NULL, $2, $3, 'system', NOW(), 'solution')`,
+          [leadId, decision.staffId, reason],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO crm_lead_assignment_log
+             (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+           VALUES ($1, NULL, $2, $3, 'system', NOW())`,
+          [leadId, decision.staffId, reason],
+        );
+      }
+      await client.query('COMMIT');
+      return decision.staffId;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   private async staffIsEligibleSolutionOwner(staffId: number): Promise<boolean> {

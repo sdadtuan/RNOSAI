@@ -9,6 +9,7 @@ export type CaseNotifyKind =
   | 'released_to_am'
   | 'request_quote_edits'
   | 'auto_reclaim_solution'
+  | 'solution_assigned'
   | 'lead_assigned'
   | 'quote_submitted_ceo'
   | 'quote_ceo_rejected'
@@ -109,6 +110,15 @@ export function caseStaffNotify(input: {
       body: ('Lead #' + leadId + '  cần chỉnh báo giá.' + reasonBit),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead', reason },
+    };
+  }
+  if (input.kind === 'solution_assigned') {
+    return {
+      kind: 'presales_solution',
+      title: 'Bạn được giao làm Solution',
+      body: ('Lead #' + leadId + ' — Sales đã Submit to AM và hệ thống giao Solution cho bạn. Vui lòng kiểm tra Brief, làm Solution rồi nộp cho Sales.'),
+      link_href: link,
+      meta_json: { lead_id: leadId, action: 'open_lead' },
     };
   }
   if (input.kind === 'auto_reclaim_solution') {

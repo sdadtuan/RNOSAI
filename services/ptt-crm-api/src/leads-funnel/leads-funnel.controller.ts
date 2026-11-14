@@ -738,6 +738,16 @@ export class LeadsFunnelController {
     return this.funnel.patchClientBrief(id, body, req.staffUser);
   }
 
+  /** Whether the caller may use AI tạo Solution / Nộp on this lead (assigned Solution person or SUPER-ADMIN). */
+  @Get(':id/presales/solution-access')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  solutionAccess(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    return this.funnel.solutionAccess(id, req.staffUser, req.staffAuthVia === 'internal');
+  }
+
   @Post(':id/presales/client-brief/suggest')
   @HttpCode(HttpStatus.OK)
   @UseGuards(

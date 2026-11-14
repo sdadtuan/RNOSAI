@@ -199,3 +199,12 @@ describe('salesNotifyStaffIds', () => {
     ).toEqual([106, 107]);
   });
 });
+
+describe('solution_assigned notify', () => {
+  it('tells the auto-assigned person the case is theirs', () => {
+    const n = caseStaffNotify({ kind: 'solution_assigned', leadId: 121 });
+    expect(n.title).toBe('Bạn được giao làm Solution');
+    expect(n.body).toContain('Lead #121');
+    expect(n.link_href).toBe('/crm/leads/121');
+  });
+});

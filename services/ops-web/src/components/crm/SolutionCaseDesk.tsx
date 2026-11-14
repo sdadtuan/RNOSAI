@@ -7,6 +7,7 @@ import {
   fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
   releaseLeadToSales,
+  fetchLeadSolutionAccess,
   returnLeadToSales,
   updateLeadSolutionDeadline,
   postLeadPresalesMarketingPlanAiDraft,
@@ -299,6 +300,21 @@ export function SolutionCaseDesk({
   const [serviceGroups, setServiceGroups] = useState<DiscoveryServiceGroup[]>([]);
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
+  // Only the assigned Solution person (or SUPER-ADMIN) may AI tạo Solution / Nộp; the API enforces it too.
+  const [solutionCanAct, setSolutionCanAct] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLeadSolutionAccess(token, lead.id)
+      .then((out) => {
+        if (!cancelled) setSolutionCanAct(Boolean(out?.can_act));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [token, lead.id, handoff]);
+  const notAssignee = solutionCanAct === false;
+  const notAssigneeTip = 'Chỉ người được giao Solution';
   const solution = funnel?.presales?.solution_case;
   const storedDue = funnel?.presales?.handoff?.solution_due_at || solution?.timer_due_at || '';
   const [deadlineText, setDeadlineText] = useState(() => isoToViDate(storedDue));
@@ -406,7 +422,8 @@ export function SolutionCaseDesk({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={busy}
+              disabled={busy || notAssignee}
+              title={notAssignee ? notAssigneeTip : undefined}
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >
@@ -582,8 +599,10 @@ export function SolutionCaseDesk({
       : uploading
         ? `Đang tải file… ${uploadProgress}%`
         : null;
-  const releaseDisabled = busy || !hasSolutionFile || submitGaps.length > 0 || uploading;
-  const releaseReason = uploading
+  const releaseDisabled = busy || notAssignee || !hasSolutionFile || submitGaps.length > 0 || uploading;
+  const releaseReason = notAssignee
+    ? notAssigneeTip
+    : uploading
     ? (uploadLabel ?? 'Đang tải file…')
     : !hasSolutionFile
       ? 'Cần tải file Solution trước'
@@ -667,7 +686,8 @@ export function SolutionCaseDesk({
             <button
               type="button"
               className="ahd-btn ahd-btn--ghost"
-              disabled={busy}
+              disabled={busy || notAssignee}
+              title={notAssignee ? notAssigneeTip : undefined}
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >
@@ -761,15 +781,15 @@ export function SolutionCaseDesk({
               type="button"
               className="ahd-btn ahd-btn--primary ahd-btn--block"
               data-testid="ahd-submit-sales"
-              disabled={busy || submitBusy || Boolean(submitDisabledReason)}
-              title={submitDisabledReason || undefined}
-              aria-disabled={busy || submitBusy || Boolean(submitDisabledReason)}
+              disabled={busy || submitBusy || notAssignee || Boolean(submitDisabledReason)}
+              title={(notAssignee ? notAssigneeTip : submitDisabledReason) || undefined}
+              aria-disabled={busy || submitBusy || notAssignee || Boolean(submitDisabledReason)}
               onClick={() => void onSubmitToSales?.()}
             >
               Nộp Solution cho Sales
             </button>
-            {submitDisabledReason ? (
-              <p className="ahd-assign-hint" data-testid="ahd-submit-hint">{submitDisabledReason}</p>
+            {notAssignee || submitDisabledReason ? (
+              <p className="ahd-assign-hint" data-testid="ahd-submit-hint">{notAssignee ? notAssigneeTip : submitDisabledReason}</p>
             ) : null}
           </div>
         ) : null}
@@ -1129,7 +1149,8 @@ export function SolutionCaseDesk({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={busy}
+              disabled={busy || notAssignee}
+              title={notAssignee ? notAssigneeTip : undefined}
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >

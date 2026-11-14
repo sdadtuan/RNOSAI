@@ -1,4 +1,5 @@
 import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { canUseAssignedSolutionAction } from './solution-assignee-access.util';
 import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
@@ -190,6 +191,12 @@ export class LeadsFunnelService {
       );
       return;
     }
+    // Auto-assigned (or already assigned) Solution owner from the pool: notify only that person.
+    const owner = Number(handed?.solution_owner_staff_id ?? 0);
+    if (handed?.handoff_status === 'pending' && owner > 0 && (await this.pgRepo.isSolutionPoolMember(owner))) {
+      await this.notifyResponsible(owner, caseStaffNotify({ kind: 'solution_assigned', leadId }));
+      return;
+    }
     await this.notifyAmSolutionHandoff(leadId);
   }
 
@@ -247,6 +254,42 @@ export class LeadsFunnelService {
     const snap = await this.pgRepo.buildSnapshot(leadId, this.config.presalesOnLead);
     if (!snap) throw new NotFoundException({ error: 'Lead not found' });
     return { ...snap, presales_ai_configured: Boolean(this.aiConfig.llmApiKey) };
+  }
+
+  /** Per-viewer: may this user use AI tạo Solution / Nộp on this lead (same rule as the API guards)? */
+  async solutionAccess(leadId: number, staffUser?: StaffJwtPayload, internal = false) {
+    const assigneeStaffId = await this.pgRepo.solutionAssigneeStaffId(leadId);
+    const assigneeName = assigneeStaffId
+      ? (await this.leadPg.staffNamesByIds([assigneeStaffId])).get(assigneeStaffId) ?? null
+      : null;
+    let canAct = internal;
+    let isSuperAdmin = false;
+    if (!internal && staffUser) {
+      isSuperAdmin = await this.staffAuth.isSuperAdminUser(staffUser);
+      if (isSuperAdmin) {
+        canAct = true;
+      } else {
+        const [staffId, me, canReceiveSolution] = await Promise.all([
+          this.staffAuth.resolveCrmStaffUserId(staffUser),
+          this.staffAuth.me(staffUser),
+          this.staffAuth.canReceiveSolution(staffUser),
+        ]);
+        canAct = canUseAssignedSolutionAction({
+          staffId,
+          assigneeStaffId,
+          isAccountManager: isAccountManagerPosition(me.position_code),
+          canReceiveSolution,
+        });
+      }
+    }
+    return {
+      ok: true,
+      can_act: canAct,
+      is_super_admin: isSuperAdmin,
+      assignee_staff_id: assigneeStaffId,
+      assignee_name: assigneeName,
+      reason: canAct ? '' : 'Chỉ người được giao Solution',
+    };
   }
 
   async getCarePipeline(leadId: number) {

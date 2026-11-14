@@ -2540,6 +2540,21 @@ export async function updateLeadSolutionDeadline(
   });
 }
 
+/** Per-viewer Solution access: only the assigned Solution person or SUPER-ADMIN may AI tạo Solution / Nộp. */
+export async function fetchLeadSolutionAccess(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  can_act: boolean;
+  is_super_admin: boolean;
+  assignee_staff_id: number | null;
+  assignee_name: string | null;
+  reason: string;
+}> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/solution-access`, { method: 'GET' });
+}
+
 export async function releaseLeadToSales(
   token: string,
   leadId: number,
