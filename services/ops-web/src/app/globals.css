@@ -26887,3 +26887,91 @@ html.rs-mobile-chrome .crm-leads-signal {
 .quote-case-timer.handoff-sla-banner--line {
   margin: 0 0 12px;
 }
+
+/* t121: CRM lead page form fields share the select light-yellow fill */
+.lead-detail-page,
+.ahd,
+.sld,
+.sd-page,
+.sd-embed {
+  --crm-lead-field-bg: #ffffcd;
+  --crm-lead-field-border: #cfd8e3;
+}
+
+.lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.lead-detail-page select,
+.lead-detail-page textarea,
+.ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.ahd select,
+.ahd textarea,
+.sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.sld select,
+.sld textarea,
+.sd-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.sd-page select,
+.sd-page textarea,
+.sd-embed input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.sd-embed select,
+.sd-embed textarea,
+.lead-detail-page .lead-input,
+.lead-detail-page .lead-select,
+.lead-detail-page .sd-input,
+.lead-detail-page .sd-select,
+.lead-detail-page .sd-textarea,
+.ahd .lead-input,
+.ahd .lead-select,
+.ahd .sd-input,
+.ahd .sd-select,
+.ahd .sd-textarea,
+.ahd .ahd-field input,
+.ahd .ahd-field select,
+.ahd .ahd-field textarea,
+.ahd .ahd-note-form textarea,
+.ahd .solution-desk__deadline input,
+.sld .sd-input,
+.sld .sd-select,
+.sld .sd-textarea {
+  background-color: var(--crm-lead-field-bg);
+  border-color: var(--crm-lead-field-border);
+}
+
+html.ops-shell-bitrix .lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.ops-shell-bitrix .lead-detail-page select,
+html.ops-shell-bitrix .lead-detail-page textarea,
+html.ops-shell-bitrix .ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.ops-shell-bitrix .ahd select,
+html.ops-shell-bitrix .ahd textarea,
+html.ops-shell-bitrix .sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.ops-shell-bitrix .sld select,
+html.ops-shell-bitrix .sld textarea {
+  background-color: var(--crm-lead-field-bg, #ffffcd);
+  border-color: var(--crm-lead-field-border, #cfd8e3);
+}
+
+.lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):-webkit-autofill,
+.lead-detail-page textarea:-webkit-autofill,
+.lead-detail-page select:-webkit-autofill,
+.ahd input:-webkit-autofill,
+.ahd textarea:-webkit-autofill,
+.ahd select:-webkit-autofill,
+.sld input:-webkit-autofill,
+.sld textarea:-webkit-autofill,
+.sld select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset;
+  box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset;
+}
+
+.lead-detail-page input:disabled,
+.lead-detail-page select:disabled,
+.lead-detail-page textarea:disabled,
+.ahd input:disabled,
+.ahd select:disabled,
+.ahd textarea:disabled,
+.sld input:disabled,
+.sld select:disabled,
+.sld textarea:disabled,
+.sd-input:disabled,
+.sd-select:disabled,
+.sd-textarea:disabled {
+  background-color: #f4f6f8;
+}
