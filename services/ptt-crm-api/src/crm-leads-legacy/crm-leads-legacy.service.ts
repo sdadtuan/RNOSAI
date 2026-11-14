@@ -83,7 +83,7 @@ export class CrmLeadsLegacyService {
     const mentionContent = String(body.content ?? '');
     if (mentionContent.includes('@')) {
       void this.mentions
-        .notifyActivityMentions({ leadId, mentionContent, actorEmail: actor })
+        .notifyActivityMentions({ leadId, content: mentionContent, actorEmail: actor })
         .catch(() => undefined);
     }
     return { activity };
