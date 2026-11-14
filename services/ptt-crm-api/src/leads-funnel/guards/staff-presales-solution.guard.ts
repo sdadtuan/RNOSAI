@@ -10,7 +10,8 @@ import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 import { hasGdkdSolutionDesk } from '../../staff-permissions/staff-gdkd.util';
 import { assertPresalesSolutionCap } from '../presales-solution-rbac.util';
-import { isAccountManagerPosition } from '../../b2b-projects/b2b-director.util';
+import { LeadsFunnelPgRepository } from '../leads-funnel-pg.repository';
+import { assertSolutionAssignee } from './solution-assignee.guard';
 
 function assertCapOrThrow(
   caps: Array<{ section: string; action: string }>,
@@ -38,22 +39,22 @@ export class StaffPresalesSolutionClaimGuard implements CanActivate {
   }
 }
 
+/**
+ * Nộp Solution cho Sales (release-to-sales): only the person assigned to this lead's Solution
+ * step (AM position or HR "Nhận Solution") and SUPER-ADMIN. Position or caps alone do not pass.
+ */
 @Injectable()
 export class StaffPresalesSolutionReleaseGuard implements CanActivate {
-  constructor(private readonly staffAuth: StaffAuthService) {}
+  constructor(
+    private readonly staffAuth: StaffAuthService,
+    private readonly leadPg: LeadsFunnelPgRepository,
+  ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<
-      Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
-    >();
-    if (req.staffAuthVia === 'internal') return true;
-    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
-    if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
-    if (await this.staffAuth.canReceiveSolution(req.staffUser)) return true;
-    const me = await this.staffAuth.me(req.staffUser);
-    if (isAccountManagerPosition(me.position_code)) return true;
-    assertCapOrThrow(me.caps, 'release');
-    return true;
+  canActivate(context: ExecutionContext): Promise<boolean> {
+    return assertSolutionAssignee(context, this.staffAuth, this.leadPg, {
+      section: 'crm_presales_solution',
+      action: 'release',
+    });
   }
 }
 

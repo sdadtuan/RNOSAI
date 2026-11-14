@@ -106,6 +106,7 @@ import {
   solutionWorkDueAt,
 } from './solution-case.util';
 import { loadMarketingSolutionWorkSettings } from './team-sla-solution-settings';
+import { pickSolutionAssignee } from './solution-assignee-access.util';
 import { TeamSlaService } from '../team-sla/team-sla.service';
 import { Optional } from '@nestjs/common';
 import {
@@ -452,6 +453,28 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  /** Staff assigned to this lead's Solution step (see pickSolutionAssignee); null when none. */
+  async solutionAssigneeStaffId(leadId: number): Promise<number | null> {
+    const result = await this.db.query(
+      `SELECT assigned_am, solution_owner_staff_id
+         FROM crm_lead_presales
+        WHERE lead_id = $1
+        ORDER BY id DESC
+        LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const assignedAm = Number(row.assigned_am);
+    const assignedAmInPool =
+      Number.isInteger(assignedAm) && assignedAm > 0 ? await this.staffIsEligibleSolutionOwner(assignedAm) : false;
+    return pickSolutionAssignee({
+      assignedAm: row.assigned_am,
+      solutionOwnerStaffId: row.solution_owner_staff_id,
+      assignedAmInPool,
+    });
   }
 
   async buildHandoffView(ps: PresalesRow): Promise<PresalesHandoffView> {
