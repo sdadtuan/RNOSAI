@@ -141,10 +141,13 @@ export type LeadOwnerChangeInput = {
   from_name?: string | null;
   to_name?: string | null;
   would_to_name?: string | null;
+  from_user_id?: number | null;
+  to_user_id?: number | null;
   reason?: string | null;
   created_by?: string | null;
   created_at: string;
   dry_run?: boolean;
+  owner_kind?: string | null;
 };
 
 export function formatHistoryClock(raw: string | null | undefined): string {
@@ -196,16 +199,56 @@ export function ownerChangeReasonLabel(
   return core;
 }
 
+const OWNER_ROLE_LABEL: Record<string, string> = {
+  sales: 'Sales',
+  am: 'AM',
+  acm: 'ACM',
+  solution: 'Marketing',
+  quote_am: 'AM',
+};
+
+export function ownerRoleLabel(kind?: string | null): string {
+  const key = String(kind ?? 'sales').trim().toLowerCase() || 'sales';
+  return OWNER_ROLE_LABEL[key] ?? 'Sales';
+}
+
+/** Staff label for history / management: never a bare #id. */
+export function displayStaffName(name?: string | null): string {
+  const raw = String(name ?? '').trim();
+  if (!raw || raw === '—' || /^#\d+$/.test(raw)) return '—';
+  return raw;
+}
+
+function staffIdOf(value?: number | null): number | null {
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+function sameStaff(
+  leftId?: number | null,
+  leftName?: string | null,
+  rightId?: number | null,
+  rightName?: string | null,
+): boolean {
+  const aId = staffIdOf(leftId);
+  const bId = staffIdOf(rightId);
+  if (aId && bId && aId === bId) return true;
+  const a = displayStaffName(leftName);
+  const b = displayStaffName(rightName);
+  return a !== '—' && b !== '—' && a.toLowerCase() === b.toLowerCase();
+}
+
 export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
-  const from = String(row.from_name ?? '').trim() || '—';
-  const to = String(row.would_to_name || row.to_name || '').trim() || '—';
+  const role = ownerRoleLabel(row.owner_kind);
+  const from = displayStaffName(row.from_name);
+  const to = displayStaffName(row.would_to_name || row.to_name);
   const why = ownerChangeReasonLabel(row.reason, row.created_by, row.dry_run);
   const when = formatHistoryClock(row.created_at);
   return {
     key: `owner-${row.id}`,
     id: Number(row.id) || 0,
     who: actorDisplay(row.created_by) || 'Hệ thống',
-    what: `Chuyển từ Sales ${from} → Sales ${to} · ${why} · ${when}`,
+    what: `Chuyển từ ${role} ${from} → ${role} ${to} · ${why} · ${when}`,
     when: '',
   };
 }
@@ -213,20 +256,27 @@ export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
 export function firstAcceptorName(
   logs: LeadOwnerChangeInput[],
   currentOwner?: string | null,
+  currentOwnerId?: number | null,
 ): string | null {
   const real = logs
     .filter((row) => !row.dry_run)
+    .filter((row) => {
+      const kind = String(row.owner_kind ?? 'sales').trim().toLowerCase() || 'sales';
+      return kind === 'sales';
+    })
     .slice()
     .sort((a, b) => stamp(a.created_at) - stamp(b.created_at));
   if (!real.length) return null;
   const first = real[0];
-  const from = String(first?.from_name ?? '').trim();
-  const to = String(first?.to_name ?? '').trim();
-  const name = from && from !== '—' ? from : to;
-  if (!name || name === '—') return null;
-  const current = String(currentOwner ?? '').trim();
-  if (current && current === name) return null;
-  return name;
+  const fromId = staffIdOf(first?.from_user_id);
+  const toId = staffIdOf(first?.to_user_id);
+  const fromName = displayStaffName(first?.from_name);
+  const toName = displayStaffName(first?.to_name);
+  const firstId = fromId ?? toId;
+  const firstName = fromName !== '—' ? fromName : toName;
+  if (sameStaff(firstId, firstName, currentOwnerId, currentOwner)) return null;
+  if (firstName === '—') return null;
+  return firstName;
 }
 
 export function presentOwnerChanges(rows: LeadOwnerChangeInput[]): LeadHistoryLine[] {
@@ -246,6 +296,5 @@ export function resolveStaffDisplayName(
   if (hit?.name?.trim()) return hit.name.trim();
   const raw = String(fallback ?? '').trim();
   if (raw && raw !== '—' && !/^#\d+$/.test(raw)) return raw;
-  if (id != null && id > 0) return `#${id}`;
   return '—';
 }

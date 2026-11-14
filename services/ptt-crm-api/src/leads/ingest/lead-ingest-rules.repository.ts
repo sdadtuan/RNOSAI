@@ -143,6 +143,16 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
 
   async staffName(staffId: number): Promise<string> {
     if (!Number.isFinite(staffId) || staffId <= 0) return '';
+    try {
+      const live = await this.db.query(
+        `SELECT name FROM crm_staff WHERE id = $1 LIMIT 1`,
+        [staffId],
+      );
+      const name = String(live.rows[0]?.name ?? '').trim();
+      if (name) return name;
+    } catch {
+      /* crm_staff may be absent on a fresh database */
+    }
     const snap = await this.fetchSnapshot();
     const row = snap?.staff_rows.find((item) => item.id === staffId);
     return row?.name?.trim() || `#${staffId}`;

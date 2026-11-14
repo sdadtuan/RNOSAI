@@ -110,5 +110,64 @@ describe('presentOwnerChange', () => {
     expect(firstAcceptorName(logs, 'Tran Thi B')).toBe('Nguyen Van A');
     expect(firstAcceptorName(logs, 'Nguyen Van A')).toBeNull();
   });
+
+  it('hides Nhận ban đầu when first acceptor is the same staff as the current owner, even if labels differ', () => {
+    const logs = [
+      {
+        id: 1,
+        from_user_id: null,
+        from_name: '—',
+        to_user_id: 107,
+        to_name: '#107',
+        reason: 'auto_assign',
+        created_at: '2026-11-14T02:00:00.000Z',
+      },
+    ];
+    expect(firstAcceptorName(logs, 'Sale Local', 107)).toBeNull();
+  });
+
+  it('returns a staff name, never a #id, when the current owner is someone else', () => {
+    const logs = [
+      {
+        id: 1,
+        from_user_id: 107,
+        from_name: 'Sale Local',
+        to_user_id: 2,
+        to_name: '#2',
+        reason: 'thủ công',
+        created_at: '2026-11-14T03:00:00.000Z',
+      },
+    ];
+    expect(firstAcceptorName(logs, 'Nguyễn Minh Khoa', 2)).toBe('Sale Local');
+    expect(firstAcceptorName(logs, 'Nguyễn Minh Khoa', 2)).not.toMatch(/^#\d+$/);
+  });
+
+  it('does not treat a marketing/AM reassign as the first sales acceptor', () => {
+    const logs = [
+      {
+        id: 1,
+        from_user_id: 108,
+        from_name: 'MKT Leader',
+        to_user_id: 1,
+        to_name: 'Admin Local',
+        owner_kind: 'solution',
+        created_at: '2026-11-14T02:00:00.000Z',
+      },
+    ];
+    expect(firstAcceptorName(logs, 'Sale Local', 107)).toBeNull();
+  });
+
+  it('labels a quote AM reassign with the AM role, not Sales', () => {
+    const line = presentOwnerChange({
+      id: 21,
+      from_name: 'Sale Local',
+      to_name: 'Nguyễn Minh Khoa',
+      reason: 'thủ công',
+      created_by: 'admin@local',
+      created_at: '2026-11-16T03:32:20.000Z',
+      owner_kind: 'quote_am',
+    });
+    expect(line.what).toBe('Chuyển từ AM Sale Local → AM Nguyễn Minh Khoa · thủ công bởi admin@local · 10:32 16/11/2026');
+  });
 });
 

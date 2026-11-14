@@ -264,6 +264,22 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     return this.mapActivity(row, userName);
   }
 
+  private assignmentOwnerKindReady = false;
+
+  private async ensureAssignmentOwnerKindColumn(): Promise<boolean> {
+    if (this.assignmentOwnerKindReady) return true;
+    try {
+      await this.db.query(
+        `ALTER TABLE crm_lead_assignment_log
+           ADD COLUMN IF NOT EXISTS owner_kind TEXT NOT NULL DEFAULT 'sales'`,
+      );
+      this.assignmentOwnerKindReady = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async logAssignment(
     leadId: number,
     fromUserId: number | null,
@@ -271,7 +287,27 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     reason: string,
     actor: string,
     ts: string,
+    ownerKind = 'sales',
   ): Promise<void> {
+    const kind = String(ownerKind || 'sales').trim().toLowerCase() || 'sales';
+    const ready = await this.ensureAssignmentOwnerKindColumn();
+    if (ready) {
+      await this.db.query(
+        `INSERT INTO crm_lead_assignment_log
+           (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at, owner_kind)
+         VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7)`,
+        [
+          leadId,
+          fromUserId,
+          toUserId,
+          reason.slice(0, 500),
+          actor.slice(0, 120),
+          ts,
+          kind.slice(0, 32),
+        ],
+      );
+      return;
+    }
     await this.db.query(
       `INSERT INTO crm_lead_assignment_log
          (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
@@ -285,6 +321,50 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
         ts,
       ],
     );
+  }
+
+  async getPresalesOwnerId(
+    leadId: number,
+    column: 'assigned_am' | 'solution_owner_staff_id' | 'quote_assignee_staff_id',
+  ): Promise<{ exists: boolean; ownerId: number | null }> {
+    const result = await this.db.query(
+      `SELECT ${column} AS owner_id FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
+      [leadId],
+    );
+    if ((result.rowCount ?? 0) === 0) return { exists: false, ownerId: null };
+    const raw = (result.rows[0] as { owner_id?: unknown } | undefined)?.owner_id;
+    const ownerId = raw != null && Number(raw) > 0 ? Number(raw) : null;
+    return { exists: true, ownerId };
+  }
+
+  async setPresalesOwner(
+    leadId: number,
+    column: 'assigned_am' | 'solution_owner_staff_id' | 'quote_assignee_staff_id',
+    toStaffId: number,
+  ): Promise<{ fromId: number | null }> {
+    const current = await this.getPresalesOwnerId(leadId, column);
+    if (!current.exists) {
+      return { fromId: null };
+    }
+    if (column === 'solution_owner_staff_id') {
+      await this.db.query(
+        `UPDATE crm_lead_presales
+            SET last_solution_owner_staff_id = COALESCE(solution_owner_staff_id, last_solution_owner_staff_id),
+                solution_owner_staff_id = $2,
+                updated_at = NOW()
+          WHERE lead_id = $1`,
+        [leadId, toStaffId],
+      );
+    } else {
+      await this.db.query(
+        `UPDATE crm_lead_presales
+            SET ${column} = $2,
+                updated_at = NOW()
+          WHERE lead_id = $1`,
+        [leadId, toStaffId],
+      );
+    }
+    return { fromId: current.ownerId };
   }
 
   async listStatusLogs(leadId: number, limit = 100): Promise<LeadStatusLogRow[]> {
@@ -385,12 +465,20 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
 
   async listAssignmentLogs(leadId: number, limit = 100): Promise<LeadAssignmentLogRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
+    const ready = await this.ensureAssignmentOwnerKindColumn();
     const result = await this.db.query(
-      `SELECT id, sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at
-       FROM crm_lead_assignment_log
-       WHERE sqlite_lead_id = $1
-       ORDER BY created_at DESC
-       LIMIT $2`,
+      ready
+        ? `SELECT id, sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at,
+                  COALESCE(owner_kind, 'sales') AS owner_kind
+           FROM crm_lead_assignment_log
+           WHERE sqlite_lead_id = $1
+           ORDER BY created_at DESC
+           LIMIT $2`
+        : `SELECT id, sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at
+           FROM crm_lead_assignment_log
+           WHERE sqlite_lead_id = $1
+           ORDER BY created_at DESC
+           LIMIT $2`,
       [leadId, lim],
     );
     const rows = result.rows as Array<Record<string, unknown>>;
@@ -408,6 +496,7 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
         reason: String(row.reason ?? ''),
         created_by: String(row.assigned_by ?? ''),
         created_at: String(row.created_at ?? ''),
+        owner_kind: String(row.owner_kind ?? 'sales') || 'sales',
       });
     }
     return out;

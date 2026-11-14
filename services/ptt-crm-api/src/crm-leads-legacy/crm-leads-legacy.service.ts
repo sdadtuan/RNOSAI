@@ -18,6 +18,11 @@ import {
   LeadAssignmentLogRow, LeadReassignEventRow,
   LeadStatusLogRow,
 } from './crm-leads-legacy.types';
+import {
+  isLeadOwnerReassignKind,
+  presalesOwnerColumn,
+  type LeadOwnerReassignKind,
+} from './lead-owner-reassign.util';
 
 import { ACTIVITY_DEDUPE_MINUTES, evaluateDuplicateActivity } from '../lead-fr-sla/lead-call-gap.util';
 
@@ -139,6 +144,56 @@ export class CrmLeadsLegacyService {
     );
     await this.timeline.recordActivityFromLegacy(leadId, assignActivity);
 
+    return { lead };
+  }
+
+  async reassignOwner(
+    leadId: number,
+    kindRaw: string,
+    toId: number,
+    reason: string,
+    actor: string,
+  ): Promise<{ lead: LeadV1 }> {
+    const kind: LeadOwnerReassignKind = isLeadOwnerReassignKind(kindRaw) ? kindRaw : 'sales';
+    if (!isLeadOwnerReassignKind(kindRaw)) {
+      throw new BadRequestException({ error: `Phân công lại '${kindRaw}' không hỗ trợ.` });
+    }
+    if (kind === 'sales') {
+      return this.assignLead(leadId, { to_user_id: toId, reason }, actor);
+    }
+    if (!Number.isFinite(toId) || toId <= 0) {
+      throw new BadRequestException({ error: 'to_staff_id không hợp lệ' });
+    }
+    const staffOk = await this.pg.staffExists(toId);
+    if (!staffOk) {
+      throw new BadRequestException({ error: 'Nhân viên không hợp lệ hoặc đã ngưng.' });
+    }
+    await this.assertLead(leadId);
+    const column = presalesOwnerColumn(kind);
+    if (!column) {
+      throw new BadRequestException({ error: 'Loại phụ trách không hợp lệ.' });
+    }
+    const current = await this.pg.getPresalesOwnerId(leadId, column);
+    if (!current.exists) {
+      throw new BadRequestException({ error: 'Lead chưa có hồ sơ presales để phân công lại.' });
+    }
+    if (current.ownerId === toId) {
+      throw new BadRequestException({ error: 'Người này đang phụ trách.' });
+    }
+    const { fromId } = await this.pg.setPresalesOwner(leadId, column, toId);
+    await this.pg.logAssignment(
+      leadId,
+      fromId,
+      toId,
+      reason,
+      actor,
+      catalogTs(),
+      kind,
+    );
+    const lead = await this.leadsRepo.getLeadById(leadId);
+    if (!lead) {
+      throw new NotFoundException({ error: 'Không tìm thấy lead.' });
+    }
     return { lead };
   }
 

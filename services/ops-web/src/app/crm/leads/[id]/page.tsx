@@ -55,7 +55,7 @@ import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import { firstAcceptorName, mergeLeadCareHistory, presentOwnerChanges, resolveStaffDisplayName } from '@/lib/crm/lead-history';
-import { LeadOwnerReassignControl, type LeadOwnerKind } from '@/components/crm/LeadOwnerReassignControl';
+import { LeadOwnerReassignControl, currentOwnerIdForKind, ownerKindFromHandoffStep, type LeadOwnerKind } from '@/components/crm/LeadOwnerReassignControl';
 import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
@@ -77,7 +77,7 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
-import { flowTimesFromFunnel, handoffFlowStatusLabel } from '@/lib/crm/handoff-flow.util';
+import { flowTimesFromFunnel, handoffFlowStatusLabel, resolveHandoffFlow } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelB2Complete,
@@ -1354,38 +1354,80 @@ export default function CrmLeadDetailPage() {
   const ownerHistoryInputs = useMemo(() => {
     const assign = (audit?.assignment_logs ?? []).map((row) => ({
       id: row.id,
+      from_user_id: row.from_user_id,
+      to_user_id: row.to_user_id,
       from_name: resolveStaffDisplayName(row.from_user_id, row.from_name, staffOptions),
       to_name: resolveStaffDisplayName(row.to_user_id, row.to_name, staffOptions),
       reason: row.reason,
       created_by: row.created_by,
       created_at: row.created_at,
       dry_run: false,
+      owner_kind: row.owner_kind ?? 'sales',
     }));
     const events = (audit?.reassign_events ?? []).map((row) => ({
       id: `reassign-${row.id}`,
-      from_name: row.from_name,
-      to_name: row.to_name,
-      would_to_name: row.would_to_name,
+      from_user_id: row.from_user_id,
+      to_user_id: row.to_user_id ?? row.would_to_user_id ?? null,
+      from_name: resolveStaffDisplayName(row.from_user_id, row.from_name, staffOptions),
+      to_name: resolveStaffDisplayName(row.to_user_id, row.to_name, staffOptions),
+      would_to_name: resolveStaffDisplayName(row.would_to_user_id, row.would_to_name, staffOptions),
       reason: row.reason,
       created_by: row.created_by ?? 'system',
       created_at: row.created_at,
       dry_run: Boolean(row.dry_run),
+      owner_kind: 'sales',
     }));
     return [...assign, ...events];
   }, [audit, staffOptions]);
   const ownerLines = useMemo(() => presentOwnerChanges(ownerHistoryInputs), [ownerHistoryInputs]);
   const firstOwner = useMemo(
-    () => firstAcceptorName(ownerHistoryInputs, ownerLabel),
-    [ownerHistoryInputs, ownerLabel],
+    () => firstAcceptorName(ownerHistoryInputs, ownerLabel, lead?.owner_id),
+    [ownerHistoryInputs, ownerLabel, lead?.owner_id],
   );
-  const ownerKind: LeadOwnerKind = useMemo(() => {
-    const phase = String(quoteCasePhase ?? '').toLowerCase();
-    if (pipelineStep === 'proposal' || ['bao_gia', 'thuong_luong', 'hop_dong', 'negotiate', 'contract', 'trien_khai'].includes(phase)) {
-      return 'quote_am';
-    }
-    if (pipelineStep === 'consult') return 'solution';
-    return 'sales';
-  }, [pipelineStep, quoteCasePhase]);
+  const handoffFlowKey = useMemo(() => {
+    if (!lead) return null;
+    return resolveHandoffFlow({
+      leadStatus: lead.status || status,
+      leadCreatedAt: lead.created_at,
+      leadReceivedAt: (lead as { received_at?: string | null }).received_at,
+      handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
+      quotePhase: funnelSnap?.presales?.quote_case?.phase,
+      hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
+      discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status),
+      discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
+      returnedToSales: funnelSnap?.presales?.handoff?.status === 'returned',
+      ...flowTimesFromFunnel(funnelSnap),
+    }).currentKey;
+  }, [lead, status, funnelSnap]);
+  const ownerKind: LeadOwnerKind = useMemo(
+    () => ownerKindFromHandoffStep(handoffFlowKey),
+    [handoffFlowKey],
+  );
+  const kindOwnerId = useMemo(() => {
+    const row = funnelSnap?.presales?.presales as
+      | {
+          assigned_am?: number | null;
+          quote_assignee_staff_id?: number | null;
+          solution_owner_staff_id?: number | null;
+        }
+      | undefined;
+    return currentOwnerIdForKind(ownerKind, {
+      sales: lead?.owner_id,
+      assignedAm: row?.assigned_am,
+      solution:
+        funnelSnap?.presales?.handoff?.solution_owner_staff_id ??
+        funnelSnap?.presales?.solution_case?.assignee_staff_id ??
+        row?.solution_owner_staff_id,
+      quoteAm: funnelSnap?.presales?.quote_case?.assignee_staff_id ?? row?.quote_assignee_staff_id,
+    });
+  }, [ownerKind, lead?.owner_id, funnelSnap]);
+
+  const onOwnerAssigned = useCallback(async () => {
+    if (!accessToken) return;
+    const row = await fetchLead(accessToken, leadId);
+    setLead(row);
+    await Promise.all([reloadTimeline(accessToken), reloadFunnel(accessToken)]);
+  }, [accessToken, leadId, reloadTimeline, reloadFunnel]);
 
   const onSoftphonePlaced = useCallback(() => {
     if (funnelB2Complete(funnelSnap)) return;
@@ -1584,15 +1626,11 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 kind={ownerKind}
-                currentOwnerId={lead.owner_id}
+                currentOwnerId={kindOwnerId}
                 staff={staffOptions}
                 onError={setError}
                 onMessage={setMessage}
-                onAssigned={async () => {
-                  const row = await fetchLead(accessToken, leadId);
-                  setLead(row);
-                  await reloadTimeline(accessToken);
-                }}
+                onAssigned={onOwnerAssigned}
               />
             ) : null
           }
@@ -1680,15 +1718,11 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 kind={ownerKind}
-                currentOwnerId={lead.owner_id}
+                currentOwnerId={kindOwnerId}
                 staff={staffOptions}
                 onError={setError}
                 onMessage={setMessage}
-                onAssigned={async () => {
-                  const row = await fetchLead(accessToken, leadId);
-                  setLead(row);
-                  await reloadTimeline(accessToken);
-                }}
+                onAssigned={onOwnerAssigned}
               />
             ) : null
           }
@@ -1996,15 +2030,11 @@ export default function CrmLeadDetailPage() {
                       token={accessToken}
                       leadId={leadId}
                       kind={ownerKind}
-                      currentOwnerId={lead.owner_id}
+                      currentOwnerId={kindOwnerId}
                       staff={staffOptions}
                       onError={setError}
                       onMessage={setMessage}
-                      onAssigned={async () => {
-                        const row = await fetchLead(accessToken, leadId);
-                        setLead(row);
-                        await reloadTimeline(accessToken);
-                      }}
+                      onAssigned={onOwnerAssigned}
                     />
                   ) : null
                 }

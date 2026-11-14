@@ -600,12 +600,7 @@ export class LeadsController {
       throw new BadRequestException({ error: 'to_staff_id không hợp lệ' });
     }
     const reason = String(body.reason ?? 'thủ công').trim() || 'thủ công';
-    if (kind !== 'sales') {
-      throw new BadRequestException({
-        error: `Phân công lại '${kind}' chưa hỗ trợ trên API này (chỉ sales owner).`,
-      });
-    }
-    const out = await this.crmLegacy.assignLead(id, { to_user_id: toId, reason }, this.leadActor(req));
+    const out = await this.crmLegacy.reassignOwner(id, kind, toId, reason, this.leadActor(req));
     return out.lead;
   }
 

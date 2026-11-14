@@ -1572,6 +1572,7 @@ export interface LeadAssignmentLogRow {
   reason: string;
   created_by: string;
   created_at: string;
+  owner_kind?: string;
 }
 
 export interface LeadReassignEventRow {
@@ -1932,6 +1933,26 @@ export async function assignLead(
   const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(out.error ?? out.message ?? 'Lead assign failed', res.status);
+  }
+  return out;
+}
+
+export async function reassignLeadOwner(
+  token: string,
+  leadId: number,
+  body: { kind: string; to_staff_id: number; reason?: string },
+): Promise<LeadRow> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/owner-reassign`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Lead owner reassign failed', res.status);
   }
   return out;
 }

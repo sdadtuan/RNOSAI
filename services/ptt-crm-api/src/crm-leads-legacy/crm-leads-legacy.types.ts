@@ -33,6 +33,8 @@ export interface LeadAssignmentLogRow {
   reason: string;
   created_by: string;
   created_at: string;
+  /** sales | am | acm | solution | quote_am — default sales for legacy rows. */
+  owner_kind?: string;
 }
 
 export interface LeadReassignEventRow {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { assignLead, type CrmStaffRow } from '@/lib/api';
+import { assignLead, reassignLeadOwner, type CrmStaffRow } from '@/lib/api';
 
 export type LeadOwnerKind = 'sales' | 'am' | 'acm' | 'solution' | 'quote_am';
 
@@ -26,13 +26,49 @@ export function staffForOwnerKind(staff: CrmStaffRow[], kind: LeadOwnerKind): Cr
   if (kind === 'sales') {
     return match((row) => row.can_receive_leads !== false || /sale|ae\b|kinh doanh|account executive/.test(codeOf(row)));
   }
-  if (kind === 'am' || kind === 'quote_am') {
+  if (kind === 'am' || kind === 'acm') {
+    return match((row) =>
+      /\bam\b|\bacm\b|account manager|account-manager|account care/.test(codeOf(row)),
+    );
+  }
+  if (kind === 'quote_am') {
     return match((row) => /\bam\b|account manager|account-manager/.test(codeOf(row)));
   }
-  if (kind === 'acm') {
-    return match((row) => /\bacm\b|account care/.test(codeOf(row)));
-  }
   return match((row) => row.can_receive_solution === true || /mkt|marketing|solution/.test(codeOf(row)));
+}
+
+export function ownerKindFromHandoffStep(step: string | null | undefined): LeadOwnerKind {
+  switch (String(step ?? '').trim()) {
+    case 'await_solutions':
+      return 'am';
+    case 'doing_solutions':
+      return 'solution';
+    case 'await_quote':
+    case 'negotiate':
+    case 'sign_contract':
+      return 'quote_am';
+    default:
+      return 'sales';
+  }
+}
+
+export function currentOwnerIdForKind(
+  kind: LeadOwnerKind,
+  ids: {
+    sales?: number | null;
+    assignedAm?: number | null;
+    solution?: number | null;
+    quoteAm?: number | null;
+  },
+): number | null {
+  const asId = (value?: number | null) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  if (kind === 'sales') return asId(ids.sales);
+  if (kind === 'am' || kind === 'acm') return asId(ids.assignedAm);
+  if (kind === 'solution') return asId(ids.solution);
+  return asId(ids.quoteAm) ?? asId(ids.assignedAm);
 }
 
 export function LeadOwnerReassignControl({
@@ -72,11 +108,12 @@ export function LeadOwnerReassignControl({
     }
     setBusy(true);
     try {
-      if (kind !== 'sales') {
-        onError?.('Phân công lại vai trò này cần API mới — chưa triển khai trên server đang chạy.');
-        return;
+      if (kind === 'sales') {
+        // Existing assign endpoint still works on the running API (pre-restart).
+        await assignLead(token, leadId, { to_user_id: next, reason: 'thủ công' });
+      } else {
+        await reassignLeadOwner(token, leadId, { kind, to_staff_id: next, reason: 'thủ công' });
       }
-      await assignLead(token, leadId, { to_user_id: next, reason: 'thủ công' });
       setOpen(false);
       setToId('');
       onMessage?.(`Đã phân công lại ${KIND_LABEL[kind]}.`);

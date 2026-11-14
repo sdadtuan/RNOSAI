@@ -327,7 +327,6 @@ export function LeadFrSlaPanel({
       setLeadPageClaimed(true);
       onClaimed?.(at);
       setNow(new Date());
-      setMsg('Đã nhận lead. Đồng hồ cập nhật bắt đầu từ bây giờ.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không nhận được lead.');
     } finally {
