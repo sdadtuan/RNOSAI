@@ -628,6 +628,31 @@ export function linesFromText(value: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+/** Split a brief field into idea-level bullets without dropping or rewriting text. */
+export function splitBriefIdeas(value: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const seed of linesFromText(value)) {
+    let parts = seed.split(/\s*[;；]\s*/).map((part) => part.trim()).filter(Boolean);
+    if (parts.length < 2) {
+      parts = seed.split(/\s+\/\s+/).map((part) => part.trim()).filter(Boolean);
+    }
+    if (parts.length < 2) {
+      parts = seed
+        .split(/(?<=[.!?…])\s+(?=\S)/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+    if (parts.length < 2) {
+      parts = seed
+        .split(/(?:^|\s+)\d+[.)]\s+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+    out.push(...(parts.length ? parts : [seed]));
+  }
+  return out;
+}
+
 export const HANDOFF_FLOW_COPY = {
   submitToAm: 'Đã Submit to AM. Lead đang ở Chờ Solutions.',
   assignedToMarketing: 'Đã giao cho Marketing. Lead đang ở Đang làm Solutions.',

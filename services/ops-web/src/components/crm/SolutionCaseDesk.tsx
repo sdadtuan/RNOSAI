@@ -244,15 +244,15 @@ function SolutionClock({
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!Number.isFinite(dueMs)) return undefined;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, [dueMs]);
   if (!label || !Number.isFinite(dueMs)) return null;
   const remain = dueMs - now;
   const late = overdue || remain < 0;
   const abs = Math.abs(remain);
-  const totalSeconds = Math.floor(abs / 1000);
-  const clock = [Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60), totalSeconds % 60]
+  const totalMinutes = Math.floor(abs / 60_000);
+  const clock = [Math.floor(totalMinutes / 60), totalMinutes % 60]
     .map((part) => String(part).padStart(2, '0'))
     .join(':');
   const tone = late ? 'quote-case-timer quote-case-timer--late' : soon ? 'quote-case-timer quote-case-timer--soon' : 'quote-case-timer';
@@ -273,6 +273,7 @@ export function SolutionCaseDesk({
   onMessage,
   onError,
   filesOnly = false,
+  submitOnly = false,
 }: {
   token: string;
   lead: LeadRow;
@@ -282,6 +283,7 @@ export function SolutionCaseDesk({
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
   filesOnly?: boolean;
+  submitOnly?: boolean;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [items, setItems] = useState<Array<{ code: string; label: string }>>([]);
@@ -295,6 +297,7 @@ export function SolutionCaseDesk({
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
+  const [aiResult, setAiResult] = useState('');
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
   const solution = funnel?.presales?.solution_case;
@@ -307,7 +310,7 @@ export function SolutionCaseDesk({
     setDeadlineIso(ymd);
     setDeadlineText(isoToViDate(storedDue));
   }, [storedDue]);
-  const canEditDeadline = !filesOnly && (handoff === 'pending' || handoff === 'with_solution');
+  const canEditDeadline = !filesOnly && !submitOnly && (handoff === 'pending' || handoff === 'with_solution');
   const canEditFiles = handoff === 'pending' || handoff === 'with_solution';
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
 
@@ -550,6 +553,7 @@ export function SolutionCaseDesk({
     const note = out.validation?.ok
       ? (out.badge_vi || out.ai_draft?.badge_vi || 'Đã tạo bản nháp Solution bằng AI.')
       : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
+    setAiResult(note);
     onMessage?.(note);
   }
 
@@ -575,6 +579,141 @@ export function SolutionCaseDesk({
         : busy
           ? 'Đang xử lý…'
           : '';
+
+  if (submitOnly) {
+    return (
+      <section className="solution-desk" aria-label="Nộp Solution cho Sales" data-testid="solution-desk-submit-only">
+        <h3>Nộp Solution cho Sales</h3>
+        <p className="muted">PDF, Word, Excel hoặc ảnh. Tối đa 5 file, tổng dung lượng dưới 15MB.</p>
+        {error ? (
+          <p className="lead-alert lead-alert--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <input
+          ref={solutionFileInputRef}
+          className="sr-only"
+          type="file"
+          aria-label="Chọn file Solution"
+          data-testid="solution-desk-file"
+          disabled={busy || !canEditFiles}
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = '';
+            if (!picked) return;
+            void run(async () => {
+              const currentTotal = files.reduce((sum, file) => {
+                const comma = file.data_url.indexOf(',');
+                const b64 = comma >= 0 ? file.data_url.slice(comma + 1) : '';
+                return sum + Math.floor((b64.length * 3) / 4);
+              }, 0);
+              const blocked = solutionFileAddError(currentTotal, picked.size, files.length);
+              if (blocked) throw new Error(blocked);
+              setUploadPhase('reading');
+              setUploadProgress(0);
+              try {
+                const dataUrl = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onprogress = (progressEvent) => {
+                    if (progressEvent.lengthComputable && progressEvent.total > 0) {
+                      setUploadProgress(Math.min(99, Math.round((progressEvent.loaded / progressEvent.total) * 30)));
+                    }
+                  };
+                  reader.onload = () => resolve(String(reader.result ?? ''));
+                  reader.onerror = () => reject(new Error('Không đọc được file'));
+                  reader.readAsDataURL(picked);
+                });
+                setUploadPhase('uploading');
+                setUploadProgress(0);
+                await saveFiles(
+                  [
+                    ...files,
+                    {
+                      id: `${Date.now()}-${picked.name}`,
+                      name: picked.name,
+                      mime: picked.type || 'application/octet-stream',
+                      data_url: dataUrl,
+                    },
+                  ],
+                  { trackProgress: true },
+                );
+                onMessage?.(`Đã tải ${picked.name}`);
+              } finally {
+                setUploadPhase('idle');
+                setUploadProgress(null);
+              }
+            });
+          }}
+        />
+        <div className="solution-desk__file-row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || !canEditFiles}
+            onClick={() => solutionFileInputRef.current?.click()}
+            data-testid="solution-desk-file-btn"
+          >
+            {uploadLabel ?? 'Chọn file'}
+          </button>
+          {canEditFiles ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              data-testid="solution-desk-ai"
+              onClick={() => void run(runAiSolution)}
+            >
+              AI tạo Solution
+            </button>
+          ) : null}
+        </div>
+        {uploadLabel ? (
+          <div
+            className="solution-desk__upload-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={uploadProgress ?? 0}
+            aria-label={uploadLabel}
+            data-testid="solution-desk-upload-progress"
+          >
+            <p>{uploadLabel}</p>
+            <div className="solution-desk__upload-bar">
+              <span style={{ width: `${uploadPhase === 'reading' ? Math.max(uploadProgress ?? 0, 8) : uploadProgress ?? 0}%` }} />
+            </div>
+          </div>
+        ) : null}
+        {files.length === 0 && !uploadLabel ? (
+          <p className="muted">Chưa có file Solution.</p>
+        ) : files.length === 0 ? null : (
+          <ul data-testid="solution-desk-files">
+            {files.map((file) => (
+              <li key={file.id}>
+                <a href={file.data_url} download={file.name}>
+                  {file.name}
+                </a>
+                {canEditFiles ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    disabled={busy}
+                    onClick={() => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
+                  >
+                    Gỡ
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        {aiResult ? (
+          <p className="muted" data-testid="solution-desk-ai-result">
+            {aiResult}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="solution-desk" aria-label="Hồ sơ Solution">

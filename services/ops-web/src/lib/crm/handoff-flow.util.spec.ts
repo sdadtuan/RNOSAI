@@ -14,6 +14,7 @@ import {
   timestampsForHandoffFlow,
   flowTimesFromFunnel,
   formatHandoffStamp,
+  splitBriefIdeas,
 } from './handoff-flow.util';
 
 describe('handoff-flow.util', () => {
@@ -243,5 +244,23 @@ describe('handoff-flow.util', () => {
     expect(pulled.solutionReleasedAt).toBe('2026-11-13T04:30:00.000Z');
     expect(pulled.quoteApprovedAt).toBe('2026-11-14T08:00:00.000Z');
     expect(pulled.contractCreatedAt).toBe('2026-11-15T09:00:00.000Z');
+  });
+});
+
+describe('splitBriefIdeas', () => {
+  it('keeps a single idea as one line', () => {
+    expect(splitBriefIdeas('Tăng lead qualifi')).toEqual(['Tăng lead qualifi']);
+  });
+
+  it('splits newlines, semicolons, and sentences into bullets', () => {
+    expect(splitBriefIdeas('Tăng lead.\nGiảm CPA')).toEqual(['Tăng lead.', 'Giảm CPA']);
+    expect(splitBriefIdeas('Tăng lead; giảm CPA; giữ brand')).toEqual(['Tăng lead', 'giảm CPA', 'giữ brand']);
+    expect(splitBriefIdeas('Tăng lead. Giảm CPA.')).toEqual(['Tăng lead.', 'Giảm CPA.']);
+  });
+
+  it('does not drop text', () => {
+    const raw = 'Mục A; mục B';
+    expect(splitBriefIdeas(raw).join(' ')).toContain('Mục A');
+    expect(splitBriefIdeas(raw).join(' ')).toContain('mục B');
   });
 });

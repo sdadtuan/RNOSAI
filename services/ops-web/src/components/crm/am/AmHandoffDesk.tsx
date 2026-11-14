@@ -34,7 +34,7 @@ import {
   dash,
   formatHandoffStamp,
   HANDOFF_FLOW_COPY,
-  linesFromText,
+  splitBriefIdeas,
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
@@ -176,13 +176,26 @@ function BriefCard({
 }
 
 function Bullets({ text }: { text: string }) {
-  const lines = linesFromText(text);
+  const lines = splitBriefIdeas(text);
   if (!lines.length) return <EmptyState />;
   if (lines.length === 1) return <p className="ahd-prose">{lines[0]}</p>;
   return (
     <ul className="ahd-bullets">
       {lines.map((line) => (
         <li key={line}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+function LabeledRows({ rows }: { rows: Array<{ label: string; value: string }> }) {
+  if (!rows.length) return null;
+  return (
+    <ul className="ahd-bullets">
+      {rows.map((row) => (
+        <li key={row.label}>
+          <strong className="ahd-brief-label">{row.label}:</strong> {row.value}
+        </li>
       ))}
     </ul>
   );
@@ -583,19 +596,20 @@ export function AmHandoffDesk({
   const serviceChips = (view.services ?? []).map((slug) => discoveryServiceLabel(slug, serviceOptions) || intakeServiceLabel(slug) || slug);
   const currentRows = [
     view.channels.length
-      ? `Kênh đang sử dụng: ${channelLabels(view.channels)}`
+      ? { label: 'Kênh đang sử dụng', value: channelLabels(view.channels) }
       : view.channels_text
-        ? `Kênh đang sử dụng: ${view.channels_text}`
-        : '',
-    view.current_budget ? `Ngân sách hiện tại: ${view.current_budget}` : '',
-    view.current_results ? `Kết quả: ${view.current_results}` : '',
-    view.difficulties ? `Khó khăn: ${view.difficulties}` : '',
-  ].filter(Boolean);
+        ? { label: 'Kênh đang sử dụng', value: view.channels_text }
+        : null,
+    view.current_budget ? { label: 'Ngân sách hiện tại', value: view.current_budget } : null,
+    view.current_results ? { label: 'Kết quả', value: view.current_results } : null,
+    view.difficulties ? { label: 'Khó khăn', value: view.difficulties } : null,
+  ].filter((row): row is { label: string; value: string } => Boolean(row));
   const budgetRows = [
-    view.budget_band ? `Ngân sách Marketing dự kiến: ${budgetLabel(view.budget_band)}` : '',
-    view.timeline_band ? `Thời điểm: ${timelineLabel(view.timeline_band)}` : '',
-    view.flagship_product ? `Sản phẩm chủ lực: ${view.flagship_product}` : '',
-  ].filter(Boolean);
+    view.budget_band ? { label: 'Ngân sách Marketing dự kiến', value: budgetLabel(view.budget_band) } : null,
+    view.timeline_band ? { label: 'Thời điểm', value: timelineLabel(view.timeline_band) } : null,
+    view.flagship_product ? { label: 'Sản phẩm chủ lực', value: view.flagship_product } : null,
+  ].filter((row): row is { label: string; value: string } => Boolean(row));
+  const needLeaderHint = canAssign && !leaderId;
   const fileCount = files.length;
 
   return (
@@ -672,18 +686,23 @@ export function AmHandoffDesk({
             Trao đổi nội bộ
           </button>
           {canAssign ? (
-          <button
-            type="button"
-            className="ahd-btn ahd-btn--primary"
-            data-testid="ahd-assign-top"
-            disabled={busy || Boolean(assignDisabledReason())}
-            title={assignDisabledReason() || undefined}
-            aria-disabled={busy || Boolean(assignDisabledReason())}
-            onClick={() => void assignToMarketing()}
-          >
-            <Icon d={I.arrow} size={14} />
-            Giao cho Marketing
-          </button>
+          <div className="ahd-assign-top-wrap">
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--primary"
+              data-testid="ahd-assign-top"
+              disabled={busy || Boolean(assignDisabledReason())}
+              title={assignDisabledReason() || undefined}
+              aria-disabled={busy || Boolean(assignDisabledReason())}
+              onClick={() => void assignToMarketing()}
+            >
+              <Icon d={I.arrow} size={14} />
+              Giao cho Marketing
+            </button>
+            {needLeaderHint ? (
+              <p className="ahd-assign-hint" data-testid="ahd-assign-hint-top">Chọn Marketing Leader để giao</p>
+            ) : null}
+          </div>
           ) : (
             <span className="ahd-btn ahd-btn--ghost" data-testid="ahd-assigned-badge">{flow.currentLabel}</span>
           )}
@@ -830,25 +849,13 @@ export function AmHandoffDesk({
                 <Bullets text={view.biggest_problem} />
               </BriefCard>
               <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
-                {currentRows.length ? (
-                  <ul className="ahd-bullets">
-                    {currentRows.map((row) => (
-                      <li key={row}>{row}</li>
-                    ))}
-                  </ul>
-                ) : null}
+                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
               </BriefCard>
               <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
                 <Bullets text={view.target_customers} />
               </BriefCard>
               <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
-                {budgetRows.length ? (
-                  <ul className="ahd-bullets">
-                    {budgetRows.map((row) => (
-                      <li key={row}>{row}</li>
-                    ))}
-                  </ul>
-                ) : null}
+                {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
               </BriefCard>
               <BriefCard title="Ghi chú cuộc gọi (Sales)" icon={I.note} wide testId="ahd-call-notes">
                 <Bullets text={view.call_notes} />
@@ -879,6 +886,7 @@ export function AmHandoffDesk({
                 onFunnelChange={onFunnelChange}
                 onMessage={onMessage}
                 onError={onError}
+                submitOnly
               />
             </div>
           ) : null}
@@ -1038,6 +1046,7 @@ export function AmHandoffDesk({
               />
             </label>
             {canAssign ? (
+            <>
             <button
               type="button"
               className="ahd-btn ahd-btn--primary ahd-btn--block"
@@ -1050,6 +1059,10 @@ export function AmHandoffDesk({
               <Icon d={I.arrow} size={15} />
               Giao cho Marketing
             </button>
+            {needLeaderHint ? (
+              <p className="ahd-assign-hint" data-testid="ahd-assign-hint">Chọn Marketing Leader để giao</p>
+            ) : null}
+            </>
             ) : (
               <p className="ahd-handoff-note" data-testid="ahd-already-assigned">Đã chuyển sang {flow.currentLabel}.</p>
             )}
