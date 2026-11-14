@@ -239,3 +239,20 @@ describe("discovery service chips and parent-level selection", () => {
     expect(isDiscoveryParentSelected(["lead-gen"], svc)).toBe(false);
   });
 });
+
+describe('normalizeSalesDiscoveryBrief trim option', () => {
+  it('keeps trailing spaces when trim is disabled, and trims by default for save', () => {
+    const live = normalizeSalesDiscoveryBrief(
+      { contact_name: 'Nguyen ', company_name: 'Spa Hoa Sen ', biggest_problem: 'Ít lead ' },
+      { trim: false },
+    );
+    expect(live.contact_name).toBe('Nguyen ');
+    expect(live.company_name).toBe('Spa Hoa Sen ');
+    expect(live.biggest_problem).toBe('Ít lead ');
+    const saved = normalizeSalesDiscoveryBrief(live);
+    expect(saved.contact_name).toBe('Nguyen');
+    expect(saved.company_name).toBe('Spa Hoa Sen');
+    expect(saved.biggest_problem).toBe('Ít lead');
+  });
+});
+

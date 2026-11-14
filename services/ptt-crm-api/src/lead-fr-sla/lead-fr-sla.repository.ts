@@ -51,15 +51,16 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     await this.ensureSchema();
   }
 
-  async claimSalesLead(leadId: number): Promise<string> {
+  async claimSalesLead(leadId: number, claimedBy?: number | null): Promise<string> {
     await this.ensureSchema();
     const result = await this.db.query(
       `UPDATE crm_leads
        SET sales_claimed_at = COALESCE(sales_claimed_at, NOW()),
+           sales_claimed_by = COALESCE(sales_claimed_by, $2),
            updated_at = NOW()
        WHERE sqlite_lead_id = $1
        RETURNING sales_claimed_at`,
-      [leadId],
+      [leadId, claimedBy != null && claimedBy > 0 ? claimedBy : null],
     );
     const ts = result.rows[0]?.sales_claimed_at;
     return ts ? new Date(ts).toISOString() : new Date().toISOString();
@@ -95,7 +96,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
             ADD COLUMN IF NOT EXISTS is_hot BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS reassign_count INT NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS sla_settings_version INT,
-            ADD COLUMN IF NOT EXISTS sales_claimed_at TIMESTAMPTZ;
+            ADD COLUMN IF NOT EXISTS sales_claimed_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS sales_claimed_by BIGINT;
           CREATE TABLE IF NOT EXISTS crm_lead_call_attempts (
             id                  BIGSERIAL PRIMARY KEY,
             lead_id             BIGINT NOT NULL,

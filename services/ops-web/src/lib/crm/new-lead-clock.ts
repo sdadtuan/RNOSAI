@@ -108,6 +108,26 @@ export function saleClaimDueAt(
   return nextCutoff(assignedAt, calendar, sale.claim_after_hours_time);
 }
 
+export function formatNewLeadDueLabel(at: Date): string {
+  const p = saigonParts(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(p.h)}:${pad(p.mi)} ${pad(p.day)}/${pad(p.mo + 1)}`;
+}
+
+export function formatNewLeadOverdueLabel(overdueMs: number): string {
+  const totalMin = Math.max(1, Math.floor(Math.max(0, overdueMs) / 60_000));
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin % (60 * 24)) / 60);
+  const mins = totalMin % 60;
+  if (days >= 1) {
+    return hours > 0 ? `Trễ ${days} ngày ${hours} giờ` : `Trễ ${days} ngày`;
+  }
+  if (hours >= 1) {
+    return mins > 0 ? `Trễ ${hours} giờ ${mins} phút` : `Trễ ${hours} giờ`;
+  }
+  return `Trễ ${totalMin} phút`;
+}
+
 function clockOf(input: {
   phase: NewLeadClockPhase;
   label: string;
@@ -180,14 +200,16 @@ export function resolveNewLeadClock(input: {
   if (!claimed || Number.isNaN(claimed.getTime())) {
     const due = saleClaimDueAt(assigned, profile.calendar, profile.sale);
     const outside = !isInsideSaleShift(assigned, profile.calendar);
+    const dueText = due ? formatNewLeadDueLabel(due) : '—';
+    const hoursHint = `${profile.calendar.start || '08:30'}–${profile.calendar.end || '18:30'}`;
     return clockOf({
       phase: 'claim',
-      label: outside ? 'Nhận lead ngoài ca' : 'Nhận lead',
+      label: `Chưa nhận · nhận trước ${dueText}`,
       due,
       now,
       detail: outside
-        ? `Ngoài ca ${profile.calendar.start || '—'}–${profile.calendar.end || '—'}. Nhận trước ${profile.sale.claim_after_hours_time || 'mốc admin'}.`
-        : `Trong ca. Nhận trong ${claimMinutes} phút kể từ lúc gán, rồi mới tính giờ cập nhật.`,
+        ? `Ngoài ca ${hoursHint}. Hạn nhận ${profile.sale.claim_after_hours_time || '08:30'} ngày làm việc kế.`
+        : `Trong ca (${hoursHint} T2–T6). Nhận trong ${claimMinutes} phút kể từ lúc gán.`,
     });
   }
 
@@ -195,13 +217,16 @@ export function resolveNewLeadClock(input: {
     updateHours > 0 ? addBusinessHours(claimed, updateHours) : null;
   const reassignDue =
     reassignHours > 0 ? addBusinessHours(claimed, reassignHours) : null;
+  const dueText = updateDue ? formatNewLeadDueLabel(updateDue) : '—';
+  const hoursHint = `${profile.calendar.start || '08:30'}–${profile.calendar.end || '18:30'} T2–T6`;
+  const reassignText = reassignDue ? formatNewLeadDueLabel(reassignDue) : '';
   return clockOf({
     phase: 'update',
-    label: 'Cập nhật sau khi nhận',
+    label: `Đã nhận · cập nhật trước ${dueText}`,
     due: updateDue,
     now,
     detail: reassignDue
-      ? `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (08:30–18:30, trừ cuối tuần). Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignDue.toLocaleString('vi-VN')}).`
-      : `Đã nhận. Hoàn tất thông tin trong ${updateHours} giờ làm việc (08:30–18:30, trừ cuối tuần).`,
+      ? `Hoàn tất thông tin trong ${updateHours} giờ làm việc (${hoursHint}). Chưa cập nhật sau ${reassignHours} giờ thì tới hạn chuyển Sales khác (${reassignText}).`
+      : `Hoàn tất thông tin trong ${updateHours} giờ làm việc (${hoursHint}).`,
   });
 }

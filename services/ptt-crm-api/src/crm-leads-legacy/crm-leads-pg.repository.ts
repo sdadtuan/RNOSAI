@@ -9,6 +9,7 @@ import {
   CreateLeadActivityBody,
   LeadActivityRow,
   LeadAssignmentLogRow,
+  LeadReassignEventRow,
   LeadStatusLogRow,
 } from './crm-leads-legacy.types';
 
@@ -410,6 +411,45 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
       });
     }
     return out;
+  }
+
+  async listReassignEventsForLead(leadId: number, limit = 100): Promise<LeadReassignEventRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    try {
+      const result = await this.db.query(
+        `SELECT id, sqlite_lead_id, from_staff_id, to_staff_id, would_to_staff_id,
+                reason, decision, notes, dry_run, created_at
+         FROM crm_lead_reassign_events
+         WHERE sqlite_lead_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT $2`,
+        [leadId, lim],
+      );
+      const out: LeadReassignEventRow[] = [];
+      for (const row of result.rows as Array<Record<string, unknown>>) {
+        const fromId = row.from_staff_id != null ? Number(row.from_staff_id) : null;
+        const toId = row.to_staff_id != null ? Number(row.to_staff_id) : null;
+        const wouldId = row.would_to_staff_id != null ? Number(row.would_to_staff_id) : null;
+        out.push({
+          id: String(row.id ?? ''),
+          lead_id: Number(row.sqlite_lead_id),
+          from_user_id: fromId,
+          from_name: fromId ? await this.ingestRules.staffName(fromId) : '—',
+          to_user_id: toId,
+          to_name: toId ? await this.ingestRules.staffName(toId) : '—',
+          would_to_user_id: wouldId,
+          would_to_name: wouldId ? await this.ingestRules.staffName(wouldId) : '—',
+          reason: String(row.reason ?? ''),
+          decision: String(row.decision ?? ''),
+          created_by: 'system',
+          created_at: String(row.created_at ?? ''),
+          dry_run: row.dry_run === true || row.dry_run === 1 || String(row.dry_run) === 't',
+        });
+      }
+      return out;
+    } catch {
+      return [];
+    }
   }
 
   private async getStaffActivityAt(leadId: number, aggregate: 'MIN' | 'MAX'): Promise<Date | null> {

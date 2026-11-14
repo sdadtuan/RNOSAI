@@ -135,3 +135,117 @@ export function mergeLeadCareHistory(
   });
   return [...care, ...status].sort((a, b) => b.at - a.at || b.line.id - a.line.id).map((row) => row.line);
 }
+
+export type LeadOwnerChangeInput = {
+  id: string | number;
+  from_name?: string | null;
+  to_name?: string | null;
+  would_to_name?: string | null;
+  reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  dry_run?: boolean;
+};
+
+export function formatHistoryClock(raw: string | null | undefined): string {
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Saigon',
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('hour')}:${get('minute')} ${get('day')}/${get('month')}/${get('year')}`;
+}
+
+function actorDisplay(createdBy: string | null | undefined): string {
+  const value = String(createdBy ?? '').trim();
+  if (!value) return '';
+  if (SYSTEM_ACTORS.has(value.toLowerCase()) || value.toLowerCase().startsWith('staff:')) return 'Hệ thống';
+  return value;
+}
+
+export function ownerChangeReasonLabel(
+  reason: string | null | undefined,
+  createdBy?: string | null,
+  dryRun?: boolean,
+): string {
+  const raw = String(reason ?? '').trim();
+  const lower = raw.toLowerCase();
+  let core = '';
+  if (
+    /tre\s*nhan|trễ\s*nhận|claim_timeout|1a_timeout|sla_hold_expired_1a|would_reassign:.*1a/.test(lower)
+  ) {
+    core = 'trễ nhận';
+  } else if (
+    /tre\s*cập|trễ\s*cập|update_timeout|sla_hold_expired_1[bc]|would_reassign:.*1[bc]|hold_expired/.test(lower)
+  ) {
+    core = 'trễ cập nhật';
+  } else {
+    const who = actorDisplay(createdBy);
+    core = who ? `thủ công bởi ${who}` : 'thủ công';
+  }
+  if (dryRun) core = `${core} (dự kiến)`;
+  return core;
+}
+
+export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
+  const from = String(row.from_name ?? '').trim() || '—';
+  const to = String(row.would_to_name || row.to_name || '').trim() || '—';
+  const why = ownerChangeReasonLabel(row.reason, row.created_by, row.dry_run);
+  const when = formatHistoryClock(row.created_at);
+  return {
+    key: `owner-${row.id}`,
+    id: Number(row.id) || 0,
+    who: actorDisplay(row.created_by) || 'Hệ thống',
+    what: `Chuyển từ Sales ${from} → Sales ${to} · ${why} · ${when}`,
+    when: '',
+  };
+}
+
+export function firstAcceptorName(
+  logs: LeadOwnerChangeInput[],
+  currentOwner?: string | null,
+): string | null {
+  const real = logs
+    .filter((row) => !row.dry_run)
+    .slice()
+    .sort((a, b) => stamp(a.created_at) - stamp(b.created_at));
+  if (!real.length) return null;
+  const first = real[0];
+  const from = String(first?.from_name ?? '').trim();
+  const to = String(first?.to_name ?? '').trim();
+  const name = from && from !== '—' ? from : to;
+  if (!name || name === '—') return null;
+  const current = String(currentOwner ?? '').trim();
+  if (current && current === name) return null;
+  return name;
+}
+
+export function presentOwnerChanges(rows: LeadOwnerChangeInput[]): LeadHistoryLine[] {
+  return rows
+    .map((row) => ({ line: presentOwnerChange(row), at: stamp(row.created_at) }))
+    .sort((a, b) => b.at - a.at || b.line.id - a.line.id)
+    .map((row) => row.line);
+}
+
+
+export function resolveStaffDisplayName(
+  id: number | null | undefined,
+  fallback?: string | null,
+  staff: Array<{ id: number; name: string }> = [],
+): string {
+  const hit = id != null ? staff.find((row) => row.id === id) : undefined;
+  if (hit?.name?.trim()) return hit.name.trim();
+  const raw = String(fallback ?? '').trim();
+  if (raw && raw !== '—' && !/^#\d+$/.test(raw)) return raw;
+  if (id != null && id > 0) return `#${id}`;
+  return '—';
+}

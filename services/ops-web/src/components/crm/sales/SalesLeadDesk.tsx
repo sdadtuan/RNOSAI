@@ -135,6 +135,8 @@ export type SalesLeadDeskProps = {
   salesViewer?: boolean;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onBack?: () => void;
+  firstAcceptorName?: string | null;
+  mgmtExtra?: ReactNode;
   children?: ReactNode;
 };
 
@@ -146,6 +148,8 @@ export function SalesLeadDesk({
   userName,
   salesViewer = true,
   onBack,
+  firstAcceptorName = null,
+  mgmtExtra,
   children,
 }: SalesLeadDeskProps) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
@@ -361,6 +365,13 @@ export function SalesLeadDesk({
                   {salesViewer ? <span className="ahd-you"> (Bạn)</span> : null}
                 </span>
               </div>
+              {firstAcceptorName ? (
+                <div className="ahd-person" data-testid="sld-first-acceptor">
+                  <span>
+                    Nhận ban đầu: <strong>{firstAcceptorName}</strong>
+                  </span>
+                </div>
+              ) : null}
               <div className="ahd-person">
                 <span className="ahd-person__av">{initials(amName === '—' ? 'A' : amName)}</span>
                 <span>
@@ -379,6 +390,7 @@ export function SalesLeadDesk({
                   </span>
                 </div>
               ) : null}
+              {mgmtExtra ? <div className="ahd-mgmt-extra">{mgmtExtra}</div> : null}
             </div>
           </section>
         </div>
@@ -411,6 +423,8 @@ export function SalesOrLegacyLeadLayout({
   salesViewer,
   onFunnelChange,
   onBack,
+  firstAcceptorName,
+  mgmtExtra,
   children,
 }: {
   useDesk: boolean;
@@ -422,6 +436,8 @@ export function SalesOrLegacyLeadLayout({
   salesViewer?: boolean;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onBack?: () => void;
+  firstAcceptorName?: string | null;
+  mgmtExtra?: ReactNode;
   children?: ReactNode;
 }) {
   if (useDesk && token && lead) {
@@ -435,6 +451,8 @@ export function SalesOrLegacyLeadLayout({
         salesViewer={salesViewer}
         onFunnelChange={onFunnelChange}
         onBack={onBack}
+        firstAcceptorName={firstAcceptorName}
+        mgmtExtra={mgmtExtra}
       >
         {children}
       </SalesLeadDesk>

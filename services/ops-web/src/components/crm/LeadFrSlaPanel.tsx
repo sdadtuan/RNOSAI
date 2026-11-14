@@ -8,7 +8,7 @@ import {
   logLeadCallAttempt,
   type LeadFrSlaState,
 } from '@/lib/api';
-import { resolveNewLeadClock, type NewLeadClock } from '@/lib/crm/new-lead-clock';
+import { formatNewLeadOverdueLabel, resolveNewLeadClock, type NewLeadClock } from '@/lib/crm/new-lead-clock';
 import { leadStatusAtOrAfterConsult } from '@/lib/crm/lead-status';
 import {
   defaultTeamSlaDocument,
@@ -349,10 +349,17 @@ export function LeadFrSlaPanel({
   const claimMinutes = saleProfile?.sale.claim_in_hours_minutes ?? 15;
   const updateHours = saleProfile?.sale.update_after_claim_hours ?? 1;
   const clockClosed = leadClock.phase === 'done' || clockCompleted;
-  const showClockBadge = true;
-  const clockBadgeView = clockClosed
-    ? { tone: 'ok' as const, text: 'Đã xong' }
-    : clockBadge(leadClock);
+  const clockLine = clockClosed
+    ? leadClock.phase === 'done'
+      ? leadClock.label
+      : 'Đã xong'
+    : leadClock.label;
+  const lateLabel =
+    !clockClosed && leadClock.overdue && leadClock.remainingMs != null
+      ? formatNewLeadOverdueLabel(-leadClock.remainingMs)
+      : null;
+  const showClockBadge = clockClosed;
+  const clockBadgeView = { tone: 'ok' as const, text: 'Đã xong' };
   const showClaimButton = leadClock.phase === 'claim' && canWrite && !clockCompleted;
 
   return (
@@ -363,23 +370,18 @@ export function LeadFrSlaPanel({
       <header className="lead-fr-sla__head">
         <div className="lead-fr-sla__titles">
           {embedded ? null : <h3>Hạn lead mới</h3>}
-          {clockClosed ? (
-            <p className="lead-fr-sla__sub">
-              {clockCompleted
-                ? `Hạn nhận ${claimMinutes} phút và hạn cập nhật ${updateHours} giờ làm việc đã đóng — B2 đã xong.`
-                : `Hạn nhận ${claimMinutes} phút và hạn cập nhật ${updateHours} giờ làm việc đã đóng. Vẫn ghi thêm cuộc gọi bên dưới.`}
-            </p>
-          ) : embedded ? (
-            <p className="lead-fr-sla__sub">
-              Lead mới · nhận trong {claimMinutes} phút (trong giờ; ngoài giờ hạn 08:30 ngày làm việc
-              kế). Sau khi nhận, cập nhật trong {updateHours} giờ làm việc (08:30–18:30 T2–T6).
-            </p>
-          ) : (
-            <p className="lead-fr-sla__sub">
-              Nhận lead trong {claimMinutes} phút. Bấm Nhận lead rồi mới tính {updateHours} giờ làm
-              việc cập nhật (08:30–18:30 T2–T6).
-            </p>
-          )}
+          <p
+            className="lead-fr-sla__sub"
+            data-testid="lead-fr-sla-clock"
+            title={clockClosed ? undefined : leadClock.detail || undefined}
+          >
+            <span>{clockLine}</span>
+            {lateLabel ? (
+              <span className="lead-fr-sla__late" data-testid="lead-fr-sla-late">
+                {lateLabel}
+              </span>
+            ) : null}
+          </p>
         </div>
         <div className="lead-fr-sla__head-actions">
           <button
@@ -519,11 +521,6 @@ export function LeadFrSlaPanel({
 
       {sla ? (
         <div className="lead-fr-sla__metrics" role="list" data-testid="lead-fr-sla-metrics">
-          <div role="listitem" className="lead-fr-sla__metric lead-fr-sla__metric--readonly" title={leadClock.detail}>
-            <span className="lead-fr-sla__metric-label">{leadClock.label}</span>
-            <strong>{leadClock.dueAt ? fmtTs(leadClock.dueAt) : '—'}</strong>
-            <span className="lead-fr-sla__hint">{leadClock.detail}</span>
-          </div>
           <div
             role="listitem"
             className="lead-fr-sla__metric lead-fr-sla__metric--readonly"

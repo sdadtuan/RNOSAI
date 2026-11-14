@@ -237,3 +237,15 @@
     flex-direction: column;
   }
 }
+
+.sld .lead-fr-sla__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.7rem;
+  margin: 0;
+}
+.sld .lead-fr-sla__late {
+  color: #c0392b;
+  font-weight: 650;
+}

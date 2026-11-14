@@ -1574,9 +1574,27 @@ export interface LeadAssignmentLogRow {
   created_at: string;
 }
 
+export interface LeadReassignEventRow {
+  id: string | number;
+  lead_id: number;
+  from_user_id: number | null;
+  from_name: string;
+  to_user_id: number | null;
+  to_name: string;
+  would_to_user_id?: number | null;
+  would_to_name?: string;
+  reason: string;
+  decision?: string;
+  created_by?: string;
+  created_at: string;
+  dry_run: boolean;
+}
+
 export interface LeadAuditBundle {
   status_logs: LeadStatusLogRow[];
   assignment_logs: LeadAssignmentLogRow[];
+  reassign_events?: LeadReassignEventRow[];
+  first_claimed_name?: string | null;
 }
 
 export async function fetchLeadActivities(

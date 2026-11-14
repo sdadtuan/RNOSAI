@@ -251,6 +251,17 @@
 .sd-check__list { margin: 0; padding-left: 20px; color: #6a3b00; }
 .sd-check__list.is-ok { color: #1c7a3a; }
 .sd-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
+.sd-actions__left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sd-save-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 7.5rem;
+  min-height: 1.25rem;
+  font-size: 0.78rem;
+  line-height: 1.25rem;
+  color: #6a7a8b;
+  white-space: nowrap;
+}
 .sd-actions__right { display: flex; gap: 8px; flex-wrap: wrap; }
 .sd-submit:disabled { opacity: 0.55; cursor: not-allowed; }
 .sd-msg { margin: 10px 0 0; }

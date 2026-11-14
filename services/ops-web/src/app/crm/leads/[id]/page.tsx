@@ -54,7 +54,8 @@ import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
-import { mergeLeadCareHistory } from '@/lib/crm/lead-history';
+import { firstAcceptorName, mergeLeadCareHistory, presentOwnerChanges, resolveStaffDisplayName } from '@/lib/crm/lead-history';
+import { LeadOwnerReassignControl, type LeadOwnerKind } from '@/components/crm/LeadOwnerReassignControl';
 import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
@@ -1350,6 +1351,41 @@ export default function CrmLeadDetailPage() {
     () => mergeLeadCareHistory(activities, audit?.status_logs ?? []),
     [activities, audit],
   );
+  const ownerHistoryInputs = useMemo(() => {
+    const assign = (audit?.assignment_logs ?? []).map((row) => ({
+      id: row.id,
+      from_name: resolveStaffDisplayName(row.from_user_id, row.from_name, staffOptions),
+      to_name: resolveStaffDisplayName(row.to_user_id, row.to_name, staffOptions),
+      reason: row.reason,
+      created_by: row.created_by,
+      created_at: row.created_at,
+      dry_run: false,
+    }));
+    const events = (audit?.reassign_events ?? []).map((row) => ({
+      id: `reassign-${row.id}`,
+      from_name: row.from_name,
+      to_name: row.to_name,
+      would_to_name: row.would_to_name,
+      reason: row.reason,
+      created_by: row.created_by ?? 'system',
+      created_at: row.created_at,
+      dry_run: Boolean(row.dry_run),
+    }));
+    return [...assign, ...events];
+  }, [audit, staffOptions]);
+  const ownerLines = useMemo(() => presentOwnerChanges(ownerHistoryInputs), [ownerHistoryInputs]);
+  const firstOwner = useMemo(
+    () => firstAcceptorName(ownerHistoryInputs, ownerLabel),
+    [ownerHistoryInputs, ownerLabel],
+  );
+  const ownerKind: LeadOwnerKind = useMemo(() => {
+    const phase = String(quoteCasePhase ?? '').toLowerCase();
+    if (pipelineStep === 'proposal' || ['bao_gia', 'thuong_luong', 'hop_dong', 'negotiate', 'contract', 'trien_khai'].includes(phase)) {
+      return 'quote_am';
+    }
+    if (pipelineStep === 'consult') return 'solution';
+    return 'sales';
+  }, [pipelineStep, quoteCasePhase]);
 
   const onSoftphonePlaced = useCallback(() => {
     if (funnelB2Complete(funnelSnap)) return;
@@ -1541,6 +1577,25 @@ export default function CrmLeadDetailPage() {
           onFunnelChange={applyFunnelFromMutation}
           onMessage={setMessage}
           onError={setError}
+          firstAcceptorName={firstOwner}
+          mgmtExtra={
+            superAdmin && accessToken && lead ? (
+              <LeadOwnerReassignControl
+                token={accessToken}
+                leadId={leadId}
+                kind={ownerKind}
+                currentOwnerId={lead.owner_id}
+                staff={staffOptions}
+                onError={setError}
+                onMessage={setMessage}
+                onAssigned={async () => {
+                  const row = await fetchLead(accessToken, leadId);
+                  setLead(row);
+                  await reloadTimeline(accessToken);
+                }}
+              />
+            ) : null
+          }
         />
       </StaffPageShell>
     );
@@ -1618,6 +1673,25 @@ export default function CrmLeadDetailPage() {
           salesViewer={salesViewer}
           onFunnelChange={setFunnelSnap}
           onBack={() => router.push('/crm/leads')}
+          firstAcceptorName={firstOwner}
+          mgmtExtra={
+            superAdmin && accessToken && lead ? (
+              <LeadOwnerReassignControl
+                token={accessToken}
+                leadId={leadId}
+                kind={ownerKind}
+                currentOwnerId={lead.owner_id}
+                staff={staffOptions}
+                onError={setError}
+                onMessage={setMessage}
+                onAssigned={async () => {
+                  const row = await fetchLead(accessToken, leadId);
+                  setLead(row);
+                  await reloadTimeline(accessToken);
+                }}
+              />
+            ) : null
+          }
         >
           {!useSalesDesk ? (
             <>
@@ -1633,7 +1707,7 @@ export default function CrmLeadDetailPage() {
               nbaTitle={showB2bFlow && !solutionDesk ? nba?.title_vi ?? null : null}
               showCockpit={showLmpTab}
               onOpenCockpit={openMeetingPrepTab}
-              showAssign={!aeViewer}
+              showAssign={superAdmin}
               onOpenAssign={() => setAssignOpen(true)}
               contactActions={
                 <>
@@ -1915,6 +1989,25 @@ export default function CrmLeadDetailPage() {
                 onFunnelChange={applyFunnelFromMutation}
                 onMessage={setMessage}
                 onError={setError}
+                firstAcceptorName={firstOwner}
+                mgmtExtra={
+                  superAdmin ? (
+                    <LeadOwnerReassignControl
+                      token={accessToken}
+                      leadId={leadId}
+                      kind={ownerKind}
+                      currentOwnerId={lead.owner_id}
+                      staff={staffOptions}
+                      onError={setError}
+                      onMessage={setMessage}
+                      onAssigned={async () => {
+                        const row = await fetchLead(accessToken, leadId);
+                        setLead(row);
+                        await reloadTimeline(accessToken);
+                      }}
+                    />
+                  ) : null
+                }
               />
             ) : null}
 
@@ -1998,6 +2091,7 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 exchangeLines={careHistory}
+                ownerLines={ownerLines}
                 selectedActivityId={selectedActivityId}
                 onSelectActivity={setSelectedActivityId}
               />
@@ -2165,6 +2259,7 @@ export default function CrmLeadDetailPage() {
                 token={accessToken!}
                 leadId={leadId}
                 exchangeLines={careHistory}
+                ownerLines={ownerLines}
                 selectedActivityId={selectedActivityId}
                 onSelectActivity={setSelectedActivityId}
               />

@@ -183,8 +183,9 @@ export function emptySalesDiscoveryBrief(): SalesDiscoveryBrief {
   };
 }
 
-function asString(value: unknown): string {
-  return String(value ?? '').trim();
+function asString(value: unknown, trim = true): string {
+  const text = String(value ?? '');
+  return trim ? text.trim() : text;
 }
 
 function asStringList(value: unknown): string[] {
@@ -203,38 +204,42 @@ function asStringList(value: unknown): string[] {
   return out;
 }
 
-export function normalizeSalesDiscoveryBrief(raw: unknown): SalesDiscoveryBrief {
+export function normalizeSalesDiscoveryBrief(
+  raw: unknown,
+  opts?: { trim?: boolean },
+): SalesDiscoveryBrief {
+  const trim = opts?.trim !== false;
   const base = emptySalesDiscoveryBrief();
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
   const src = raw as Record<string, unknown>;
-  base.company_name = asString(src.company_name);
-  base.industry = asString(src.industry);
-  base.flagship_product = asString(src.flagship_product);
-  base.websites = asString(src.websites);
-  base.contact_name = asString(src.contact_name);
-  base.phone = asString(src.phone);
-  base.email = asString(src.email);
-  base.job_title = asString(src.job_title);
-  const auth = asString(src.budget_authority);
+  base.company_name = asString(src.company_name, trim);
+  base.industry = asString(src.industry, trim);
+  base.flagship_product = asString(src.flagship_product, trim);
+  base.websites = asString(src.websites, trim);
+  base.contact_name = asString(src.contact_name, trim);
+  base.phone = asString(src.phone, trim);
+  base.email = asString(src.email, trim);
+  base.job_title = asString(src.job_title, trim);
+  const auth = asString(src.budget_authority, true);
   base.budget_authority =
     auth === 'direct' || auth === 'needs_approval' || auth === 'unknown' ? auth : '';
   base.services = asStringList(src.services);
-  base.biggest_problem = asString(src.biggest_problem);
-  base.marketing_goal = asString(src.marketing_goal);
-  base.priority_product = asString(src.priority_product);
-  base.target_customers = asString(src.target_customers);
-  base.region = asString(src.region);
+  base.biggest_problem = asString(src.biggest_problem, trim);
+  base.marketing_goal = asString(src.marketing_goal, trim);
+  base.priority_product = asString(src.priority_product, trim);
+  base.target_customers = asString(src.target_customers, trim);
+  base.region = asString(src.region, trim);
   let channels = asStringList(src.channels);
   if (channels.includes('none') && channels.length > 1) {
     channels = channels.filter((c) => c !== 'none');
   }
   base.channels = channels;
-  base.current_results = asString(src.current_results);
-  base.difficulties = asString(src.difficulties);
-  base.budget_band = asString(src.budget_band);
-  base.timeline_band = asString(src.timeline_band);
-  base.call_notes = asString(src.call_notes);
-  const temp = asString(src.temperature);
+  base.current_results = asString(src.current_results, trim);
+  base.difficulties = asString(src.difficulties, trim);
+  base.budget_band = asString(src.budget_band, trim);
+  base.timeline_band = asString(src.timeline_band, trim);
+  base.call_notes = asString(src.call_notes, trim);
+  const temp = asString(src.temperature, true);
   base.temperature = temp === 'hot' || temp === 'warm' || temp === 'cold' ? temp : '';
   return base;
 }

@@ -90,6 +90,7 @@ export function SalesDiscoveryWizard({
   );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [svcOpen, setSvcOpen] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState('');
@@ -149,10 +150,11 @@ export function SalesDiscoveryWizard({
 
   function patch(partial: Partial<SalesDiscoveryBrief>, opts?: { immediate?: boolean }) {
     setBrief((prev) => {
-      const next = normalizeSalesDiscoveryBrief({ ...prev, ...partial });
+      const next = normalizeSalesDiscoveryBrief({ ...prev, ...partial }, { trim: false });
       briefRef.current = next;
       return next;
     });
+    setSavedOk(false);
     setError('');
     if (readOnly) return;
     if (opts?.immediate) {
@@ -175,8 +177,10 @@ export function SalesDiscoveryWizard({
     if (readOnly) return;
     setSaving(true);
     try {
-      const saved = await saveDiscoveryBrief(token, session.id, briefRef.current);
+      const payload = normalizeSalesDiscoveryBrief(briefRef.current);
+      const saved = await saveDiscoveryBrief(token, session.id, payload);
       onSessionChange(saved);
+      setSavedOk(true);
       notifyDeskDiscoveryChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được bản nháp.');
@@ -193,7 +197,7 @@ export function SalesDiscoveryWizard({
       onSessionChange(saved);
       notifyDeskDiscoveryChanged();
       const next = prefillSalesDiscovery({ session: saved, company_name: lead?.company_name, full_name: lead?.full_name, phone: lead?.phone, email: lead?.email, need: (lead as { need?: string | null } | null | undefined)?.need });
-      setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }));
+      setBrief((prev) => normalizeSalesDiscoveryBrief({ ...prev, services: next.services }, { trim: false }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được dịch vụ.');
     }
@@ -206,7 +210,7 @@ export function SalesDiscoveryWizard({
     setMessage('');
     try {
       if (draftTimer.current) window.clearTimeout(draftTimer.current);
-      const out = await submitDiscoveryBrief(token, session.id, briefRef.current);
+      const out = await submitDiscoveryBrief(token, session.id, normalizeSalesDiscoveryBrief(briefRef.current));
       if (out.session) onSessionChange(out.session);
       notifyDeskDiscoveryChanged();
       if (out.ok) {
@@ -669,12 +673,15 @@ export function SalesDiscoveryWizard({
             {message}
           </p>
         ) : null}
-        {saving && !readOnly ? <p className="sd-hint">Đang lưu nháp…</p> : null}
-
         <div className="sd-actions">
-          <button type="button" className="btn btn-secondary" disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>
-            Quay lại
-          </button>
+          <div className="sd-actions__left">
+            <button type="button" className="btn btn-secondary" disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>
+              Quay lại
+            </button>
+            <span className="sd-save-status" data-testid="sd-save-status" aria-live="polite">
+              {!readOnly && saving ? 'Đang lưu…' : !readOnly && savedOk ? 'Đã lưu' : ''}
+            </span>
+          </div>
           <div className="sd-actions__right">
             {!readOnly ? (
               <button type="button" className="btn btn-secondary" onClick={() => void persistDraft()} disabled={saving} data-testid="sd-draft">

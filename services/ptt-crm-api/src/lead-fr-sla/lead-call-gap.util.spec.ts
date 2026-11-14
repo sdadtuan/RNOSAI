@@ -1,4 +1,4 @@
-import { evaluateCallGap, evaluateDuplicateActivity, evaluateDuplicateLog, formatCallGapRetryAt } from './lead-call-gap.util';
+import { ACTIVITY_DEDUPE_MINUTES, evaluateCallGap, evaluateDuplicateActivity, evaluateDuplicateLog, formatCallGapRetryAt } from './lead-call-gap.util';
 
 describe('evaluateCallGap', () => {
   const gapH = 2;
@@ -55,7 +55,21 @@ describe('evaluateDuplicateLog', () => {
     const out = evaluateDuplicateLog({ previousAt, now, cooldownMinutes: 3 });
     expect(out.blocked).toBe(true);
     expect(out.message).toContain('Bản ghi trùng');
+    expect(out.message).toContain(`cách dưới ${ACTIVITY_DEDUPE_MINUTES} phút`);
+    expect(out.message).not.toContain('cách dưới 1 phút');
     expect(out.message).toContain('14:03');
+  });
+
+  it('names the 3-minute window and ceils leftover seconds on the retry clock', () => {
+    const previousAt = new Date('2026-11-16T09:32:20.000Z'); // 16:32:20 ICT
+    const now = new Date('2026-11-16T09:32:40.000Z');
+    const out = evaluateDuplicateLog({ previousAt, now, cooldownMinutes: ACTIVITY_DEDUPE_MINUTES });
+    // 16:32:20 + 3 min = 16:35:20 → display 16:36
+    expect(out.blocked).toBe(true);
+    expect(out.message).toBe(
+      'Bản ghi trùng (cùng kênh và kết quả, cách dưới 3 phút) — chưa ghi. Thử lại sau 16:36.',
+    );
+    expect(formatCallGapRetryAt(out.nextAllowedAt as Date, now)).toBe('16:36');
   });
 
   it('allows a repeat after the cooldown', () => {
@@ -73,5 +87,7 @@ describe('evaluateDuplicateActivity', () => {
     expect(out.blocked).toBe(true);
     expect(out.message).toContain('Nội dung trao đổi trùng');
     expect(out.message).toContain('chưa lưu');
+    expect(out.message).toContain(`cách dưới ${ACTIVITY_DEDUPE_MINUTES} phút`);
+    expect(out.message).toContain('14:03');
   });
 });

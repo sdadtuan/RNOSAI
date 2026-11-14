@@ -15,7 +15,7 @@ import {
   AssignLeadBody,
   CreateLeadActivityBody,
   LeadActivityRow,
-  LeadAssignmentLogRow,
+  LeadAssignmentLogRow, LeadReassignEventRow,
   LeadStatusLogRow,
 } from './crm-leads-legacy.types';
 
@@ -86,11 +86,16 @@ export class CrmLeadsLegacyService {
 
   async auditLogs(
     leadId: number,
-  ): Promise<{ status_logs: LeadStatusLogRow[]; assignment_logs: LeadAssignmentLogRow[] }> {
+  ): Promise<{
+    status_logs: LeadStatusLogRow[];
+    assignment_logs: LeadAssignmentLogRow[];
+    reassign_events: LeadReassignEventRow[];
+  }> {
     await this.assertLead(leadId);
     return {
       status_logs: await this.pg.listStatusLogs(leadId),
       assignment_logs: await this.pg.listAssignmentLogs(leadId),
+      reassign_events: await this.pg.listReassignEventsForLead(leadId),
     };
   }
 

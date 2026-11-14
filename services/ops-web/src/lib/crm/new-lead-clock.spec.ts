@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultTeamSlaDocument } from './team-sla-profiles';
-import { resolveNewLeadClock } from './new-lead-clock';
+import { formatNewLeadOverdueLabel, resolveNewLeadClock } from './new-lead-clock';
 
 const doc = defaultTeamSlaDocument();
 
@@ -24,7 +24,7 @@ describe('resolveNewLeadClock', () => {
       now: new Date('2026-11-03T12:00:00.000Z'),
     });
     expect(clock.phase).toBe('claim');
-    expect(clock.label).toBe('Nhận lead ngoài ca');
+    expect(clock.label).toBe('Chưa nhận · nhận trước 08:30 04/11');
     expect(clock.dueAt).toBe('2026-11-04T01:30:00.000Z');
   });
 
@@ -37,7 +37,9 @@ describe('resolveNewLeadClock', () => {
     });
     expect(clock.phase).toBe('update');
     expect(clock.dueAt).toBe('2026-11-03T04:10:00.000Z');
+    expect(clock.label).toBe('Đã nhận · cập nhật trước 11:10 03/11');
     expect(clock.detail).toContain('1 giờ');
+    expect(clock.detail).not.toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 
   it('closes the new-lead clock after the first call is logged', () => {
@@ -90,9 +92,27 @@ describe('resolveNewLeadClock', () => {
     });
     expect(clock.phase).toBe('update');
     expect(clock.dueAt).toBe('2026-11-13T02:30:00.000Z');
+    expect(clock.label).toBe('Đã nhận · cập nhật trước 09:30 13/11');
     expect(clock.detail).toContain('1 giờ');
-    expect(clock.detail).toMatch(/10:30/);
+    expect(clock.detail).toMatch(/10:30 13\/11/);
     expect(clock.detail).not.toMatch(/22:41/);
+    expect(clock.detail).not.toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 
+  it('labels an in-shift unclaimed lead with the short claim due line', () => {
+    const assignedAt = '2026-11-03T03:00:00.000Z';
+    const clock = resolveNewLeadClock({
+      document: doc,
+      assignedAt,
+      now: new Date(assignedAt),
+    });
+    expect(clock.label).toBe('Chưa nhận · nhận trước 10:15 03/11');
+    expect(clock.detail).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+  });
+
+  it('formats a short overdue label without seconds', () => {
+    expect(formatNewLeadOverdueLabel(45_000)).toBe('Trễ 1 phút');
+    expect(formatNewLeadOverdueLabel(20 * 60_000)).toBe('Trễ 20 phút');
+    expect(formatNewLeadOverdueLabel(2 * 60 * 60_000 + 15 * 60_000)).toBe('Trễ 2 giờ 15 phút');
+  });
 });

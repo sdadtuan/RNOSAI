@@ -11,7 +11,7 @@ import { isStatusTransitionAllowed } from '../leads/lead-status-gate.util';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
 import { formatLeadCallActivity } from './lead-call-activity.util';
-import { evaluateCallGap, evaluateDuplicateLog } from './lead-call-gap.util';
+import { ACTIVITY_DEDUPE_MINUTES, evaluateCallGap, evaluateDuplicateLog, formatCallGapRetryAt } from './lead-call-gap.util';
 import {
   applyCallLogToSnapshot,
   type RecomputeResult,
@@ -116,7 +116,7 @@ export class LeadFrSlaService {
         error: 'Chỉ người được giao lead mới nhận được.',
       });
     }
-    await this.repo.claimSalesLead(leadId);
+    await this.repo.claimSalesLead(leadId, staffId);
     return this.readSla(leadId);
   }
 
@@ -254,18 +254,9 @@ export class LeadFrSlaService {
     const lastAny = recentAttempts[0] ? new Date(recentAttempts[0].started_at) : null;
     const burst = evaluateDuplicateLog({ previousAt: lastAny, now: startedAt });
     if (burst.blocked) {
-      const elapsedLabel =
-        burst.elapsedMinutes == null || burst.elapsedMinutes < 1
-          ? 'dưới 1 phút'
-          : `${burst.elapsedMinutes} phút`;
-      const clock = new Intl.DateTimeFormat('vi-VN', {
-        timeZone: 'Asia/Saigon',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(burst.nextAllowedAt ?? startedAt);
+      const clock = formatCallGapRetryAt(burst.nextAllowedAt ?? startedAt, startedAt);
       throw new BadRequestException({
-        error: `Bạn vừa ghi một liên hệ (cách ${elapsedLabel}) — chưa ghi thêm. Thử lại sau ${clock}.`,
+        error: `Bạn vừa ghi một liên hệ (cách dưới ${ACTIVITY_DEDUPE_MINUTES} phút) — chưa ghi thêm. Thử lại sau ${clock}.`,
         code: 'call_burst',
         elapsed_minutes: burst.elapsedMinutes,
         next_allowed_at: burst.nextAllowedAt?.toISOString() ?? null,

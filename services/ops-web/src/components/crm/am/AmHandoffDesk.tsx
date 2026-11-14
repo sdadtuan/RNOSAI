@@ -275,6 +275,8 @@ export function AmHandoffDesk({
   onError,
   exchangeLines = [],
   marketingLeaders = [],
+  firstAcceptorName = null,
+  mgmtExtra,
 }: {
   token: string;
   lead: LeadRow;
@@ -297,6 +299,8 @@ export function AmHandoffDesk({
   onError?: (message: string) => void;
   exchangeLines?: ExchangeLine[];
   marketingLeaders?: StaffOption[];
+  firstAcceptorName?: string | null;
+  mgmtExtra?: ReactNode;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [files, setFiles] = useState<Attachment[]>([]);
@@ -716,6 +720,13 @@ export function AmHandoffDesk({
                   Sales phụ trách: <strong>{salesName}</strong>
                 </span>
               </div>
+              {firstAcceptorName ? (
+                <div className="ahd-person" data-testid="ahd-first-acceptor">
+                  <span>
+                    Nhận ban đầu: <strong>{firstAcceptorName}</strong>
+                  </span>
+                </div>
+              ) : null}
               <div className="ahd-person">
                 <span className="ahd-person__av">{initials(amName === '—' ? 'A' : amName)}</span>
                 <span>
@@ -734,6 +745,7 @@ export function AmHandoffDesk({
                   </span>
                 </div>
               ) : null}
+              {mgmtExtra ? <div className="ahd-mgmt-extra">{mgmtExtra}</div> : null}
             </div>
           </section>
         </div>

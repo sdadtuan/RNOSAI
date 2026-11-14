@@ -35,6 +35,22 @@ export interface LeadAssignmentLogRow {
   created_at: string;
 }
 
+export interface LeadReassignEventRow {
+  id: string;
+  lead_id: number;
+  from_user_id: number | null;
+  from_name: string;
+  to_user_id: number | null;
+  to_name: string;
+  would_to_user_id: number | null;
+  would_to_name: string;
+  reason: string;
+  decision: string;
+  created_by: string;
+  created_at: string;
+  dry_run: boolean;
+}
+
 export interface CreateLeadActivityBody {
   activity_type?: string;
   content?: string;

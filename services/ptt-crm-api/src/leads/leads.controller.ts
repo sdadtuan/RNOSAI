@@ -15,6 +15,7 @@ import {
   Req,
   Res,
   ServiceUnavailableException,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   UploadedFile,
@@ -578,6 +579,33 @@ export class LeadsController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ): Promise<LeadV1> {
     const out = await this.crmLegacy.assignLead(id, body, this.leadActor(req));
+    return out.lead;
+  }
+
+  /** SUPER-ADMIN only — reassign the current-step owner and log thủ công. */
+  @Post(':id/owner-reassign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async ownerReassign(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { kind?: string; to_staff_id?: number; to_user_id?: number; reason?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ): Promise<LeadV1> {
+    const isSuper = req.staffUser ? await this.staffAuth.isSuperAdminUser(req.staffUser) : false;
+    if (!isSuper) {
+      throw new ForbiddenException({ error: 'Chỉ SUPER-ADMIN được phân công lại.' });
+    }
+    const kind = String(body.kind ?? 'sales').trim().toLowerCase() || 'sales';
+    const toId = Number(body.to_staff_id ?? body.to_user_id ?? 0);
+    if (!Number.isFinite(toId) || toId <= 0) {
+      throw new BadRequestException({ error: 'to_staff_id không hợp lệ' });
+    }
+    const reason = String(body.reason ?? 'thủ công').trim() || 'thủ công';
+    if (kind !== 'sales') {
+      throw new BadRequestException({
+        error: `Phân công lại '${kind}' chưa hỗ trợ trên API này (chỉ sales owner).`,
+      });
+    }
+    const out = await this.crmLegacy.assignLead(id, { to_user_id: toId, reason }, this.leadActor(req));
     return out.lead;
   }
 

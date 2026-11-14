@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeLeadCareHistory, presentLeadHistory } from './lead-history';
+import { firstAcceptorName, mergeLeadCareHistory, presentLeadHistory, presentOwnerChange } from './lead-history';
 
 describe('presentLeadHistory', () => {
   it('shows the carer, the update, and the time in Vietnamese', () => {
@@ -73,3 +73,42 @@ describe('presentLeadHistory', () => {
     expect(lines[1]?.key).toBe('status-9');
   });
 });
+
+describe('presentOwnerChange', () => {
+  it('formats a manual reassign as one short line with no seconds', () => {
+    const line = presentOwnerChange({
+      id: 11,
+      from_name: 'Nguyen Van A',
+      to_name: 'Tran Thi B',
+      reason: 'manual_reassign',
+      created_by: 'admin@local',
+      created_at: '2026-11-16T03:32:20.000Z',
+    });
+    expect(line.what).toBe('Chuyển từ Sales Nguyen Van A → Sales Tran Thi B · thủ công bởi admin@local · 10:32 16/11/2026');
+    expect(line.what).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(line.when).toBe('');
+  });
+
+  it('labels a dry-run would-be auto reassign as late update', () => {
+    const line = presentOwnerChange({
+      id: 12,
+      from_name: 'Nguyen Van A',
+      to_name: '',
+      would_to_name: 'Le Van C',
+      reason: 'would_reassign:sla_hold_expired_1b',
+      created_by: 'system',
+      created_at: '2026-11-16T03:30:00.000Z',
+      dry_run: true,
+    });
+    expect(line.what).toBe('Chuyển từ Sales Nguyen Van A → Sales Le Van C · trễ cập nhật (dự kiến) · 10:30 16/11/2026');
+  });
+
+  it('shows Nhận ban đầu only when the current owner is not the first acceptor', () => {
+    const logs = [
+      { id: 1, from_name: 'Nguyen Van A', to_name: 'Tran Thi B', reason: 'manual_reassign', created_at: '2026-11-15T02:00:00.000Z' },
+    ];
+    expect(firstAcceptorName(logs, 'Tran Thi B')).toBe('Nguyen Van A');
+    expect(firstAcceptorName(logs, 'Nguyen Van A')).toBeNull();
+  });
+});
+

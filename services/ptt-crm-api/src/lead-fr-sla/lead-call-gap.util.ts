@@ -40,8 +40,15 @@ function ictStamp(at: Date): { ymd: string; hm: string; dmy: string } {
   return { ymd, hm, dmy };
 }
 
+export function ceilToNextMinute(at: Date): Date {
+  const ms = at.getTime();
+  const rem = ms % 60_000;
+  if (rem === 0) return at;
+  return new Date(ms + (60_000 - rem));
+}
+
 export function formatCallGapRetryAt(nextAllowedAt: Date, now: Date): string {
-  const next = ictStamp(nextAllowedAt);
+  const next = ictStamp(ceilToNextMinute(nextAllowedAt));
   const today = ictStamp(now);
   return next.ymd === today.ymd ? next.hm : `${next.hm} ${next.dmy}`;
 }
@@ -117,14 +124,13 @@ export function evaluateDuplicateLog(input: DuplicateLogInput): CallGapResult {
       message: null,
     };
   }
-  const elapsedLabel = elapsedMinutes < 1 ? 'dưới 1 phút' : `${elapsedMinutes} phút`;
   const when = formatCallGapRetryAt(nextAllowedAt, input.now);
   return {
     blocked: true,
     elapsedMinutes,
     nextAllowedAt,
     minGapWorkingHours: 0,
-    message: `Bản ghi trùng (cùng kênh và kết quả, cách ${elapsedLabel}) — chưa ghi. Thử lại sau ${when}.`,
+    message: `Bản ghi trùng (cùng kênh và kết quả, cách dưới ${cooldownMinutes} phút) — chưa ghi. Thử lại sau ${when}.`,
   };
 }
 
@@ -132,10 +138,10 @@ export function evaluateDuplicateActivity(input: DuplicateLogInput): CallGapResu
   const out = evaluateDuplicateLog(input);
   if (!out.blocked || !out.message) return out;
   const when = formatCallGapRetryAt(out.nextAllowedAt as Date, input.now);
-  const elapsedLabel =
-    out.elapsedMinutes == null || out.elapsedMinutes < 1 ? 'dưới 1 phút' : `${out.elapsedMinutes} phút`;
+  const minutes = Number(input.cooldownMinutes ?? ACTIVITY_DEDUPE_MINUTES);
+  const cooldownMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : ACTIVITY_DEDUPE_MINUTES;
   return {
     ...out,
-    message: `Nội dung trao đổi trùng với lần vừa ghi (cách ${elapsedLabel}) — chưa lưu. Thử lại sau ${when}.`,
+    message: `Nội dung trao đổi trùng với lần vừa ghi (cách dưới ${cooldownMinutes} phút) — chưa lưu. Thử lại sau ${when}.`,
   };
 }
