@@ -122,12 +122,12 @@ export function SolutionAiDraftBody({
       <header className="solution-ai-doc__header">
         <p className="solution-ai-doc__kicker">Tài liệu đề xuất</p>
         <div className="solution-ai-doc__title-row">
-          <h3 className="solution-ai-doc__title">Solution</h3>
+          <h3 className="solution-ai-doc__title">File Solution</h3>
           <span className={`solution-ai-doc__badge${isPending ? ' solution-ai-doc__badge--pending' : ''}`}>
             {badgeLabel}
           </span>
         </div>
-        {title && !/^bản nháp solution$/i.test(title.trim()) && title.trim().toLowerCase() !== 'solution' ? (
+        {title && !/^bản nháp solution$/i.test(title.trim()) && !['solution', 'file solution'].includes(title.trim().toLowerCase()) ? (
           <p className="solution-ai-doc__subtitle">{title}</p>
         ) : null}
         <ul className="solution-ai-doc__meta">
@@ -340,7 +340,7 @@ function buildSolutionHtmlDocument(input: {
     .map(escapeHtml)
     .join(' · ');
   const subtitle =
-    input.subtitle && input.subtitle.trim().toLowerCase() !== 'solution'
+    input.subtitle && input.sub!['solution', 'file solution'].includes(title.trim().toLowerCase())
       ? `<p style="margin:6px 0 0;color:#334;font-size:14px;">${escapeHtml(input.subtitle)}</p>`
       : '';
   const sections = input.sections
@@ -371,7 +371,7 @@ function buildSolutionHtmlDocument(input: {
 <body>
   <header>
     <p class="kicker">Tài liệu đề xuất</p>
-    <h1>Solution <span class="badge">Bản nháp AI</span></h1>
+    <h1>File Solution <span class="badge">Bản nháp AI</span></h1>
     ${subtitle}
     <p class="meta">${meta}</p>
   </header>

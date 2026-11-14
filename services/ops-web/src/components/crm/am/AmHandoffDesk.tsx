@@ -63,7 +63,7 @@ import {
 import { pushToast } from '@/lib/toast';
 import './am-handoff-desk.css';
 
-type TabKey = 'brief' | 'history' | 'files' | 'solution' | 'notes';
+type TabKey = 'brief' | 'history' | 'solution' | 'notes';
 
 type Attachment = { id: string; name: string; mime?: string; data_url?: string };
 
@@ -619,7 +619,6 @@ export function AmHandoffDesk({
     view.timeline_band ? { label: 'Thời điểm', value: timelineLabel(view.timeline_band) } : null,
     view.flagship_product ? { label: 'Sản phẩm chủ lực', value: view.flagship_product } : null,
   ].filter((row): row is { label: string; value: string } => Boolean(row));
-  const fileCount = files.length;
 
   return (
     <div className="ahd" data-testid="am-handoff-desk">
@@ -800,7 +799,6 @@ export function AmHandoffDesk({
               [
                 ['brief', 'Sales Brief', I.brief],
                 ['history', 'Lịch sử', I.chat],
-                ['files', `Tệp đính kèm (${fileCount})`, I.clip],
                 ['solution', 'Solution', I.clip],
                 ['notes', 'Ghi chú nội bộ', I.note],
               ] as const
@@ -906,32 +904,6 @@ export function AmHandoffDesk({
                 submitOnly
               />
             </div>
-          ) : null}
-
-          {tab === 'files' ? (
-            <section className="ahd-card" data-testid="ahd-files">
-              <h3 className="ahd-card__title">
-                <Icon d={I.clip} />
-                Tệp đính kèm ({fileCount})
-              </h3>
-              {fileCount === 0 ? (
-                <p className="ahd-empty">Chưa có tệp đính kèm.</p>
-              ) : (
-                <ul className="ahd-files">
-                  {files.map((file) => (
-                    <li key={file.id}>
-                      {file.data_url ? (
-                        <a href={file.data_url} download={file.name}>
-                          {file.name}
-                        </a>
-                      ) : (
-                        file.name
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
           ) : null}
 
           {tab === 'notes' ? (
