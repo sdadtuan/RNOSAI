@@ -1,7 +1,7 @@
 /* AM Handoff Desk — pixel-faithful to the Chờ Solutions mockup.
    PTT brand: #17692f primary, #2d8a44 lime, #00762f button, #ecefea page. */
 .ahd {
-  --ahd-side: 220px;
+  --ahd-side: 300px;
   --ahd-body-gap: 14px;
   --ahd-primary: #17692f;
   --ahd-primary-700: #125a28;
@@ -314,7 +314,7 @@ button.ahd-step__hit { cursor: pointer; }
 /* 3-column body: left === right; middle 2-col splits fill this same 1fr. */
 .ahd-body {
   display: grid;
-  grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
+  grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px);
   gap: var(--ahd-body-gap, 14px);
   align-items: start;
   min-width: 0;
@@ -398,7 +398,8 @@ button.ahd-step__hit { cursor: pointer; }
 }
 .ahd-temp-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   min-width: 0;
@@ -415,13 +416,15 @@ button.ahd-step__hit { cursor: pointer; }
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   box-sizing: border-box;
   max-width: 100%;
+  height: auto;
 }
 .ahd-handoff-note {
   margin: 10px 0 0;
@@ -713,9 +716,10 @@ button.ahd-check__item:focus-visible {
    At 1280vw + 64px rail the desk content is ~1176px, which used to
    trip a 1180px query and drop the right column / shorten stepper labels.
    Keep 3 columns down to ~1000px desk, and always at viewport >= 1200px.
-   Slim side columns so the center Brief grid still fits two equal cards. */
+   Equal 300px side columns; the center Brief grid fills the rest and still
+   fits two equal cards (wrap chips such as Mức độ rather than overflow). */
 @container ahd (max-width: 1360px) {
-  .ahd-body { grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px); }
+  .ahd-body { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px); }
 }
 @container ahd (max-width: 1000px) {
   .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); }
@@ -748,7 +752,7 @@ button.ahd-check__item:focus-visible {
 
 /* Viewport fallback when container queries are unavailable. */
 @media (max-width: 1100px) {
-  .ahd-body { grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px); }
+  .ahd-body { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px); }
 }
 @media (max-width: 900px) {
   .ahd-body { grid-template-columns: 1fr; }
@@ -774,7 +778,7 @@ button.ahd-check__item:focus-visible {
    Side tracks stay equal so Solution's two middle cols + gap match step 1's middle. */
 @media (min-width: 1200px) {
   .ahd-body {
-    grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
+    grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px);
   }
   .ahd-col--side {
     grid-column: auto;
@@ -786,11 +790,9 @@ button.ahd-check__item:focus-visible {
   .ahd-step__label-short { display: none; }
   .ahd-step__hint { display: -webkit-box; }
   .ahd-tabs {
-    flex-wrap: nowrap;
-    gap: 2px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: thin;
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow: visible;
   }
   .ahd-tab {
     gap: 4px;
