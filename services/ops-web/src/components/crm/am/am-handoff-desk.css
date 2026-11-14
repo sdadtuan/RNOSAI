@@ -441,6 +441,8 @@ button.ahd-step__hit { cursor: pointer; }
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
+  min-width: 0;
+  width: 100%;
 }
 .ahd-tab {
   display: inline-flex;
@@ -455,6 +457,8 @@ button.ahd-step__hit { cursor: pointer; }
   padding: 7px 12px;
   border-radius: 9px;
   cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .ahd-tab.is-active {
   background: var(--ahd-soft);
@@ -777,6 +781,26 @@ button.ahd-check__item:focus-visible {
   .ahd-step__label-full { display: inline; }
   .ahd-step__label-short { display: none; }
   .ahd-step__hint { display: -webkit-box; }
+  .ahd-tabs {
+    flex-wrap: nowrap;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+  .ahd-tab {
+    gap: 4px;
+    font-size: 12px;
+    padding: 5px 7px;
+    border-radius: 8px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .ahd-tab svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+  }
 }
 
 .ahd-card--actions .solution-desk--actions {
