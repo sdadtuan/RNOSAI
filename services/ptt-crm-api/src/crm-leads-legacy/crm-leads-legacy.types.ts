@@ -83,6 +83,12 @@ export const ACTIVITY_TYPES = [
   'solution_claimed',
   'solution_released',
   'deal_room_pack_exported',
+  'solution_ai_draft',
+  'solution_file_uploaded',
+  'solution_deadline_changed',
+  'solution_received',
+  'solution_viewed',
+  'solution_returned',
 ] as const;
 
 export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
@@ -99,4 +105,10 @@ export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   solution_claimed: 'Solution nhận case',
   solution_released: 'Solution trả Sales',
   deal_room_pack_exported: 'Deal Room — Export Pack PDF',
+  solution_ai_draft: 'AI tạo Solution',
+  solution_file_uploaded: 'Tải file Solution',
+  solution_deadline_changed: 'Đổi deadline Solution',
+  solution_received: 'Nhận Solution',
+  solution_viewed: 'Xem Solution',
+  solution_returned: 'Trả Solution',
 };

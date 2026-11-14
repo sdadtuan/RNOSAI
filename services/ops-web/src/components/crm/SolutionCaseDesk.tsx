@@ -55,7 +55,7 @@ import {
   readSolutionAttachments,
   type SolutionAttachment,
 } from '@/lib/crm/solution-file-display';
-import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
+import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
 import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
 
 type Attachment = SolutionAttachment;
@@ -384,6 +384,14 @@ export function SolutionCaseDesk({
     void load().catch(() => setError('Không tải được hồ sơ Sales giao'));
   }, [load]);
 
+  useEffect(() => {
+    if (aiDraft?.status !== 'pending') return;
+    const timer = window.setInterval(() => {
+      void load().catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [aiDraft?.status, load]);
+
   const discoveryBrief = readDiscoveryBriefFromAnswers(session?.answers_json);
   const need = discoveryBrief?.biggest_problem || intakeNeed(session);
   const leadName = plain(lead.full_name || '');
@@ -427,7 +435,7 @@ export function SolutionCaseDesk({
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >
-              AI tạo Solution
+              {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
             </button>
           ) : null}
         </div>
@@ -578,13 +586,63 @@ export function SolutionCaseDesk({
     const out = await postLeadPresalesMarketingPlanAiDraft(token, lead.id);
     if (out.funnel) onFunnelChange(out.funnel);
     await load();
-    const draft = presentSolutionAiDraft(out.plan) ?? presentSolutionAiDraft((await fetchLeadPresalesMarketingPlan(token, lead.id).catch(() => null))?.plan);
+    const draft =
+      presentSolutionAiDraft(out.plan) ??
+      presentSolutionAiDraft((await fetchLeadPresalesMarketingPlan(token, lead.id).catch(() => null))?.plan);
     if (draft) setAiDraft(draft);
-    const note = out.validation?.ok
-      ? SOLUTION_AI_DRAFT_LABEL
-      : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
+    const pending = out.ai?.status === 'pending' || draft?.status === 'pending';
+    const note = pending
+      ? SOLUTION_AI_PENDING_LABEL
+      : out.validation?.ok
+        ? SOLUTION_AI_DRAFT_LABEL
+        : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
     setAiResult(note);
     onMessage?.(note);
+  }
+
+  function updateAiSection(key: string, body: string) {
+    setAiDraft((current) =>
+      current
+        ? { ...current, sections: current.sections.map((row) => (row.key === key ? { ...row, body } : row)) }
+        : current,
+    );
+  }
+
+  async function saveAiDraftSections() {
+    if (!aiDraft || aiDraft.status === 'pending') return;
+    const current = await fetchLeadPresalesMarketingPlan(token, lead.id);
+    const plan = (current?.plan ?? {}) as Record<string, unknown>;
+    const frameworkRaw = plan.strategy_framework ?? plan.strategy_framework_json;
+    let framework: Record<string, unknown> = {};
+    if (typeof frameworkRaw === 'string') {
+      try {
+        framework = JSON.parse(frameworkRaw) as Record<string, unknown>;
+      } catch {
+        framework = {};
+      }
+    } else if (frameworkRaw && typeof frameworkRaw === 'object' && !Array.isArray(frameworkRaw)) {
+      framework = { ...(frameworkRaw as Record<string, unknown>) };
+    }
+    let packed: Record<string, unknown> = {};
+    try {
+      packed =
+        typeof framework.solution_ai === 'string'
+          ? (JSON.parse(framework.solution_ai) as Record<string, unknown>)
+          : framework.solution_ai && typeof framework.solution_ai === 'object'
+            ? { ...(framework.solution_ai as Record<string, unknown>) }
+            : {};
+    } catch {
+      packed = {};
+    }
+    framework.solution_ai = JSON.stringify({
+      ...packed,
+      status: packed.status === 'pending' ? 'pending' : 'ready',
+      source: packed.source ?? (aiDraft.source === 'agent' ? 'agent' : 'llm'),
+      title: aiDraft.title,
+      sections: Object.fromEntries(aiDraft.sections.map((row) => [row.key, row.body])),
+    });
+    await patchLeadPresalesMarketingPlan(token, lead.id, { strategy_framework: framework });
+    await load();
   }
 
   const hasSolutionFile = files.some((file) => file.name.trim());
@@ -691,7 +749,7 @@ export function SolutionCaseDesk({
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >
-              AI tạo Solution
+              {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
             </button>
           ) : null}
         </div>
@@ -816,7 +874,16 @@ export function SolutionCaseDesk({
           />
         )}
         {aiDraft ? (
-          <SolutionAiDraftBody title={aiDraft.title} badge={aiDraft.badge} sections={aiDraft.sections} />
+          <SolutionAiDraftBody
+            title={aiDraft.title}
+            badge={aiDraft.badge}
+            sections={aiDraft.sections}
+            pending={aiDraft.status === 'pending'}
+            canEdit={canEditFiles && aiDraft.status !== 'pending'}
+            busy={busy}
+            onSectionChange={updateAiSection}
+            onSave={() => void run(saveAiDraftSections)}
+          />
         ) : aiResult ? (
           <p className="muted" data-testid="solution-desk-ai-result">
             {aiResult}
@@ -1154,7 +1221,7 @@ export function SolutionCaseDesk({
               data-testid="solution-desk-ai"
               onClick={() => void run(runAiSolution)}
             >
-              AI tạo Solution
+              {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
             </button>
           ) : null}
         </div>
@@ -1185,7 +1252,16 @@ export function SolutionCaseDesk({
           />
         )}
         {aiDraft ? (
-          <SolutionAiDraftBody title={aiDraft.title} badge={aiDraft.badge} sections={aiDraft.sections} />
+          <SolutionAiDraftBody
+            title={aiDraft.title}
+            badge={aiDraft.badge}
+            sections={aiDraft.sections}
+            pending={aiDraft.status === 'pending'}
+            canEdit={canEditFiles && aiDraft.status !== 'pending'}
+            busy={busy}
+            onSectionChange={updateAiSection}
+            onSave={() => void run(saveAiDraftSections)}
+          />
         ) : null}
         <div className="solution-desk__actions">
           {null}

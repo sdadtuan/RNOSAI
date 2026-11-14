@@ -2952,7 +2952,7 @@ export async function postLeadPresalesMarketingPlanAiDraft(
   plan: Record<string, unknown>;
   funnel: LeadFunnelSnapshot;
   validation: { ok: boolean; messages: string[] };
-  ai?: { stub_mode: boolean; model: string };
+  ai?: { stub_mode: boolean; model: string; source?: string; status?: string };
   ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null; model_name?: string | null };
   requires_sp_review?: boolean;
   badge_vi?: string;

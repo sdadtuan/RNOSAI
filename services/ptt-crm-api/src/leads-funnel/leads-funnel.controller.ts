@@ -780,6 +780,26 @@ export class LeadsFunnelController {
     return this.funnel.generatePresalesMarketingPlanAiDraft(id, req.staffUser);
   }
 
+  @Post(':id/presales/solution-ai/callback')
+  @HttpCode(HttpStatus.OK)
+  receiveSolutionAiCallback(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const signature = String(req.headers['x-ptt-signature'] ?? '');
+    return this.funnel.receiveSolutionAiCallback(id, body ?? {}, signature);
+  }
+
+  @Get(':id/presales/solution-ai/job')
+  getSolutionAiJob(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
+  ) {
+    const signature = String(req.headers['x-ptt-signature'] ?? '');
+    return this.funnel.getSolutionAiJob(id, signature);
+  }
+
   @Post(':id/presales/client-plan/export')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)

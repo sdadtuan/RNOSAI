@@ -1,4 +1,4 @@
-import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Optional, Inject, forwardRef, BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { canUseAssignedSolutionAction } from './solution-assignee-access.util';
 import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
@@ -94,6 +94,24 @@ import {
   PRESALES_AI_DRAFT_BADGE_VI,
   stampPresalesAiDraftMeta,
 } from './presales-ai-draft-meta.util';
+import { loadSolutionAiContext } from './solution-ai-context.loader';
+import {
+  buildSolutionAiDraftCall,
+  emptySolutionAiSections,
+  mergeSolutionAiIntoStrategy,
+  normalizeSolutionAiSections,
+  packSolutionAi,
+  parseSolutionAiFromStrategy,
+  SOLUTION_AI_NOT_CONFIGURED,
+  SOLUTION_AI_PENDING_LABEL,
+} from './solution-ai-draft.util';
+import {
+  postSolutionAiWebhook,
+  readSolutionAgentConfig,
+  signSolutionAiPayload,
+  verifySolutionAiSignature,
+} from './solution-ai-agent.util';
+import { randomUUID } from 'crypto';
 import { rejectMktAiAutoCustomerEmail } from '../marketing-ai-planner/mkt-ai-governance.util';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
@@ -769,6 +787,12 @@ export class LeadsFunnelService {
     try {
       await this.writeSolutionHandoffActivity(leadId, kind, actor, staffId, staffUser, returnReason, extra);
     } catch (err) {
+      const res = err instanceof BadRequestException ? err.getResponse() : null;
+      const code =
+        res && typeof res === 'object' && !Array.isArray(res)
+          ? String((res as { code?: unknown }).code ?? '')
+          : '';
+      if (code === 'activity_duplicate') return;
       new Logger(LeadsFunnelService.name).warn(
         `Solution history not recorded lead=${leadId} kind=${kind}: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -1651,73 +1675,305 @@ export class LeadsFunnelService {
         ? await fetchClientPlanSources(urls, fetch)
         : { text: '', image_urls: [] as string[], fetched_urls: [] as string[], errors: [] as string[] };
       const content = planContentFromRow(loaded.plan);
-      const humanEdited = humanEditedR5Fields(loaded.brief.human_edited_keys, content);
+      const context = await loadSolutionAiContext(this.config.databaseUrl, leadId, {
+        id: Number((loaded.plan as { id?: number }).id ?? 0),
+        strategy_framework: content.strategy_framework,
+        strategy_framework_json: (loaded.plan as { strategy_framework_json?: unknown }).strategy_framework_json,
+      });
+      const briefText = [
+        `Công ty: ${loaded.company_name || context.companyName || ''}`,
+        `Ngành: ${loaded.niche || ''}`,
+        `Nhu cầu: ${loaded.need || ''}`,
+        `USP / brief: ${[
+          loaded.brief.audience,
+          loaded.brief.usp,
+          loaded.brief.goal,
+          loaded.brief.channels,
+          loaded.brief.retain,
+          loaded.brief.competitors,
+          loaded.brief.metrics,
+        ]
+          .map((v) => String(v ?? '').trim())
+          .filter(Boolean)
+          .join('\n')}`,
+      ].join('\n');
+      const agent = readSolutionAgentConfig();
+      const hasKey = Boolean(this.aiConfig.llmApiKey);
+      if (agent.configured) {
+        return this.dispatchSolutionAiAgentJob({
+          leadId,
+          staffUser,
+          loaded,
+          content,
+          context,
+          briefText,
+          sourceText: sources.text,
+          sourceErrors: sources.errors,
+          agent,
+        });
+      }
+      if (!hasKey) {
+        throw new BadRequestException({
+          error: 'ai_not_configured',
+          message: SOLUTION_AI_NOT_CONFIGURED,
+        });
+      }
+
       const selection = selectClientPlanModel({
         hasPublicSource,
         mktAiModel: this.config.mktAiModel,
         openAiModel: this.config.openAiModel,
         llmModel: this.aiConfig.llmModel,
       });
-      const built = buildClientPlanDraftCall({
-        brief: loaded.brief,
-        lead: { company_name: loaded.company_name, niche: loaded.niche, need: loaded.need },
-        serviceLabel: SERVICE_LABELS[serviceSlug] ?? serviceSlug,
+      const built = buildSolutionAiDraftCall({
+        companyName: loaded.company_name || context.companyName,
+        briefText,
+        discoveryText: context.discoveryText,
+        serviceLines: context.serviceLinesText,
+        budgetLabel: context.budgetLabel || taskBudget(loaded.tasks) || '',
+        timelineLabel: context.timelineLabel,
+        callNotes: context.callNotes,
+        attachmentText: context.attachmentText,
         sourceText: sources.text,
-        imageUrls: sources.image_urls,
-        humanEdited,
-        hasPublicSource,
-        budget: taskBudget(loaded.tasks),
       });
       const completion = await this.llm.completeJson({
         systemPrompt: built.systemPrompt,
         userContent: built.userContent,
         model: selection.model,
-        imageUrls: selection.vision ? built.imageUrls : [],
-        stubJson: built.stubJson,
+        stubJson: () => ({}),
+        timeoutMs: Math.max(60_000, Number(this.aiConfig.llmTimeoutMs) || 0),
       });
-      const fields = mergeClientPlanModelDraft(completion.parsed, built);
-      const strategy = { ...defaultStrategyJson() };
-      for (const key of STRATEGY_FRAMEWORK_KEYS) strategy[key] = fields[key] || '';
-      const existingProf = parseTargetMarketProfJson(loaded.plan.target_market_prof_json);
-      const currentBrief = readClientBrief(existingProf);
-      let prof = writeClientBrief(existingProf, { ...currentBrief, saved_after_ai: false });
-      prof = {
-        ...prof,
-        client_plan_competitors: fields.competitors,
-        client_plan_cover_image_url: fields.cover_image_url ?? '',
-      };
-      prof = stampPresalesAiDraftMeta(prof, staffUser?.email ?? 'unknown', selection.model);
-      const plan = await this.pgRepo.patchMarketingPlan(leadId, {
-        name: fields.name,
-        north_star: fields.north_star,
-        objectives: fields.objectives,
-        strategy_framework: strategy,
-        target_market_prof: prof,
+      if (completion.stubMode) {
+        throw new BadRequestException({
+          error: 'ai_not_configured',
+          message: SOLUTION_AI_NOT_CONFIGURED,
+        });
+      }
+      const parsed = completion.parsed && typeof completion.parsed === 'object'
+        ? (completion.parsed as Record<string, unknown>)
+        : {};
+      const packed = packSolutionAi({
+        status: 'ready',
+        source: 'llm',
+        requested_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        title: String(parsed.title ?? '').trim() || `Solution sơ bộ — ${loaded.company_name || context.companyName || 'lead'}`,
+        sections: normalizeSolutionAiSections(parsed.sections ?? parsed),
       });
-      const validation = validatePreliminaryPlan(plan);
-      const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
-      const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
-      await this.logSolutionHandoffActivity(
+      return this.persistSolutionAiDraft({
         leadId,
-        SOLUTION_HANDOFF_ACTIVITY_TYPES.ai_draft,
-        staffUser?.email || (staffId ? `staff:${staffId}` : 'system'),
-        staffId ?? null,
         staffUser,
-      );
-      return {
-        ok: true,
-        plan,
-        validation,
-        funnel: await this.getFunnel(leadId),
-        ai_draft,
-        requires_sp_review: true,
-        badge_vi: PRESALES_AI_DRAFT_BADGE_VI,
-        ai: { stub_mode: completion.stubMode, model: selection.model },
-        source_errors: sources.errors,
-      };
+        loaded,
+        content,
+        packed,
+        modelName: completion.modelName || selection.model,
+        stubMode: false,
+        source: 'llm',
+        status: 'ready',
+        sourceErrors: sources.errors,
+      });
     } catch (err) {
       this.funnelError(err);
     }
+  }
+
+  async receiveSolutionAiCallback(leadId: number, body: Record<string, unknown>, signature: string) {
+    try {
+      const agent = readSolutionAgentConfig();
+      if (!agent.configured || !verifySolutionAiSignature(agent.secret, body, signature)) {
+        throw new UnauthorizedException({ error: 'invalid_signature', message: 'Chữ ký không hợp lệ' });
+      }
+      const bodyLead = Number(body.lead_id ?? body.leadId ?? 0);
+      if (bodyLead && bodyLead !== Number(leadId)) {
+        throw new BadRequestException({ error: 'lead_mismatch', message: 'lead_id không khớp' });
+      }
+      const loaded = await this.loadClientBrief(leadId);
+      const content = planContentFromRow(loaded.plan);
+      const current = parseSolutionAiFromStrategy(content.strategy_framework);
+      const jobId = String(body.job_id ?? body.jobId ?? '').trim();
+      if (current?.job_id && jobId && current.job_id !== jobId) {
+        throw new BadRequestException({ error: 'job_mismatch', message: 'job_id không khớp' });
+      }
+      const sectionRaw = (body.sections ?? body.solution ?? body) as unknown;
+      const packed = packSolutionAi({
+        status: 'ready',
+        source: 'agent',
+        job_id: jobId || current?.job_id,
+        requested_at: current?.requested_at,
+        completed_at: new Date().toISOString(),
+        title: String(body.title ?? current?.title ?? '').trim() || current?.title,
+        sections: normalizeSolutionAiSections(sectionRaw),
+        job: current?.job,
+      });
+      const out = await this.persistSolutionAiDraft({
+        leadId,
+        loaded,
+        content,
+        packed,
+        modelName: 'agent',
+        stubMode: false,
+        source: 'agent',
+        status: 'ready',
+        sourceErrors: [],
+      });
+      await this.notifyResponsible(loaded.snap.presales.assigned_am, {
+        kind: 'presales_solution',
+        title: 'AI đã viết xong Solution',
+        body: `Lead #${leadId} — bản nháp AI đã sẵn sàng. Vui lòng kiểm tra và chỉnh sửa trước khi nộp.`,
+        link_href: `/crm/leads/${leadId}`,
+        meta_json: { lead_id: leadId, action: 'open_lead', source: 'solution_ai' },
+      });
+      return out;
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async getSolutionAiJob(leadId: number, signature: string) {
+    try {
+      const agent = readSolutionAgentConfig();
+      const signedLead = { lead_id: leadId };
+      if (!agent.configured || !verifySolutionAiSignature(agent.secret, signedLead, signature)) {
+        throw new UnauthorizedException({ error: 'invalid_signature', message: 'Chữ ký không hợp lệ' });
+      }
+      const loaded = await this.loadClientBrief(leadId);
+      const content = planContentFromRow(loaded.plan);
+      const packed = parseSolutionAiFromStrategy(content.strategy_framework);
+      if (!packed) {
+        throw new NotFoundException({ error: 'solution_ai_job_not_found', message: 'Chưa có job AI Solution' });
+      }
+      return { ok: true, lead_id: leadId, job: packed.job ?? packed };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  private async dispatchSolutionAiAgentJob(input: {
+    leadId: number;
+    staffUser?: StaffJwtPayload;
+    loaded: Awaited<ReturnType<LeadsFunnelService['loadClientBrief']>>;
+    content: ReturnType<typeof planContentFromRow>;
+    context: Awaited<ReturnType<typeof loadSolutionAiContext>>;
+    briefText: string;
+    sourceText: string;
+    sourceErrors: string[];
+    agent: ReturnType<typeof readSolutionAgentConfig>;
+  }) {
+    const jobId = randomUUID();
+    const planId = Number((input.loaded.plan as { id?: number }).id ?? 0);
+    const job = {
+      lead_id: input.leadId,
+      plan_id: planId,
+      job_id: jobId,
+      callback_url: `${input.agent.publicUrl}/api/v1/leads/${input.leadId}/presales/solution-ai/callback`,
+      inputs: {
+        company_name: input.loaded.company_name || input.context.companyName,
+        brief: input.briefText,
+        discovery: input.context.discovery,
+        discovery_text: input.context.discoveryText,
+        services: input.context.serviceLines,
+        service_lines: input.context.serviceLinesText,
+        budget: input.context.budgetLabel,
+        timeline: input.context.timelineLabel,
+        call_notes: input.context.callNotes,
+        attachments: input.context.attachments.map((row) => ({
+          name: row.name,
+          text: row.text,
+          error: row.error,
+        })),
+        source_text: input.sourceText,
+      },
+    };
+    const posted = await postSolutionAiWebhook(
+      input.agent.webhookUrl,
+      job,
+      signSolutionAiPayload(input.agent.secret, job),
+    );
+    if (!posted.ok) {
+      throw new ServiceUnavailableException({
+        error: 'solution_agent_unavailable',
+        message: 'Không gửi được yêu cầu tới agent AI',
+      });
+    }
+    const packed = packSolutionAi({
+      status: 'pending',
+      source: 'agent',
+      job_id: jobId,
+      requested_at: new Date().toISOString(),
+      title: `Solution sơ bộ — ${input.loaded.company_name || input.context.companyName || 'lead'}`,
+      sections: emptySolutionAiSections(),
+      job,
+    });
+    return this.persistSolutionAiDraft({
+      leadId: input.leadId,
+      staffUser: input.staffUser,
+      loaded: input.loaded,
+      content: input.content,
+      packed,
+      modelName: 'agent',
+      stubMode: false,
+      source: 'agent',
+      status: 'pending',
+      sourceErrors: input.sourceErrors,
+    });
+  }
+
+  private async persistSolutionAiDraft(input: {
+    leadId: number;
+    staffUser?: StaffJwtPayload;
+    loaded: Awaited<ReturnType<LeadsFunnelService['loadClientBrief']>>;
+    content: ReturnType<typeof planContentFromRow>;
+    packed: ReturnType<typeof packSolutionAi>;
+    modelName: string;
+    stubMode: boolean;
+    source: 'llm' | 'agent';
+    status: 'pending' | 'ready' | 'error';
+    sourceErrors: string[];
+  }) {
+    const existingProf = parseTargetMarketProfJson(input.loaded.plan.target_market_prof_json);
+    const currentBrief = readClientBrief(existingProf);
+    let prof = writeClientBrief(existingProf, { ...currentBrief, saved_after_ai: false });
+    prof = stampPresalesAiDraftMeta(prof, input.staffUser?.email ?? 'unknown', input.modelName, {
+      stub_mode: input.stubMode,
+      source: input.source,
+      status: input.status,
+    });
+    const strategy = mergeSolutionAiIntoStrategy(input.content.strategy_framework, input.packed);
+    const planName =
+      input.content.name ||
+      input.packed.title ||
+      `Solution sơ bộ — ${input.loaded.company_name || 'lead'}`;
+    const plan = await this.pgRepo.patchMarketingPlan(input.leadId, {
+      name: planName,
+      strategy_framework: strategy,
+      target_market_prof: prof,
+    });
+    const validation = validatePreliminaryPlan(plan);
+    const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+    const staffId = input.staffUser ? await this.staffAuth.resolveCrmStaffUserId(input.staffUser) : null;
+    await this.logSolutionHandoffActivity(
+      input.leadId,
+      SOLUTION_HANDOFF_ACTIVITY_TYPES.ai_draft,
+      input.staffUser?.email || (staffId ? `staff:${staffId}` : 'system'),
+      staffId ?? null,
+      input.staffUser,
+    );
+    return {
+      ok: true,
+      plan,
+      validation,
+      funnel: await this.getFunnel(input.leadId),
+      ai_draft,
+      requires_sp_review: true,
+      badge_vi: input.status === 'pending' ? SOLUTION_AI_PENDING_LABEL : PRESALES_AI_DRAFT_BADGE_VI,
+      ai: {
+        stub_mode: input.stubMode,
+        model: input.modelName,
+        source: input.source,
+        status: input.status,
+      },
+      source_errors: input.sourceErrors,
+    };
   }
 
   async exportClientPlan(
