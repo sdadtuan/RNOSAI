@@ -1,6 +1,8 @@
 /* AM Handoff Desk — pixel-faithful to the Chờ Solutions mockup.
    PTT brand: #17692f primary, #2d8a44 lime, #00762f button, #ecefea page. */
 .ahd {
+  --ahd-side: 220px;
+  --ahd-body-gap: 14px;
   --ahd-primary: #17692f;
   --ahd-primary-700: #125a28;
   --ahd-lime: #2d8a44;
@@ -309,11 +311,11 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-step--current::after { /* keep connector */ }
 .ahd-step--current { border-bottom: 2px solid var(--ahd-btn); border-radius: 0; }
 
-/* 3-column body */
+/* 3-column body: left === right; middle 2-col splits fill this same 1fr. */
 .ahd-body {
   display: grid;
-  grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px);
-  gap: 14px;
+  grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
+  gap: var(--ahd-body-gap, 14px);
   align-items: start;
   min-width: 0;
   width: 100%;
@@ -364,7 +366,8 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-dl { display: grid; gap: 6px; margin: 0; }
 .ahd-dl div { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; }
 .ahd-dl dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.ahd-dl dd { margin: 0; color: var(--ahd-ink); font-size: 12.5px; word-break: break-word; }
+.ahd-dl dd { margin: 0; color: var(--ahd-ink); font-size: 12.5px; word-break: break-word; overflow-wrap: anywhere; }
+.ahd-dl dd a, .ahd-link { overflow-wrap: anywhere; word-break: break-word; }
 .ahd-dl dd .ahd-k { color: var(--ahd-muted); }
 .ahd-dl svg { color: var(--ahd-muted); margin-top: 2px; }
 .ahd-link { color: var(--ahd-primary); text-decoration: none; }
@@ -712,7 +715,7 @@ button.ahd-check__item:focus-visible {
    Keep 3 columns down to ~1000px desk, and always at viewport >= 1200px.
    Slim side columns so the center Brief grid still fits two equal cards. */
 @container ahd (max-width: 1360px) {
-  .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px); }
+  .ahd-body { grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px); }
 }
 @container ahd (max-width: 1000px) {
   .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); }
@@ -745,7 +748,7 @@ button.ahd-check__item:focus-visible {
 
 /* Viewport fallback when container queries are unavailable. */
 @media (max-width: 1100px) {
-  .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px); }
+  .ahd-body { grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px); }
 }
 @media (max-width: 900px) {
   .ahd-body { grid-template-columns: 1fr; }
@@ -767,10 +770,11 @@ button.ahd-check__item:focus-visible {
 }
 
 /* Viewport >= 1200px always keeps the 3-column desk and full stepper labels,
-   even if the desk content box is slightly under a container threshold. */
+   even if the desk content box is slightly under a container threshold.
+   Side tracks stay equal so Solution's two middle cols + gap match step 1's middle. */
 @media (min-width: 1200px) {
   .ahd-body {
-    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(220px, 240px);
+    grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
   }
   .ahd-col--side {
     grid-column: auto;

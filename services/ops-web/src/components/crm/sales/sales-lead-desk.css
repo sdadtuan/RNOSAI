@@ -152,7 +152,7 @@
 .sld .ahd-body,
 .sld .ahd-body.ahd-body--notes-only {
   align-items: start;
-  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
 }
 .sld .ahd-col--side,
 .sld .ahd-col--side-notes {
@@ -171,7 +171,7 @@
 @container ahd (max-width: 1360px) {
   .sld .ahd-body,
   .sld .ahd-body.ahd-body--notes-only {
-    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(200px, 250px);
+    grid-template-columns: var(--ahd-side, 220px) minmax(0, 1fr) var(--ahd-side, 220px);
   }
   .sld .ahd-col--side,
   .sld .ahd-col--side-notes {
@@ -184,7 +184,7 @@
 @container ahd (max-width: 1180px) {
   .sld .ahd-body,
   .sld .ahd-body.ahd-body--notes-only {
-    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(200px, 240px);
+    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(180px, 200px);
   }
   .sld .ahd-col--side,
   .sld .ahd-col--side-notes {
@@ -214,7 +214,7 @@
 @media (max-width: 1100px) {
   .sld .ahd-body,
   .sld .ahd-body.ahd-body--notes-only {
-    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(200px, 240px);
+    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(180px, 200px);
   }
   .sld .ahd-col--side,
   .sld .ahd-col--side-notes {
