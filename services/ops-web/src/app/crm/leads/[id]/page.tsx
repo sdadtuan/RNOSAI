@@ -54,7 +54,7 @@ import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
-import { firstAcceptorName, mergeLeadCareHistory, presentOwnerChanges, resolveStaffDisplayName } from '@/lib/crm/lead-history';
+import { firstAcceptorName, mergeLeadCareHistory, presentOwnerChanges, resolveActorDisplayName, resolveStaffDisplayName } from '@/lib/crm/lead-history';
 import { LeadOwnerReassignControl, currentOwnerIdForKind, ownerKindFromHandoffStep, type LeadOwnerKind } from '@/components/crm/LeadOwnerReassignControl';
 import {
   leadFlowKindLabel,
@@ -80,6 +80,7 @@ import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
 import { flowTimesFromFunnel, handoffFlowStatusLabel, resolveHandoffFlow } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
+  funnelAssignedAmId,
   funnelB2Complete,
   funnelPresalesStage,
   normalizeAgencyClientId,
@@ -215,6 +216,8 @@ export default function CrmLeadDetailPage() {
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [attribution, setAttribution] = useState<LeadAttributionData | null>(null);
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [staffDirectory, setStaffDirectory] = useState<CrmStaffRow[]>([]);
+  const openLeadIdRef = useRef<number | null>(null);
   const [catalogServices, setCatalogServices] = useState<CatalogServiceRow[]>([]);
   const [activities, setActivities] = useState<LeadActivityRow[]>([]);
   const [audit, setAudit] = useState<LeadAuditBundle | null>(null);
@@ -990,7 +993,7 @@ export default function CrmLeadDetailPage() {
         setLoading(false);
         return;
       }
-      setLoading(true);
+      if (openLeadIdRef.current !== leadId) setLoading(true);
       setError('');
       let row: Awaited<ReturnType<typeof fetchLead>>;
       try {
@@ -1001,6 +1004,7 @@ export default function CrmLeadDetailPage() {
         return;
       }
       setLead(row);
+      openLeadIdRef.current = leadId;
       setParty({
         company_name: row.company_name ?? '',
         company_address: row.company_address ?? '',
@@ -1010,7 +1014,6 @@ export default function CrmLeadDetailPage() {
         full_name: row.full_name ?? '',
       });
       setStatus(row.status || 'moi');
-      setLoading(false);
       void getQtQuotes(access, { q: `LD-${leadId}`, page_size: 1 })
         .then((list) => {
           const existing = list.items.find((item) => item.lead_code === `LD-${leadId}` || item.id);
@@ -1024,25 +1027,25 @@ export default function CrmLeadDetailPage() {
           fetchCrmStaffList(access).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
         ]);
         setAttribution(attr);
-        const assignable = (staffOut.staff ?? []).filter(
-          (s) => s.active !== 0 && s.can_receive_leads !== false,
-        );
+        const allStaff = (staffOut.staff ?? []).filter((s) => s.active !== 0);
+        const assignable = allStaff.filter((s) => s.can_receive_leads !== false);
+        if (allStaff.length) setStaffDirectory(allStaff);
         if (assignable.length) {
           setStaffOptions(assignable);
         } else if (catalog?.staff?.length) {
-          setStaffOptions(
-            catalog.staff.map((s) => ({
-              id: s.id,
-              name: s.name,
-              internal_code: s.internal_code,
-              phone: '',
-              email: '',
-              job_title: '',
-              department: '',
-              active: 1,
-              can_receive_leads: true,
-            })),
-          );
+          const fallback = catalog.staff.map((s) => ({
+            id: s.id,
+            name: s.name,
+            internal_code: s.internal_code,
+            phone: '',
+            email: '',
+            job_title: '',
+            department: '',
+            active: 1,
+            can_receive_leads: true,
+          }));
+          setStaffOptions(fallback);
+          if (!allStaff.length) setStaffDirectory(fallback);
         }
         if (catalog?.services?.length) {
           setCatalogServices(catalog.services.filter((service) => service.active));
@@ -1057,6 +1060,8 @@ export default function CrmLeadDetailPage() {
         ]);
       } catch {
         /* Hồ sơ đã hiện. Phần phụ không chặn trang. */
+      } finally {
+        setLoading(false);
       }
     })();
   }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
@@ -1360,6 +1365,7 @@ export default function CrmLeadDetailPage() {
       to_name: resolveStaffDisplayName(row.to_user_id, row.to_name, staffOptions),
       reason: row.reason,
       created_by: row.created_by,
+      created_by_name: resolveActorDisplayName(row.created_by, staffDirectory),
       created_at: row.created_at,
       dry_run: false,
       owner_kind: row.owner_kind ?? 'sales',
@@ -1373,12 +1379,13 @@ export default function CrmLeadDetailPage() {
       would_to_name: resolveStaffDisplayName(row.would_to_user_id, row.would_to_name, staffOptions),
       reason: row.reason,
       created_by: row.created_by ?? 'system',
+      created_by_name: resolveActorDisplayName(row.created_by ?? 'system', staffDirectory),
       created_at: row.created_at,
       dry_run: Boolean(row.dry_run),
       owner_kind: 'sales',
     }));
     return [...assign, ...events];
-  }, [audit, staffOptions]);
+  }, [audit, staffOptions, staffDirectory]);
   const ownerLines = useMemo(() => presentOwnerChanges(ownerHistoryInputs), [ownerHistoryInputs]);
   const firstOwner = useMemo(
     () => firstAcceptorName(ownerHistoryInputs, ownerLabel, lead?.owner_id),
@@ -1421,6 +1428,19 @@ export default function CrmLeadDetailPage() {
       quoteAm: funnelSnap?.presales?.quote_case?.assignee_staff_id ?? row?.quote_assignee_staff_id,
     });
   }, [ownerKind, lead?.owner_id, funnelSnap]);
+
+  const assignedAmId = useMemo(() => funnelAssignedAmId(funnelSnap), [funnelSnap]);
+  const assignedAmName = useMemo(
+    () =>
+      resolveStaffDisplayName(
+        assignedAmId,
+        (lead as { am_name?: string; account_manager_name?: string } | null | undefined)?.am_name ||
+          (lead as { account_manager_name?: string } | null | undefined)?.account_manager_name ||
+          (funnelSnap?.presales as { am_name?: string } | null | undefined)?.am_name,
+        staffOptions,
+      ),
+    [assignedAmId, lead, funnelSnap, staffOptions],
+  );
 
   const onOwnerAssigned = useCallback(async () => {
     if (!accessToken) return;
@@ -1620,6 +1640,12 @@ export default function CrmLeadDetailPage() {
           onMessage={setMessage}
           onError={setError}
           firstAcceptorName={firstOwner}
+          amName={assignedAmName}
+          amStaffId={assignedAmId}
+          exchangeLines={careHistory}
+          ownerLines={ownerLines}
+          selectedActivityId={selectedActivityId}
+          onSelectActivity={setSelectedActivityId}
           mgmtExtra={
             superAdmin && accessToken && lead ? (
               <LeadOwnerReassignControl
@@ -1634,14 +1660,6 @@ export default function CrmLeadDetailPage() {
               />
             ) : null
           }
-        />
-        <LeadHistoryTab
-          token={accessToken}
-          leadId={leadId}
-          exchangeLines={careHistory}
-          ownerLines={ownerLines}
-          selectedActivityId={selectedActivityId}
-          onSelectActivity={setSelectedActivityId}
         />
       </StaffPageShell>
     );
@@ -1720,6 +1738,9 @@ export default function CrmLeadDetailPage() {
           onFunnelChange={setFunnelSnap}
           onBack={() => router.push('/crm/leads')}
           firstAcceptorName={firstOwner}
+          amName={assignedAmName}
+          amStaffId={assignedAmId}
+          userId={Number(user?.id) || undefined}
           mgmtExtra={
             superAdmin && accessToken && lead ? (
               <LeadOwnerReassignControl
@@ -2032,6 +2053,12 @@ export default function CrmLeadDetailPage() {
                 onMessage={setMessage}
                 onError={setError}
                 firstAcceptorName={firstOwner}
+                amName={assignedAmName}
+                amStaffId={assignedAmId}
+                exchangeLines={careHistory}
+                ownerLines={ownerLines}
+                selectedActivityId={selectedActivityId}
+                onSelectActivity={setSelectedActivityId}
                 mgmtExtra={
                   superAdmin ? (
                     <LeadOwnerReassignControl

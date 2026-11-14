@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   funnelB2Complete,
+  funnelAssignedAmId,
   funnelPresalesStage,
   funnelServiceSlug,
   normalizeAgencyClientId,
@@ -33,3 +34,11 @@ describe('funnel-snapshot.util', () => {
     expect(normalizeAgencyClientId('  uuid  ')).toBe('uuid');
   });
 });
+
+  it('funnelAssignedAmId reads nested presales.assigned_am', () => {
+    expect(funnelAssignedAmId(null)).toBeNull();
+    expect(
+      funnelAssignedAmId({ presales: { presales: { assigned_am: 108 } } } as never),
+    ).toBe(108);
+    expect(funnelAssignedAmId({ presales: { assigned_am: 107 } } as never)).toBe(107);
+  });

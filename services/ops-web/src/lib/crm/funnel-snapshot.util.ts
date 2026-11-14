@@ -19,3 +19,15 @@ export function normalizeAgencyClientId(value: unknown): string | null {
   const id = String(value ?? '').trim();
   return id || null;
 }
+
+type PresalesOwnerFields = { assigned_am?: number | null };
+
+export function funnelAssignedAmId(funnel: LeadFunnelSnapshot | null | undefined): number | null {
+  const block = funnel?.presales as
+    | (PresalesOwnerFields & { presales?: PresalesOwnerFields })
+    | null
+    | undefined;
+  const raw = block?.presales?.assigned_am ?? block?.assigned_am;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}

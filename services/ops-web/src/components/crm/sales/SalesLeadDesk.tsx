@@ -25,6 +25,7 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
+import { funnelAssignedAmId } from '@/lib/crm/funnel-snapshot.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
@@ -136,6 +137,9 @@ export type SalesLeadDeskProps = {
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onBack?: () => void;
   firstAcceptorName?: string | null;
+  amName?: string | null;
+  amStaffId?: number | null;
+  userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
 };
@@ -149,6 +153,9 @@ export function SalesLeadDesk({
   salesViewer = true,
   onBack,
   firstAcceptorName = null,
+  amName: amNameProp,
+  amStaffId,
+  userId,
   mgmtExtra,
   children,
 }: SalesLeadDeskProps) {
@@ -233,11 +240,14 @@ export function SalesLeadDesk({
     ...flowTimesFromFunnel(funnel),
   });
   const salesName = dash((lead as { owner_name?: string }).owner_name || (salesViewer ? userName : ''));
+  const assignedAmId = amStaffId ?? funnelAssignedAmId(funnel);
   const amName = dash(
-    (lead as { am_name?: string; account_manager_name?: string }).am_name ||
+    amNameProp ||
+      (lead as { am_name?: string; account_manager_name?: string }).am_name ||
       (lead as { account_manager_name?: string }).account_manager_name ||
       (funnel?.presales as { am_name?: string } | null | undefined)?.am_name,
   );
+  const amIsYou = Boolean(userId && assignedAmId && Number(userId) === Number(assignedAmId));
   const temp = view.temperature;
   const tempLabel = temperatureLabel(temp) || temp;
   const source = humanizeSource(view.source) || dash(lead.source || lead.channel);
@@ -374,9 +384,9 @@ export function SalesLeadDesk({
               ) : null}
               <div className="ahd-person">
                 <span className="ahd-person__av">{initials(amName === '—' ? 'A' : amName)}</span>
-                <span>
+                <span data-testid="ahd-am-owner">
                   AM phụ trách: <strong>{amName}</strong>
-                  {!salesViewer && amName !== '—' ? <span className="ahd-you"> (Bạn)</span> : null}
+                  {amIsYou ? <span className="ahd-you"> (Bạn)</span> : null}
                 </span>
               </div>
               {temp ? (
@@ -424,6 +434,9 @@ export function SalesOrLegacyLeadLayout({
   onFunnelChange,
   onBack,
   firstAcceptorName,
+  amName,
+  amStaffId,
+  userId,
   mgmtExtra,
   children,
 }: {
@@ -437,6 +450,9 @@ export function SalesOrLegacyLeadLayout({
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onBack?: () => void;
   firstAcceptorName?: string | null;
+  amName?: string | null;
+  amStaffId?: number | null;
+  userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
 }) {
@@ -452,6 +468,9 @@ export function SalesOrLegacyLeadLayout({
         onFunnelChange={onFunnelChange}
         onBack={onBack}
         firstAcceptorName={firstAcceptorName}
+        amName={amName}
+        amStaffId={amStaffId}
+        userId={userId}
         mgmtExtra={mgmtExtra}
       >
         {children}

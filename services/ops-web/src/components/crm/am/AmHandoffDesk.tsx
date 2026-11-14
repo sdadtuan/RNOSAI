@@ -38,10 +38,15 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
+import { funnelAssignedAmId } from '@/lib/crm/funnel-snapshot.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
+import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
+import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
+import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
+import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import {
   buildAmDeskBrief,
   checklistSourceFromMerged,
@@ -56,7 +61,7 @@ import {
 import { pushToast } from '@/lib/toast';
 import './am-handoff-desk.css';
 
-type TabKey = 'brief' | 'history' | 'files' | 'notes';
+type TabKey = 'brief' | 'history' | 'files' | 'solution' | 'notes';
 
 type Attachment = { id: string; name: string; mime?: string; data_url?: string };
 
@@ -267,7 +272,6 @@ export function AmHandoffDesk({
   lead,
   party,
   funnel,
-  userName,
   userId,
   onFunnelChange,
   onBack,
@@ -276,6 +280,11 @@ export function AmHandoffDesk({
   exchangeLines = [],
   marketingLeaders = [],
   firstAcceptorName = null,
+  amName: amNameProp,
+  amStaffId,
+  ownerLines = [],
+  selectedActivityId = null,
+  onSelectActivity,
   mgmtExtra,
 }: {
   token: string;
@@ -297,9 +306,14 @@ export function AmHandoffDesk({
   onBack?: () => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
-  exchangeLines?: ExchangeLine[];
+  exchangeLines?: Array<ExchangeLine | LeadHistoryLine>;
   marketingLeaders?: StaffOption[];
   firstAcceptorName?: string | null;
+  amName?: string | null;
+  amStaffId?: number | null;
+  ownerLines?: LeadHistoryLine[];
+  selectedActivityId?: number | null;
+  onSelectActivity?: (id: number | null) => void;
   mgmtExtra?: ReactNode;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
@@ -478,12 +492,32 @@ export function AmHandoffDesk({
         Boolean(handoff?.handed_off_at)),
   });
   const salesName = dash((lead as { owner_name?: string }).owner_name);
-  const amName = dash(userName);
+  const assignedAmId = amStaffId ?? funnelAssignedAmId(funnel);
+  const amName = dash(
+    amNameProp ||
+      (lead as { am_name?: string; account_manager_name?: string }).am_name ||
+      (lead as { account_manager_name?: string }).account_manager_name ||
+      (funnel?.presales as { am_name?: string } | null | undefined)?.am_name,
+  );
+  const amIsYou = Boolean(userId && assignedAmId && Number(userId) === Number(assignedAmId));
   const temp = view.temperature;
   const tempLabel = temperatureLabel(temp) || temp;
   const source = humanizeSource(view.source) || dash(lead.source || lead.channel);
   const created = formatHandoffStamp(lead.created_at || lead.received_at);
   const sentAm = formatHandoffStamp(handoff?.handed_off_at);
+
+
+  const ownerHistoryExchange = (exchangeLines as unknown as LeadHistoryLine[]).map((line, i) => {
+    if (line && typeof line === 'object' && 'what' in line && 'who' in line) return line;
+    const raw = line as unknown as { id?: number; author?: string; text?: string; at?: string };
+    return {
+      key: `ex-${raw.id ?? i}`,
+      id: Number(raw.id) || i,
+      who: String(raw.author ?? ''),
+      what: String(raw.text ?? ''),
+      when: String(raw.at ?? ''),
+    } satisfies LeadHistoryLine;
+  });
 
   const canAssign = flow.currentKey === 'await_solutions';
 
@@ -727,11 +761,11 @@ export function AmHandoffDesk({
                   </span>
                 </div>
               ) : null}
-              <div className="ahd-person">
+              <div className="ahd-person" data-testid="ahd-am-owner">
                 <span className="ahd-person__av">{initials(amName === '—' ? 'A' : amName)}</span>
                 <span>
                   AM phụ trách: <strong>{amName === '—' ? '—' : amName}</strong>
-                  {amName !== '—' ? <span className="ahd-you"> (Bạn)</span> : null}
+                  {amIsYou ? <span className="ahd-you"> (Bạn)</span> : null}
                 </span>
               </div>
               {temp ? (
@@ -755,8 +789,9 @@ export function AmHandoffDesk({
             {(
               [
                 ['brief', 'Sales Brief (Tóm tắt nhu cầu)', I.brief],
-                ['history', 'Lịch sử trao đổi', I.chat],
+                ['history', 'Lịch sử', I.chat],
                 ['files', `Tệp đính kèm (${fileCount})`, I.clip],
+                ['solution', 'Solution', I.clip],
                 ['notes', 'Ghi chú nội bộ', I.note],
               ] as const
             ).map(([key, label, icon]) => (
@@ -822,27 +857,30 @@ export function AmHandoffDesk({
           ) : null}
 
           {tab === 'history' ? (
-            <section className="ahd-card" data-testid="ahd-history">
-              <h3 className="ahd-card__title">
-                <Icon d={I.chat} />
-                Lịch sử trao đổi
-              </h3>
-              {exchangeLines.length === 0 ? (
-                <p className="ahd-empty">Chưa có lịch sử trao đổi.</p>
-              ) : (
-                <div className="ahd-history">
-                  {exchangeLines.map((line, i) => (
-                    <div className="ahd-history__item" key={String(line.id ?? i)}>
-                      {line.at ? <time>{formatHandoffStamp(line.at)}</time> : null}
-                      <p className="ahd-prose">
-                        {line.author ? <strong>{line.author}: </strong> : null}
-                        {line.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            <div data-testid="ahd-history">
+              <LeadHistoryTab
+                token={token}
+                leadId={lead.id}
+                exchangeLines={ownerHistoryExchange}
+                ownerLines={ownerLines}
+                selectedActivityId={selectedActivityId}
+                onSelectActivity={onSelectActivity ?? (() => undefined)}
+              />
+            </div>
+          ) : null}
+
+          {tab === 'solution' ? (
+            <div data-testid="ahd-solution">
+              <SolutionCaseDesk
+                token={token}
+                lead={lead}
+                party={(party ?? {}) as LeadPartyFormValue}
+                funnel={funnel}
+                onFunnelChange={onFunnelChange}
+                onMessage={onMessage}
+                onError={onError}
+              />
+            </div>
           ) : null}
 
           {tab === 'files' ? (

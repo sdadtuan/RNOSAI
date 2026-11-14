@@ -27,7 +27,7 @@ export type LeadHistoryLine = {
   when: string;
 };
 
-const SYSTEM_ACTORS = new Set(['', 'system', 'revops-sla-worker', 'ae']);
+const SYSTEM_ACTORS = new Set(['', 'system', 'revops-sla-worker', 'ae', 'auto_assign', 'auto-assign']);
 
 function formatWhen(raw: string | null | undefined): string {
   const value = String(raw ?? '').trim();
@@ -145,6 +145,7 @@ export type LeadOwnerChangeInput = {
   to_user_id?: number | null;
   reason?: string | null;
   created_by?: string | null;
+  created_by_name?: string | null;
   created_at: string;
   dry_run?: boolean;
   owner_kind?: string | null;
@@ -168,17 +169,37 @@ export function formatHistoryClock(raw: string | null | undefined): string {
   return `${get('hour')}:${get('minute')} ${get('day')}/${get('month')}/${get('year')}`;
 }
 
-function actorDisplay(createdBy: string | null | undefined): string {
+function isSystemActor(createdBy: string | null | undefined): boolean {
+  const value = String(createdBy ?? '').trim().toLowerCase();
+  return !value || SYSTEM_ACTORS.has(value) || value.startsWith('staff:');
+}
+
+function actorDisplay(createdBy: string | null | undefined, createdByName?: string | null): string {
+  if (isSystemActor(createdBy)) return 'Hệ thống';
+  const named = displayStaffName(createdByName);
+  if (named !== '—') return named;
   const value = String(createdBy ?? '').trim();
-  if (!value) return '';
-  if (SYSTEM_ACTORS.has(value.toLowerCase()) || value.toLowerCase().startsWith('staff:')) return 'Hệ thống';
   return value;
+}
+
+/** Map assigned_by email/code to a staff display name when one exists. */
+export function resolveActorDisplayName(
+  createdBy: string | null | undefined,
+  staff: Array<{ id: number; name: string; email?: string | null }> = [],
+): string {
+  if (isSystemActor(createdBy)) return '';
+  const raw = String(createdBy ?? '').trim();
+  const lower = raw.toLowerCase();
+  const hit = staff.find((row) => String(row.email ?? '').trim().toLowerCase() === lower);
+  if (hit?.name?.trim()) return hit.name.trim();
+  return raw;
 }
 
 export function ownerChangeReasonLabel(
   reason: string | null | undefined,
   createdBy?: string | null,
   dryRun?: boolean,
+  createdByName?: string | null,
 ): string {
   const raw = String(reason ?? '').trim();
   const lower = raw.toLowerCase();
@@ -191,11 +212,13 @@ export function ownerChangeReasonLabel(
     /tre\s*cập|trễ\s*cập|update_timeout|sla_hold_expired_1[bc]|would_reassign:.*1[bc]|hold_expired/.test(lower)
   ) {
     core = 'trễ cập nhật';
+  } else if (isSystemActor(createdBy) || lower === 'auto_assign' || lower === 'auto-assign') {
+    core = 'tự động';
   } else {
-    const who = actorDisplay(createdBy);
-    core = who ? `thủ công bởi ${who}` : 'thủ công';
+    const who = actorDisplay(createdBy, createdByName);
+    core = who && who !== 'Hệ thống' ? `thủ công bởi ${who}` : 'thủ công';
   }
-  if (dryRun) core = `${core} (dự kiến)`;
+  if (dryRun) core = `${core} (chạy thử, chưa chuyển)`;
   return core;
 }
 
@@ -242,13 +265,17 @@ export function presentOwnerChange(row: LeadOwnerChangeInput): LeadHistoryLine {
   const role = ownerRoleLabel(row.owner_kind);
   const from = displayStaffName(row.from_name);
   const to = displayStaffName(row.would_to_name || row.to_name);
-  const why = ownerChangeReasonLabel(row.reason, row.created_by, row.dry_run);
+  const why = ownerChangeReasonLabel(row.reason, row.created_by, row.dry_run, row.created_by_name);
   const when = formatHistoryClock(row.created_at);
+  const core =
+    from === '—'
+      ? `Giao ban đầu cho ${role} ${to}`
+      : `Chuyển từ ${role} ${from} → ${role} ${to}`;
   return {
     key: `owner-${row.id}`,
     id: Number(row.id) || 0,
-    who: actorDisplay(row.created_by) || 'Hệ thống',
-    what: `Chuyển từ ${role} ${from} → ${role} ${to} · ${why} · ${when}`,
+    who: actorDisplay(row.created_by, row.created_by_name) || 'Hệ thống',
+    what: `${core} · ${why} · ${when}`,
     when: '',
   };
 }

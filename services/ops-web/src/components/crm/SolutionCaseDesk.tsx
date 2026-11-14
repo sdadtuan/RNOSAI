@@ -9,6 +9,7 @@ import {
   releaseLeadToSales,
   returnLeadToSales,
   updateLeadSolutionDeadline,
+  postLeadPresalesMarketingPlanAiDraft,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -307,6 +308,7 @@ export function SolutionCaseDesk({
     setDeadlineText(isoToViDate(storedDue));
   }, [storedDue]);
   const canEditDeadline = !filesOnly && (handoff === 'pending' || handoff === 'with_solution');
+  const canEditFiles = handoff === 'pending' || handoff === 'with_solution';
   const serviceSlug = session?.service_slug || funnel?.presales?.presales.service_slug || '';
 
   const load = useCallback(async () => {
@@ -380,11 +382,22 @@ export function SolutionCaseDesk({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy || handoff !== 'with_solution'}
+            disabled={busy || !canEditFiles}
             onClick={() => solutionFileInputRef.current?.click()}
           >
             Chọn file
           </button>
+          {canEditFiles ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              data-testid="solution-desk-ai"
+              onClick={() => void run(runAiSolution)}
+            >
+              AI tạo Solution
+            </button>
+          ) : null}
         </div>
         {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
@@ -527,6 +540,17 @@ export function SolutionCaseDesk({
     if (packed.funnel) onFunnelChange(packed.funnel);
     downloadSolutionHtml(html);
     onMessage?.('Đã đóng gói hồ sơ Solution.');
+  }
+
+
+  async function runAiSolution() {
+    const out = await postLeadPresalesMarketingPlanAiDraft(token, lead.id);
+    if (out.funnel) onFunnelChange(out.funnel);
+    await load();
+    const note = out.validation?.ok
+      ? (out.badge_vi || out.ai_draft?.badge_vi || 'Đã tạo bản nháp Solution bằng AI.')
+      : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
+    onMessage?.(note);
   }
 
   const hasSolutionFile = files.some((file) => file.name.trim());
@@ -811,7 +835,7 @@ export function SolutionCaseDesk({
           type="file"
           aria-label="Chọn file Solution"
           data-testid="solution-desk-file"
-          disabled={busy || handoff !== 'with_solution'}
+          disabled={busy || !canEditFiles}
           onChange={(event) => {
             const picked = event.target.files?.[0];
             event.target.value = '';
@@ -864,12 +888,23 @@ export function SolutionCaseDesk({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy || handoff !== 'with_solution'}
+            disabled={busy || !canEditFiles}
             onClick={() => solutionFileInputRef.current?.click()}
             data-testid="solution-desk-file-btn"
           >
             {uploadLabel ?? 'Chọn file'}
           </button>
+          {canEditFiles ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              data-testid="solution-desk-ai"
+              onClick={() => void run(runAiSolution)}
+            >
+              AI tạo Solution
+            </button>
+          ) : null}
         </div>
         {uploadLabel ? (
           <div
@@ -896,7 +931,7 @@ export function SolutionCaseDesk({
                 <a href={file.data_url} download={file.name}>
                   {file.name}
                 </a>
-                {handoff === 'with_solution' ? (
+                {canEditFiles ? (
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
