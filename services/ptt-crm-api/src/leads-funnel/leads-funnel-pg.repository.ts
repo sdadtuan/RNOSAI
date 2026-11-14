@@ -2276,23 +2276,45 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
 
-    let assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
-    const autoAssigned = await this.autoAssignSolutionOwner(
-      leadId,
-      snap.presales.id,
-      assignedAm,
-      snap.presales.last_solution_owner_staff_id ?? null,
-    );
-    if (autoAssigned) assignedAm = autoAssigned;
-    const lastOwner = assignedAm > 0 ? assignedAm : snap.presales.last_solution_owner_staff_id;
-    const autoReclaim =
-      lastOwner != null &&
-      lastOwner > 0 &&
-      (assignedAm > 0 || (await this.staffIsEligibleSolutionOwner(lastOwner)));
-
-    if (autoReclaim && lastOwner && assignedAm <= 0) {
+    // Owner auto-assign + handoff write commit (or roll back) together, under a row lock.
+    let updatedRow!: PgPresalesRow;
+    let reclaimed = false;
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query(
+        `SELECT handoff_status, assigned_am, last_solution_owner_staff_id
+           FROM crm_lead_presales
+          WHERE id = $1
+          FOR UPDATE`,
+        [snap.presales.id],
+      );
+      const current = (locked.rows[0] ?? {}) as Record<string, unknown>;
+      const currentHandoff = String(current.handoff_status ?? '');
+      if (currentHandoff === 'pending' || currentHandoff === 'with_solution') {
+        throw new Error('Lead đã được giao Solution.');
+      }
+      let assignedAm = current.assigned_am != null ? Number(current.assigned_am) : 0;
+      const lastSolutionOwner =
+        current.last_solution_owner_staff_id != null ? Number(current.last_solution_owner_staff_id) : null;
+      const autoAssigned = await this.autoAssignSolutionOwner(
+        client,
+        leadId,
+        snap.presales.id,
+        assignedAm,
+        lastSolutionOwner,
+      );
+      if (autoAssigned) assignedAm = autoAssigned;
+      const lastOwner = assignedAm > 0 ? assignedAm : lastSolutionOwner;
+      const autoReclaim =
+        lastOwner != null &&
+        lastOwner > 0 &&
+        (assignedAm > 0 || (await this.staffIsEligibleSolutionOwner(lastOwner)));
       const due = solutionWorkDueAt(new Date(), currentSolutionWorkSettings());
-      const updated = await this.db.query(
+
+      if (autoReclaim && lastOwner && assignedAm <= 0) {
+        reclaimed = true;
+        const updated = await client.query(
         `UPDATE crm_lead_presales
          SET stage = 'consult',
              stage_entered_at = NOW(),
@@ -2316,21 +2338,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          WHERE id = $1
          RETURNING *`,
         [snap.presales.id, staffId, lastOwner, due.toISOString()],
-      );
-      await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
-      await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
-      const status = await this.currentLeadStatus(leadId);
-      await this.noteLeadStep(
-        leadId,
-        staffId,
-        status,
-        'Case tự động giữ AM phụ trách trước. SLA Solutions 4 giờ làm việc (08:30–18:30).',
-      );
-      return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
-    }
-
-    const workDue = solutionWorkDueAt(new Date(), currentSolutionWorkSettings());
-    const updated = await this.db.query(
+        );
+        updatedRow = updated.rows[0] as PgPresalesRow;
+      } else {
+        const updated = await client.query(
       `UPDATE crm_lead_presales
        SET stage = 'consult',
            stage_entered_at = NOW(),
@@ -2354,18 +2365,37 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            missing_info_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, workDue.toISOString()],
-    );
+      [snap.presales.id, staffId, due.toISOString()],
+        );
+        updatedRow = updated.rows[0] as PgPresalesRow;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
     const status = await this.currentLeadStatus(leadId);
+    if (reclaimed) {
+      await this.noteLeadStep(
+        leadId,
+        staffId,
+        status,
+        'Case tự động giữ AM phụ trách trước. SLA Solutions 4 giờ làm việc (08:30–18:30).',
+      );
+      return this.mapPresalesRow(updatedRow);
+    }
     await this.noteLeadStep(
       leadId,
       staffId,
       status,
       `Lead chờ AM nhận Solutions. Hạn nhận case ${Number.isFinite(Number(opts.acceptMinutes)) && Number(opts.acceptMinutes) >= 0 ? Number(opts.acceptMinutes) : SOLUTION_ACCEPT_MINUTES} phút.`,
     );
-    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+    return this.mapPresalesRow(updatedRow);
   }
 
   /** Solution pool member: active and AM position (ACM/KD-01) or HR "Nhận Solution". */
@@ -2398,8 +2428,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
    * pool owner or the next pool member (round-robin, pool key solution_am) and log it as
    * "Hệ thống · Giao Solution cho X (tự động)". Returns the new assigned_am, or null when unchanged.
    * Empty pool keeps the old behaviour (AM desk claim) and logs a warning.
+   * Runs on the caller's transaction (handoffToSolution) so the owner change and the handoff
+   * update commit together; the advisory lock is held until that transaction ends.
    */
   private async autoAssignSolutionOwner(
+    client: PoolClient,
     leadId: number,
     presalesId: number,
     assignedAm: number,
@@ -2410,9 +2443,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const lastOwnerInPool = lastOwner > 0 ? await this.isSolutionPoolMember(lastOwner) : false;
     if (assignedAmInPool || (assignedAm <= 0 && lastOwnerInPool)) return null;
     const ownerKindColumn = await this.hasAssignmentLogOwnerKind();
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
+    {
       // Serialise concurrent submits so two leads never take the same rotation slot.
       await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [SOLUTION_AUTO_ASSIGN_POOL_KEY]);
       const pool = await client.query(
@@ -2441,7 +2472,6 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         lastAutoStaffId: lastAuto.rows[0]?.to_owner_id ?? null,
       });
       if (decision.action !== 'assign') {
-        await client.query('ROLLBACK');
         if (decision.action === 'none') {
           new Logger(LeadsFunnelPgRepository.name).warn(
             `Solution auto-assign: pool is empty (no active AM / Nhận Solution staff); lead=${leadId} stays on the AM desk queue`,
@@ -2469,13 +2499,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           [leadId, decision.staffId, reason],
         );
       }
-      await client.query('COMMIT');
       return decision.staffId;
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw err;
-    } finally {
-      client.release();
     }
   }
 
