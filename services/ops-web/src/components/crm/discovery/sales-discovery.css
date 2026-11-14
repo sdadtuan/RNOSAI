@@ -53,7 +53,7 @@
 .sd-input:focus, .sd-select:focus, .sd-textarea:focus {
   outline: 2px solid #b7e0c6; border-color: #00762f;
 }
-.sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled { background: #f4f6f8; color: #526070; }
+.sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled { background: #ffffcd; color: #526070; }
 .sd-hint { font-size: 0.78rem; color: #6a7a8b; }
 .sd-radios { display: flex; flex-direction: column; gap: 8px; }
 .sd-radio { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; cursor: pointer; }

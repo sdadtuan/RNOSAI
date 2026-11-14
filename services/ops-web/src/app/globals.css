@@ -26852,17 +26852,18 @@ html.rs-mobile-chrome .crm-leads-signal {
 .solution-ai-draft,
 .solution-ai-doc {
   margin-top: 12px;
-  border: 1px solid var(--surface-border, #d9e2dc);
-  border-radius: 10px;
-  background: #fff;
+  background: var(--ahd-card, #ffffff);
+  border: 1px solid #ececee;
+  border-radius: var(--ahd-radius, 12px);
+  box-shadow: var(--ahd-shadow, 0 1px 2px rgba(22, 28, 22, 0.05), 0 1px 3px rgba(22, 28, 22, 0.04));
   overflow: hidden;
   max-width: 100%;
   min-width: 0;
 }
 .solution-ai-doc__header {
   padding: 14px 14px 12px;
-  background: linear-gradient(180deg, #f4f8f5 0%, #eef3f0 100%);
-  border-bottom: 1px solid #d9e2dc;
+  background: var(--ahd-card, #ffffff);
+  border-bottom: 1px solid #ececee;
   min-width: 0;
 }
 .solution-ai-doc__kicker {
@@ -26932,10 +26933,11 @@ html.rs-mobile-chrome .crm-leads-signal {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  padding: 8px 9px;
-  border: 1px solid #d9e2dc;
-  border-radius: 8px;
-  background: #fff;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid #ececee;
+  border-radius: 0;
+  background: transparent;
   min-width: 0;
 }
 .solution-ai-doc__file-icon {
@@ -27069,83 +27071,97 @@ html.rs-mobile-chrome .crm-leads-signal {
   margin: 0 0 12px;
 }
 
-/* t121: CRM lead page form fields share the select light-yellow fill */
+/* t152: one shared CRM lead-page field fill (incl. disabled / readonly) */
 .lead-detail-page,
 .ahd,
 .sld,
 .sd-page,
-.sd-embed {
+.sd-embed,
+.ahd-modal,
+.lead-fr-sla {
   --crm-lead-field-bg: #ffffcd;
   --crm-lead-field-border: #cfd8e3;
 }
 
 .lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):is(:disabled, :read-only, [readonly]),
 .lead-detail-page select,
+.lead-detail-page select:is(:disabled, :read-only, [readonly]),
 .lead-detail-page textarea,
+.lead-detail-page textarea:is(:disabled, :read-only, [readonly]),
+.lead-detail-page [contenteditable="true"],
 .ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):is(:disabled, :read-only, [readonly]),
 .ahd select,
+.ahd select:is(:disabled, :read-only, [readonly]),
 .ahd textarea,
+.ahd textarea:is(:disabled, :read-only, [readonly]),
+.ahd [contenteditable="true"],
 .sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):is(:disabled, :read-only, [readonly]),
 .sld select,
+.sld select:is(:disabled, :read-only, [readonly]),
 .sld textarea,
-.sd-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.sld textarea:is(:disabled, :read-only, [readonly]),
+.sld [contenteditable="true"],
+.sd-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.sd-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):is(:disabled, :read-only, [readonly]),
 .sd-page select,
+.sd-page select:is(:disabled, :read-only, [readonly]),
 .sd-page textarea,
-.sd-embed input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.sd-page textarea:is(:disabled, :read-only, [readonly]),
+.sd-embed input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.sd-embed input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):is(:disabled, :read-only, [readonly]),
 .sd-embed select,
+.sd-embed select:is(:disabled, :read-only, [readonly]),
 .sd-embed textarea,
+.sd-embed textarea:is(:disabled, :read-only, [readonly]),
+.ahd-modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.ahd-modal select,
+.ahd-modal textarea,
 .lead-detail-page .lead-input,
 .lead-detail-page .lead-select,
 .lead-detail-page .sd-input,
 .lead-detail-page .sd-select,
 .lead-detail-page .sd-textarea,
+.lead-detail-page .form-input,
 .ahd .lead-input,
 .ahd .lead-select,
 .ahd .sd-input,
 .ahd .sd-select,
 .ahd .sd-textarea,
+.ahd .form-input,
 .ahd .ahd-field input,
 .ahd .ahd-field select,
 .ahd .ahd-field textarea,
 .ahd .ahd-note-form textarea,
 .ahd .solution-desk__deadline input,
+.ahd .solution-ai-doc__input,
 .sld .sd-input,
 .sld .sd-select,
-.sld .sd-textarea {
-  background-color: var(--crm-lead-field-bg, #ffffcd) !important;
-  border-color: var(--crm-lead-field-border, #cfd8e3) !important;
-}
-
-html.ops-shell-bitrix .lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.sld .sd-textarea,
+.sld .form-input,
+.lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+.lead-fr-sla__form select,
+.lead-fr-sla__form textarea,
+html.ops-shell-bitrix .lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
 html.ops-shell-bitrix .lead-detail-page select,
 html.ops-shell-bitrix .lead-detail-page textarea,
-html.ops-shell-bitrix .ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.ops-shell-bitrix .ahd input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
 html.ops-shell-bitrix .ahd select,
 html.ops-shell-bitrix .ahd textarea,
-html.ops-shell-bitrix .sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+html.ops-shell-bitrix .sld input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
 html.ops-shell-bitrix .sld select,
 html.ops-shell-bitrix .sld textarea,
-html.ops-shell-bitrix .lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+html.ops-shell-bitrix .lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
 html.ops-shell-bitrix .lead-fr-sla__form select,
 html.ops-shell-bitrix .lead-fr-sla__form textarea {
+  background: var(--crm-lead-field-bg, #ffffcd) !important;
   background-color: var(--crm-lead-field-bg, #ffffcd) !important;
   border-color: var(--crm-lead-field-border, #cfd8e3) !important;
 }
 
-.lead-detail-page .lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-.lead-detail-page .lead-fr-sla__form select,
-.lead-detail-page .lead-fr-sla__form textarea,
-.sld .lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-.sld .lead-fr-sla__form select,
-.sld .lead-fr-sla__form textarea,
-.lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-.lead-fr-sla__form select,
-.lead-fr-sla__form textarea {
-  background-color: var(--crm-lead-field-bg, #ffffcd) !important;
-  border-color: var(--crm-lead-field-border, #cfd8e3) !important;
-}
-
-.lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):-webkit-autofill,
+.lead-detail-page input:-webkit-autofill,
 .lead-detail-page textarea:-webkit-autofill,
 .lead-detail-page select:-webkit-autofill,
 .ahd input:-webkit-autofill,
@@ -27153,22 +27169,10 @@ html.ops-shell-bitrix .lead-fr-sla__form textarea {
 .ahd select:-webkit-autofill,
 .sld input:-webkit-autofill,
 .sld textarea:-webkit-autofill,
-.sld select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset;
-  box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset;
-}
-
-.lead-detail-page input:disabled,
-.lead-detail-page select:disabled,
-.lead-detail-page textarea:disabled,
-.ahd input:disabled,
-.ahd select:disabled,
-.ahd textarea:disabled,
-.sld input:disabled,
-.sld select:disabled,
-.sld textarea:disabled,
-.sd-input:disabled,
-.sd-select:disabled,
-.sd-textarea:disabled {
-  background-color: #f4f6f8;
+.sld select:-webkit-autofill,
+.sd-page input:-webkit-autofill,
+.sd-embed input:-webkit-autofill,
+.lead-fr-sla__form input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
+  box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
 }

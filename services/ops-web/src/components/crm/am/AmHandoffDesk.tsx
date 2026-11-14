@@ -798,8 +798,8 @@ export function AmHandoffDesk({
             {(
               [
                 ['brief', 'Sales Brief', I.brief],
+                ['solution', 'File Solution', I.clip],
                 ['history', 'Lịch sử', I.chat],
-                ['solution', 'Solution', I.clip],
                 ['notes', 'Ghi chú nội bộ', I.note],
               ] as const
             ).map(([key, label, icon]) => (
