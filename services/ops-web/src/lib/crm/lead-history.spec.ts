@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstAcceptorName, mergeLeadCareHistory, presentLeadHistory, presentOwnerChange, resolveActorDisplayName } from './lead-history';
+import { firstAcceptorName, isSolutionHistoryLine, mergeLeadCareHistory, presentLeadHistory, presentOwnerChange, resolveActorDisplayName } from './lead-history';
 
 describe('presentLeadHistory', () => {
   it('shows the carer, the update, and the time in Vietnamese', () => {
@@ -251,5 +251,45 @@ describe('presentLeadHistory solution flow', () => {
     });
     expect(line.who).toBe('Admin');
     expect(line.what).toMatch(/^Admin · Nộp Solution cho Sales · \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/);
+    expect(line.kind).toBe('solution');
+    expect(isSolutionHistoryLine(line)).toBe(true);
+  });
+
+  it('formats AI and upload events even when the API stored them as note', () => {
+    const ai = presentLeadHistory({
+      id: 92,
+      user_name: 'Admin Local',
+      created_by: 'admin@local',
+      activity_type: 'note',
+      content: 'Admin Local · AI tạo Solution',
+      created_at: '2026-11-14T12:21:00.000Z',
+    });
+    expect(ai.what).toBe('Admin Local · AI tạo Solution · 19:21 14/11/2026');
+    expect(ai.kind).toBe('solution');
+    expect(isSolutionHistoryLine(ai)).toBe(true);
+
+    const uploaded = presentLeadHistory({
+      id: 93,
+      user_name: 'Admin Local',
+      created_by: 'admin@local',
+      activity_type: 'note',
+      content: 'Admin Local · Tải file Solution: qa104-solution.pdf',
+      created_at: '2026-11-14T12:19:00.000Z',
+    });
+    expect(uploaded.what).toBe('Admin Local · Tải file Solution: qa104-solution.pdf · 19:19 14/11/2026');
+    expect(uploaded.kind).toBe('solution');
+  });
+
+  it('formats Sales nhận / xem notes as who · action · HH:mm dd/MM/yyyy', () => {
+    const received = presentLeadHistory({
+      id: 94,
+      user_name: 'Sale Local',
+      created_by: 'sale.local@local',
+      activity_type: 'note',
+      content: 'Sale Local · Sales nhận Solution',
+      created_at: '2026-11-14T12:25:00.000Z',
+    });
+    expect(received.what).toBe('Sale Local · Sales nhận Solution · 19:25 14/11/2026');
+    expect(received.kind).toBe('solution');
   });
 });

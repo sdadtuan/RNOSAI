@@ -15,21 +15,14 @@ import {
 import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { shouldShowQuoteTransferBox } from '@/components/crm/quote-transfer-box.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
+import { formatCompactDueStamp, formatCompactSlaLine } from '@/lib/crm/sla-countdown-label';
 
 function when(value: string): string {
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return '';
-  return new Date(ms).toLocaleString('vi-VN');
+  return formatCompactDueStamp(value);
 }
 
-function formatRemain(ms: number): string {
-  const abs = Math.abs(ms);
-  const totalSeconds = Math.floor(abs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const clock = [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
-  return ms < 0 ? `Quá hạn ${clock}` : `Còn ${clock}`;
+function formatRemain(ms: number, dueAt: string, label: string): string {
+  return formatCompactSlaLine(label, ms, dueAt);
 }
 
 function QuoteDeadline({
@@ -47,18 +40,20 @@ function QuoteDeadline({
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!Number.isFinite(dueMs)) return undefined;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, [dueMs]);
   if (!label || !Number.isFinite(dueMs)) return null;
   const remain = dueMs - now;
   const late = overdue || remain < 0;
-  const tone = late ? 'quote-case-timer quote-case-timer--late' : soon ? 'quote-case-timer quote-case-timer--soon' : 'quote-case-timer';
+  const tone = late
+    ? 'quote-case-timer quote-case-timer--late handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--breach'
+    : soon
+      ? 'quote-case-timer quote-case-timer--soon handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--warning'
+      : 'quote-case-timer handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--ok';
   return (
-    <p className={tone} aria-live="polite">
-      <span>{label}</span>
-      <time dateTime={new Date(dueMs).toISOString()}>{when(dueAt)}</time>
-      <strong>{formatRemain(remain)}</strong>
+    <p className={tone} aria-live="polite" data-testid="quote-case-deadline">
+      {formatRemain(remain, dueAt, label)}
     </p>
   );
 }

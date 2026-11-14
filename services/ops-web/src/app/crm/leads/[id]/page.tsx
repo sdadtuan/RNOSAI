@@ -1586,6 +1586,7 @@ export default function CrmLeadDetailPage() {
               party={party}
               funnel={funnelSnap}
               onFunnelChange={setFunnelSnap}
+              userName={user?.display_name || user?.email}
             />
             <LeadContractPanel
               token={accessToken}
@@ -1991,6 +1992,7 @@ export default function CrmLeadDetailPage() {
                 party={party}
                 funnel={funnelSnap}
                 onFunnelChange={setFunnelSnap}
+                userName={user?.display_name || user?.email}
               />
             ) : null}
 
@@ -2085,6 +2087,7 @@ export default function CrmLeadDetailPage() {
                 onFunnelChange={applyFunnelFromMutation}
                 onMessage={setMessage}
                 onError={setError}
+                userName={user?.display_name || user?.email}
               />
             ) : null}
 

@@ -25,7 +25,15 @@ export type LeadHistoryLine = {
   who: string;
   what: string;
   when: string;
+  kind?: 'solution' | 'care' | 'owner';
 };
+
+export function isSolutionHistoryLine(line: LeadHistoryLine | null | undefined): boolean {
+  if (!line) return false;
+  if (line.kind === 'solution') return true;
+  const text = `${line.what ?? ''} ${line.key ?? ''}`;
+  return /Nộp Solution|Sales nhận Solution|Sales xem Solution|AI tạo Solution|Tải file Solution|Đổi Deadline Solutions|solution_file_uploaded|solution_ai_draft|solution_released|solution_received|solution_viewed|solution_deadline/i.test(text);
+}
 
 const SYSTEM_ACTORS = new Set(['', 'system', 'revops-sla-worker', 'ae', 'auto_assign', 'auto-assign']);
 
@@ -131,7 +139,13 @@ export function presentLeadHistory(row: LeadHistoryInput): LeadHistoryLine {
   const type = String(row.activity_type ?? '').trim();
   const when = formatHistoryClock(row.created_at) || formatWhen(row.created_at);
   const who = whoLabel(row);
-  if (SOLUTION_FLOW_ACTIVITY_TYPES.has(type)) {
+  // API createActivity remaps unknown solution_* types (AI, upload, viewed, received, deadline) to `note`.
+  if (
+    SOLUTION_FLOW_ACTIVITY_TYPES.has(type) ||
+    /Nộp Solution|Sales nhận Solution|Sales xem Solution|AI tạo Solution|Tải file Solution|Đổi Deadline Solutions/i.test(
+      String(row.content ?? ''),
+    )
+  ) {
     const action = solutionFlowAction(row);
     const whoFromContent = String(row.content ?? '').split(' · ')[0]?.trim();
     const actor =
@@ -146,6 +160,7 @@ export function presentLeadHistory(row: LeadHistoryInput): LeadHistoryLine {
       who: actor,
       what: `${actor} · ${action} · ${when}`.trim(),
       when,
+      kind: 'solution',
     };
   }
   return {

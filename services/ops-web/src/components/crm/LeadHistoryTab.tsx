@@ -1,8 +1,22 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { LeadCallHistoryPanel } from '@/components/crm/LeadCallHistoryPanel';
 import { LeadExchangeHistoryPanel } from '@/components/crm/LeadExchangeHistoryPanel';
-import type { LeadHistoryLine } from '@/lib/crm/lead-history';
+import { fetchLeadActivities } from '@/lib/api';
+import { isSolutionHistoryLine, presentLeadHistory, type LeadHistoryLine } from '@/lib/crm/lead-history';
+
+function mergeSolutionLines(fromProps: LeadHistoryLine[], fromFetch: LeadHistoryLine[]): LeadHistoryLine[] {
+  const byKey = new Map<string, LeadHistoryLine>();
+  for (const line of [...fromProps, ...fromFetch]) {
+    if (!isSolutionHistoryLine(line)) continue;
+    byKey.set(line.key || `activity-${line.id}`, line);
+  }
+  return [...byKey.values()].sort((a, b) => {
+    const time = String(b.when).localeCompare(String(a.when));
+    return time !== 0 ? time : (b.id || 0) - (a.id || 0);
+  });
+}
 
 export function LeadHistoryTab({
   token,
@@ -19,8 +33,45 @@ export function LeadHistoryTab({
   selectedActivityId: number | null;
   onSelectActivity: (id: number | null) => void;
 }) {
+  const [fetched, setFetched] = useState<LeadHistoryLine[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLeadActivities(token, leadId, 80)
+      .then((rows) => {
+        if (cancelled) return;
+        setFetched(rows.map((row) => presentLeadHistory(row)));
+      })
+      .catch(() => {
+        if (!cancelled) setFetched([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, leadId]);
+
+  const solutionLines = useMemo(
+    () => mergeSolutionLines(exchangeLines, fetched),
+    [exchangeLines, fetched],
+  );
+  const otherExchange = exchangeLines.filter((line) => !isSolutionHistoryLine(line));
   return (
     <div className="lead-history-tab" data-testid="lead-history-tab">
+      <section className="lead-panel" data-testid="lead-solution-history">
+        <div className="lead-panel__head">
+          <h3 className="lead-panel__title">Lịch sử Solution</h3>
+        </div>
+        {solutionLines.length === 0 ? (
+          <p className="lead-empty-state">Chưa có sự kiện Solution.</p>
+        ) : (
+          <ul className="lead-activity-list">
+            {solutionLines.map((line) => (
+              <li key={line.key} className="lead-activity-item" data-testid="lead-solution-history-item">
+                <div className="lead-activity-item__content">{line.what}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <LeadCallHistoryPanel token={token} leadId={leadId} />
       <section className="lead-panel" data-testid="lead-owner-history">
         <div className="lead-panel__head">
@@ -39,7 +90,7 @@ export function LeadHistoryTab({
         )}
       </section>
       <LeadExchangeHistoryPanel
-        lines={exchangeLines}
+        lines={otherExchange}
         selectedActivityId={selectedActivityId}
         onSelectActivity={onSelectActivity}
       />

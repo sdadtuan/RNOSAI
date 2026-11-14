@@ -48,9 +48,16 @@ import {
 import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { pushToast } from '@/lib/toast';
 import { humanizeCrmApiError } from '@/lib/crm/crm-api-error';
+import { formatCompactSlaLine } from '@/lib/crm/sla-countdown-label';
+import {
+  buildUploadedAttachment,
+  readSolutionAttachments,
+  type SolutionAttachment,
+} from '@/lib/crm/solution-file-display';
+import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
+import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
 
-
-type Attachment = { id: string; name: string; mime: string; data_url: string };
+type Attachment = SolutionAttachment;
 
 type AnswerLine = { question: string; answer: string; bantKey?: string };
 
@@ -144,31 +151,7 @@ function intakeNeed(session: IntakeSessionRow | null): string {
 }
 
 function readFiles(plan: Record<string, unknown> | null): Attachment[] {
-  const raw = plan?.strategy_framework_json ?? plan?.strategy_framework;
-  let framework: Record<string, unknown> = {};
-  if (typeof raw === 'string') {
-    try {
-      framework = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      framework = {};
-    }
-  } else if (raw && typeof raw === 'object') {
-    framework = raw as Record<string, unknown>;
-  }
-  const packed = String(framework.mkt_files ?? '');
-  if (!packed.trim()) return [];
-  try {
-    const parsed = JSON.parse(packed) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((row) => {
-      if (!row || typeof row !== 'object') return [];
-      const file = row as Attachment;
-      if (!file.name || !file.data_url) return [];
-      return [file];
-    });
-  } catch {
-    return [];
-  }
+  return readSolutionAttachments(plan);
 }
 
 function answerLines(
@@ -254,16 +237,14 @@ function SolutionClock({
   if (!label || !Number.isFinite(dueMs)) return null;
   const remain = dueMs - now;
   const late = overdue || remain < 0;
-  const abs = Math.abs(remain);
-  const totalMinutes = Math.floor(abs / 60_000);
-  const clock = [Math.floor(totalMinutes / 60), totalMinutes % 60]
-    .map((part) => String(part).padStart(2, '0'))
-    .join(':');
-  const tone = late ? 'quote-case-timer quote-case-timer--late' : soon ? 'quote-case-timer quote-case-timer--soon' : 'quote-case-timer';
+  const tone = late
+    ? 'quote-case-timer quote-case-timer--late handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--breach'
+    : soon
+      ? 'quote-case-timer quote-case-timer--soon handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--warning'
+      : 'quote-case-timer handoff-sla-banner handoff-sla-banner--line handoff-sla-banner--ok';
   return (
-    <p className={tone} aria-live="polite">
-      <span>{label}{Number.isFinite(dueMs) ? ` · ${isoToViDate(dueAt)}` : ''}</span>
-      <strong>{remain < 0 ? `Quá hạn ${clock}` : `Còn ${clock}`}</strong>
+    <p className={tone} aria-live="polite" data-testid="solution-desk-clock">
+      {formatCompactSlaLine(label, remain, dueAt)}
     </p>
   );
 }
@@ -283,6 +264,7 @@ export function SolutionCaseDesk({
   submitDisabledReason,
   submitBusy = false,
   onSubmitToSales,
+  userName,
 }: {
   token: string;
   lead: LeadRow;
@@ -298,6 +280,7 @@ export function SolutionCaseDesk({
   submitDisabledReason?: string;
   submitBusy?: boolean;
   onSubmitToSales?: () => void | Promise<void>;
+  userName?: string;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [items, setItems] = useState<Array<{ code: string; label: string }>>([]);
@@ -312,6 +295,7 @@ export function SolutionCaseDesk({
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
   const [aiResult, setAiResult] = useState('');
+  const [aiDraft, setAiDraft] = useState<SolutionAiDraftView | null>(null);
   const [serviceGroups, setServiceGroups] = useState<DiscoveryServiceGroup[]>([]);
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
@@ -377,6 +361,7 @@ export function SolutionCaseDesk({
     setApproach(draft.approach);
     setLines(mergeSolutionLines(scopePack.items, draft.lines));
     setFiles(readFiles(plan));
+    setAiDraft(presentSolutionAiDraft(plan));
   }, [funnel?.presales?.presales.service_slug, lead.id, token]);
 
   useEffect(() => {
@@ -432,15 +417,7 @@ export function SolutionCaseDesk({
         {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : (
-          <ul>
-            {files.map((file) => (
-              <li key={file.id}>
-                <a href={file.data_url} download={file.name}>
-                  {file.name}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <SolutionFileList files={files} />
         )}
         <dl className="solution-desk__facts">
           {company ? (
@@ -559,7 +536,13 @@ export function SolutionCaseDesk({
     const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
     const next = [
       ...files.filter((file) => file.name !== 'Solution.html'),
-      { id: `solution-${Date.now()}`, name: 'Solution.html', mime: 'text/html', data_url: dataUrl },
+      buildUploadedAttachment({
+        id: `solution-${Date.now()}`,
+        name: 'Solution.html',
+        mime: 'text/html',
+        dataUrl,
+        uploadedBy: userName,
+      }),
     ];
     setFiles(next);
     const packed = await patchLeadPresalesMarketingPlan(token, lead.id, {
@@ -578,8 +561,10 @@ export function SolutionCaseDesk({
     const out = await postLeadPresalesMarketingPlanAiDraft(token, lead.id);
     if (out.funnel) onFunnelChange(out.funnel);
     await load();
+    const draft = presentSolutionAiDraft(out.plan) ?? presentSolutionAiDraft((await fetchLeadPresalesMarketingPlan(token, lead.id).catch(() => null))?.plan);
+    if (draft) setAiDraft(draft);
     const note = out.validation?.ok
-      ? (out.badge_vi || out.ai_draft?.badge_vi || 'Đã tạo bản nháp Solution bằng AI.')
+      ? SOLUTION_AI_DRAFT_LABEL
       : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
     setAiResult(note);
     onMessage?.(note);
@@ -647,12 +632,13 @@ export function SolutionCaseDesk({
                 await saveFiles(
                   [
                     ...files,
-                    {
-                      id: `${Date.now()}-${picked.name}`,
+                    buildUploadedAttachment({
                       name: picked.name,
-                      mime: picked.type || 'application/octet-stream',
-                      data_url: dataUrl,
-                    },
+                      mime: picked.type,
+                      dataUrl,
+                      size: picked.size,
+                      uploadedBy: userName,
+                    }),
                   ],
                   { trackProgress: true },
                 );
@@ -802,27 +788,16 @@ export function SolutionCaseDesk({
         {files.length === 0 ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : (
-          <ul data-testid="solution-desk-files">
-            {files.map((file) => (
-              <li key={file.id}>
-                <a href={file.data_url} download={file.name}>
-                  {file.name}
-                </a>
-                {canEditFiles ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost"
-                    disabled={busy}
-                    onClick={() => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
-                  >
-                    Gỡ
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <SolutionFileList
+            files={files}
+            canEdit={canEditFiles}
+            busy={busy}
+            onRemove={(file) => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
+          />
         )}
-        {aiResult ? (
+        {aiDraft ? (
+          <SolutionAiDraftBody title={aiDraft.title} badge={aiDraft.badge} sections={aiDraft.sections} />
+        ) : aiResult ? (
           <p className="muted" data-testid="solution-desk-ai-result">
             {aiResult}
           </p>
@@ -1122,12 +1097,13 @@ export function SolutionCaseDesk({
                 await saveFiles(
                   [
                     ...files,
-                    {
-                      id: `${Date.now()}-${picked.name}`,
+                    buildUploadedAttachment({
                       name: picked.name,
-                      mime: picked.type || 'application/octet-stream',
-                      data_url: dataUrl,
-                    },
+                      mime: picked.type,
+                      dataUrl,
+                      size: picked.size,
+                      uploadedBy: userName,
+                    }),
                   ],
                   { trackProgress: true },
                 );
@@ -1180,26 +1156,16 @@ export function SolutionCaseDesk({
         {files.length === 0 && !uploadLabel ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : files.length === 0 ? null : (
-          <ul>
-            {files.map((file) => (
-              <li key={file.id}>
-                <a href={file.data_url} download={file.name}>
-                  {file.name}
-                </a>
-                {canEditFiles ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost"
-                    disabled={busy}
-                    onClick={() => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
-                  >
-                    Gỡ
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <SolutionFileList
+            files={files}
+            canEdit={canEditFiles}
+            busy={busy}
+            onRemove={(file) => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
+          />
         )}
+        {aiDraft ? (
+          <SolutionAiDraftBody title={aiDraft.title} badge={aiDraft.badge} sections={aiDraft.sections} />
+        ) : null}
         <div className="solution-desk__actions">
           {null}
           {handoff === 'with_solution' ? (
