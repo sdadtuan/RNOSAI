@@ -413,6 +413,33 @@ export function discoveryServiceChips(
   return chips;
 }
 
+export type DiscoveryServiceChipGroup = {
+  parent: string | null;
+  items: DiscoveryServiceChip[];
+};
+
+/** Group scope chips under their parent service. Standalone services stay ungrouped. */
+export function groupDiscoveryServiceChips(chips: DiscoveryServiceChip[]): DiscoveryServiceChipGroup[] {
+  const groups: DiscoveryServiceChipGroup[] = [];
+  const byParent = new Map<string, DiscoveryServiceChip[]>();
+  for (const chip of chips ?? []) {
+    const parent = String(chip.parent ?? '').trim();
+    if (!parent) {
+      groups.push({ parent: null, items: [chip] });
+      continue;
+    }
+    const existing = byParent.get(parent);
+    if (existing) {
+      existing.push(chip);
+      continue;
+    }
+    const items = [chip];
+    byParent.set(parent, items);
+    groups.push({ parent, items });
+  }
+  return groups;
+}
+
 export function primaryServiceSlug(services: string[]): string {
   return asString(services[0] ?? '');
 }

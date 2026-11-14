@@ -8,10 +8,10 @@ import type { StoredStaffUser } from '@/lib/auth';
 function badgeText(funnel: LeadFunnelSnapshot): string | null {
   const handoff = funnel.presales?.handoff;
   if (!handoff) return null;
-  if (handoff.status === 'pending') return 'Đang ở Chờ Solutions — AM sẽ kiểm tra Brief và giao cho Marketing.';
+  if (handoff.status === 'pending') return 'Đang ở Chờ Solutions — AM kiểm tra Brief và làm Solution, xong sẽ nộp cho Sales.';
   if (handoff.status === 'with_solution') {
     const who = handoff.solution_owner_name?.trim();
-    return who ? `Đang làm Solutions — ${who}` : 'Đang làm Solutions';
+    return who ? `AM làm Solution — ${who}` : 'AM đang làm Solution';
   }
   return null;
 }
@@ -34,7 +34,7 @@ export function PresalesSolutionHandoffBanner({
       <p style={{ margin: '0.35rem 0 0' }}>{text}</p>
       {readOnly ? (
         <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-          Bạn chỉ xem — không chỉnh kế hoạch tư vấn. Marketing sẽ nộp Solution khi xong; lead chuyển sang Chờ báo giá.
+          Bạn chỉ xem — không chỉnh kế hoạch tư vấn. AM kiểm tra Brief và làm Solution, xong sẽ nộp cho Sales.
         </p>
       ) : null}
       <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>

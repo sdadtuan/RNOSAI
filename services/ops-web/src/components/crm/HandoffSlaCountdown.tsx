@@ -45,6 +45,12 @@ export function HandoffSlaCountdown({
     '--sla-bd': tone === 'breach' ? '#e7b0b0' : tone === 'warning' ? '#e6c56e' : '#9ad0ad',
   } as CSSProperties;
   const due = clock.due_label ? ` (${clock.due_label})` : '';
+  const label =
+    clock.key === 'solution_accept'
+      ? 'Hạn AM nhận / làm Solution'
+      : clock.key === 'solution_work'
+        ? 'Hạn AM làm Solution'
+        : clock.label;
 
   return (
     <div
@@ -57,7 +63,7 @@ export function HandoffSlaCountdown({
       <span className="handoff-sla-banner__dot" aria-hidden="true">
         ·
       </span>
-      <strong>{clock.label}</strong>
+      <strong>{label}</strong>
       <span className="handoff-sla-banner__dot" aria-hidden="true">
         ·
       </span>

@@ -94,7 +94,7 @@ const LABELS: Record<HandoffSlaClockKey, { step: string; label: string; role: Ha
   sales_brief: { step: 'sales_brief', label: 'Hạn Submit to AM', role: 'Sales' },
   missing_info: { step: 'sales_brief', label: 'Hạn bổ sung thông tin', role: 'Sales' },
   solution_accept: { step: 'await_solution', label: 'Hạn AM nhận / làm Solution', role: 'AM' },
-  solution_work: { step: 'doing_solution', label: 'Hạn trả Solutions', role: 'AM' },
+  solution_work: { step: 'doing_solution', label: 'Hạn AM làm Solution', role: 'AM' },
   solution_revision: { step: 'doing_solution', label: 'Hạn chỉnh Solutions', role: 'AM' },
   customer_response: { step: 'await_quote', label: 'Hạn phản hồi khách', role: 'Sales' },
   quote_accept: { step: 'await_quote', label: 'Hạn AM nhận case báo giá', role: 'AM' },

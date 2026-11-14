@@ -84,8 +84,8 @@ export function nextActionForLeadDetail(hint: LeadPageNextHint | null | undefine
   }
   if (handoff === 'pending') {
     return isAm
-      ? 'Bước tiếp: kiểm tra Sales Brief và giao cho Marketing (Chờ Solutions).'
-      : 'Bước tiếp: đã Submit to AM — chờ AM kiểm tra và giao Case (Chờ Solutions).';
+      ? 'Bước tiếp: kiểm tra Sales Brief và làm Solution, xong nộp cho Sales (Chờ Solutions).'
+      : 'Bước tiếp: đã Submit to AM — chờ AM kiểm tra Brief và làm Solution (Chờ Solutions).';
   }
   if (hint?.b2Complete) {
     if (stage === 'consult' || stage === 'lead') {

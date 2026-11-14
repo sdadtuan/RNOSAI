@@ -1501,7 +1501,13 @@ export class LeadsFunnelService {
     }
   }
 
-  private async assertPresalesMktAiEnabled(serviceSlug: string): Promise<void> {
+  private async assertPresalesMktAiEnabled(serviceSlug: string, staffUser?: StaffJwtPayload): Promise<void> {
+    // AM / Super-Admin Solution AI is not gated by Marketing AI Planner playbook rollout.
+    if (staffUser && (await this.staffAuth.isSuperAdminUser(staffUser))) return;
+    if (staffUser) {
+      const me = await this.staffAuth.me(staffUser);
+      if (isAccountManagerPosition(me.position_code)) return;
+    }
     await this.mktAiAllow.ensure(serviceSlug ?? '');
   }
 
@@ -1511,7 +1517,7 @@ export class LeadsFunnelService {
       await this.assertPresalesMktAiGenerateCap(staffUser);
       await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       const loaded = await this.loadClientBrief(leadId);
-      await this.assertPresalesMktAiEnabled(loaded.snap.presales.service_slug);
+      await this.assertPresalesMktAiEnabled(loaded.snap.presales.service_slug, staffUser);
       const facts = {
         company: loaded.company_name,
         niche: loaded.niche,
@@ -1562,7 +1568,7 @@ export class LeadsFunnelService {
       await this.assertPresalesMktAiGenerateCap(staffUser);
       const loaded = await this.loadClientBrief(leadId);
       const serviceSlug = loaded.snap.presales.service_slug;
-      await this.assertPresalesMktAiEnabled(serviceSlug);
+      await this.assertPresalesMktAiEnabled(serviceSlug, staffUser);
       const missing = clientBriefMissing(loaded.brief, {
         company_name: loaded.company_name,
         niche: loaded.niche,

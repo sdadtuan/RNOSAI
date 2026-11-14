@@ -52,7 +52,7 @@ export function caseStaffNotify(input: {
     return {
       kind: 'presales_solution',
       title: 'Sales đã Submit to AM — Chờ Solutions',
-      body: ('Lead #' + leadId + ' — Sales đã hoàn thành Brief. Vui lòng kiểm tra và giao cho Marketing.'),
+      body: ('Lead #' + leadId + ' — Sales đã hoàn thành Brief. Vui lòng kiểm tra Brief và làm Solution, xong nộp cho Sales.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -88,7 +88,7 @@ export function caseStaffNotify(input: {
     return {
       kind: 'presales_solution',
       title: 'Solution đã nộp — Chờ báo giá',
-      body: ('Lead #' + leadId + ' — Marketing đã nộp Solution. Lead chuyển sang Chờ báo giá. Vui lòng xem và phản hồi khách.'),
+      body: ('Lead #' + leadId + ' — AM đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách. Vui lòng xem và phản hồi khách.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -97,7 +97,7 @@ export function caseStaffNotify(input: {
     return {
       kind: 'presales_solution',
       title: 'Solution đã nộp — Chờ báo giá',
-      body: ('Lead #' + leadId + ' — Marketing đã nộp Solution. Vui lòng lập báo giá.'),
+      body: ('Lead #' + leadId + ' — AM đã nộp Solution. Vui lòng lập báo giá.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };
@@ -115,7 +115,7 @@ export function caseStaffNotify(input: {
     return {
       kind: 'presales_solution',
       title: 'Sales đã Submit to AM lại',
-      body: ('Lead #' + leadId + ' — Sales đã Submit to AM lại. Vui lòng kiểm tra Brief và giao cho Marketing.'),
+      body: ('Lead #' + leadId + ' — Sales đã Submit to AM lại. Vui lòng kiểm tra Brief và làm Solution, xong nộp cho Sales.'),
       link_href: link,
       meta_json: { lead_id: leadId, action: 'open_lead' },
     };

@@ -22,6 +22,7 @@ import {
   channelLabels,
   discoveryIndustryLabel,
   discoveryServiceChips,
+  groupDiscoveryServiceChips,
   discoveryServiceLabel,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
@@ -251,7 +252,14 @@ function readFiles(plan: Record<string, unknown> | null): Attachment[] {
   } else if (raw && typeof raw === 'object') {
     framework = raw as Record<string, unknown>;
   }
-  const packed = framework.mkt_files;
+  let packed: unknown = framework.mkt_files;
+  if (typeof packed === 'string') {
+    try {
+      packed = JSON.parse(packed);
+    } catch {
+      packed = [];
+    }
+  }
   if (Array.isArray(packed)) {
     return packed
       .map((row, i) => {
@@ -803,40 +811,48 @@ export function AmHandoffDesk({
 
           {tab === 'brief' ? (
             <div className="ahd-brief-grid" data-testid="ahd-brief">
+              <div className="ahd-brief-col">
               <BriefCard title="Mục tiêu Marketing" icon={I.goal} testId="ahd-goal">
                 <Bullets text={view.marketing_goal} />
-              </BriefCard>
-              <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
-                <Bullets text={view.biggest_problem} />
               </BriefCard>
               <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
                 <Bullets text={view.target_customers} />
               </BriefCard>
-              <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
-                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
-              </BriefCard>
               <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
                 {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
               </BriefCard>
-              <BriefCard title="Dịch vụ quan tâm" icon={I.box} wide testId="ahd-services">
+              </div>
+              <div className="ahd-brief-col">
+              <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
+                <Bullets text={view.biggest_problem} />
+              </BriefCard>
+              <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
+                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
+              </BriefCard>
+              <BriefCard title="Dịch vụ quan tâm" icon={I.box} testId="ahd-services">
                 {serviceChips.length ? (
-                  <div className="ahd-chips">
-                    {serviceChips.map((chip) => (
-                      <span className="ahd-chip" key={chip.slug} title={chip.parent ? `${chip.parent} – ${chip.title}` : chip.title}>
-                        {chip.parent ? (
-                          <>
-                            <span className="ahd-chip__parent">{chip.parent}</span>
-                            <span className="ahd-chip__sep"> – </span>
-                            <span className="ahd-chip__name">{chip.title}</span>
-                          </>
-                        ) : (
-                          <span className="ahd-chip__name">{chip.title}</span>
-                        )}
-                      </span>
+                  <div className="ahd-service-groups">
+                    {groupDiscoveryServiceChips(serviceChips).map((group) => (
+                      <div
+                        className="ahd-service-group"
+                        key={group.parent ?? group.items.map((item) => item.slug).join("-")}
+                      >
+                        {group.parent ? (
+                          <p className="ahd-service-group__title">{group.parent}</p>
+                        ) : null}
+                        <div className="ahd-chips ahd-chips--compact">
+                          {group.items.map((chip) => (
+                            <span className="ahd-chip" key={chip.slug} title={chip.title}>
+                              <span className="ahd-chip__name">{chip.title}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : null}
               </BriefCard>
+              </div>
             </div>
           ) : null}
 
