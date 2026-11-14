@@ -27,6 +27,12 @@ export const DEFAULT_SOLUTION_WORK_SETTINGS = {
   afterCutoffTime: '11:00',
   workStartTime: '08:30',
 } as const;
+/** "Trước 15:30: 4 giờ làm việc. Sau 15:30 hoặc ngày nghỉ: 11:00 ngày làm việc kế tiếp." from config. */
+export function solutionWorkRuleText(raw?: SolutionWorkDueSettings | null): string {
+  const s = resolveSolutionWorkDueSettings(raw ?? undefined);
+  return `Trước ${s.cutoffTime}: ${s.beforeCutoffHours} giờ làm việc. Sau ${s.cutoffTime} hoặc ngày nghỉ: ${s.afterCutoffTime} ngày làm việc kế tiếp.`;
+}
+
 export const SOLUTION_REVISION_HOURS = 2;
 export const SOLUTION_CUSTOMER_HOURS = 8;
 

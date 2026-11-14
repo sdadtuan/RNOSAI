@@ -88,7 +88,8 @@ import {
   type QuoteLateEvent,
   type QuoteLateTimer,
 } from './quote-case.util';
-import { acceptDueAt, addBusinessHours, businessCalendar } from './business-hours.util';
+import { acceptDueAt, addBusinessHours, businessCalendar, businessCalendarLabel } from './business-hours.util';
+import { solutionWorkRuleText } from './solution-case.util';
 import {
   buildHandoffSlaView,
   briefSubmitDueAt,
@@ -2385,7 +2386,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         leadId,
         staffId,
         status,
-        'Case tự động giữ AM phụ trách trước. SLA Solutions 4 giờ làm việc (08:30–18:30).',
+        `Case tự động giữ AM phụ trách trước. SLA Solutions: ${solutionWorkRuleText(currentSolutionWorkSettings())} (${businessCalendarLabel(businessCalendar('marketing'))})`,
       );
       return this.mapPresalesRow(updatedRow);
     }
@@ -2608,7 +2609,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       status,
       assignee !== staffId
         ? `AM đã giao case Solutions cho Marketing Leader (staff ${assignee}). Hạn ${due.toISOString()}.`
-        : 'AM đã nhận case Solutions. Hạn trả theo giờ làm việc 08:30–18:30.',
+        : `AM đã nhận case Solutions. Hạn trả theo giờ làm việc ${businessCalendarLabel(businessCalendar('marketing'))}.`,
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
   }
@@ -3043,7 +3044,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
     const accepted = Boolean(ps.quote_accepted_at);
     const note = accepted
-      ? `CEO chuyển case báo giá cho ${target.name}. Hạn nộp ${QUOTE_FINISH_HOURS} giờ làm việc (08:30–18:30).`
+      ? `CEO chuyển case báo giá cho ${target.name}. Hạn nộp ${QUOTE_FINISH_HOURS} giờ làm việc (${businessCalendarLabel()}).`
       : `CEO chuyển case báo giá cho ${target.name}. Hạn nhận case ${QUOTE_ACCEPT_MINUTES} phút.`;
     const updated = accepted
       ? await this.db.query(
@@ -3431,7 +3432,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [snap.presales.id, assigneeId, this.quoteFinishDueAt().toISOString()],
     );
     const who = assigneeName
-      ? ` ${assigneeName} lập báo giá trong ${QUOTE_FINISH_HOURS} giờ làm việc (08:30–18:30).`
+      ? ` ${assigneeName} lập báo giá trong ${QUOTE_FINISH_HOURS} giờ làm việc (${businessCalendarLabel()}).`
       : '';
     await this.setLeadStatus(
       leadId,

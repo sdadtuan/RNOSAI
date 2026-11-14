@@ -8,13 +8,15 @@ import {
   addBusinessDays,
   addBusinessHours,
   businessCalendar,
+  businessCalendarLabel,
+  formatClockMinutes,
   type BusinessCalendar,
   ictParts,
   isWeekend,
   nextWorkingDayAt,
   parseClockMinutes,
 } from './business-hours.util';
-import { solutionWorkDueAt, type SolutionWorkDueSettings } from './solution-case.util';
+import { solutionWorkDueAt, solutionWorkRuleText, type SolutionWorkDueSettings } from './solution-case.util';
 
 export const HANDOFF_SLA_POLICY = {
   calendar: 'T2–T6 08:30–18:30 Asia/Saigon',
@@ -325,6 +327,18 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
   const clocks: HandoffSlaClock[] = [];
   const step = String(source.currentStep ?? '').trim() || null;
   const status = String(source.handoffStatus ?? '').trim();
+  // Clock copy follows the loaded calendars / Solution settings (no hard-coded hours).
+  const saleCal = businessCalendar('sale_service');
+  const mktCal = businessCalendar('marketing');
+  const sysCal = businessCalendar();
+  const saleHours = businessCalendarLabel(saleCal);
+  const mktHours = businessCalendarLabel(mktCal);
+  const sysHours = businessCalendarLabel(sysCal);
+  const workRule = solutionWorkRuleText(source.workSettings);
+  const revisionHours =
+    Number(source.workSettings?.revisionHours) > 0
+      ? Number(source.workSettings?.revisionHours)
+      : HANDOFF_SLA_POLICY.revisionHours;
 
   if (source.assignedAt && !source.claimedAt && !source.firstCallAt && (!step || step === 'intake')) {
     clocks.push(
@@ -333,7 +347,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         salesAcceptDueAt(new Date(source.assignedAt)),
         source.assignedAt,
         now,
-        'Nhận lead trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế tiếp.',
+        `Nhận lead trong ${HANDOFF_SLA_POLICY.salesAcceptMinutes} phút trong giờ; ngoài giờ hạn ${formatClockMinutes(saleCal.startMin)} ngày làm việc kế tiếp.`,
       ),
     );
   }
@@ -344,7 +358,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         firstUpdateDueAt(new Date(source.claimedAt)),
         source.claimedAt,
         now,
-        'Ghi cuộc gọi / cập nhật trong 1 giờ làm việc (08:30–18:30 T2–T6).',
+        `Ghi cuộc gọi / cập nhật trong ${HANDOFF_SLA_POLICY.firstUpdateHours} giờ làm việc (${saleHours}).`,
       ),
     );
   }
@@ -368,7 +382,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.missingInfoDueAt,
         null,
         now,
-        'Bổ sung thông tin trong 1 giờ làm việc (08:30–18:30 T2–T6).',
+        `Bổ sung thông tin trong ${HANDOFF_SLA_POLICY.missingInfoHours} giờ làm việc (${saleHours}).`,
       ),
     );
   }
@@ -379,7 +393,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.solutionAcceptDueAt,
         source.handedOffAt,
         now,
-        'AM nhận và làm Solution trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
+        `AM nhận và làm Solution trong ${HANDOFF_SLA_POLICY.solutionAcceptMinutes} phút trong giờ; ngoài giờ hạn ${formatClockMinutes(mktCal.startMin)} ngày làm việc kế.`,
       ),
     );
   }
@@ -390,7 +404,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.solutionDueAt,
         source.handedOffAt,
         now,
-        'Trước 15:30: 4 giờ làm việc. Sau 15:30 hoặc cuối tuần: 11:00 ngày làm việc kế tiếp.',
+        workRule,
       ),
     );
   }
@@ -401,7 +415,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.solutionRevisionDueAt,
         null,
         now,
-        'Trả Solutions đã chỉnh trong 2 giờ làm việc (08:30–18:30 T2–T6).',
+        `Trả Solutions đã chỉnh trong ${revisionHours} giờ làm việc (${mktHours}).`,
       ),
     );
   } else if (status === 'with_solution' && (source.solutionDueAt || source.solutionClaimedAt)) {
@@ -416,7 +430,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         due,
         source.solutionClaimedAt,
         now,
-        'Trước 15:30: 4 giờ làm việc. Sau 15:30 hoặc cuối tuần: 11:00 ngày làm việc kế tiếp.',
+        workRule,
       ),
     );
   }
@@ -427,7 +441,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.customerDueAt,
         source.solutionReleasedAt,
         now,
-        'Sales lấy phản hồi khách trong 8 giờ làm việc (08:30–18:30 T2–T6) sau khi nộp Solution.',
+        `Sales lấy phản hồi khách trong ${HANDOFF_SLA_POLICY.customerResponseHours} giờ làm việc (${saleHours}) sau khi nộp Solution.`,
       ),
     );
   }
@@ -438,7 +452,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         ceoApproveDueAt(new Date(source.quoteSentBackAt)),
         source.quoteSentBackAt,
         now,
-        'CEO duyệt hoặc từ chối báo giá trong 24 giờ làm việc (08:30–18:30 T2–T6).',
+        `CEO duyệt hoặc từ chối báo giá trong ${HANDOFF_SLA_POLICY.ceoApproveHours} giờ làm việc (${sysHours}).`,
       ),
     );
   } else if (source.quoteAcceptedAt && source.quoteDueAt && !source.quoteSentBackAt && !source.quoteApprovedAt) {
@@ -448,7 +462,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.quoteDueAt,
         source.quoteAcceptedAt,
         now,
-        'AM lập báo giá trong 2 giờ làm việc (08:30–18:30 T2–T6).',
+        `AM lập báo giá trong 2 giờ làm việc (${sysHours}).`,
       ),
     );
   } else if (source.quoteAcceptDueAt && !source.quoteAcceptedAt && !source.quoteApprovedAt) {
@@ -458,7 +472,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
         source.quoteAcceptDueAt,
         source.quoteOfferedAt ?? null,
         now,
-        'AM nhận case báo giá trong 15 phút trong giờ; ngoài giờ hạn 08:30 ngày làm việc kế.',
+        `AM nhận case báo giá trong 15 phút trong giờ; ngoài giờ hạn ${formatClockMinutes(sysCal.startMin)} ngày làm việc kế.`,
       ),
     );
   }
