@@ -6,7 +6,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadSalesPipelineTab } from '@/components/crm/LeadSalesPipelineTab';
-import { LeadContractTab } from '@/components/crm/LeadContractTab';
 import { isLeadPipelineTabEnabled } from '@/lib/crm/lead-pipeline-flags';
 import {
   defaultLeadWorkspaceTab,
@@ -42,7 +41,6 @@ import { LeadHandoffTimeline } from '@/components/crm/LeadHandoffTimeline';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
 import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
-import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
@@ -1641,21 +1639,6 @@ export default function CrmLeadDetailPage() {
               onFunnelChange={setFunnelSnap}
               userName={user?.display_name || user?.email}
             />
-            <LeadContractPanel
-              token={accessToken}
-              leadId={leadId}
-              user={user}
-              readOnly
-              onMessage={setMessage}
-              onError={setError}
-              onDecided={() => {
-                void fetchLead(accessToken, leadId).then((row) => {
-                  setLead(row);
-                  setStatus(row.status || 'moi');
-                });
-                void reloadFunnel(accessToken);
-              }}
-            />
           </div>
         ) : null}
       </StaffPageShell>
@@ -2230,27 +2213,6 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {useSalesDesk && accessToken && lead && atContractStep ? (
-              <LeadContractPanel
-                token={accessToken}
-                leadId={leadId}
-                user={user}
-                refreshToken={contractRefresh}
-                onMessage={setMessage}
-                onError={setError}
-                onLoaded={onContractLoaded}
-                onDecided={() => {
-                  const access = getAccessToken();
-                  if (!access) return;
-                  void fetchLead(access, leadId).then((row) => {
-                    setLead(row);
-                    setStatus(row.status || 'moi');
-                  });
-                  void reloadFunnel(access);
-                }}
-              />
-            ) : null}
-
 {!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
@@ -2273,23 +2235,6 @@ export default function CrmLeadDetailPage() {
                     onClick={() => selectWorkspaceTab('history')}
                   >
                     Lịch sử
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={desktopTab === 'contract'}
-                    disabled={!stageVis.showContractPanel}
-                    title={
-                      stageVis.showContractPanel
-                        ? undefined
-                        : 'Mở khi lead sang Báo giá hoặc đã có hợp đồng'
-                    }
-                    onClick={() => {
-                      if (!stageVis.showContractPanel) return;
-                      selectWorkspaceTab('contract');
-                    }}
-                  >
-                    Hợp đồng và Chốt
                   </button>
                   {showConsultTab && !marketingLeader ? (
                     <button
@@ -2408,41 +2353,6 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken &&
-            (showPipelineTab ? desktopTab === 'contract' : stageVis.showContractPanel) ? (
-              <LeadContractTab>
-                {stageVis.showContractPanel ? (
-                  <>
-                    <LeadContractPanel
-                      token={accessToken}
-                      leadId={leadId}
-                      user={user}
-                      refreshToken={contractRefresh}
-                      onMessage={setMessage}
-                      onError={setError}
-                      onLoaded={onContractLoaded}
-                      onDecided={() => {
-                        const access = getAccessToken();
-                        if (!access) return;
-                        void fetchLead(access, leadId).then((row) => {
-                          setLead(row);
-                          setStatus(row.status || 'moi');
-                        });
-                        void reloadFunnel(access);
-                      }}
-                    />
-                  </>
-                ) : (
-                  <div className="lead-panel">
-                    <h3 className="lead-panel__title">Hợp đồng và Chốt</h3>
-                    <p className="muted" style={{ margin: '0.45rem 0 0' }}>
-                      Chỗ lập hợp đồng, gửi duyệt và chốt giá trị. Mở khi lead đã sang Báo giá,
-                      hoặc khi đã có hợp đồng. Lead này chưa tới bước đó.
-                    </p>
-                  </div>
-                )}
-              </LeadContractTab>
-            ) : null}
               </>
             ) : null}
 

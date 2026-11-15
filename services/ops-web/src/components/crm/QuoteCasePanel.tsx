@@ -5,8 +5,11 @@ import {
   acceptLeadQuoteCase,
   approveLeadQuote,
   approveLeadSolution,
+  createLeadContract,
   downloadLeadContractDocx,
+  fetchLeadContract,
   fetchLeadFunnel,
+  submitLeadContract,
   requestLeadQuoteEdits,
   requestLeadSolutionEdits,
   transferLeadQuoteCase,
@@ -96,6 +99,24 @@ export function QuoteCasePanel({
   const runLockRef = useRef(false);
   const timerDue = quote?.timer_due_at ?? '';
   const timerStopped = Boolean(quote?.timer_stopped);
+  const quotePhase = quote?.phase ?? '';
+  const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
+  const [approvalPending, setApprovalPending] = useState(false);
+
+  useEffect(() => {
+    if (quotePhase !== 'hop_dong' && quotePhase !== 'trien_khai') return undefined;
+    let cancelled = false;
+    void fetchLeadContract(token, leadId)
+      .then((data) => {
+        if (cancelled) return;
+        setContractInfo(data.contract ? { id: data.contract.id, status: data.contract.status } : null);
+        setApprovalPending(data.approval?.status === 'pending');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [quotePhase, token, leadId]);
 
   useEffect(() => {
     if (quote?.phase && quote.phase !== 'sale_approve_solution') {
@@ -138,6 +159,42 @@ export function QuoteCasePanel({
       return false;
     } finally {
       runLockRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  const canWriteContract = !viewerIsSales || viewerIsSuperAdmin;
+
+  async function onCreateContract() {
+    setBusy(true);
+    setLocalError('');
+    try {
+      const row = await createLeadContract(token, leadId, {});
+      setContractInfo({ id: row.id, status: row.status });
+      onMessage?.('Đã tạo HĐ draft');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Tạo HĐ thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSubmitContract() {
+    if (!contractInfo) return;
+    setBusy(true);
+    setLocalError('');
+    try {
+      await submitLeadContract(token, leadId, contractInfo.id, {});
+      setApprovalPending(true);
+      setContractInfo({ ...contractInfo, status: 'submitted' });
+      onMessage?.('Đã gửi GDKD duyệt — chờ phê duyệt');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gửi GDKD duyệt thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
       setBusy(false);
     }
   }
@@ -359,19 +416,26 @@ export function QuoteCasePanel({
 
   if (compact && quote.phase === 'hop_dong') {
     return (
-      <section id="quote-case" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
+      <section id="lead-contract" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
         <h3 className="solution-feedback__title">Lập hợp đồng</h3>
         <p className="solution-feedback__due" data-testid="quote-hop-dong-copy">
           {viewerIsSales && !viewerIsSuperAdmin
             ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
-            : 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) lập hợp đồng và gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Sales chỉ xem và tải.'}
+            : 'CEO đã duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt. Sales chỉ xem và tải.'}
         </p>
+        {approvalPending ? <p className="muted">Đã gửi GDKD duyệt — chờ phê duyệt.</p> : null}
         <ActionErrorToast message={onError ? '' : localError} />
         <div className="solution-feedback__actions">
-          {!viewerIsSales || viewerIsSuperAdmin ? (
-            <a href="#lead-contract" className="btn btn-primary" data-testid="quote-lap-hop-dong">
+          {canWriteContract && !contractInfo ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="quote-lap-hop-dong"
+              disabled={busy}
+              onClick={() => void onCreateContract()}
+            >
               Lập hợp đồng
-            </a>
+            </button>
           ) : null}
           <button
             type="button"
@@ -391,6 +455,17 @@ export function QuoteCasePanel({
           >
             Tải file hợp đồng
           </button>
+          {canWriteContract && contractInfo && !approvalPending && contractInfo.status === 'draft' ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              id="lead-contract-submit"
+              disabled={busy}
+              onClick={() => void onSubmitContract()}
+            >
+              Gửi GDKD duyệt
+            </button>
+          ) : null}
         </div>
       </section>
     );
@@ -573,12 +648,19 @@ export function QuoteCasePanel({
             <p data-testid="quote-hop-dong-copy">
               {viewerIsSales && !viewerIsSuperAdmin
                 ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
-                : 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) lập hợp đồng và gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Sales chỉ xem và tải.'}
+                : 'CEO đã duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt. Sales chỉ xem và tải.'}
             </p>
-            {!viewerIsSales || viewerIsSuperAdmin ? (
-              <a href="#lead-contract" className="btn btn-primary" data-testid="quote-lap-hop-dong">
+            {approvalPending ? <p className="muted">Đã gửi GDKD duyệt — chờ phê duyệt.</p> : null}
+            {canWriteContract && !contractInfo ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                data-testid="quote-lap-hop-dong"
+                disabled={busy}
+                onClick={() => void onCreateContract()}
+              >
                 Lập hợp đồng
-              </a>
+              </button>
             ) : null}
             <button
               type="button"
@@ -598,6 +680,17 @@ export function QuoteCasePanel({
             >
               Tải file hợp đồng
             </button>
+            {canWriteContract && contractInfo && !approvalPending && contractInfo.status === 'draft' ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                id="lead-contract-submit"
+                disabled={busy}
+                onClick={() => void onSubmitContract()}
+              >
+                Gửi GDKD duyệt
+              </button>
+            ) : null}
           </>
         ) : null}
         {quote.phase === 'trien_khai' ? (
