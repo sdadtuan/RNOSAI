@@ -55,7 +55,8 @@ import {
   readSolutionAttachments,
   type SolutionAttachment,
 } from '@/lib/crm/solution-file-display';
-import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';\nimport { withoutLegacyMarketingPlanHints } from '@/lib/crm/client-plan-brief.ui';
+import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
+import { withoutLegacyMarketingPlanHints } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
 
 type Attachment = SolutionAttachment;
