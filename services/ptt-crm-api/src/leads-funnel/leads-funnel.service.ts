@@ -992,7 +992,9 @@ export class LeadsFunnelService {
     staffUser?: StaffJwtPayload,
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
-    await this.assertPresalesPolicy(leadId, 'release', staffUser);
+    // t163: Nộp Solution no longer runs the pre-sales release policy (it demanded handoff_status
+    // 'with_solution' + Consult/plan checks and showed "Lead chưa đủ điều kiện…"). Who may submit is
+    // still enforced by StaffPresalesSolutionReleaseGuard and the assigned AM / owner check in the repo.
     // SUPER-ADMIN keeps full access: the release guard lets them through, so the repository's
     // "assigned AM / Solution owner only" check must not reject them either.
     const superAdmin = Boolean(staffUser && (await this.staffAuth.isSuperAdminUser(staffUser)));
