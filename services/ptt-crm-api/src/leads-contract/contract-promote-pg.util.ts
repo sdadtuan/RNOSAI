@@ -5,6 +5,7 @@ import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan
 import { ensureAgencyClientOnPromote } from './contract-promote-client-pg.util';
 import type { ContractPromoteResult } from './contract.types';
 import { seedPostOnboardLifecycleTasks } from './lifecycle-tasks-seed-pg.util';
+import { seedQuoteDeliveryTasks } from './quote-delivery-tasks-pg.util';
 import {
   ensureImplementationHandoffOnTrienKhai,
   notifyMarketingLeadersImplementationHandoff,
@@ -97,6 +98,21 @@ export class ContractPromotePgUtil {
             payload: { lifecycle_id: lifecycleId },
           });
         }
+        await client.query(
+          `UPDATE crm_lead_presales
+              SET contract_signed_at = COALESCE(contract_signed_at, $2::timestamptz),
+                  implementation_status = COALESCE(NULLIF(implementation_status, ''), 'trien_khai'),
+                  updated_at = $2::timestamptz
+            WHERE lead_id = $1`,
+          [leadId, ts],
+        );
+        await seedQuoteDeliveryTasks(client, {
+          leadId,
+          lifecycleId,
+          presalesId,
+          assignedAm,
+          startedAt: ts,
+        });
         if (manageTx) await client.query('COMMIT');
         return withClient;
       }
@@ -176,7 +192,9 @@ export class ContractPromotePgUtil {
       );
       await client.query(
         `UPDATE crm_lead_presales
-            SET implementation_status = 'trien_khai', updated_at = $2::timestamptz
+            SET implementation_status = 'trien_khai',
+                contract_signed_at = COALESCE(contract_signed_at, $2::timestamptz),
+                updated_at = $2::timestamptz
           WHERE lead_id = $1`,
         [leadId, ts],
       );
@@ -451,6 +469,13 @@ export class ContractPromotePgUtil {
       );
     }
 
+    await seedQuoteDeliveryTasks(client, {
+      leadId,
+      lifecycleId,
+      presalesId,
+      assignedAm,
+      startedAt: ts,
+    });
     await seedPostOnboardLifecycleTasks(client, lifecycleId, serviceSlug, ts);
     const skipPlanGate = presalesSource?.quoteApproved === true;
     if (presalesSource?.plan && Object.keys(presalesSource.plan).length > 0) {

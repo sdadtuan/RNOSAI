@@ -79,7 +79,10 @@ describe('handoff-flow.util', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan', quotePhase: 'hop_dong' })).toBe('negotiate');
     expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'hop_dong' })).toBe('negotiate');
     expect(resolveHandoffFlowStep({ leadStatus: 'chot', quotePhase: 'hop_dong' })).toBe('sign_contract');
-    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'trien_khai' })).toBe('sign_contract');
+    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'trien_khai' })).toBe('trien_khai');
+    expect(resolveHandoffFlowStep({ leadStatus: 'trien_khai', hasContract: true, contractStatus: 'active' })).toBe(
+      'trien_khai',
+    );
   });
 
   it('returns a lead to Sales Brief after AM trả về Sales', () => {
@@ -265,7 +268,7 @@ describe('splitBriefIdeas', () => {
     expect(splitBriefIdeas(raw).join(' ')).toContain('mục B');
   });
 
-  it('hides doing_solutions on the new path so the stepper shows 6 steps', () => {
+  it('hides doing_solutions on the new path so the stepper shows 7 steps', () => {
     const view = resolveHandoffFlow({
       leadStatus: 'dang_tu_van',
       handoffStatus: 'pending',
@@ -279,8 +282,9 @@ describe('splitBriefIdeas', () => {
       'await_quote',
       'negotiate',
       'sign_contract',
+      'trien_khai',
     ]);
-    expect(visible.steps.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(visible.steps.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(false);
   });
 
@@ -292,6 +296,6 @@ describe('splitBriefIdeas', () => {
     expect(view.currentKey).toBe('doing_solutions');
     const visible = visibleHandoffFlowSteps(view);
     expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(true);
-    expect(visible.steps).toHaveLength(7);
+    expect(visible.steps).toHaveLength(8);
   });
 });

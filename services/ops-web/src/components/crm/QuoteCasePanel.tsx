@@ -1,14 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import {
   acceptLeadQuoteCase,
+  approveContractApproval,
   approveLeadQuote,
   approveLeadSolution,
   createLeadContract,
   downloadLeadContractDocx,
-  fetchLeadContract,
+  fetchLeadContractReadiness,
   fetchLeadFunnel,
+  rejectContractApproval,
   submitLeadContract,
   requestLeadQuoteEdits,
   requestLeadSolutionEdits,
@@ -27,6 +30,16 @@ function when(value: string): string {
 function formatRemain(ms: number, dueAt: string, label: string): string {
   return formatCompactSlaLine(label, ms, dueAt);
 }
+
+const LIFECYCLE_STAGE_LABELS: Record<string, string> = {
+  lead: 'Lead',
+  consult: 'Tư vấn',
+  proposal: 'Báo giá',
+  onboard: 'Onboard',
+  deliver: 'Triển khai',
+  handover: 'Bàn giao',
+  retain: 'Giữ chân',
+};
 
 function QuoteDeadline({
   label,
@@ -67,6 +80,7 @@ export function QuoteCasePanel({
   funnel,
   viewerIsCeo = false,
   viewerIsSuperAdmin = false,
+  viewerIsGdkd = false,
   viewerIsSales = false,
   compact = false,
   onFunnelChange,
@@ -79,6 +93,7 @@ export function QuoteCasePanel({
   funnel: LeadFunnelSnapshot | null;
   viewerIsCeo?: boolean;
   viewerIsSuperAdmin?: boolean;
+  viewerIsGdkd?: boolean;
   viewerIsSales?: boolean;
   compact?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
@@ -102,15 +117,37 @@ export function QuoteCasePanel({
   const quotePhase = quote?.phase ?? '';
   const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
   const [approvalPending, setApprovalPending] = useState(false);
+  const [approvalId, setApprovalId] = useState<number | null>(null);
+  const [lifecycleId, setLifecycleId] = useState<number | null>(null);
+  const [lifecycleStage, setLifecycleStage] = useState('');
+  const [taskDone, setTaskDone] = useState(0);
+  const [taskTotal, setTaskTotal] = useState(0);
+  const [rejectNotes, setRejectNotes] = useState('');
+
+  async function applyContractReadiness(data: {
+    contract: { id: number; status: string } | null;
+    approval: { id: number; status: string } | null;
+    lifecycle_id?: number | null;
+    lifecycle_stage?: string | null;
+    task_done?: number;
+    task_total?: number;
+  }) {
+    setContractInfo(data.contract ? { id: data.contract.id, status: data.contract.status } : null);
+    setApprovalPending(data.approval?.status === 'pending');
+    setApprovalId(data.approval?.status === 'pending' ? data.approval.id : null);
+    setLifecycleId(data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null);
+    setLifecycleStage(String(data.lifecycle_stage ?? ''));
+    setTaskDone(Number(data.task_done ?? 0));
+    setTaskTotal(Number(data.task_total ?? 0));
+  }
 
   useEffect(() => {
     if (quotePhase !== 'hop_dong' && quotePhase !== 'trien_khai') return undefined;
     let cancelled = false;
-    void fetchLeadContract(token, leadId)
+    void fetchLeadContractReadiness(token, leadId)
       .then((data) => {
         if (cancelled) return;
-        setContractInfo(data.contract ? { id: data.contract.id, status: data.contract.status } : null);
-        setApprovalPending(data.approval?.status === 'pending');
+        void applyContractReadiness(data);
       })
       .catch(() => undefined);
     return () => {
@@ -164,6 +201,7 @@ export function QuoteCasePanel({
   }
 
   const canWriteContract = !viewerIsSales || viewerIsSuperAdmin;
+  const canApproveContract = viewerIsSuperAdmin || viewerIsGdkd;
 
   async function onCreateContract() {
     setBusy(true);
@@ -186,8 +224,9 @@ export function QuoteCasePanel({
     setBusy(true);
     setLocalError('');
     try {
-      await submitLeadContract(token, leadId, contractInfo.id, {});
+      const row = await submitLeadContract(token, leadId, contractInfo.id, {});
       setApprovalPending(true);
+      setApprovalId(row.id);
       setContractInfo({ ...contractInfo, status: 'submitted' });
       onMessage?.('Đã gửi GDKD duyệt — chờ phê duyệt');
     } catch (err) {
@@ -198,6 +237,115 @@ export function QuoteCasePanel({
       setBusy(false);
     }
   }
+
+  async function onApproveContract() {
+    if (!approvalId) return;
+    setBusy(true);
+    setLocalError('');
+    try {
+      const out = await approveContractApproval(token, approvalId);
+      const next = await fetchLeadFunnel(token, leadId);
+      onFunnelChange(next);
+      await onLeadReload();
+      try {
+        await applyContractReadiness(await fetchLeadContractReadiness(token, leadId));
+      } catch {
+        /* funnel reload already happened */
+      }
+      setRejectNotes('');
+      onMessage?.(`Đã duyệt và ký Active. Lifecycle #${out.lifecycle_id}. Lead sang Triển Khai.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Duyệt hợp đồng thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRejectContract() {
+    if (!approvalId) return;
+    setBusy(true);
+    setLocalError('');
+    try {
+      await rejectContractApproval(token, approvalId, { decision_notes: rejectNotes.trim() });
+      const next = await fetchLeadFunnel(token, leadId);
+      onFunnelChange(next);
+      await onLeadReload();
+      try {
+        await applyContractReadiness(await fetchLeadContractReadiness(token, leadId));
+      } catch {
+        /* funnel reload already happened */
+      }
+      setRejectNotes('');
+      onMessage?.('Đã từ chối hợp đồng');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Từ chối hợp đồng thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const contractApproveCard = canApproveContract && approvalPending ? (
+    <section
+      id="lead-contract-approve"
+      className="solution-feedback"
+      aria-label="Duyệt hợp đồng"
+      data-testid="quote-duyet-hop-dong"
+    >
+      <h3 className="solution-feedback__title">Duyệt hợp đồng</h3>
+      <p className="solution-feedback__due">
+        Hợp đồng đã gửi. Duyệt &amp; ký Active để chuyển lead sang Triển Khai, hoặc từ chối để AM chỉnh lại.
+      </p>
+      <ActionErrorToast message={onError ? '' : localError} />
+      <label>
+        Lý do từ chối
+        <textarea
+          value={rejectNotes}
+          onChange={(event) => setRejectNotes(event.target.value)}
+          rows={2}
+        />
+      </label>
+      <div className="solution-feedback__actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            setLocalError('');
+            void downloadLeadContractDocx(token, leadId)
+              .catch((err: unknown) => {
+                const message = err instanceof Error ? err.message : 'Không tải được file hợp đồng';
+                setLocalError(message);
+                onError?.(message);
+              })
+              .finally(() => setBusy(false));
+          }}
+        >
+          Tải file hợp đồng
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => void onApproveContract()}
+        >
+          Duyệt &amp; ký Active
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => void onRejectContract()}
+        >
+          Từ chối
+        </button>
+      </div>
+    </section>
+  ) : null;
 
   const role = quote.expected_role ? `Bước của ${quote.expected_role}` : '';
   const assignee =
@@ -416,6 +564,7 @@ export function QuoteCasePanel({
 
   if (compact && quote.phase === 'hop_dong') {
     return (
+      <>
       <section id="lead-contract" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
         <h3 className="solution-feedback__title">Lập hợp đồng</h3>
         <p className="solution-feedback__due" data-testid="quote-hop-dong-copy">
@@ -466,6 +615,44 @@ export function QuoteCasePanel({
               Gửi GDKD duyệt
             </button>
           ) : null}
+        </div>
+      </section>
+      {contractApproveCard}
+      </>
+    );
+  }
+
+  if (compact && quote.phase === 'trien_khai') {
+    const percent = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0;
+    const handoff = funnel?.presales?.implementation_handoff;
+    const receiver =
+      handoff?.status === 'claimed' && handoff.owner_name
+        ? handoff.owner_name
+        : handoff?.status === 'pending'
+          ? 'Chưa nhận case'
+          : '—';
+    const stageLabel = LIFECYCLE_STAGE_LABELS[lifecycleStage] ?? (lifecycleStage || 'Onboard');
+    return (
+      <section
+        id="lead-trien-khai"
+        className="solution-feedback"
+        aria-label="Triển Khai"
+        data-testid="quote-trien-khai"
+      >
+        <h3 className="solution-feedback__title">Triển Khai</h3>
+        <p className="solution-feedback__due" data-testid="quote-trien-khai-copy">
+          Giai đoạn hiện tại: {stageLabel}. Người nhận case (MKL): {receiver}. Tiến độ: {taskDone}/{taskTotal} ({percent}%).
+        </p>
+        <div className="solution-feedback__actions">
+          {lifecycleId ? (
+            <Link href={`/crm/service-delivery/${lifecycleId}`} className="btn btn-primary">
+              Mở triển khai
+            </Link>
+          ) : (
+            <button type="button" className="btn btn-primary" disabled>
+              Mở triển khai
+            </button>
+          )}
         </div>
       </section>
     );
@@ -691,6 +878,7 @@ export function QuoteCasePanel({
                 Gửi GDKD duyệt
               </button>
             ) : null}
+            {contractApproveCard}
           </>
         ) : null}
         {quote.phase === 'trien_khai' ? (

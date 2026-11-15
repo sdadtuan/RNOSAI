@@ -14,7 +14,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
 
 export default function CrmImplementationQueuePage() {
@@ -25,7 +25,7 @@ export default function CrmImplementationQueuePage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyLeadId, setBusyLeadId] = useState<number | null>(null);
-  const canClaim = Boolean(user && isMarketingLeader(user));
+  const canClaim = Boolean(user && (isMarketingLeader(user) || isSuperAdmin(user)));
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();

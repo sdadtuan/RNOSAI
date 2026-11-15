@@ -1616,11 +1616,43 @@ export default function CrmLeadDetailPage() {
       >
         {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
         <ActionErrorToast message={error} />
+        <ActionSuccessToast message={message} />
         {lead && !loading && accessToken ? (
           <div style={{ display: 'grid', gap: '1rem' }}>
             <h1 style={{ margin: 0, fontSize: '1.25rem' }}>
               {lead.full_name || `Lead #${leadId}`}
             </h1>
+            {funnelSnap?.presales?.quote_case ? (
+              <QuoteCasePanel
+                compact
+                token={accessToken}
+                leadId={leadId}
+                funnel={funnelSnap}
+                viewerIsCeo={isCeoPosition(user) || superAdmin}
+                viewerIsSuperAdmin={superAdmin}
+                viewerIsGdkd={isGdkdContractDesk(user)}
+                viewerIsSales={salesViewer}
+                onFunnelChange={setFunnelSnap}
+                onLeadReload={async () => {
+                  const row = await fetchLead(accessToken, leadId);
+                  setLead(row);
+                  setStatus(row.status || 'moi');
+                }}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+            {funnelSnap?.presales?.implementation_handoff ? (
+              <ImplementationHandoffCard
+                token={accessToken}
+                leadId={leadId}
+                handoff={funnelSnap.presales.implementation_handoff}
+                user={user}
+                onFunnelChange={setFunnelSnap}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
             <LeadQuoteSheet
               token={accessToken}
               leadId={leadId}
@@ -2041,6 +2073,7 @@ export default function CrmLeadDetailPage() {
                 funnel={funnelSnap}
                 viewerIsCeo={isCeoPosition(user) || superAdmin}
                 viewerIsSuperAdmin={superAdmin}
+                viewerIsGdkd={isGdkdContractDesk(user)}
                 viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
                 onLeadReload={async () => {
@@ -2075,6 +2108,7 @@ export default function CrmLeadDetailPage() {
                     funnel={funnelSnap}
                     viewerIsCeo={isCeoPosition(user) || superAdmin}
                     viewerIsSuperAdmin={superAdmin}
+                    viewerIsGdkd={isGdkdContractDesk(user)}
                     viewerIsSales={salesViewer}
                     onFunnelChange={setFunnelSnap}
                     onLeadReload={async () => {

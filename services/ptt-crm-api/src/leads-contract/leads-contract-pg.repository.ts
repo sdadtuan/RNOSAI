@@ -123,6 +123,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
 
     const lifecycleId = presalesCtx?.lifecycleId ?? null;
     let lifecycleStage: string | null = null;
+    let taskDone = 0;
+    let taskTotal = 0;
     if (lifecycleId != null && lifecycleId > 0) {
       const lcResult = await this.db.query(
         `SELECT stage FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
@@ -130,6 +132,14 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       );
       const lcRow = lcResult.rows[0] as { stage: string } | undefined;
       lifecycleStage = lcRow ? String(lcRow.stage ?? '') : null;
+      const progress = await this.db.query(
+        `SELECT COUNT(*)::int AS total,
+                SUM(CASE WHEN is_done THEN 1 ELSE 0 END)::int AS done
+           FROM crm_svc_tasks WHERE lifecycle_id = $1`,
+        [lifecycleId],
+      );
+      taskTotal = Number((progress.rows[0] as { total?: number } | undefined)?.total ?? 0);
+      taskDone = Number((progress.rows[0] as { done?: number } | undefined)?.done ?? 0);
     }
 
     return {
@@ -139,6 +149,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       approval,
       lifecycle_id: lifecycleId,
       lifecycle_stage: lifecycleStage,
+      task_done: taskDone,
+      task_total: taskTotal,
     };
   }
 

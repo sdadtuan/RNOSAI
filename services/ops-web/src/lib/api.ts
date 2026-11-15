@@ -3408,6 +3408,8 @@ export async function fetchLeadContractReadiness(token: string, leadId: number) 
     approval: ContractApprovalRow | null;
     lifecycle_id?: number | null;
     lifecycle_stage?: string | null;
+    task_done?: number;
+    task_total?: number;
   }>(token, `/api/v1/leads/${leadId}/contract/readiness`, { method: 'GET' });
 }
 

@@ -3725,7 +3725,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   async getImplementationPlan(leadId: number) {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    if (!snap.presales.contract_signed_at) {
+    const released =
+      Boolean(snap.presales.contract_signed_at) ||
+      String(snap.presales.implementation_status ?? '').trim() === 'trien_khai';
+    if (!released) {
       throw new Error('Kế hoạch triển khai mở sau khi hợp đồng đã ký.');
     }
     const sheet = await this.assembledQuoteSheet(snap.presales.id, false);
@@ -3905,7 +3908,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff impl ON impl.id = ps.implementation_owner_staff_id
-       WHERE ps.status = 'active'
+       WHERE lower(trim(COALESCE(ps.status, ''))) IN ('active', 'converted')
          AND ps.implementation_status = 'trien_khai'
          AND lower(COALESCE(ps.implementation_handoff_status, '')) = ANY($1::text[])
        ORDER BY ps.implementation_accept_due_at ASC NULLS LAST, ps.id DESC

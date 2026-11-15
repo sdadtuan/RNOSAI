@@ -67,6 +67,8 @@ export interface ContractReadiness {
   approval: ContractApprovalRow | null;
   lifecycle_id?: number | null;
   lifecycle_stage?: string | null;
+  task_done?: number;
+  task_total?: number;
 }
 
 export interface CreateContractBody {

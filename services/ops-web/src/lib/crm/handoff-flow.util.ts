@@ -9,6 +9,7 @@
  *   handoff released / lead status bao_gia → Chờ báo giá
  *   dam_phan             → Chờ CEO duyệt
  *   won / chot / contract → Ký hợp đồng
+ *   trien_khai            → Triển Khai
  *   dang_tu_van (no handoff or returned) → Sales tư vấn & nhập Brief
  *   moi / da_lien_he     → Tiếp nhận Lead (until Pre Sale starts)
  */
@@ -20,6 +21,7 @@ export const HANDOFF_FLOW_STEP_KEYS = [
   'await_quote',
   'negotiate',
   'sign_contract',
+  'trien_khai',
 ] as const;
 
 export type HandoffFlowStepKey = (typeof HANDOFF_FLOW_STEP_KEYS)[number];
@@ -92,6 +94,14 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
     hint: '',
     roleHint: '',
   },
+  {
+    key: 'trien_khai',
+    index: 8,
+    label: 'Triển Khai',
+    shortLabel: 'Triển Khai',
+    hint: '',
+    roleHint: '',
+  },
 ];
 
 export const HANDOFF_FLOW_STATUS_LABELS: Record<HandoffFlowStepKey, string> = {
@@ -102,6 +112,7 @@ export const HANDOFF_FLOW_STATUS_LABELS: Record<HandoffFlowStepKey, string> = {
   await_quote: 'Chờ báo giá',
   negotiate: 'Chờ CEO duyệt',
   sign_contract: 'Ký hợp đồng',
+  trien_khai: 'Triển Khai',
 };
 
 /** Stored CRM status written when Solution is released to Sales (Chờ báo giá). */
@@ -177,7 +188,7 @@ export interface HandoffFlowView {
 
 /**
  * New AM-made-Solution path hides the leftover Marketing step
- * ("AM làm Solution" / doing_solutions) so the stepper shows 6 steps.
+ * ("AM làm Solution" / doing_solutions) so the stepper shows 7 steps.
  * Legacy leads already on doing_solutions still see that step.
  */
 export function visibleHandoffFlowSteps(view: HandoffFlowView): HandoffFlowView {
@@ -205,7 +216,7 @@ function firstIso(...values: Array<string | null | undefined>): string | null {
 }
 
 /**
- * Derive the current 7-step key from stored lead + funnel fields.
+ * Derive the current step key from stored lead + funnel fields.
  * Does not invent data; later stages win over earlier ones.
  */
 export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStepKey {
@@ -213,8 +224,8 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
   const handoff = norm(input.handoffStatus);
   const quote = norm(input.quotePhase);
   const contractStatus = norm(input.contractStatus);
+  if (status === 'trien_khai' || quote === 'trien_khai') return 'trien_khai';
   if (status === 'won' || status === 'chot' || status === 'post_sale') return 'sign_contract';
-  if (quote === 'trien_khai') return 'sign_contract';
   if (Boolean(input.hasContract) && (contractStatus === 'signed' || contractStatus === 'active')) {
     return 'sign_contract';
   }
@@ -308,6 +319,7 @@ export function timestampsForHandoffFlow(
     await_quote: firstIso(input.solutionReleasedAt),
     negotiate: firstIso(input.quoteApprovedAt, input.quoteSentAt, input.customerAgreedAt),
     sign_contract: firstIso(input.contractSignedAt, input.contractCreatedAt),
+    trien_khai: firstIso(input.contractSignedAt),
   };
 }
 
@@ -425,6 +437,13 @@ export const HANDOFF_FLOW_KANBAN_COLUMNS: readonly HandoffKanbanColumn[] = [
     collapsible: true,
   },
   {
+    id: 'trien_khai',
+    label: 'Triển Khai',
+    stepKey: 'trien_khai',
+    statuses: ['trien_khai'],
+    collapsible: false,
+  },
+  {
     id: 'lost',
     label: 'Thất bại',
     statuses: ['lost'],
@@ -456,7 +475,7 @@ export function kanbanColumnIdForLead(lead: HandoffKanbanLead): string {
     leadStatus: lead.status,
     handoffStatus: lead.solution_handoff,
     hasContract: Boolean(lead.has_contract),
-    quotePhase: lead.quote_approved ? 'trien_khai' : lead.quote_case_open ? 'bao_gia' : null,
+    quotePhase: lead.status === 'trien_khai' ? 'trien_khai' : lead.quote_approved ? 'hop_dong' : lead.quote_case_open ? 'bao_gia' : null,
   });
   const col = HANDOFF_FLOW_KANBAN_COLUMNS.find((c) => c.stepKey === view.currentKey);
   if (col) return col.id;
