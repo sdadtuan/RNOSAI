@@ -292,6 +292,7 @@ export function SolutionCaseDesk({
   const [lines, setLines] = useState<SolutionPackLine[]>([]);
   const [serviceName, setServiceName] = useState('');
   const [busy, setBusy] = useState(false);
+  const runLockRef = useRef(false);
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
@@ -496,6 +497,9 @@ export function SolutionCaseDesk({
   }
 
   async function run(task: () => Promise<void>) {
+    // Ref lock: a fast double click lands before setBusy re-renders the disabled button.
+    if (runLockRef.current) return;
+    runLockRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -506,6 +510,7 @@ export function SolutionCaseDesk({
       setError(message);
       onError?.(message);
     } finally {
+      runLockRef.current = false;
       setBusy(false);
     }
   }
@@ -1303,8 +1308,9 @@ export function SolutionCaseDesk({
                   void run(async () => {
                     const out = await releaseLeadToSales(token, lead.id);
                     onFunnelChange(out.funnel);
-                    onMessage?.('Đã nộp Solution. Lead chuyển sang Chờ báo giá.');
-                    pushToast('Đã nộp Solution. Lead chuyển sang Chờ báo giá.', 'success');
+                    // One toast: the parent turns onMessage into its success toast.
+                    if (onMessage) onMessage('Đã nộp Solution. Lead chuyển sang Chờ báo giá.');
+                    else pushToast('Đã nộp Solution. Lead chuyển sang Chờ báo giá.', 'success');
                   })
                 }
               >

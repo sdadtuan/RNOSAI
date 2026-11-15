@@ -1,6 +1,6 @@
 'use client';
 
-import { Children, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Children, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   releaseLeadToSales,
@@ -341,6 +341,7 @@ export function AmHandoffDesk({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const runLockRef = useRef(false);
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
   const [serviceOptions, setServiceOptions] = useState<Array<{ slug?: string; value?: string; name?: string; label?: string }>>([]);
   const [serviceGroups, setServiceGroups] = useState<Array<{ services?: Array<{ slug: string; name: string; children?: Array<{ slug: string; name: string }> }> }>>([]);
@@ -553,6 +554,9 @@ export function AmHandoffDesk({
       : 'Tải file Solution hoặc dùng AI tạo Solution trước khi nộp.';
 
   async function run(task: () => Promise<void>) {
+    // Ref lock: a fast double click lands before setBusy re-renders the disabled button.
+    if (runLockRef.current) return;
+    runLockRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -562,6 +566,7 @@ export function AmHandoffDesk({
       setError(msg);
       onError?.(msg);
     } finally {
+      runLockRef.current = false;
       setBusy(false);
     }
   }
@@ -578,8 +583,9 @@ export function AmHandoffDesk({
       onFunnelChange(out.funnel);
       const msg = HANDOFF_FLOW_COPY.releasedToQuote;
       setNotice(msg);
-      onMessage?.(msg);
-      pushToast(msg, 'success');
+      // One toast: the lead page turns onMessage into its success toast.
+      if (onMessage) onMessage(msg);
+      else pushToast(msg, 'success');
     });
   }
 
@@ -595,8 +601,8 @@ export function AmHandoffDesk({
       const msg = HANDOFF_FLOW_COPY.returnedToSales;
       setNotice(msg);
       setReturnOpen(false);
-      onMessage?.(msg);
-      pushToast(msg, 'success');
+      if (onMessage) onMessage(msg);
+      else pushToast(msg, 'success');
     });
   }
 

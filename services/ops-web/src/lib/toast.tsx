@@ -25,6 +25,21 @@ const DEFAULT_DURATION: Record<ToastTone, number> = {
 let nextId = 1;
 let dispatcher: ToastContextValue['push'] | null = null;
 
+/** Same text + tone within this window shows once (several layers may report one action). */
+const DEDUPE_MS = 4000;
+const recentToasts = new Map<string, number>();
+
+function isDuplicateToast(text: string, tone: ToastTone): boolean {
+  const now = Date.now();
+  for (const [key, at] of recentToasts) {
+    if (now - at > DEDUPE_MS) recentToasts.delete(key);
+  }
+  const key = `${tone}|${text}`;
+  if (recentToasts.has(key)) return true;
+  recentToasts.set(key, now);
+  return false;
+}
+
 /** Push a toast from anywhere (API helpers, event handlers) once ToastProvider is mounted. */
 export function pushToast(message: string, tone: ToastTone = 'info', durationMs?: number): void {
   const text = String(message ?? '').trim();
@@ -46,6 +61,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((message: string, tone: ToastTone = 'info', durationMs?: number) => {
     const text = String(message ?? '').trim();
     if (!text) return;
+    if (isDuplicateToast(text, tone)) return;
     const id = nextId++;
     setToasts((prev) => [...prev, { id, message: text, tone }]);
     const ms = durationMs ?? DEFAULT_DURATION[tone];
