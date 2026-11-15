@@ -231,6 +231,11 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     return 'negotiate';
   }
 
+  // Revision / still making Solution wins over a leftover bao_gia lead status
+  // from a previous Nộp, so 'Cần chỉnh sửa' does not look like Chờ báo giá.
+  if (handoff === 'with_solution') return 'doing_solutions';
+  if (handoff === 'pending') return 'await_solutions';
+
   if (
     handoff === 'released' ||
     status === 'bao_gia' ||
@@ -241,9 +246,6 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
   ) {
     return 'await_quote';
   }
-
-  if (handoff === 'with_solution') return 'doing_solutions';
-  if (handoff === 'pending') return 'await_solutions';
 
   // Returned to Sales for missing info, or not yet submitted.
   if (input.discoverySubmitted && handoff !== 'returned' && handoff !== '') {

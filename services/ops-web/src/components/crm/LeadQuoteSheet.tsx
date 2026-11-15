@@ -114,7 +114,11 @@ export function LeadQuoteSheet({
 }) {
   const ceoApproved = phase === 'hop_dong' || phase === 'trien_khai';
   const visible =
-    (!viewerIsSales && (phase === 'bao_gia' || phase === 'ceo_review' || phase === 'sale_review')) ||
+    (!viewerIsSales &&
+      (phase === 'chuyen_bao_gia' ||
+        phase === 'bao_gia' ||
+        phase === 'ceo_review' ||
+        phase === 'sale_review')) ||
     ceoApproved;
   const [sheet, setSheet] = useState<LeadQuoteSheet | null>(null);
   const [busy, setBusy] = useState(false);
@@ -398,7 +402,8 @@ export function LeadQuoteSheet({
         </p>
       </header>
       <ActionErrorToast message={localError} />
-      {!sheet ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
+      {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
+      {!sheet && localError ? <p className="muted">{localError}</p> : null}
       {sheet && editable ? (
         <div className="quote-sheet__services" data-testid="quote-service-picker">
           {sheet.services.map((service) => {

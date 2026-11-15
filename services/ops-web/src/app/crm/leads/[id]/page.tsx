@@ -1494,6 +1494,14 @@ export default function CrmLeadDetailPage() {
   const waitingSolutionFeedback =
     handoffStatus === 'released' &&
     String(funnelSnap?.presales?.quote_case?.phase ?? '') === 'sale_approve_solution';
+  const needsSolutionRevision =
+    String(funnelSnap?.presales?.solution_case?.phase ?? '') === 'chinh_sua';
+  const atQuoteStep =
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    ['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review', 'hop_dong', 'trien_khai'].includes(
+      String(funnelSnap?.presales?.quote_case?.phase ?? ''),
+    );
   const flowStatusLabel = lead
     ? handoffFlowStatusLabel({
         leadStatus: lead.status || status,
@@ -1745,7 +1753,7 @@ export default function CrmLeadDetailPage() {
           amName={assignedAmName}
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
-          waitingSolutionFeedback={waitingSolutionFeedback}
+          waitingSolutionFeedback={waitingSolutionFeedback || atQuoteStep}
           exchangeLines={careHistory}
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
@@ -1901,7 +1909,7 @@ export default function CrmLeadDetailPage() {
             </>
           ) : null}
 
-          {!waitingSolutionFeedback && stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
+          {!waitingSolutionFeedback && !atQuoteStep && stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -1923,7 +1931,7 @@ export default function CrmLeadDetailPage() {
             </div>
           ) : null}
 
-          {accessToken && !showPipelineTab && !waitingSolutionFeedback ? (
+          {accessToken && !showPipelineTab && !waitingSolutionFeedback && !atQuoteStep ? (
             <LeadFrSlaPanel
               token={accessToken}
               leadId={leadId}
@@ -1933,7 +1941,7 @@ export default function CrmLeadDetailPage() {
             />
           ) : null}
 
-          {showSlaSciUnifiedPanel && !showPipelineTab && !waitingSolutionFeedback ? (
+          {showSlaSciUnifiedPanel && !showPipelineTab && !waitingSolutionFeedback && !atQuoteStep ? (
             <LeadSlaCarePanel
               token={accessToken!}
               leadId={leadId}
@@ -1978,19 +1986,6 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
-            {accessToken && !waitingSolutionFeedback && stageVis.showDealRoomBanner && showDealQuoteEntry ? (
-              <div className="deal-room-entry-banner">
-                <div>
-                  <strong>Deal Room</strong>
-                  <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                    Một màn hình: kế hoạch tư vấn, kế hoạch marketing và báo giá — chuẩn bị buổi chốt.
-                  </p>
-                </div>
-                <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
-                  Mở Deal Room →
-                </Link>
-              </div>
-            ) : null}
 
             {handoffStatus === 'released' && accessToken && lead ? (
               <SolutionCaseDesk
@@ -2004,7 +1999,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && funnelSnap?.presales?.quote_case ? (
+            {accessToken && lead && funnelSnap?.presales?.quote_case && !atQuoteStep ? (
               <QuoteCasePanel
                 token={accessToken}
                 leadId={leadId}
@@ -2035,7 +2030,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && showLeadQuoteSheet && !waitingSolutionFeedback ? (
+            {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
               <LeadQuoteSheet
                 token={accessToken}
                 leadId={leadId}
@@ -2086,7 +2081,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {solutionDesk && accessToken && lead && handoffStatus !== 'pending' ? (
+            {solutionDesk && accessToken && lead && handoffStatus !== 'pending' && !atQuoteStep ? (
               <SolutionCaseDesk
                 token={accessToken}
                 lead={lead}
@@ -2108,7 +2103,7 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {!waitingSolutionFeedback && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
+            {!waitingSolutionFeedback && !atQuoteStep && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
               <div className="lead-zone">
@@ -2270,19 +2265,6 @@ export default function CrmLeadDetailPage() {
               <LeadContractTab>
                 {stageVis.showContractPanel ? (
                   <>
-                    {stageVis.showDealRoomBanner && showDealQuoteEntry && showPipelineTab && desktopTab === 'contract' ? (
-                      <div className="deal-room-entry-banner">
-                        <div>
-                          <strong>Deal Room</strong>
-                          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                            Một màn hình: kế hoạch tư vấn, kế hoạch marketing và báo giá — chuẩn bị buổi chốt.
-                          </p>
-                        </div>
-                        <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
-                          Mở Deal Room →
-                        </Link>
-                      </div>
-                    ) : null}
                     <LeadContractPanel
                       token={accessToken}
                       leadId={leadId}
@@ -2316,7 +2298,7 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {!waitingSolutionFeedback && ((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
+            {!waitingSolutionFeedback && !atQuoteStep && ((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
               <LeadConsultWorkspace
                 token={accessToken}
                 leadId={leadId}
@@ -2330,7 +2312,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {!waitingSolutionFeedback && showHistoryPane && !showPipelineTab ? (
+            {!waitingSolutionFeedback && !atQuoteStep && showHistoryPane && !showPipelineTab ? (
               <LeadHistoryTab
                 token={accessToken!}
                 leadId={leadId}
