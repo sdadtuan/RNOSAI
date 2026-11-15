@@ -27176,3 +27176,34 @@ html.ops-shell-bitrix .lead-fr-sla__form textarea {
   -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
   box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
 }
+
+/* t156: Sales Brief / File Solution content surfaces are field areas, not only native inputs */
+.ahd-brief-grid .ahd-card__body,
+.ahd-brief-col .ahd-card__body,
+.ahd .solution-ai-doc__prose,
+.ahd .solution-ai-doc__section .solution-ai-doc__empty,
+.sld .solution-ai-doc__prose,
+.lead-detail-page .solution-ai-doc__prose,
+.lead-detail-page .lead-party-card .qt-inp,
+.lead-detail-page .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
+.lead-detail-page .lead-party-card textarea,
+.ahd .lead-party-card .qt-inp,
+.ahd .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
+.ahd .lead-party-card textarea,
+.sld .lead-party-card .qt-inp,
+.sld .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
+.sld .lead-party-card textarea {
+  background: var(--crm-lead-field-bg, #ffffcd) !important;
+  background-color: var(--crm-lead-field-bg, #ffffcd) !important;
+  border: 1px solid var(--crm-lead-field-border, #cfd8e3);
+  border-radius: 6px;
+}
+.ahd-brief-grid .ahd-card__body,
+.ahd-brief-col .ahd-card__body,
+.ahd .solution-ai-doc__prose,
+.sld .solution-ai-doc__prose,
+.lead-detail-page .solution-ai-doc__prose {
+  padding: 8px 10px;
+  min-height: 2.2em;
+  box-sizing: border-box;
+}

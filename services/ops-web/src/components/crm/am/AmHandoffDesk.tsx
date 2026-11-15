@@ -172,7 +172,7 @@ function BriefCard({
         <Icon d={icon} />
         {title}
       </h3>
-      {children ?? <EmptyState />}
+      <div className="ahd-card__body">{children ?? <EmptyState />}</div>
     </section>
   );
 }
