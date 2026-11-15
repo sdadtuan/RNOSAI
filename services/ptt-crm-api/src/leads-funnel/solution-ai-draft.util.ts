@@ -100,6 +100,13 @@ export function parseSolutionAiFromStrategy(strategy: unknown): SolutionAiPacked
   return null;
 }
 
+/** Ready 7-section AI Solution draft counts as a Solution file for Nộp. */
+export function solutionAiDraftCountsAsSolution(strategy: unknown): boolean {
+  const packed = parseSolutionAiFromStrategy(strategy);
+  if (!packed || packed.status === 'pending' || packed.status === 'error') return false;
+  return Object.values(packed.sections).some((text) => String(text ?? "").trim());
+}
+
 export function mergeSolutionAiIntoStrategy(
   strategy: Record<string, string>,
   packed: SolutionAiPacked,

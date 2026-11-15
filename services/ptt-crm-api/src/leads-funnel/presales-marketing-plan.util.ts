@@ -1,3 +1,5 @@
+import { solutionAiDraftCountsAsSolution } from './solution-ai-draft.util';
+
 export const PRELIMINARY_STRATEGY_KEYS = [
   'market_message',
   'media_reach',
@@ -43,8 +45,10 @@ export function parsePresalesJsonRecord(raw: unknown): Record<string, string> {
 
 export function preliminaryPlanHasSolutionFile(plan: Record<string, unknown> | null): boolean {
   if (!plan) return false;
-  const framework = parsePresalesJsonRecord(plan.strategy_framework_json ?? plan.strategy_framework);
-  return frameworkHasNamedFile(framework.mkt_files);
+  const raw = plan.strategy_framework_json ?? plan.strategy_framework;
+  const framework = parsePresalesJsonRecord(raw);
+  if (frameworkHasNamedFile(framework.mkt_files)) return true;
+  return solutionAiDraftCountsAsSolution(raw);
 }
 
 function frameworkHasNamedFile(packed: string | undefined, name?: string): boolean {
@@ -68,8 +72,7 @@ function frameworkHasNamedFile(packed: string | undefined, name?: string): boole
 
 /** Nộp Solution chỉ cần một file đã tải. Việc sẽ làm, kết quả, và Solution.html không chặn nộp. */
 export function solutionSubmitGaps(plan: Record<string, unknown> | null): string[] {
-  const framework = parsePresalesJsonRecord(plan?.strategy_framework_json ?? plan?.strategy_framework);
-  if (frameworkHasNamedFile(framework.mkt_files)) return [];
+  if (preliminaryPlanHasSolutionFile(plan)) return [];
   return ['Tải file Solution trước khi nộp.'];
 }
 

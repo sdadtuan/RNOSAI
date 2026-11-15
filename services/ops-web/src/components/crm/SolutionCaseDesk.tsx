@@ -413,7 +413,7 @@ export function SolutionCaseDesk({
   const serviceLabel = serviceSlug ? intakeServiceLabel(serviceSlug) : '';
 
   if (filesOnly) {
-    if (!session && files.length === 0) return null;
+    if (!session && files.length === 0 && !aiDraft) return null;
     const company = sessionCompany || companyOnCard;
     const contact = sessionContact || leadName;
     return (
@@ -441,9 +441,9 @@ export function SolutionCaseDesk({
             </button>
           ) : null}
         </div>
-        {files.length === 0 ? (
+        {files.length === 0 && !aiDraft ? (
           <p className="muted">Chưa có file Solution.</p>
-        ) : (
+        ) : files.length === 0 ? null : (
           <SolutionFileList files={files} />
         )}
         <dl className="solution-desk__facts">
@@ -652,7 +652,14 @@ export function SolutionCaseDesk({
     await load();
   }
 
-  const hasSolutionFile = files.some((file) => file.name.trim());
+  const hasReadyAiDraft = Boolean(
+    aiDraft &&
+      aiDraft.status !== 'pending' &&
+      aiDraft.status !== 'error' &&
+      aiDraft.source !== 'legacy' &&
+      aiDraft.sections.some((row) => row.body.trim()),
+  );
+  const hasSolutionFile = files.some((file) => file.name.trim()) || hasReadyAiDraft;
   const submitGaps =
     handoff === 'with_solution'
       ? solutionSubmitGaps({ lines, fileNames: files.map((file) => file.name) })
@@ -870,9 +877,9 @@ export function SolutionCaseDesk({
             {error}
           </p>
         ) : null}
-        {files.length === 0 ? (
+        {files.length === 0 && !aiDraft ? (
           <p className="muted">Chưa có file Solution.</p>
-        ) : (
+        ) : files.length === 0 ? null : (
           <SolutionFileList
             files={files}
             canEdit={canEditFiles}
@@ -1252,7 +1259,7 @@ export function SolutionCaseDesk({
             </div>
           </div>
         ) : null}
-        {files.length === 0 && !uploadLabel ? (
+        {files.length === 0 && !uploadLabel && !aiDraft ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : files.length === 0 ? null : (
           <SolutionFileList

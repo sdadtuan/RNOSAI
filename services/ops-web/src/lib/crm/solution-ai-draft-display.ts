@@ -106,6 +106,13 @@ export function parsePackedSolutionAi(plan: Record<string, unknown> | null | und
   };
 }
 
+/** Ready (non-pending) 7-section AI Solution draft counts as a Solution file for Nộp. */
+export function solutionAiDraftIsReady(plan: Record<string, unknown> | null | undefined): boolean {
+  const packed = parsePackedSolutionAi(plan);
+  if (!packed || packed.status === 'pending' || packed.status === 'error') return false;
+  return Object.values(packed.sections).some((body) => String(body ?? "").trim());
+}
+
 export function presentSolutionAiDraft(
   plan: Record<string, unknown> | null | undefined,
 ): SolutionAiDraftView | null {

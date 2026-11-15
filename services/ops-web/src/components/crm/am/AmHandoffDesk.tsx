@@ -45,7 +45,7 @@ import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
-import { isAiDraftNotice } from '@/lib/crm/solution-ai-draft-display';
+import { isAiDraftNotice, solutionAiDraftIsReady } from '@/lib/crm/solution-ai-draft-display';
 import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
@@ -382,7 +382,9 @@ export function AmHandoffDesk({
     const planRec = (plan && typeof plan === 'object' ? (plan as { plan?: Record<string, unknown> }).plan ?? plan : null) as Record<string, unknown> | null;
     const nextFiles = readFiles(planRec);
     setFiles(nextFiles);
-    if (nextFiles.some((file) => String(file?.name ?? '').trim())) setArtifactReady(true);
+    setArtifactReady(
+      nextFiles.some((file) => String(file?.name ?? '').trim()) || solutionAiDraftIsReady(planRec),
+    );
     const briefRec = consult && typeof consult === 'object' ? (consult as { brief?: Record<string, unknown> }).brief : null;
     const prefillParts = [
       briefRec && typeof briefRec.goal === 'string' ? String(briefRec.goal) : '',
