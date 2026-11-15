@@ -230,12 +230,22 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     return 'sign_contract';
   }
 
-  // CEO approval flips quote phase to hop_dong; that is still Chờ CEO duyệt (3 business days),
-  // not Ký hợp đồng, until the lead is actually at contract/won or triển khai.
+  // CEO approval flips quote phase to hop_dong. That is step 6 Ký hợp đồng.
+  // Leftover lead status dam_phan must not keep the stepper on Chờ CEO duyệt.
+  if (
+    quote === 'hop_dong' ||
+    Boolean(input.contractCreatedAt) ||
+    contractStatus === 'draft' ||
+    contractStatus === 'submitted' ||
+    contractStatus === 'pending' ||
+    contractStatus === 'pending_approval'
+  ) {
+    return 'sign_contract';
+  }
+
   if (
     status === 'dam_phan' ||
     status === 'negotiation' ||
-    quote === 'hop_dong' ||
     quote === 'sale_review' ||
     quote === 'ceo_review'
   ) {

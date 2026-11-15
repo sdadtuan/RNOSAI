@@ -691,15 +691,16 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
       `SELECT sl.id AS lifecycle_id, sl.lead_id, sl.assigned_am, sl.stage, sl.created_at,
               sl.client_gates_json, sl.campaign_kpi_json, sl.contract_id,
               COALESCE(l.full_name, '') AS lead_name,
-              l.contract_signed_at,
+              ps.contract_signed_at,
               COALESCE(am.name, '') AS am_name,
               COALESCE(ct.amount_vnd, 0) AS amount_vnd
          FROM crm_service_lifecycle sl
          LEFT JOIN crm_leads l ON l.sqlite_lead_id = sl.lead_id
+         LEFT JOIN crm_lead_presales ps ON ps.lead_id = sl.lead_id
          LEFT JOIN crm_staff am ON am.id = sl.assigned_am
          LEFT JOIN crm_contracts ct ON ct.id = sl.contract_id
-        WHERE (COALESCE(l.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date >= $1::date
-          AND (COALESCE(l.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date < $2::date
+        WHERE (COALESCE(ps.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date >= $1::date
+          AND (COALESCE(ps.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date < $2::date
         ORDER BY sl.id DESC`,
       [start, end],
     );

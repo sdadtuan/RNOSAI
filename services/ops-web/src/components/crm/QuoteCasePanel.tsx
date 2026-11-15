@@ -132,6 +132,7 @@ export function QuoteCasePanel({
   const [revisionCount, setRevisionCount] = useState(0);
   const [targetsFilled, setTargetsFilled] = useState(false);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   async function applyContractReadiness(data: {
     contract: { id: number; status: string } | null;
@@ -280,6 +281,7 @@ export function QuoteCasePanel({
         /* funnel reload already happened */
       }
       setRejectNotes('');
+      setRejectOpen(false);
       onMessage?.(`Đã duyệt và ký Active. Lifecycle #${out.lifecycle_id}. Lead sang Triển Khai.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Duyệt hợp đồng thất bại';
@@ -292,6 +294,10 @@ export function QuoteCasePanel({
 
   async function onRejectContract() {
     if (!approvalId) return;
+    if (rejectNotes.trim().length < 5) {
+      setLocalError('Nhập lý do từ chối, ít nhất 5 ký tự');
+      return;
+    }
     setBusy(true);
     setLocalError('');
     try {
@@ -305,6 +311,7 @@ export function QuoteCasePanel({
         /* funnel reload already happened */
       }
       setRejectNotes('');
+      setRejectOpen(false);
       onMessage?.('Đã từ chối hợp đồng');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Từ chối hợp đồng thất bại';
@@ -327,14 +334,6 @@ export function QuoteCasePanel({
         Hợp đồng đã gửi. Duyệt &amp; ký Active để chuyển lead sang Triển Khai, hoặc từ chối để AM chỉnh lại.
       </p>
       <ActionErrorToast message={onError ? '' : localError} />
-      <label>
-        Lý do từ chối
-        <textarea
-          value={rejectNotes}
-          onChange={(event) => setRejectNotes(event.target.value)}
-          rows={2}
-        />
-      </label>
       <div className="solution-feedback__actions">
         <button
           type="button"
@@ -362,15 +361,52 @@ export function QuoteCasePanel({
         >
           Duyệt &amp; ký Active
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={busy}
-          onClick={() => void onRejectContract()}
-        >
-          Từ chối
-        </button>
+        {!rejectOpen ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() => setRejectOpen(true)}
+          >
+            Từ chối
+          </button>
+        ) : null}
       </div>
+      {rejectOpen ? (
+        <div className="solution-feedback__revise">
+          <label>
+            Lý do từ chối
+            <textarea
+              value={rejectNotes}
+              onChange={(event) => setRejectNotes(event.target.value)}
+              rows={5}
+              aria-label="Lý do từ chối"
+              placeholder="Nhập lý do từ chối, ít nhất 5 ký tự"
+            />
+          </label>
+          <div className="solution-feedback__actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || rejectNotes.trim().length < 5}
+              onClick={() => void onRejectContract()}
+            >
+              Từ chối
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => {
+                setRejectOpen(false);
+                setRejectNotes('');
+              }}
+            >
+              Huỷ
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   ) : null;
 
@@ -590,8 +626,10 @@ export function QuoteCasePanel({
   }
 
   if (compact && quote.phase === 'hop_dong') {
+    const approverPending = canApproveContract && approvalPending;
     return (
       <>
+      {approverPending ? null : (
       <section id="lead-contract" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
         <h3 className="solution-feedback__title">Lập hợp đồng</h3>
         <p className="solution-feedback__due" data-testid="quote-hop-dong-copy">
@@ -644,6 +682,7 @@ export function QuoteCasePanel({
           ) : null}
         </div>
       </section>
+      )}
       {contractApproveCard}
       </>
     );
@@ -829,29 +868,56 @@ export function QuoteCasePanel({
               >
                 Duyệt báo giá
               </button>
-              <label>
-                Lý do từ chối
-                <textarea
-                  rows={2}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  aria-label="Lý do từ chối báo giá"
-                  placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
-                />
-              </label>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy || note.trim().length < 5}
-                onClick={() =>
-                  void run(
-                    () => requestLeadQuoteEdits(token, leadId, note.trim()),
-                    'Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.',
-                  )
-                }
-              >
-                Từ chối, gửi lại AM
-              </button>
+              {!reviseOpen ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => setReviseOpen(true)}
+                >
+                  Từ chối, gửi lại AM
+                </button>
+              ) : null}
+              {reviseOpen ? (
+                <div className="solution-feedback__revise">
+                  <label>
+                    Lý do từ chối
+                    <textarea
+                      rows={5}
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      aria-label="Lý do từ chối báo giá"
+                      placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
+                    />
+                  </label>
+                  <div className="solution-feedback__actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy || note.trim().length < 5}
+                      onClick={() =>
+                        void run(
+                          () => requestLeadQuoteEdits(token, leadId, note.trim()),
+                          'Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.',
+                        )
+                      }
+                    >
+                      Từ chối, gửi lại AM
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setReviseOpen(false);
+                        setNote('');
+                      }}
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : (
             <p className="muted">
@@ -862,6 +928,9 @@ export function QuoteCasePanel({
           )
         ) : null}
         {quote.phase === 'hop_dong' ? (
+          canApproveContract && approvalPending ? (
+            contractApproveCard
+          ) : (
           <>
             <p data-testid="quote-hop-dong-copy">
               {viewerIsSales && !viewerIsSuperAdmin
@@ -909,8 +978,8 @@ export function QuoteCasePanel({
                 Gửi GDKD duyệt
               </button>
             ) : null}
-            {contractApproveCard}
           </>
+          )
         ) : null}
         {quote.phase === 'trien_khai' ? (
           <p>GĐKD đã duyệt hợp đồng. Lead đang ở Triển Khai.</p>

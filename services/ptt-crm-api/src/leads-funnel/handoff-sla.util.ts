@@ -104,8 +104,8 @@ const LABELS: Record<HandoffSlaClockKey, { step: string; label: string; role: Ha
   customer_response: { step: 'await_quote', label: 'Hạn phản hồi khách', role: 'Sales' },
   quote_accept: { step: 'await_quote', label: 'Hạn AM nhận case báo giá', role: 'AM' },
   quote_finish: { step: 'await_quote', label: 'Hạn lập báo giá', role: 'AM' },
-  ceo_approve: { step: 'await_quote', label: 'Hạn CEO duyệt báo giá', role: 'CEO' },
-  negotiate: { step: 'negotiate', label: 'Hạn thương thảo', role: 'AM' },
+  ceo_approve: { step: 'negotiate', label: 'Hạn CEO duyệt', role: 'CEO' },
+  negotiate: { step: 'negotiate', label: 'Hạn CEO duyệt', role: 'AM' },
   contract: { step: 'contract', label: 'Hạn ký hợp đồng', role: 'AM' },
 };
 
@@ -280,17 +280,28 @@ export function inferHandoffSlaStep(input: {
   leadStatus?: string | null;
   handoffStatus?: string | null;
   quoteApprovedAt?: string | null;
+  quoteSentBackAt?: string | null;
   contractSignedAt?: string | null;
   contractCreatedAt?: string | null;
   implementationStatus?: string | null;
 }): string | null {
-  const given = String(input.currentStep ?? '').trim();
-  if (given) return given;
   const status = String(input.leadStatus ?? '').trim().toLowerCase();
   const handoff = String(input.handoffStatus ?? '').trim().toLowerCase();
   const impl = String(input.implementationStatus ?? '').trim().toLowerCase();
   if (input.contractSignedAt || CONTRACT_STATUSES.has(status) || impl === 'trien_khai') return 'contract';
-  if (NEGOTIATE_STATUSES.has(status) || input.quoteApprovedAt) return 'negotiate';
+  if (
+    input.quoteApprovedAt ||
+    input.contractCreatedAt ||
+    impl === 'hop_dong' ||
+    impl === 'ky_hop_dong' ||
+    impl === 'sign_contract'
+  ) {
+    return 'contract';
+  }
+  const given = String(input.currentStep ?? '').trim();
+  if (given) return given;
+  if (input.quoteSentBackAt) return 'negotiate';
+  if (NEGOTIATE_STATUSES.has(status)) return 'negotiate';
   if (status === 'bao_gia' || status === 'proposal' || handoff === 'released') return 'await_quote';
   if (handoff === 'with_solution') return 'doing_solution';
   if (handoff === 'pending') return 'await_solution';
@@ -483,15 +494,19 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
       leadStatus: source.leadStatus,
       handoffStatus: source.handoffStatus,
       quoteApprovedAt: source.quoteApprovedAt,
+      quoteSentBackAt: source.quoteSentBackAt,
       contractSignedAt: source.contractSignedAt,
       contractCreatedAt: source.contractCreatedAt,
       implementationStatus: source.implementationStatus,
     });
-    const atContract = isContractStep(inferred, source.leadStatus);
+    const atContract =
+      isContractStep(inferred, source.leadStatus) ||
+      Boolean(source.quoteApprovedAt) ||
+      Boolean(source.contractCreatedAt);
     if (!atContract) {
       const due = source.negotiateDueAt || negotiateDueAt(approved).toISOString();
       clocks.push(
-        clockOf('negotiate', due, source.quoteApprovedAt, now, 'Thương thảo trong 3 ngày làm việc sau khi CEO duyệt.'),
+        clockOf('negotiate', due, source.quoteApprovedAt, now, 'CEO duyệt báo giá trong hạn đã giao.'),
       );
     }
     const contractDue = source.contractDueAt || contractDueAt(approved).toISOString();
@@ -505,6 +520,7 @@ export function buildHandoffSlaView(source: HandoffSlaSource, now = new Date()):
     leadStatus: source.leadStatus,
     handoffStatus: source.handoffStatus,
     quoteApprovedAt: source.quoteApprovedAt,
+    quoteSentBackAt: source.quoteSentBackAt,
     contractSignedAt: source.contractSignedAt,
     contractCreatedAt: source.contractCreatedAt,
     implementationStatus: source.implementationStatus,

@@ -1467,6 +1467,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           leadStatus: lead.status,
           handoffStatus: ps.handoff_status,
           quoteApprovedAt: ps.quote_approved_at || null,
+          quoteSentBackAt: ps.quote_sent_back_at || null,
           contractSignedAt: ps.contract_signed_at || null,
           contractCreatedAt: ps.contract_created_at || null,
           implementationStatus: ps.implementation_status || null,
