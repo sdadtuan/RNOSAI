@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { hourlyFromPosition, assembleQuoteSheet, type QuoteSheetItem, type QuoteSheetStaff } from './quote-sheet.util';
-import { renderLeadQuoteXlsx, resolvePttLogoPath } from './lead-quote-xlsx';
+import { renderLeadQuoteXlsx, resolveBaoGiaTemplatePath, resolvePttLogoPath } from './lead-quote-xlsx';
 
 const staff: QuoteSheetStaff[] = [
   {
@@ -72,9 +72,14 @@ describe('lead quote xlsx', () => {
     expect(text).toContain('Website · Khởi động');
     expect(text).toContain('THÀNH TIỀN');
     expect(text).toContain('PTT ADS');
+    expect(text).toContain('Khuyến mại');
+    expect(text).toContain('VAT');
     expect(text).not.toContain('Việc không xuất');
     expect(text).not.toContain('An');
     expect(text).not.toContain('Account Executive');
+    expect(text).not.toContain('KHANG THỊNH');
+    expect(text).not.toContain('THE COLLECTORS');
+    expect(text).not.toContain('VAT FACEBOOK');
   });
 
   it('renders an empty quote with zero totals', async () => {
@@ -97,6 +102,7 @@ describe('lead quote xlsx', () => {
   });
 
   it('embeds the PTT Ads logo in the workbook', async () => {
+    expect(resolveBaoGiaTemplatePath()).toBeTruthy();
     expect(resolvePttLogoPath()).toBeTruthy();
     const view = assembleQuoteSheet({
       editable: false,

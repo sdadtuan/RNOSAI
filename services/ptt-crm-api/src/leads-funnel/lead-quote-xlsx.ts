@@ -3,6 +3,13 @@ import path from 'node:path';
 import ExcelJS from 'exceljs';
 import type { QuoteSheetView } from './quote-sheet.util';
 
+const TEMPLATE_FILE = 'bao-gia-mau.xlsx';
+const SHEET_NAME = 'BÁO GIÁ PTT ADS';
+const COLS = 14;
+const BODY_START = 13;
+const TEMPLATE_BODY_END = 25;
+const TEMPLATE_FOOTER_ROW = 28;
+const MONEY = '#,##0';
 
 /** Resolve the PTT Ads logo from API assets or the repo brand folder. */
 export function resolvePttLogoPath(): string | null {
@@ -25,40 +32,27 @@ export function resolvePttLogoPath(): string | null {
   return null;
 }
 
-function embedPttLogo(wb: ExcelJS.Workbook, sheet: ExcelJS.Worksheet): boolean {
-  const logoPath = resolvePttLogoPath();
-  if (!logoPath) return false;
-  const imageId = wb.addImage({ filename: logoPath, extension: 'png' });
-  // Top-right letterhead, clear of the "MEDIA PLAN | PTT ADS" title (cols 1-8).
-  sheet.addImage(imageId, {
-    tl: { col: 9, row: 0 },
-    ext: { width: 72, height: 72 },
-    editAs: 'oneCell',
-  });
-  return true;
+/** Official PTT Ads quote workbook used as the export template. */
+export function resolveBaoGiaTemplatePath(): string | null {
+  const candidates = [
+    path.join(__dirname, '..', 'assets', 'quotes', TEMPLATE_FILE),
+    path.join(__dirname, '..', '..', 'src', 'assets', 'quotes', TEMPLATE_FILE),
+    path.join(process.cwd(), 'src', 'assets', 'quotes', TEMPLATE_FILE),
+    path.join(process.cwd(), 'assets', 'quotes', TEMPLATE_FILE),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      /* ignore unreadable paths */
+    }
+  }
+  return null;
 }
-
-const GREEN = 'FF174F31';
-const MID = 'FF35884D';
-const PALE = 'FFEAF4E4';
-const INK = 'FF20382B';
-const WHITE = 'FFFFFFFF';
-const MONEY = '#,##0';
-const COLS = 14;
 
 function formatPercent(value: number): string {
   const amount = Number.isFinite(value) ? value : 0;
   return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(amount);
-}
-
-function unitLabel(unit: string): string {
-  const key = unit.trim().toLowerCase();
-  if (key === 'times' || key === 'time' || key === 'lan' || key === 'lần') return 'lần';
-  if (key === 'month' || key === 'months' || key === 'thang' || key === 'tháng') return 'tháng';
-  if (key === 'package' || key === 'goi' || key === 'gói') return 'gói';
-  if (key === 'sample' || key === 'mau' || key === 'mẫu') return 'mẫu';
-  if (key === 'shoot_day' || key === 'day' || key === 'ngày') return 'ngày';
-  return unit.trim() || 'gói';
 }
 
 function unitPrice(amount: number, qty: number): number {
@@ -67,162 +61,285 @@ function unitPrice(amount: number, qty: number): number {
   return Math.round(amount / qty);
 }
 
-function fill(cell: ExcelJS.Cell, argb: string, color: string, bold = false) {
-  cell.font = { name: 'Calibri', size: 10, bold, color: { argb: color } };
-  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
-  cell.alignment = { vertical: 'middle', wrapText: true };
+type StyleSnapshot = {
+  font?: Partial<ExcelJS.Font>;
+  fill?: ExcelJS.Fill;
+  alignment?: Partial<ExcelJS.Alignment>;
+  border?: Partial<ExcelJS.Borders>;
+  numFmt?: string;
+};
+
+function snapshotCell(cell: ExcelJS.Cell): StyleSnapshot {
+  return {
+    font: cell.font ? { ...cell.font, color: cell.font.color ? { ...cell.font.color } : undefined } : undefined,
+    fill: cell.fill ? (JSON.parse(JSON.stringify(cell.fill)) as ExcelJS.Fill) : undefined,
+    alignment: cell.alignment ? { ...cell.alignment } : undefined,
+    border: cell.border ? (JSON.parse(JSON.stringify(cell.border)) as ExcelJS.Borders) : undefined,
+    numFmt: cell.numFmt,
+  };
 }
 
-function paintSpan(row: ExcelJS.Row, from: number, to: number, bg: string, color: string, bold = true) {
-  for (let col = from; col <= to; col += 1) fill(row.getCell(col), bg, color, bold);
+function applyStyle(cell: ExcelJS.Cell, style: StyleSnapshot | undefined) {
+  if (!style) return;
+  if (style.font) cell.font = style.font;
+  if (style.fill) cell.fill = style.fill;
+  if (style.alignment) cell.alignment = style.alignment;
+  if (style.border) cell.border = style.border;
+  if (style.numFmt) cell.numFmt = style.numFmt;
 }
 
-function infoRow(sheet: ExcelJS.Worksheet, label: string, value: string) {
-  const row = sheet.addRow([label, '', value]);
-  sheet.mergeCells(row.number, 1, row.number, 2);
-  sheet.mergeCells(row.number, 3, row.number, 8);
-  paintSpan(row, 1, 2, GREEN, WHITE, true);
-  paintSpan(row, 3, 8, PALE, INK, true);
-  row.height = 28;
-  return row;
+function resetCell(cell: ExcelJS.Cell) {
+  cell.value = null;
+  cell.numFmt = '';
 }
 
-export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: string): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  const sheet = wb.addWorksheet('BÁO GIÁ PTT ADS');
-  sheet.columns = [
-    { width: 7 },
-    { width: 16 },
-    { width: 22 },
-    { width: 56 },
-    { width: 12 },
-    { width: 12 },
-    { width: 18 },
-    { width: 18 },
-    { width: 14 },
-    { width: 14 },
-    { width: 14 },
-    { width: 14 },
-    { width: 12 },
-    { width: 12 },
-  ];
-
-  const title = sheet.addRow(['MEDIA PLAN | PTT ADS']);
-  sheet.mergeCells(title.number, 1, title.number, 8);
-  title.height = 56;
-  title.getCell(1).font = { name: 'Calibri', size: 20, bold: true, color: { argb: GREEN } };
-  title.getCell(1).alignment = { vertical: 'middle' };
-  embedPttLogo(wb, sheet);
-  sheet.addRow([]);
-
-  const included = view.groups
+function includedGroups(view: QuoteSheetView) {
+  return view.groups
     .map((group) => ({
       label: [group.service_name, group.phase_name].map((part) => part.trim()).filter(Boolean).join(' · ') || '—',
       channel: group.service_name.trim() || '—',
       lines: group.rows.filter((row) => row.included),
     }))
     .filter((group) => group.lines.length > 0);
+}
+
+function unmergeFromRow(sheet: ExcelJS.Worksheet, fromRow: number) {
+  const merges = [...(((sheet.model as { merges?: string[] }).merges ?? []) as string[])];
+  for (const ref of merges) {
+    const match = /^[A-Z]+(\d+):[A-Z]+(\d+)$/i.exec(ref);
+    if (!match) continue;
+    if (Number(match[1]) >= fromRow) {
+      try {
+        sheet.unMergeCells(ref);
+      } catch {
+        /* already cleared */
+      }
+    }
+  }
+}
+
+type BodyRow =
+  | { kind: 'group'; label: string }
+  | {
+      kind: 'item';
+      stt: number | null;
+      channel: string;
+      task: string;
+      subtask: string;
+      unit: string;
+      qty: number | null;
+      price: number | null;
+      amount: number | null;
+      zebra: number;
+    };
+
+function writeTotal(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  label: string,
+  amount: number,
+  height: number,
+  labelStyle: StyleSnapshot,
+  valueStyle: StyleSnapshot,
+  formula?: string,
+) {
+  const row = sheet.getRow(rowNumber);
+  row.height = height;
+  for (let col = 1; col <= COLS; col += 1) resetCell(row.getCell(col));
+  applyStyle(row.getCell(6), labelStyle);
+  applyStyle(row.getCell(7), labelStyle);
+  row.getCell(6).value = label;
+  sheet.mergeCells(rowNumber, 6, rowNumber, 7);
+  const valueCell = row.getCell(8);
+  applyStyle(valueCell, valueStyle);
+  valueCell.value = formula ? { formula, result: amount } : amount;
+  valueCell.numFmt = MONEY;
+}
+
+export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: string): Promise<Buffer> {
+  const templatePath = resolveBaoGiaTemplatePath();
+  if (!templatePath) {
+    throw new Error('Thiếu mẫu báo giá Excel (bao-gia-mau.xlsx).');
+  }
+
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(templatePath);
+  const sheet = wb.getWorksheet(SHEET_NAME) ?? wb.worksheets[0];
+  if (!sheet) throw new Error('Mẫu báo giá không có sheet.');
+
+  const groupStyle = snapshotCell(sheet.getCell(13, 1));
+  const groupHeight = sheet.getRow(13).height || 30;
+  const itemStyleA = Array.from({ length: COLS }, (_, index) => snapshotCell(sheet.getCell(14, index + 1)));
+  const itemStyleB = Array.from({ length: COLS }, (_, index) => snapshotCell(sheet.getCell(15, index + 1)));
+  const totalLabelStyle = snapshotCell(sheet.getCell(23, 6));
+  const totalValueStyle = snapshotCell(sheet.getCell(23, 8));
+  const grandLabelStyle = snapshotCell(sheet.getCell(25, 6));
+  const grandValueStyle = snapshotCell(sheet.getCell(25, 8));
+  const totalHeight = sheet.getRow(23).height || 36;
+  const grandHeight = sheet.getRow(25).height || 36;
+  const footerStyle = snapshotCell(sheet.getCell(28, 1));
+  const footerHeight = sheet.getRow(28).height || 35;
+
+  const included = includedGroups(view);
   const project = [...new Set(included.map((group) => group.channel).filter((name) => name && name !== '—'))].join(' · ');
 
-  infoRow(sheet, 'Mục tiêu', '');
-  infoRow(sheet, 'Tên Dự Án', project);
-  infoRow(sheet, 'Tên Khách Hàng', leadLabel.trim() || 'Khách hàng');
-  infoRow(sheet, 'TA', '');
-  const budget = infoRow(sheet, 'Ngân sách', '');
-  budget.getCell(3).value = view.grand_total_vnd;
-  budget.getCell(3).numFmt = MONEY;
-  infoRow(sheet, 'Thời gian truyền thông', '');
+  sheet.getCell('C5').value = '';
+  sheet.getCell('C6').value = project;
+  sheet.getCell('C7').value = leadLabel.trim() || 'Khách hàng';
+  sheet.getCell('C8').value = '';
+  sheet.getRow(8).height = 32;
+  sheet.getCell('C9').value = view.grand_total_vnd;
+  sheet.getCell('C9').numFmt = MONEY;
+  sheet.getCell('C10').value = '';
 
-  const kpi = sheet.addRow(['', '', '', '', '', '', '', '', 'Estimated KPIs']);
-  sheet.mergeCells(kpi.number, 9, kpi.number, COLS);
-  paintSpan(kpi, 9, COLS, GREEN, WHITE, true);
-  kpi.getCell(9).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  const header = sheet.addRow([
-    'STT',
-    'Kênh',
-    'Hình thức',
-    'Mô tả',
-    'Đơn vị',
-    'Số lượng',
-    'Đơn giá (VND)',
-    'Thành tiền (VND)',
-    'Like Page',
-    'Impression',
-    'Reach',
-    'Click',
-    'CTR',
-    'Lead',
-  ]);
-  header.height = 32;
-  paintSpan(header, 1, COLS, GREEN, WHITE, true);
-  for (let col = 1; col <= COLS; col += 1) {
-    header.getCell(col).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-  }
-
+  const body: BodyRow[] = [];
   if (included.length === 0) {
-    const empty = sheet.addRow(['Chưa có hạng mục']);
-    sheet.mergeCells(empty.number, 1, empty.number, COLS);
-    paintSpan(empty, 1, COLS, MID, WHITE, true);
-    const blank = sheet.addRow(['', '', '', 'Chưa có phạm vi công việc']);
-    paintSpan(blank, 1, COLS, PALE, INK, false);
-  }
-
-  for (const group of included) {
-    const band = sheet.addRow([group.label]);
-    sheet.mergeCells(band.number, 1, band.number, COLS);
-    paintSpan(band, 1, COLS, MID, WHITE, true);
-    band.height = 24;
-    let stt = 1;
-    for (const row of group.lines) {
-      const qty = Number.isFinite(row.qty) && row.qty > 0 ? row.qty : 1;
-      const line = sheet.addRow([
-        stt,
-        group.channel,
-        row.task.trim() || '—',
-        row.subtask.trim() || '—',
-        unitLabel(row.unit),
-        qty,
-        unitPrice(row.amount_vnd, qty),
-        row.amount_vnd,
-      ]);
-      paintSpan(line, 1, COLS, PALE, INK, false);
-      line.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
-      line.getCell(6).alignment = { horizontal: 'center', vertical: 'middle' };
-      line.getCell(7).numFmt = MONEY;
-      line.getCell(8).numFmt = MONEY;
-      line.getCell(4).alignment = { wrapText: true, vertical: 'middle' };
-      stt += 1;
+    body.push({ kind: 'group', label: 'Chưa có hạng mục' });
+    body.push({
+      kind: 'item',
+      stt: null,
+      channel: '',
+      task: '',
+      subtask: 'Chưa có phạm vi công việc',
+      unit: '',
+      qty: null,
+      price: null,
+      amount: null,
+      zebra: 0,
+    });
+  } else {
+    let zebra = 0;
+    for (const group of included) {
+      body.push({ kind: 'group', label: group.label });
+      let stt = 1;
+      for (const row of group.lines) {
+        const qty = Number.isFinite(row.qty) && row.qty > 0 ? row.qty : 1;
+        body.push({
+          kind: 'item',
+          stt,
+          channel: group.channel,
+          task: row.task.trim() || '—',
+          subtask: row.subtask.trim() || '—',
+          unit: row.unit.trim() || 'gói',
+          qty,
+          price: unitPrice(row.amount_vnd, qty),
+          amount: row.amount_vnd,
+          zebra,
+        });
+        zebra += 1;
+        stt += 1;
+      }
     }
   }
 
-  const totals: Array<[string, number, boolean]> = [
-    ['TỔNG CỘNG', view.total_vnd, false],
-    [`Khuyến mại ${formatPercent(view.promo_percent)}%`, view.promo_vnd, false],
-    [`VAT ${formatPercent(view.vat_percent)}%`, view.vat_vnd, false],
-    ['THÀNH TIỀN', view.grand_total_vnd, true],
-  ];
-  for (const [label, amount, grand] of totals) {
-    const row = sheet.addRow(['', '', '', '', '', label, '', amount]);
-    sheet.mergeCells(row.number, 6, row.number, 7);
-    row.height = 24;
-    row.getCell(6).font = { name: 'Calibri', size: 11, bold: true, color: { argb: grand ? WHITE : GREEN } };
-    row.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
-    row.getCell(8).font = { name: 'Calibri', size: 11, bold: true, color: { argb: grand ? WHITE : GREEN } };
-    row.getCell(8).numFmt = MONEY;
-    row.getCell(8).alignment = { vertical: 'middle' };
-    if (grand) {
-      row.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
-      row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
-      row.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
-    }
+  const newBodyCount = body.length + 4;
+  const oldBodyCount = TEMPLATE_BODY_END - BODY_START + 1;
+  const delta = newBodyCount - oldBodyCount;
+
+  unmergeFromRow(sheet, BODY_START);
+  if (delta > 0) {
+    sheet.spliceRows(TEMPLATE_BODY_END + 1, 0, ...Array.from({ length: delta }, () => [] as ExcelJS.CellValue[]));
+  } else if (delta < 0) {
+    sheet.spliceRows(BODY_START + newBodyCount, -delta);
   }
 
-  sheet.addRow([]);
-  const foot = sheet.addRow(['BÁO GIÁ ĐƯỢC TRÌNH BÀY THEO MẪU PTT ADS – ĐƠN VỊ CUNG CẤP: PTT ADS']);
-  sheet.mergeCells(foot.number, 1, foot.number, COLS);
-  paintSpan(foot, 1, COLS, PALE, GREEN, false);
-  foot.height = 24;
+  const footerRow = TEMPLATE_FOOTER_ROW + delta;
+  const lastClear = Math.max(sheet.rowCount, footerRow + 4);
+  for (let rowNumber = BODY_START; rowNumber <= lastClear; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let col = 1; col <= COLS; col += 1) resetCell(row.getCell(col));
+  }
+
+  let cursor = BODY_START;
+  const amountRows: number[] = [];
+  for (const entry of body) {
+    const row = sheet.getRow(cursor);
+    if (entry.kind === 'group') {
+      row.height = groupHeight;
+      for (let col = 1; col <= COLS; col += 1) {
+        applyStyle(row.getCell(col), groupStyle);
+        row.getCell(col).value = col === 1 ? entry.label : null;
+      }
+      sheet.mergeCells(cursor, 1, cursor, COLS);
+    } else {
+      const styles = entry.zebra % 2 === 0 ? itemStyleA : itemStyleB;
+      row.height = (entry.subtask || '').length > 80 ? 72 : 48;
+      const values: Array<ExcelJS.CellValue> = [
+        entry.stt,
+        entry.channel || null,
+        entry.task || null,
+        entry.subtask || null,
+        entry.unit || null,
+        entry.qty,
+        entry.price,
+        entry.amount != null ? { formula: `F${cursor}*G${cursor}`, result: entry.amount } : null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ];
+      for (let col = 1; col <= COLS; col += 1) {
+        applyStyle(row.getCell(col), styles[col - 1]);
+        row.getCell(col).value = values[col - 1] ?? null;
+      }
+      if (entry.amount != null) amountRows.push(cursor);
+    }
+    cursor += 1;
+  }
+
+  const tongRow = cursor;
+  const promoRow = cursor + 1;
+  const vatRow = cursor + 2;
+  const grandRow = cursor + 3;
+  const tongFormula = amountRows.length > 0 ? `SUM(H${amountRows[0]}:H${amountRows[amountRows.length - 1]})` : undefined;
+
+  writeTotal(sheet, tongRow, 'TỔNG CỘNG', view.total_vnd, totalHeight, totalLabelStyle, totalValueStyle, tongFormula);
+  writeTotal(
+    sheet,
+    promoRow,
+    `Khuyến mại ${formatPercent(view.promo_percent)}%`,
+    view.promo_vnd,
+    totalHeight,
+    totalLabelStyle,
+    totalValueStyle,
+    `H${tongRow}*${view.promo_percent}%`,
+  );
+  writeTotal(
+    sheet,
+    vatRow,
+    `VAT ${formatPercent(view.vat_percent)}%`,
+    view.vat_vnd,
+    totalHeight,
+    totalLabelStyle,
+    totalValueStyle,
+    `(H${tongRow}-H${promoRow})*${view.vat_percent}%`,
+  );
+  writeTotal(
+    sheet,
+    grandRow,
+    'THÀNH TIỀN',
+    view.grand_total_vnd,
+    grandHeight,
+    grandLabelStyle,
+    grandValueStyle,
+    `H${tongRow}-H${promoRow}+H${vatRow}`,
+  );
+
+  sheet.getRow(grandRow + 1).height = 24;
+  sheet.getRow(grandRow + 2).height = 24;
+  const foot = sheet.getRow(footerRow);
+  foot.height = footerHeight;
+  for (let col = 1; col <= COLS; col += 1) {
+    applyStyle(foot.getCell(col), footerStyle);
+    foot.getCell(col).value =
+      col === 1 ? 'BÁO GIÁ ĐƯỢC TRÌNH BÀY THEO MẪU PTT ADS – ĐƠN VỊ CUNG CẤP: PTT ADS' : null;
+  }
+  sheet.mergeCells(footerRow, 1, footerRow, COLS);
+  for (let extra = 1; extra <= 4; extra += 1) {
+    sheet.getRow(footerRow + extra).height = 24;
+  }
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
