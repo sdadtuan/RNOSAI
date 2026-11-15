@@ -24674,7 +24674,7 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.lead-pipeline-sla { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+.lead-pipeline-sla { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; background: #f3efe6; border-bottom: 1px solid #e5e7eb; }
 .lead-pipeline-sla__pill { padding: 3px 8px; border-radius: 999px; font-weight: 700; font-size: 11px; }
 .lead-pipeline-sla__pill.is-ok { background: #ecfdf5; color: #15803d; }
 .lead-pipeline-sla__pill.is-warning { background: #fef3c7; color: #b45309; }
@@ -27177,33 +27177,3 @@ html.ops-shell-bitrix .lead-fr-sla__form textarea {
   box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
 }
 
-/* t156: Sales Brief / File Solution content surfaces are field areas, not only native inputs */
-.ahd-brief-grid .ahd-card__body,
-.ahd-brief-col .ahd-card__body,
-.ahd .solution-ai-doc__prose,
-.ahd .solution-ai-doc__section .solution-ai-doc__empty,
-.sld .solution-ai-doc__prose,
-.lead-detail-page .solution-ai-doc__prose,
-.lead-detail-page .lead-party-card .qt-inp,
-.lead-detail-page .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
-.lead-detail-page .lead-party-card textarea,
-.ahd .lead-party-card .qt-inp,
-.ahd .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
-.ahd .lead-party-card textarea,
-.sld .lead-party-card .qt-inp,
-.sld .lead-party-card input:not(.sr-only):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),
-.sld .lead-party-card textarea {
-  background: var(--crm-lead-field-bg, #ffffcd) !important;
-  background-color: var(--crm-lead-field-bg, #ffffcd) !important;
-  border: 1px solid var(--crm-lead-field-border, #cfd8e3);
-  border-radius: 6px;
-}
-.ahd-brief-grid .ahd-card__body,
-.ahd-brief-col .ahd-card__body,
-.ahd .solution-ai-doc__prose,
-.sld .solution-ai-doc__prose,
-.lead-detail-page .solution-ai-doc__prose {
-  padding: 8px 10px;
-  min-height: 2.2em;
-  box-sizing: border-box;
-}

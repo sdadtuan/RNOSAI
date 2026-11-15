@@ -2168,3 +2168,20 @@ html.ops-shell-bitrix .intake-kit__chat-input:focus {
   outline: 2px solid rgba(23, 105, 47, 0.25);
   border-color: #17692f;
 }
+
+/* t160: CRM lead page/layout uses cream everywhere, no gray page band */
+html.ops-shell-bitrix:has(.lead-detail-page),
+html.ops-shell-bitrix:has(.lead-detail-page) body,
+html.ops-shell-bitrix:has(.ahd),
+html.ops-shell-bitrix:has(.ahd) body,
+html.ops-shell-bitrix:has(.sld),
+html.ops-shell-bitrix:has(.sld) body,
+html.ops-shell-bitrix:has(.lead-detail-page) main,
+html.ops-shell-bitrix:has(.ahd) main,
+html.ops-shell-bitrix:has(.sld) main,
+html.ops-shell-bitrix:has(.lead-detail-page) .bitrix-crm-page,
+html.ops-shell-bitrix:has(.lead-detail-page) .bitrix-crm-page__inner,
+html.ops-shell-bitrix:has(.lead-detail-page) .lead-detail-page,
+html.ops-shell-bitrix:has(.lead-detail-page) .lead-pipeline-sla {
+  background: #f3efe6;
+}
