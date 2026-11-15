@@ -94,7 +94,7 @@ export function CrmFunnelStepper({
         <div className="crm-funnel-stepper__head">
           <h3 className="crm-funnel-stepper__title">Tiến trình Pre-sales</h3>
           <p className="crm-funnel-stepper__desc">
-            Tiếp nhận Lead → Sales tư vấn & nhập Brief → Chờ Solutions (AM làm Solution) → Chờ báo giá → Báo Giá → Ký hợp đồng
+            Tiếp nhận Lead → Sales tư vấn & nhập Brief → Chờ Solutions (AM làm Solution) → Chờ báo giá → Chờ CEO duyệt → Ký hợp đồng
           </p>
         </div>
       ) : null}

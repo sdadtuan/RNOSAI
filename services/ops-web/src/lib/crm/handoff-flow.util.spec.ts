@@ -26,7 +26,7 @@ describe('handoff-flow.util', () => {
       'Chờ Solutions',
       'AM làm Solution',
       'Chờ báo giá',
-      'Báo Giá',
+      'Chờ CEO duyệt',
       'Ký hợp đồng',
     ]);
   });
@@ -75,7 +75,7 @@ describe('handoff-flow.util', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'won', hasContract: true })).toBe('sign_contract');
   });
 
-  it('keeps CEO-approved hop_dong on Báo Giá until the lead is actually at contract', () => {
+  it('keeps CEO-approved hop_dong on Chờ CEO duyệt until the lead is actually at contract', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan', quotePhase: 'hop_dong' })).toBe('negotiate');
     expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'hop_dong' })).toBe('negotiate');
     expect(resolveHandoffFlowStep({ leadStatus: 'chot', quotePhase: 'hop_dong' })).toBe('sign_contract');

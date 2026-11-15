@@ -7,7 +7,7 @@
  *   handoff pending      → Chờ Solutions
  *   handoff with_solution → AM làm Solution
  *   handoff released / lead status bao_gia → Chờ báo giá
- *   dam_phan             → Báo Giá
+ *   dam_phan             → Chờ CEO duyệt
  *   won / chot / contract → Ký hợp đồng
  *   dang_tu_van (no handoff or returned) → Sales tư vấn & nhập Brief
  *   moi / da_lien_he     → Tiếp nhận Lead (until Pre Sale starts)
@@ -79,8 +79,8 @@ export const HANDOFF_FLOW_STEPS: readonly HandoffFlowStepDef[] = [
   {
     key: 'negotiate',
     index: 6,
-    label: 'Báo Giá',
-    shortLabel: 'Báo Giá',
+    label: 'Chờ CEO duyệt',
+    shortLabel: 'Chờ CEO duyệt',
     hint: '',
     roleHint: 'Sales',
   },
@@ -100,7 +100,7 @@ export const HANDOFF_FLOW_STATUS_LABELS: Record<HandoffFlowStepKey, string> = {
   await_solutions: 'Chờ Solutions',
   doing_solutions: 'AM làm Solution',
   await_quote: 'Chờ báo giá',
-  negotiate: 'Báo Giá',
+  negotiate: 'Chờ CEO duyệt',
   sign_contract: 'Ký hợp đồng',
 };
 
@@ -219,7 +219,7 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     return 'sign_contract';
   }
 
-  // CEO approval flips quote phase to hop_dong; that is still Báo Giá (3 business days),
+  // CEO approval flips quote phase to hop_dong; that is still Chờ CEO duyệt (3 business days),
   // not Ký hợp đồng, until the lead is actually at contract/won or triển khai.
   if (
     status === 'dam_phan' ||
@@ -412,7 +412,7 @@ export const HANDOFF_FLOW_KANBAN_COLUMNS: readonly HandoffKanbanColumn[] = [
   },
   {
     id: 'dam_phan',
-    label: 'Báo Giá',
+    label: 'Chờ CEO duyệt',
     stepKey: 'negotiate',
     statuses: ['dam_phan', 'negotiation'],
     collapsible: false,
