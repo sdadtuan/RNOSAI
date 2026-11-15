@@ -4525,26 +4525,28 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__commercial {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.7rem;
 }
 
 .quote-sheet__commercial label {
   display: grid;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: #445;
 }
 
 .quote-sheet__commercial input {
-  width: 7rem;
+  width: 100%;
+  max-width: 7rem;
 }
 
 .quote-sheet {
   display: grid;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  padding: 0.7rem 0.85rem;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.7rem 0.6rem;
   border: 1px solid var(--surface-border, #d9e2dc);
   border-radius: 12px;
   background: #fff;
@@ -4556,36 +4558,111 @@ html.ops-shell-bitrix .win-home__scope {
   margin: 0;
 }
 
+.quote-sheet__head .muted {
+  font-size: 0.78rem;
+}
+
 .quote-sheet__services {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem 1rem;
+  gap: 0.3rem 0.65rem;
   align-items: start;
 }
 
-.quote-sheet__services label {
+.quote-sheet__svc {
+  min-width: 0;
+  border: 1px solid #ececee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quote-sheet__svc.is-active {
+  border-color: #c9d8ce;
+}
+
+.quote-sheet__svc-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.35rem;
+}
+
+.quote-sheet__svc-check {
+  display: flex;
+  margin: 0;
+}
+
+.quote-sheet__svc-check input {
+  margin: 0;
+}
+
+.quote-sheet__svc-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quote-sheet__svc-name {
+  min-width: 0;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+}
+
+.quote-sheet__svc-count {
+  color: #6d7d73;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.quote-sheet__svc-remove,
+.quote-sheet__remove,
+.quote-sheet__more-btn {
+  border: 0;
+  background: transparent;
+  color: #5c6b60;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.quote-sheet__remove {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+.quote-sheet__svc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.4rem 0.35rem 1.4rem;
+  border-top: 1px solid #ececee;
+  max-height: 11rem;
+  overflow: auto;
+}
+
+.quote-sheet__svc-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 0.4rem;
+  gap: 0.3rem;
   align-items: start;
-  min-width: 0;
-  line-height: 1.35;
-  overflow-wrap: break-word;
+  padding: 0.2rem 0;
+  font-size: 0.76rem;
+  line-height: 1.3;
 }
 
-.quote-sheet__services input[type='checkbox'] {
+.quote-sheet__svc-item input {
   margin: 0.15rem 0 0;
-}
-
-@container quote-sheet (min-width: 960px) {
-  .quote-sheet__services {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.quote-sheet__group h3 {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
 }
 
 .quote-sheet__scroll {
@@ -4595,29 +4672,30 @@ html.ops-shell-bitrix .win-home__scope {
 .quote-sheet table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
-  table-layout: fixed;
+  font-size: 0.76rem;
 }
 
-.quote-sheet__col-check {
-  width: 3.4rem;
+.quote-sheet__lines th:nth-child(1) {
+  width: 36%;
 }
 
-.quote-sheet__col-task {
-  width: 22%;
+.quote-sheet__lines th:nth-child(2) {
+  width: 8.5rem;
 }
 
-.quote-sheet__col-staff {
-  width: 14rem;
+.quote-sheet__lines th:nth-child(3),
+.quote-sheet__lines th:nth-child(4),
+.quote-sheet__lines th:nth-child(5) {
+  width: 5.6rem;
 }
 
-.quote-sheet__col-amount {
-  width: 8.75rem;
+.quote-sheet__lines th:nth-child(6) {
+  width: 1.6rem;
 }
 
 .quote-sheet th,
 .quote-sheet td {
-  padding: 0.35rem 0.45rem;
+  padding: 0.22rem 0.3rem;
   border-bottom: 1px solid #e4ece6;
   vertical-align: top;
   text-align: left;
@@ -4631,8 +4709,32 @@ html.ops-shell-bitrix .win-home__scope {
 .quote-sheet select,
 .quote-sheet input[type='number'] {
   width: 100%;
-  min-width: 7rem;
+  min-width: 0;
   font: inherit;
+}
+
+.quote-sheet__advanced {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.quote-sheet__more-btn {
+  justify-self: start;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.quote-sheet__totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.15rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.quote-sheet__grand {
+  grid-column: 1 / -1;
+  font-weight: 700;
 }
 
 .solution-pack {
