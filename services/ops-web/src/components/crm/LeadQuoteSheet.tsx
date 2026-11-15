@@ -73,6 +73,16 @@ function amountOf(
   return Math.round((row.hours || 0) * (row.qty || 0) * (hourly || 0));
 }
 
+function withComputedAmounts(sheet: LeadQuoteSheet): LeadQuoteSheet {
+  return {
+    ...sheet,
+    groups: sheet.groups.map((group) => ({
+      ...group,
+      rows: group.rows.map((row) => ({ ...row, amount_vnd: amountOf(row, sheet.staff) })),
+    })),
+  };
+}
+
 
 function groupKey(group: { service_code: string; phase_code: string }): string {
   return `${group.service_code}:${group.phase_code}`;
@@ -194,6 +204,7 @@ export function LeadQuoteSheet({
   const prefilledRef = useRef(false);
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const [loadingCode, setLoadingCode] = useState('');
+  const [openGroupKeys, setOpenGroupKeys] = useState<string[]>([]);
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
@@ -214,14 +225,14 @@ export function LeadQuoteSheet({
         const picked = selectedRef.current;
         if (picked && picked.length > 0) {
           setSheet((current) => {
-            if (!current) return next;
-            return {
+            if (!current) return withComputedAmounts(next);
+            return withComputedAmounts({
               ...next,
               selected_service_codes: current.selected_service_codes,
               vat_percent: current.vat_percent,
               promo_percent: current.promo_percent,
               groups: current.groups.length > 0 ? current.groups : next.groups,
-            };
+            });
           });
           return;
         }
@@ -282,13 +293,13 @@ export function LeadQuoteSheet({
             );
             selectedRef.current = applied.selected_service_codes;
             if (cancelled) return;
-            setSheet(applied);
+            setSheet(withComputedAmounts(applied));
             return;
           }
         }
 
         if (cancelled) return;
-        setSheet(next);
+        setSheet(withComputedAmounts(next));
       } catch (err: unknown) {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
       }
@@ -356,7 +367,7 @@ export function LeadQuoteSheet({
       vat_percent: percentOf(sheet.vat_percent),
       promo_percent: percentOf(sheet.promo_percent),
     });
-    setSheet(mergeCatalogGroups(next, sheet));
+    setSheet(withComputedAmounts(mergeCatalogGroups(next, sheet)));
     return next;
   }
 
@@ -438,7 +449,7 @@ export function LeadQuoteSheet({
     setLocalError('');
     try {
       const incoming = await fetchLeadQuoteSheet(token, leadId, [key]);
-      setSheet((current) => (current ? mergeCatalogGroups(current, incoming) : incoming));
+      setSheet((current) => withComputedAmounts(current ? mergeCatalogGroups(current, incoming) : incoming));
       setOpenCodes((current) => (current.some((code) => code.trim().toUpperCase() === key) ? current : [...current, key]));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không tải được dịch vụ';
@@ -448,7 +459,7 @@ export function LeadQuoteSheet({
       setLoadingCode('');
     }
   }
-  const subtotal = includedRows.reduce((sum, item) => sum + item.row.amount_vnd, 0);
+  const subtotal = includedRows.reduce((sum, item) => sum + amountOf(item.row, sheet?.staff ?? []), 0);
   const promoPercent = percentOf(sheet?.promo_percent ?? 0);
   const vatPercent = percentOf(sheet?.vat_percent ?? 0);
   const promoVnd = Math.round((subtotal * promoPercent) / 100);
@@ -471,109 +482,128 @@ export function LeadQuoteSheet({
     }
   }
 
+  function toggleGroupRows(key: string) {
+    setOpenGroupKeys((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  }
+
   function renderGroups(groups: NonNullable<LeadQuoteSheet['groups']>) {
-    return groups.map((group) => (
-        <div key={`${group.service_code}-${group.phase_code}`} className="quote-sheet__group">
+    return groups.map((group) => {
+      const key = groupKey(group);
+      const hiddenCount = group.rows.filter((row) => !row.included).length;
+      const expanded = openGroupKeys.includes(key);
+      const visibleRows = expanded ? group.rows : group.rows.filter((row) => row.included);
+      return (
+        <div key={key} className="quote-sheet__group">
           <h3>
             {group.service_name}
             {group.phase_name ? ` - ${group.phase_name}` : ''}
           </h3>
-          <table className="quote-sheet__lines">
-            <colgroup>
-              <col className="quote-sheet__col-check" />
-              <col className="quote-sheet__col-task" />
-              <col className="quote-sheet__col-subtask" />
-              <col className="quote-sheet__col-staff" />
-              <col className="quote-sheet__col-qty" />
-              <col className="quote-sheet__col-amount" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Tính</th>
-                <th>Việc</th>
-                <th>Việc nhỏ</th>
-                <th>Nhân sự</th>
-                <th>Số lượng</th>
-                <th>Thành tiền</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.rows.map((row) => (
-                <tr key={row.item_code} className={row.included ? undefined : 'is-off'}>
-                  <td className="quote-sheet__check">
-                    <input
-                      type="checkbox"
-                      checked={row.included}
-                      disabled={!editable || !row.chargeable || busy}
-                      aria-label={`Tính tiền ${row.task}`}
-                      onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
-                    />
-                  </td>
-                  <td className="quote-sheet__task">
-                    <strong>{row.task}</strong>
-                    <span className="muted">{quoteRoleLabel(row.role_label)}</span>
-                  </td>
-                  <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
-                  <td className="quote-sheet__staff">
-                    {editable && row.chargeable ? (
-                      <select
-                        value={row.staff_id ?? ''}
-                        aria-label={`Nhân sự ${row.task}`}
-                        disabled={busy}
-                        onChange={(event) => {
-                          const staffId = Number(event.target.value);
-                          const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
-                          patchRow(row.item_code, {
-                            staff_id: person?.id ?? null,
-                            staff_name: person?.name ?? '',
-                            position_name: person?.position_name ?? '',
-                            monthly_salary_vnd: person?.monthly_salary_vnd ?? 0,
-                            hours_per_month: person?.hours_per_month ?? 0,
-                            hourly_vnd: person?.hourly_vnd ?? 0,
-                          });
-                        }}
-                      >
-                        <option value="">Chọn nhân sự</option>
-                        {staffGroups.map((staffGroup) => (
-                          <optgroup key={staffGroup.code} label={staffGroup.name}>
-                            {staffGroup.people.map((person) => (
-                              <option key={person.id} value={person.id}>
-                                {person.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    ) : (
-                      row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
-                    )}
-                  </td>
-                  <td className="quote-sheet__qty">
-                    {editable && row.chargeable ? (
-                      <input
-                        type="number"
-                        min={0.01}
-                        max={9999}
-                        step={1}
-                        value={row.qty}
-                        aria-label={`Số lượng ${row.task}`}
-                        disabled={busy}
-                        onChange={(event) => {
-                          const qty = Math.max(0, Number(event.target.value) || 0);
-                          patchRow(row.item_code, { qty });
-                        }}
-                      />
-                    ) : (
-                      row.qty
-                    )}
-                  </td>
-                  <td className="quote-sheet__amount">{vnd(row.amount_vnd)}</td>
+          {visibleRows.length > 0 ? (
+            <table className="quote-sheet__lines">
+              <colgroup>
+                <col className="quote-sheet__col-check" />
+                <col className="quote-sheet__col-task" />
+                <col className="quote-sheet__col-subtask" />
+                <col className="quote-sheet__col-staff" />
+                <col className="quote-sheet__col-qty" />
+                <col className="quote-sheet__col-amount" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Tính</th>
+                  <th>Việc</th>
+                  <th>Việc nhỏ</th>
+                  <th>Nhân sự</th>
+                  <th>Số lượng</th>
+                  <th>Thành tiền</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr key={row.item_code} className={row.included ? undefined : 'is-off'}>
+                    <td className="quote-sheet__check">
+                      <input
+                        type="checkbox"
+                        checked={row.included}
+                        disabled={!editable || !row.chargeable || busy}
+                        aria-label={`Tính tiền ${row.task}`}
+                        onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
+                      />
+                    </td>
+                    <td className="quote-sheet__task">
+                      <strong>{row.task}</strong>
+                      <span className="muted">{quoteRoleLabel(row.role_label)}</span>
+                    </td>
+                    <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
+                    <td className="quote-sheet__staff">
+                      {editable && row.chargeable ? (
+                        <select
+                          value={row.staff_id ?? ''}
+                          aria-label={`Nhân sự ${row.task}`}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const staffId = Number(event.target.value);
+                            const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
+                            patchRow(row.item_code, {
+                              staff_id: person?.id ?? null,
+                              staff_name: person?.name ?? '',
+                              position_name: person?.position_name ?? '',
+                              monthly_salary_vnd: person?.monthly_salary_vnd ?? 0,
+                              hours_per_month: person?.hours_per_month ?? 0,
+                              hourly_vnd: person?.hourly_vnd ?? 0,
+                            });
+                          }}
+                        >
+                          <option value="">Chọn nhân sự</option>
+                          {staffGroups.map((staffGroup) => (
+                            <optgroup key={staffGroup.code} label={staffGroup.name}>
+                              {staffGroup.people.map((person) => (
+                                <option key={person.id} value={person.id}>
+                                  {person.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      ) : (
+                        row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
+                      )}
+                    </td>
+                    <td className="quote-sheet__qty">
+                      {editable && row.chargeable ? (
+                        <input
+                          type="number"
+                          min={0.01}
+                          max={9999}
+                          step={1}
+                          value={row.qty}
+                          aria-label={`Số lượng ${row.task}`}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const qty = Math.max(0, Number(event.target.value) || 0);
+                            patchRow(row.item_code, { qty });
+                          }}
+                        />
+                      ) : (
+                        row.qty
+                      )}
+                    </td>
+                    <td className="quote-sheet__amount">{vnd(amountOf(row, sheet?.staff ?? []))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+          {hiddenCount > 0 ? (
+            <button type="button" className="quote-sheet__more" onClick={() => toggleGroupRows(key)}>
+              {expanded ? 'Ẩn bớt' : `Xem thêm ${hiddenCount} hạng mục`}
+            </button>
+          ) : null}
         </div>
-      ));
+      );
+    });
   }
 
   function renderServiceTables(serviceCode: string) {
@@ -670,10 +700,22 @@ export function LeadQuoteSheet({
             </div>
           ) : null}
           <div className="quote-sheet__totals">
-            <div>Tạm tính <strong>{vnd(subtotal)}</strong></div>
-            <div>Khuyến mại {promoPercent}%: {vnd(promoVnd)}</div>
-            <div>VAT {vatPercent}%: {vnd(vatVnd)}</div>
-            <div className="quote-sheet__grand">Tổng thanh toán {vnd(grand)}</div>
+            <div className="quote-sheet__totals-row">
+              <span>Tạm tính</span>
+              <strong>{vnd(subtotal)}</strong>
+            </div>
+            <div className="quote-sheet__totals-row">
+              <span>Khuyến mại {promoPercent}%</span>
+              <span>{vnd(promoVnd)}</span>
+            </div>
+            <div className="quote-sheet__totals-row">
+              <span>VAT {vatPercent}%</span>
+              <span>{vnd(vatVnd)}</span>
+            </div>
+            <div className="quote-sheet__totals-row quote-sheet__grand">
+              <span>Tổng thanh toán</span>
+              <strong>{vnd(grand)}</strong>
+            </div>
           </div>
         </>
       ) : null}
