@@ -409,6 +409,34 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+
+export function downloadSolutionAiHtmlDocument(input: {
+  customer: string;
+  contactName?: string;
+  leadCode?: string;
+  createdAt?: string;
+  subtitle: string;
+  sections: Section[];
+}): void {
+  const html = buildSolutionHtmlDocument({
+    customer: input.customer,
+    contactName: input.contactName || '',
+    leadCode: input.leadCode || '',
+    createdAt: input.createdAt || '',
+    subtitle: input.subtitle,
+    sections: input.sections,
+  });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = sanitizeFileName(`Solution - ${input.customer} (AI).html`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 4_000);
+}
+
 function sanitizeFileName(name: string): string {
   const cleaned = name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
   return cleaned || 'Solution (AI).html';

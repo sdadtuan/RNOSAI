@@ -29,6 +29,7 @@ import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
+import { QuoteSolutionFilesCard } from '@/components/crm/QuoteSolutionFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
@@ -1794,6 +1795,17 @@ export default function CrmLeadDetailPage() {
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
           waitingSolutionFeedback={waitingSolutionFeedback}
+          sideTop={
+            accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
+              <QuoteSolutionFilesCard
+                token={accessToken}
+                leadId={leadId}
+                customerName={party?.company_name || lead.company_name || lead.full_name || ''}
+                leadCode={lead.project_code || ('LD-' + String(lead.id))}
+                onView={() => setSolutionPreviewOpen(true)}
+              />
+            ) : null
+          }
           exchangeLines={careHistory}
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
@@ -2072,15 +2084,6 @@ export default function CrmLeadDetailPage() {
 
             {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
               <>
-                <p className="quote-solution-link">
-                  <button
-                    type="button"
-                    className="quote-solution-link__btn"
-                    onClick={() => setSolutionPreviewOpen(true)}
-                  >
-                    Xem File Solution
-                  </button>
-                </p>
                 <LeadQuoteSheet
                   token={accessToken}
                   leadId={leadId}

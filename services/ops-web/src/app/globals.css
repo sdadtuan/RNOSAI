@@ -27551,3 +27551,74 @@ html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
   font-size: 0.95rem;
   line-height: 1.65;
 }
+
+/* t190: File Solution card on the quote-step right rail */
+.quote-solution-card {
+  min-width: 0;
+}
+.quote-solution-card__empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #5b6570;
+  line-height: 1.4;
+}
+.quote-solution-card__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid #eee8e0;
+}
+.quote-solution-card__row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.quote-solution-card__copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.quote-solution-card__name {
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #173526;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.quote-solution-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: #5b6570;
+  line-height: 1.35;
+}
+.quote-solution-card__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e4f4ea;
+  color: #17692f;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.quote-solution-card__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.quote-solution-card__actions .btn {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}

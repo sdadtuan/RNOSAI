@@ -158,6 +158,7 @@ export type SalesLeadDeskProps = {
   userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
+  sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
@@ -179,6 +180,7 @@ export function SalesLeadDesk({
   userId,
   mgmtExtra,
   children,
+  sideTop,
   waitingSolutionFeedback = false,
   exchangeLines = [],
   ownerLines = [],
@@ -567,6 +569,7 @@ export function SalesLeadDesk({
 
 
         <div className="ahd-col ahd-col--side ahd-col--side-notes" data-testid="sld-side" data-side="notes">
+          {sideTop}
           <LeadInternalNotes
             token={token}
             leadId={lead.id}
@@ -598,6 +601,7 @@ export function SalesOrLegacyLeadLayout({
   userId,
   mgmtExtra,
   children,
+  sideTop,
   waitingSolutionFeedback,
   exchangeLines,
   ownerLines,
@@ -619,6 +623,7 @@ export function SalesOrLegacyLeadLayout({
   userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
+  sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
@@ -641,6 +646,7 @@ export function SalesOrLegacyLeadLayout({
         amStaffId={amStaffId}
         userId={userId}
         mgmtExtra={mgmtExtra}
+        sideTop={sideTop}
         waitingSolutionFeedback={waitingSolutionFeedback}
         exchangeLines={exchangeLines}
         ownerLines={ownerLines}
