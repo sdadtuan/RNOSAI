@@ -633,48 +633,46 @@ export function LeadQuoteSheet({
       {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
       {!sheet && localError ? <p className="muted">{localError}</p> : null}
       {editable ? (
-        <>
-          {primaryServices.map((service) => (
-            <Fragment key={service.code}>{renderServiceTables(service.code)}</Fragment>
-          ))}
-          {extraServices.length > 0 ? (
-            <div className="quote-sheet__extras">
-              <h3 className="quote-sheet__extras-label">Thêm dịch vụ khác</h3>
-              {serviceCapNote ? <p className="quote-sheet__cap-note">{serviceCapNote}</p> : null}
-              {extraServices.map((service) => {
-                const key = service.code.trim().toUpperCase();
-                const open = openSet.has(key);
-                const loading = loadingCode === key;
-                return (
-                  <div key={service.code} className="quote-sheet__extra">
-                    <button
-                      type="button"
-                      className="quote-sheet__extra-head"
-                      aria-expanded={open}
-                      aria-label={`${open ? 'Thu gọn' : 'Mở'} ${service.name}`}
-                      disabled={busy || Boolean(loadingCode)}
-                      onClick={() => void toggleExtraService(service.code)}
-                    >
-                      <span className="quote-sheet__extra-name">{service.name}</span>
-                      <span className="muted">{loading ? 'Đang tải…' : `${service.item_count} hạng mục`}</span>
-                      <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-                    </button>
-                    {open ? (
-                      loading ? (
-                        <p className="muted">Đang tải…</p>
-                      ) : (
-                        renderGroups(groupsFor(service.code), { revealAll: true })
-                      )
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-        </>
+        primaryServices.map((service) => (
+          <Fragment key={service.code}>{renderServiceTables(service.code)}</Fragment>
+        ))
       ) : (
         renderGroups(visibleGroups)
       )}
+      {sheet && extraServices.length > 0 ? (
+        <div className="quote-sheet__extras">
+          <h3 className="quote-sheet__extras-label">Thêm dịch vụ khác</h3>
+          {serviceCapNote ? <p className="quote-sheet__cap-note">{serviceCapNote}</p> : null}
+          {extraServices.map((service) => {
+            const key = service.code.trim().toUpperCase();
+            const open = openSet.has(key);
+            const loading = loadingCode === key;
+            return (
+              <div key={service.code} className="quote-sheet__extra">
+                <button
+                  type="button"
+                  className="quote-sheet__extra-head"
+                  aria-expanded={open}
+                  aria-label={`${open ? 'Thu gọn' : 'Mở'} ${service.name}`}
+                  disabled={busy || Boolean(loadingCode)}
+                  onClick={() => void toggleExtraService(service.code)}
+                >
+                  <span className="quote-sheet__extra-name">{service.name}</span>
+                  <span className="muted">{loading ? 'Đang tải…' : `${service.item_count} hạng mục`}</span>
+                  <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
+                </button>
+                {open ? (
+                  loading ? (
+                    <p className="muted">Đang tải…</p>
+                  ) : (
+                    renderGroups(groupsFor(service.code), { revealAll: true })
+                  )
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       {sheet && (editable || tickedCodes.length > 0) ? (
         <>
           {editable ? (
