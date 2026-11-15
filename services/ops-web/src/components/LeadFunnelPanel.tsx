@@ -26,7 +26,6 @@ import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
 import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import { showPreliminaryMarketingPlan } from '@/lib/crm/consult-plan-placement';
-import { isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import {
   hydratePresalesR5Form,
   shouldHydratePresalesMarketingPlan,
@@ -458,13 +457,11 @@ export function LeadFunnelPanel({
     ));
   }
 
-  const showPlan =
-    isSuperAdmin(user) ||
-    showPreliminaryMarketingPlan({
-      stage: funnel?.presales?.presales?.stage,
-      handoffStatus: funnel?.presales?.handoff?.status,
-      quotePhase: funnel?.presales?.quote_case?.phase,
-    });
+  const showPlan = showPreliminaryMarketingPlan({
+    stage: funnel?.presales?.presales?.stage,
+    handoffStatus: funnel?.presales?.handoff?.status,
+    quotePhase: funnel?.presales?.quote_case?.phase,
+  });
 
   const r5Form = (
     <>

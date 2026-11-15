@@ -44,6 +44,23 @@ export function g4MessagesVi(messages: readonly string[]): string[] {
   });
 }
 
+/** Leftover Marketing-step (R5) validation copy — do not show on the Solution lead page. */
+export function isLegacyMarketingPlanHint(message: string | null | undefined): boolean {
+  const raw = String(message ?? '').trim();
+  if (!raw) return false;
+  if (/Nhập North Star hoặc Mục tiêu chiến lược/i.test(raw)) return true;
+  if (/Điền khối chiến lược:\s*[a-z_]+/i.test(raw)) return true;
+  if (/^Nhập tên kế hoạch( MKT sơ bộ)?\.?$/i.test(raw)) return true;
+  if (/^Nhập Thông điệp thị trường\.?$/i.test(raw)) return true;
+  if (/^Nhập Kênh tiếp cận\.?$/i.test(raw)) return true;
+  if (/^Nhập Chiến lược chuyển đổi\.?$/i.test(raw)) return true;
+  return false;
+}
+
+export function withoutLegacyMarketingPlanHints(messages: readonly string[]): string[] {
+  return messages.filter((item) => !isLegacyMarketingPlanHint(item));
+}
+
 export function mergeHumanEditedKeys(current: readonly string[], dirty: readonly string[]): string[] {
   const out: string[] = [];
   for (const key of [...current, ...dirty]) {

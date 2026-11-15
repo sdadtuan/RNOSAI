@@ -55,7 +55,7 @@ import {
   readSolutionAttachments,
   type SolutionAttachment,
 } from '@/lib/crm/solution-file-display';
-import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
+import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';\nimport { withoutLegacyMarketingPlanHints } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
 
 type Attachment = SolutionAttachment;
@@ -596,11 +596,12 @@ export function SolutionCaseDesk({
       presentSolutionAiDraft((await fetchLeadPresalesMarketingPlan(token, lead.id).catch(() => null))?.plan);
     if (draft) setAiDraft(draft);
     const pending = out.ai?.status === 'pending' || draft?.status === 'pending';
+    const leftover = withoutLegacyMarketingPlanHints((out.validation?.messages ?? []).filter(Boolean));
     const note = pending
       ? SOLUTION_AI_PENDING_LABEL
-      : out.validation?.ok
+      : out.validation?.ok || leftover.length === 0
         ? SOLUTION_AI_DRAFT_LABEL
-        : (out.validation?.messages?.filter(Boolean).join(' ') || 'AI đã tạo bản nháp — cần bổ sung thêm.');
+        : leftover.join(' ');
     setAiResult(note);
     onMessage?.(note);
   }

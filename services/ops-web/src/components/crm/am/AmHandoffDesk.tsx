@@ -45,7 +45,7 @@ import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
-import { isAiDraftNotice } from '@/lib/crm/solution-ai-draft-display';
+import { isAiDraftNotice } from '@/lib/crm/solution-ai-draft-display';\nimport { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
@@ -979,7 +979,7 @@ export function AmHandoffDesk({
               onMessage={(message) => {
                 setArtifactReady(true);
                 setSolutionTick((n) => n + 1);
-                if (!isAiDraftNotice(message)) setNotice(message);
+                if (!isAiDraftNotice(message) && !isLegacyMarketingPlanHint(message)) setNotice(message);
                 onMessage?.(message);
               }}
               onError={onError}
