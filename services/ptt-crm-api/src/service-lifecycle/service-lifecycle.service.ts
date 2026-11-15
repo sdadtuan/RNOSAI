@@ -19,8 +19,8 @@ import {
 import { buildOfficialTmmtSeedFromConsult } from './lifecycle-tmmt-seed.util';
 import { paymentGateFromSummary } from './lifecycle-payment-gate.util';
 import type { LaunchQaHandoverGateResult } from './lifecycle-launch-handover-gate.util';
-import { getStageAdvanceInfo, StageAdvanceError, validateStageAdvance } from './lifecycle-stage.util';
-import { LifecycleTasksPgRepository } from './lifecycle-tasks-pg.repository';
+import { getStageAdvanceInfo, nextStage, StageAdvanceError, validateStageAdvance } from './lifecycle-stage.util';
+import { LifecycleTasksPgRepository, type SvcTaskRow } from './lifecycle-tasks-pg.repository';
 import { ServiceLifecyclePgRepository } from './service-lifecycle-pg.repository';
 import {
   CreateServiceLifecycleBody,
@@ -28,7 +28,34 @@ import {
   isValidStage,
   PatchServiceLifecycleBody,
   ServiceLifecycleRow,
+  VALID_STAGES,
 } from './service-lifecycle.types';
+import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
+import type { WorkingHoursConfig } from '../lead-sla-settings/lead-sla-working-hours.util';
+import {
+  appendActualHoursLog,
+  appendAssigneeHistory,
+  computeDueYmd,
+  dueEndAt,
+  isTaskOverdue,
+  normalizeWorkStatus,
+  quoteHoursFromForm,
+  readActualHoursLog,
+  sumActualHours,
+  summarizeDeliveryOps,
+  taskOnTime,
+  workStatusIsDone,
+  type WorkStatus,
+} from './delivery-ops.util';
+import {
+  applyClientGateDecision,
+  clientGatesBlockReason,
+  normalizeClientGateKey,
+  parseClientGates,
+  serializeClientGates,
+  type ClientGateDecision,
+} from './client-gates.util';
 
 @Injectable()
 export class ServiceLifecycleService {
@@ -137,6 +164,7 @@ export class ServiceLifecycleService {
           onboardGate: await this.onboardGate(id, existing.stage, toStage),
           paymentGate: await this.paymentGate(id, existing.stage, toStage, financeConfirm, actor?.positionId),
           launchQaGate: await this.launchQaGate(id, existing.stage, toStage, Boolean(body.launch_qa_confirm)),
+          clientGate: await this.clientAdvanceGate(id, existing.stage, toStage),
         });
       } catch (err) {
         if (err instanceof StageAdvanceError) {
@@ -209,7 +237,7 @@ export class ServiceLifecycleService {
     return updated;
   }
 
-  async advanceInfo(id: number, actorPositionId?: number) {
+  async advanceInfo(id: number, actorPositionId?: number, actorStaffId?: number) {
     const lc = await this.requireLifecycle(id);
     const prog = (await this.tasksPg.getProgress(id))[lc.stage] ?? { done: 0, total: 0 };
     const complete = await this.isStageComplete(id, lc.stage);
@@ -229,6 +257,11 @@ export class ServiceLifecycleService {
         launchQaGate = undefined;
       }
     }
+    const clientGates = await this.readClientGates(id);
+    const nxt = nextStage(lc.stage) ?? '';
+    const clientBlock = clientGatesBlockReason(lc.stage, nxt, clientGates);
+    const positionCode = actorStaffId ? await this.pg.staffPositionCode(actorStaffId) : null;
+    const canRecord = await this.canRecordClientGates(id, actorStaffId ?? null, positionCode);
     return getStageAdvanceInfo({
       currentStage: lc.stage,
       currentStageComplete: complete,
@@ -245,6 +278,8 @@ export class ServiceLifecycleService {
         : undefined,
       paymentGate,
       launchQaGate,
+      clientGate: clientBlock ? { ok: false, messages: [clientBlock] } : { ok: true, messages: [] },
+      client_gates: { ...clientGates, can_record: canRecord },
     });
   }
 
@@ -298,8 +333,8 @@ export class ServiceLifecycleService {
 
   async listTasks(id: number) {
     await this.requireLifecycle(id);
-    const tasks = await this.tasksPg.listTasksGrouped(id);
-    return { tasks };
+    const { tasks, ops } = await this.enrichedTasks(id);
+    return { tasks, ops };
   }
 
   async progress(id: number) {
@@ -318,22 +353,156 @@ export class ServiceLifecycleService {
       assignee?: string | null;
       owner?: string | null;
       assignee_staff_id?: number | null;
+      assignee_reason?: string | null;
       priority?: string | null;
       due_date?: string | null;
+      work_status?: string;
+      hours?: number;
+      qty?: number;
+      actual_hours_entry?: { hours?: number; note?: string };
     },
     doneBy?: number | null,
+    actor?: { staffId?: number | null; name?: string; positionCode?: string | null },
   ) {
     await this.requireLifecycle(lifecycleId);
     const task = await this.tasksPg.getTask(taskId);
     if (!task || task.lifecycle_id !== lifecycleId) {
       throw new NotFoundException({ error: 'Không tìm thấy task' });
     }
-    const updated = await this.tasksPg.updateTask(taskId, { ...body, done_by: doneBy ?? null });
+    const staffId = actor?.staffId ?? doneBy ?? null;
+    const actorName = String(actor?.name ?? '').trim();
+    const positionCode = actor?.positionCode ?? (staffId ? await this.pg.staffPositionCode(staffId) : null);
+    let formData: Record<string, unknown> = { ...task.form_data, ...(body.form_data ?? {}) };
+
+    let workStatus: WorkStatus | undefined;
+    if (body.work_status != null) {
+      workStatus = normalizeWorkStatus(body.work_status);
+    } else if (body.is_done != null) {
+      workStatus = body.is_done ? 'done' : 'todo';
+    }
+    let isDone = body.is_done;
+    if (workStatus) {
+      formData.work_status = workStatus;
+      isDone = workStatusIsDone(workStatus);
+    }
+
+    const hoursChanged =
+      body.hours != null || body.qty != null || body.form_data?.hours != null || body.form_data?.qty != null;
+    if (body.hours != null) formData.hours = Number(body.hours);
+    if (body.qty != null) formData.qty = Number(body.qty);
+
+    if (body.actual_hours_entry) {
+      const hours = Number(body.actual_hours_entry.hours);
+      if (!Number.isFinite(hours) || hours <= 0) {
+        throw new BadRequestException({ error: 'Giờ thực phải là số dương.' });
+      }
+      formData = appendActualHoursLog(formData, {
+        staff_id: staffId,
+        staff_name: actorName || (staffId ? await this.pg.staffName(staffId) : ''),
+        hours: Math.round(hours * 100) / 100,
+        note: String(body.actual_hours_entry.note ?? '').trim().slice(0, 500),
+        at: new Date().toISOString(),
+      });
+    }
+
+    const nextStaffId = body.assignee_staff_id !== undefined ? body.assignee_staff_id : undefined;
+    const staffIdChanging =
+      nextStaffId !== undefined && Number(nextStaffId ?? 0) !== Number(task.assignee_staff_id ?? 0);
+    const textAssignee = body.assignee !== undefined ? body.assignee : body.owner;
+    const textChanging =
+      textAssignee !== undefined && String(textAssignee ?? '').trim() !== String(task.assignee ?? '').trim();
+    if (staffIdChanging || (textChanging && body.assignee_reason != null)) {
+      const asSuper = isSuperAdminPositionCode(positionCode);
+      const asMkl = isMarketingLeaderPosition(positionCode);
+      if (!asSuper && !asMkl) {
+        throw new BadRequestException({ error: 'Chỉ Marketing Leader hoặc Super-Admin được đổi người.' });
+      }
+      const reason = String(body.assignee_reason ?? '').trim();
+      if (!reason) {
+        throw new BadRequestException({ error: 'Cần lý do khi đổi người.' });
+      }
+      const toId = nextStaffId != null && Number(nextStaffId) > 0 ? Number(nextStaffId) : null;
+      const toName = toId ? await this.pg.staffName(toId) : String(textAssignee ?? '').trim();
+      if (toId && !toName) {
+        throw new BadRequestException({ error: 'Không tìm thấy nhân sự.' });
+      }
+      formData = appendAssigneeHistory(formData, {
+        from_staff_id: task.assignee_staff_id,
+        from_name: String(task.assignee ?? ''),
+        to_staff_id: toId,
+        to_name: toName,
+        reason,
+        by_staff_id: staffId,
+        by_name: actorName || (staffId ? await this.pg.staffName(staffId) : ''),
+        at: new Date().toISOString(),
+      });
+      if (toName) body.assignee = toName;
+    } else if (textChanging && nextStaffId === undefined) {
+      throw new BadRequestException({ error: 'Đổi người phải chọn Nhân sự và ghi lý do.' });
+    }
+
+    const updated = await this.tasksPg.updateTask(taskId, {
+      ...body,
+      is_done: isDone,
+      form_data: formData,
+      done_by: isDone === true ? staffId : isDone === false ? null : (doneBy ?? null),
+    });
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy task' });
     }
-    return { task: updated };
+    if (hoursChanged || staffIdChanging) {
+      await this.recomputeTaskDues(lifecycleId, taskId);
+    }
+    const calendar = await this.pg.workingCalendar();
+    return { task: this.decorateTask(updated, calendar.workingHours, new Date()) };
   }
+
+  async recordClientGate(
+    lifecycleId: number,
+    body: { gate?: string; decision?: string; note?: string },
+    actor?: { staffId?: number | null; name?: string; positionCode?: string | null },
+  ) {
+    const lc = await this.requireLifecycle(lifecycleId);
+    const staffId = actor?.staffId ?? null;
+    const positionCode = actor?.positionCode ?? (staffId ? await this.pg.staffPositionCode(staffId) : null);
+    const asSuper = isSuperAdminPositionCode(positionCode);
+    const asAm =
+      isAccountManagerPosition(positionCode) ||
+      (staffId != null && lc.assigned_am != null && Number(lc.assigned_am) === Number(staffId));
+    if (!asSuper && !asAm) {
+      throw new BadRequestException({ error: 'Chỉ AM phụ trách hoặc Super-Admin ghi cửa khách duyệt.' });
+    }
+    const key = normalizeClientGateKey(body.gate);
+    if (!key) {
+      throw new BadRequestException({ error: 'Cửa duyệt không hợp lệ (Kế hoạch, Go-live, Nghiệm thu).' });
+    }
+    const decisionRaw = String(body.decision ?? '').trim();
+    const decision: ClientGateDecision =
+      decisionRaw === 'approved' || decisionRaw === 'khach_duyet' || decisionRaw === 'duyet'
+        ? 'approved'
+        : decisionRaw === 'revision_requested' || decisionRaw === 'yeu_cau_sua' || decisionRaw === 'sua'
+          ? 'revision_requested'
+          : ('' as ClientGateDecision);
+    if (decision !== 'approved' && decision !== 'revision_requested') {
+      throw new BadRequestException({ error: 'Chọn khách duyệt hoặc yêu cầu sửa.' });
+    }
+    const note = String(body.note ?? '').trim();
+    if (!note) {
+      throw new BadRequestException({ error: 'Cần ghi chú khi ghi cửa khách duyệt.' });
+    }
+    const current = await this.readClientGates(lifecycleId);
+    const next = applyClientGateDecision(
+      current,
+      key,
+      decision,
+      note,
+      { staffId, name: String(actor?.name ?? '').trim() || (staffId ? await this.pg.staffName(staffId) : '') },
+      new Date(),
+    );
+    await this.pg.saveClientGatesJson(lifecycleId, serializeClientGates(next));
+    return { client_gates: next };
+  }
+
 
   async createCustomTask(
     lifecycleId: number,
@@ -633,4 +802,113 @@ export class ServiceLifecycleService {
     const gate = await this.lifecycleLaunchQa.launchQaGateForLifecycle(lifecycleId, launchQaConfirm);
     return { ok: gate.ok, messages: gate.messages };
   }
+  private async readClientGates(lifecycleId: number) {
+    return parseClientGates(await this.pg.getClientGatesJson(lifecycleId));
+  }
+
+  private async clientAdvanceGate(lifecycleId: number, fromStage: string, toStage: string) {
+    const gates = await this.readClientGates(lifecycleId);
+    const reason = clientGatesBlockReason(fromStage, toStage, gates);
+    return reason ? { ok: false, messages: [reason] } : { ok: true, messages: [] as string[] };
+  }
+
+  private async canRecordClientGates(
+    lifecycleId: number,
+    staffId: number | null,
+    positionCode?: string | null,
+  ): Promise<boolean> {
+    if (isSuperAdminPositionCode(positionCode)) return true;
+    if (staffId != null) {
+      const ts = await this.pg.lifecycleTimestamps(lifecycleId);
+      if (ts.assigned_am != null && Number(ts.assigned_am) === Number(staffId)) return true;
+    }
+    return isAccountManagerPosition(positionCode);
+  }
+
+  private decorateTask(task: SvcTaskRow, workingHours: WorkingHoursConfig, now: Date) {
+    const workStatus = normalizeWorkStatus(task.work_status ?? task.form_data?.work_status, task.is_done);
+    const actual = task.actual_hours || sumActualHours(readActualHoursLog(task.form_data));
+    const label =
+      workStatus === 'todo'
+        ? 'Chờ làm'
+        : workStatus === 'in_progress'
+          ? 'Đang làm'
+          : workStatus === 'done'
+            ? 'Xong'
+            : 'Không áp dụng';
+    return {
+      ...task,
+      work_status: workStatus,
+      work_status_label: label,
+      overdue: isTaskOverdue({ workStatus, dueDate: task.due_date, now, workingHours }),
+      on_time: taskOnTime({ workStatus, dueDate: task.due_date, doneAt: task.done_at, now, workingHours }),
+      quote_hours: task.quote_hours || quoteHoursFromForm(task.form_data),
+      actual_hours: actual,
+      actual_hours_log: task.actual_hours_log ?? readActualHoursLog(task.form_data),
+    };
+  }
+
+  private async enrichedTasks(lifecycleId: number) {
+    const grouped = await this.tasksPg.listTasksGrouped(lifecycleId);
+    const calendar = await this.pg.workingCalendar();
+    const now = new Date();
+    const tasks: Record<string, ReturnType<ServiceLifecycleService['decorateTask']>[]> = {};
+    const flat: ReturnType<ServiceLifecycleService['decorateTask']>[] = [];
+    for (const stage of VALID_STAGES) {
+      tasks[stage] = (grouped[stage] ?? []).map((row) => this.decorateTask(row, calendar.workingHours, now));
+      flat.push(...tasks[stage]);
+    }
+    for (const [stage, rows] of Object.entries(grouped)) {
+      if (tasks[stage]) continue;
+      tasks[stage] = rows.map((row) => this.decorateTask(row, calendar.workingHours, now));
+      flat.push(...tasks[stage]);
+    }
+    const ops = summarizeDeliveryOps(
+      flat.map((row) => ({
+        work_status: row.work_status,
+        due_date: row.due_date,
+        done_at: row.done_at || null,
+        quote_hours: row.quote_hours,
+        actual_hours: row.actual_hours,
+        assignee: row.assignee,
+        assignee_staff_id: row.assignee_staff_id,
+      })),
+      calendar.workingHours,
+      now,
+    );
+    return { tasks, ops };
+  }
+
+  private async recomputeTaskDues(lifecycleId: number, fromTaskId: number): Promise<void> {
+    const grouped = await this.tasksPg.listTasksGrouped(lifecycleId);
+    const flat = VALID_STAGES.flatMap((stage) => grouped[stage] ?? []);
+    const startIdx = flat.findIndex((row) => row.id === fromTaskId);
+    if (startIdx < 0) return;
+    const calendar = await this.pg.workingCalendar();
+    const stamps = await this.pg.lifecycleTimestamps(lifecycleId);
+    const fallback = stamps.created_at ? new Date(stamps.created_at) : new Date();
+    let cursor: Date = fallback;
+    if (startIdx > 0) {
+      const prev = flat[startIdx - 1];
+      cursor = dueEndAt(String(prev.due_date ?? ''), calendar.workingHours) ?? fallback;
+    }
+    for (const row of flat.slice(startIdx)) {
+      const hours = Number(row.form_data?.hours ?? row.quote_hours ?? 0);
+      const qty = Number(row.form_data?.qty ?? 1);
+      const due = computeDueYmd(
+        cursor,
+        hours,
+        Number.isFinite(qty) && qty > 0 ? qty : 1,
+        calendar.workingHours,
+        calendar.holidays,
+      );
+      if (due && due !== row.due_date) {
+        await this.tasksPg.updateTask(row.id, { due_date: due, form_data: { ...row.form_data, due_date: due } });
+      }
+      if (due) {
+        cursor = dueEndAt(due, calendar.workingHours) ?? cursor;
+      }
+    }
+  }
+
 }

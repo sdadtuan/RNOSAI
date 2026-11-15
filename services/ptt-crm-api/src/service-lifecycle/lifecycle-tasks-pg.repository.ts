@@ -8,6 +8,14 @@ import {
   readAssignmentFields,
   type SvcTaskPriority,
 } from './svc-task-assignment.util';
+import {
+  normalizeWorkStatus,
+  quoteHoursFromForm,
+  readActualHoursLog,
+  sumActualHours,
+  type ActualHoursEntry,
+  type WorkStatus,
+} from './delivery-ops.util';
 
 export interface SvcTaskRow {
   id: number;
@@ -31,6 +39,10 @@ export interface SvcTaskRow {
   assignee_staff_id: number | null;
   priority: SvcTaskPriority;
   due_date: string | null;
+  work_status?: WorkStatus;
+  quote_hours?: number;
+  actual_hours?: number;
+  actual_hours_log?: ActualHoursEntry[];
 }
 
 @Injectable()
@@ -92,6 +104,10 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
       ...readAssignmentFields(formData),
+      work_status: normalizeWorkStatus(formData.work_status, row.is_done === true || row.is_done === 1),
+      quote_hours: quoteHoursFromForm(formData),
+      actual_hours: sumActualHours(readActualHoursLog(formData)) || Number(formData.actual_hours ?? 0) || 0,
+      actual_hours_log: readActualHoursLog(formData),
     };
   }
 

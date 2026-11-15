@@ -122,6 +122,11 @@ export function QuoteCasePanel({
   const [lifecycleStage, setLifecycleStage] = useState('');
   const [taskDone, setTaskDone] = useState(0);
   const [taskTotal, setTaskTotal] = useState(0);
+  const [onTimePct, setOnTimePct] = useState(0);
+  const [onTimeDone, setOnTimeDone] = useState(0);
+  const [onTimeScored, setOnTimeScored] = useState(0);
+  const [quoteHours, setQuoteHours] = useState(0);
+  const [actualHours, setActualHours] = useState(0);
   const [rejectNotes, setRejectNotes] = useState('');
 
   async function applyContractReadiness(data: {
@@ -131,6 +136,11 @@ export function QuoteCasePanel({
     lifecycle_stage?: string | null;
     task_done?: number;
     task_total?: number;
+    on_time_pct?: number;
+    on_time_done?: number;
+    on_time_scored?: number;
+    quote_hours?: number;
+    actual_hours?: number;
   }) {
     setContractInfo(data.contract ? { id: data.contract.id, status: data.contract.status } : null);
     setApprovalPending(data.approval?.status === 'pending');
@@ -139,6 +149,11 @@ export function QuoteCasePanel({
     setLifecycleStage(String(data.lifecycle_stage ?? ''));
     setTaskDone(Number(data.task_done ?? 0));
     setTaskTotal(Number(data.task_total ?? 0));
+    setOnTimePct(Number(data.on_time_pct ?? 0));
+    setOnTimeDone(Number(data.on_time_done ?? 0));
+    setOnTimeScored(Number(data.on_time_scored ?? 0));
+    setQuoteHours(Number(data.quote_hours ?? 0));
+    setActualHours(Number(data.actual_hours ?? 0));
   }
 
   useEffect(() => {
@@ -641,7 +656,8 @@ export function QuoteCasePanel({
       >
         <h3 className="solution-feedback__title">Triển Khai</h3>
         <p className="solution-feedback__due" data-testid="quote-trien-khai-copy">
-          Giai đoạn hiện tại: {stageLabel}. Người nhận case (MKL): {receiver}. Tiến độ: {taskDone}/{taskTotal} ({percent}%).
+          Giai đoạn hiện tại: {stageLabel}. Người nhận case (MKL): {receiver}. Tiến độ: {taskDone}/{taskTotal} ({percent}%).{' '}
+          % đúng hạn: {onTimeScored > 0 ? `${onTimePct}% (${onTimeDone}/${onTimeScored})` : '—'}. Giờ thực: {actualHours} / giờ báo giá: {quoteHours}.
         </p>
         <div className="solution-feedback__actions">
           {lifecycleId ? (

@@ -10,6 +10,7 @@ import {
   ServiceLifecycleEventRow,
   ServiceLifecycleRow,
 } from './service-lifecycle.types';
+import { loadWorkingCalendar } from './delivery-ops.util';
 
 @Injectable()
 export class ServiceLifecyclePgRepository implements OnModuleDestroy {
@@ -564,5 +565,62 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
       presales_total_vnd: sum(presales),
       delivery_total_vnd: sum(delivery),
     };
+  }
+
+  async getClientGatesJson(lifecycleId: number): Promise<unknown> {
+    const result = await this.db.query(
+      `SELECT client_gates_json FROM crm_service_lifecycle WHERE id = $1 OR sqlite_lifecycle_id = $1 LIMIT 1`,
+      [lifecycleId],
+    );
+    return (result.rows[0] as { client_gates_json?: unknown } | undefined)?.client_gates_json ?? {};
+  }
+
+  async saveClientGatesJson(lifecycleId: number, payload: unknown): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_service_lifecycle
+          SET client_gates_json = $2::jsonb, updated_at = NOW()
+        WHERE id = $1`,
+      [lifecycleId, JSON.stringify(payload ?? {})],
+    );
+  }
+
+  async staffPositionCode(staffId: number): Promise<string | null> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return null;
+    const result = await this.db.query(
+      `SELECT p.code
+         FROM crm_staff s
+         LEFT JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.id = $1
+        LIMIT 1`,
+      [staffId],
+    );
+    const code = String((result.rows[0] as { code?: string } | undefined)?.code ?? '').trim();
+    return code || null;
+  }
+
+  async staffName(staffId: number): Promise<string> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return '';
+    const result = await this.db.query(`SELECT name FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
+    return String((result.rows[0] as { name?: string } | undefined)?.name ?? '').trim();
+  }
+
+  async lifecycleTimestamps(lifecycleId: number): Promise<{ created_at: string; stage_entered_at: string; assigned_am: number | null }> {
+    const result = await this.db.query(
+      `SELECT created_at, stage_entered_at, assigned_am
+         FROM crm_service_lifecycle
+        WHERE id = $1 OR sqlite_lifecycle_id = $1
+        LIMIT 1`,
+      [lifecycleId],
+    );
+    const row = result.rows[0] as { created_at?: string; stage_entered_at?: string; assigned_am?: number | null } | undefined;
+    return {
+      created_at: row?.created_at ? String(row.created_at) : '',
+      stage_entered_at: row?.stage_entered_at ? String(row.stage_entered_at) : '',
+      assigned_am: row?.assigned_am != null ? Number(row.assigned_am) : null,
+    };
+  }
+
+  async workingCalendar() {
+    return loadWorkingCalendar(this.db);
   }
 }

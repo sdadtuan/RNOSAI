@@ -3410,6 +3410,20 @@ export async function fetchLeadContractReadiness(token: string, leadId: number) 
     lifecycle_stage?: string | null;
     task_done?: number;
     task_total?: number;
+    on_time_pct?: number;
+    on_time_done?: number;
+    on_time_scored?: number;
+    quote_hours?: number;
+    actual_hours?: number;
+    staff_ops?: Array<{
+      staff_id: number | null;
+      name: string;
+      on_time: number;
+      scored: number;
+      pct: number;
+      quote_hours: number;
+      actual_hours: number;
+    }>;
   }>(token, `/api/v1/leads/${leadId}/contract/readiness`, { method: 'GET' });
 }
 
@@ -4528,12 +4542,29 @@ export async function patchServiceLifecycleTask(
     assignee: string | null;
     owner: string | null;
     assignee_staff_id: number | null;
+    assignee_reason: string | null;
     priority: string | null;
     due_date: string | null;
+    work_status: string;
+    hours: number;
+    qty: number;
+    actual_hours_entry: { hours?: number; note?: string };
   }>,
 ): Promise<{ task: Record<string, unknown> }> {
   return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/tasks/${taskId}`, {
     method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function recordServiceLifecycleClientGate(
+  token: string,
+  lifecycleId: number,
+  body: { gate: string; decision: string; note: string },
+): Promise<{ client_gates: Record<string, unknown> }> {
+  return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/client-gates`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });

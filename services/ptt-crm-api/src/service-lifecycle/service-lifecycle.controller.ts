@@ -42,8 +42,9 @@ export class ServiceLifecycleController {
 
   @Get(':id/advance-info')
   advanceInfo(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
-    const staff = (req as Request & { staffUser?: { position_id?: number } }).staffUser;
-    return this.serviceLifecycle.advanceInfo(id, staff?.position_id);
+    const staff = (req as Request & { staffUser?: { position_id?: number; sub?: string; id?: number } }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : undefined);
+    return this.serviceLifecycle.advanceInfo(id, staff?.position_id, staffId && Number.isFinite(staffId) ? staffId : undefined);
   }
 
   @Get(':id/events')
@@ -182,7 +183,10 @@ export class ServiceLifecycleController {
     @Body() body: Record<string, unknown>,
     @Req() req: Request,
   ) {
-    const staff = (req as Request & { staffUser?: { id?: number } }).staffUser;
+    const staff = (req as Request & {
+      staffUser?: { id?: number; sub?: string; display_name?: string; email?: string; position_id?: number };
+    }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : null);
     return this.serviceLifecycle.updateTask(
       id,
       taskId,
@@ -198,10 +202,47 @@ export class ServiceLifecycleController {
               ? null
               : Number(body.assignee_staff_id)
             : undefined,
+        assignee_reason: body.assignee_reason != null ? String(body.assignee_reason) : undefined,
         priority: body.priority !== undefined ? (body.priority as string | null) : undefined,
         due_date: body.due_date !== undefined ? (body.due_date as string | null) : undefined,
+        work_status: body.work_status != null ? String(body.work_status) : undefined,
+        hours: body.hours != null ? Number(body.hours) : undefined,
+        qty: body.qty != null ? Number(body.qty) : undefined,
+        actual_hours_entry:
+          body.actual_hours_entry && typeof body.actual_hours_entry === 'object'
+            ? (body.actual_hours_entry as { hours?: number; note?: string })
+            : undefined,
       },
-      staff?.id ?? null,
+      staffId && Number.isFinite(staffId) ? staffId : null,
+      {
+        staffId: staffId && Number.isFinite(staffId) ? staffId : null,
+        name: String(staff?.display_name || staff?.email || ''),
+      },
+    );
+  }
+
+  @Post(':id/client-gates')
+  @UseGuards(StaffServiceLifecycleWriteGuard)
+  recordClientGate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const staff = (req as Request & {
+      staffUser?: { id?: number; sub?: string; display_name?: string; email?: string };
+    }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : null);
+    return this.serviceLifecycle.recordClientGate(
+      id,
+      {
+        gate: body.gate != null ? String(body.gate) : undefined,
+        decision: body.decision != null ? String(body.decision) : undefined,
+        note: body.note != null ? String(body.note) : undefined,
+      },
+      {
+        staffId: staffId && Number.isFinite(staffId) ? staffId : null,
+        name: String(staff?.display_name || staff?.email || ''),
+      },
     );
   }
 

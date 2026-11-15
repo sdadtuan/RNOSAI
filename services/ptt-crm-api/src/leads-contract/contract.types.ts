@@ -69,6 +69,20 @@ export interface ContractReadiness {
   lifecycle_stage?: string | null;
   task_done?: number;
   task_total?: number;
+  on_time_pct?: number;
+  on_time_done?: number;
+  on_time_scored?: number;
+  quote_hours?: number;
+  actual_hours?: number;
+  staff_ops?: Array<{
+    staff_id: number | null;
+    name: string;
+    on_time: number;
+    scored: number;
+    pct: number;
+    quote_hours: number;
+    actual_hours: number;
+  }>;
 }
 
 export interface CreateContractBody {

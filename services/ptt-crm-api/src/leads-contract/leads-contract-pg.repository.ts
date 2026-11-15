@@ -16,6 +16,7 @@ import type {
   PatchContractBody,
 } from './contract.types';
 import { inferBillingType, SERVICE_LABELS } from './lifecycle-workflow-steps.util';
+import { loadWorkingCalendar, normalizeWorkStatus, quoteHoursFromForm, readActualHoursLog, sumActualHours, summarizeDeliveryOps } from '../service-lifecycle/delivery-ops.util';
 
 @Injectable()
 export class LeadsContractPgRepository implements OnModuleDestroy {
@@ -125,6 +126,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     let lifecycleStage: string | null = null;
     let taskDone = 0;
     let taskTotal = 0;
+    let ops = { case: { on_time: 0, scored: 0, pct: 0, quote_hours: 0, actual_hours: 0 }, staff: [] as ReturnType<typeof summarizeDeliveryOps>['staff'] };
     if (lifecycleId != null && lifecycleId > 0) {
       const lcResult = await this.db.query(
         `SELECT stage FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
@@ -140,6 +142,32 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       );
       taskTotal = Number((progress.rows[0] as { total?: number } | undefined)?.total ?? 0);
       taskDone = Number((progress.rows[0] as { done?: number } | undefined)?.done ?? 0);
+      const taskRows = await this.db.query(
+        `SELECT is_done, done_at, form_data FROM crm_svc_tasks WHERE lifecycle_id = $1`,
+        [lifecycleId],
+      );
+      const calendar = await loadWorkingCalendar(this.db);
+      const now = new Date();
+      ops = summarizeDeliveryOps(
+        (taskRows.rows as Array<{ is_done?: boolean; done_at?: string; form_data?: Record<string, unknown> }>).map((row) => {
+          const formData =
+            row.form_data && typeof row.form_data === 'object' && !Array.isArray(row.form_data)
+              ? row.form_data
+              : {};
+          const assign = formData as Record<string, unknown>;
+          return {
+            work_status: normalizeWorkStatus(assign.work_status, row.is_done === true),
+            due_date: assign.due_date != null ? String(assign.due_date).slice(0, 10) : null,
+            done_at: row.done_at ? String(row.done_at) : null,
+            quote_hours: quoteHoursFromForm(formData),
+            actual_hours: sumActualHours(readActualHoursLog(formData)),
+            assignee: assign.assignee != null ? String(assign.assignee) : assign.owner != null ? String(assign.owner) : null,
+            assignee_staff_id: assign.assignee_staff_id != null ? Number(assign.assignee_staff_id) : null,
+          };
+        }),
+        calendar.workingHours,
+        now,
+      );
     }
 
     return {
@@ -151,6 +179,12 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       lifecycle_stage: lifecycleStage,
       task_done: taskDone,
       task_total: taskTotal,
+      on_time_pct: ops.case.pct,
+      on_time_done: ops.case.on_time,
+      on_time_scored: ops.case.scored,
+      quote_hours: ops.case.quote_hours,
+      actual_hours: ops.case.actual_hours,
+      staff_ops: ops.staff,
     };
   }
 

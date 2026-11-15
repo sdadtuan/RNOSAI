@@ -21,8 +21,9 @@ export function validateStageAdvance(input: {
   onboardGate?: { ok: boolean; messages?: string[] };
   paymentGate?: { ok: boolean; messages?: string[] };
   launchQaGate?: { ok: boolean; messages?: string[] };
+  clientGate?: { ok: boolean; messages?: string[] };
 }): void {
-  const { fromStage, toStage, currentStageComplete, tmmtGate, onboardGate, paymentGate, launchQaGate } = input;
+  const { fromStage, toStage, currentStageComplete, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate } = input;
   if (!(VALID_STAGES as readonly string[]).includes(toStage)) {
     throw new StageAdvanceError(`Stage không hợp lệ: ${toStage}`);
   }
@@ -51,6 +52,12 @@ export function validateStageAdvance(input: {
     }
   }
   if (toStage === 'handover' && fromStage === 'deliver') {
+    if (clientGate && !clientGate.ok) {
+      throw new StageAdvanceError(
+        (clientGate.messages ?? ['Cần khách duyệt Kế hoạch và Go-live trước khi chuyển Bàn giao.'])[0] ??
+          'Cần khách duyệt Kế hoạch và Go-live trước khi chuyển Bàn giao.',
+      );
+    }
     if (launchQaGate && !launchQaGate.ok) {
       throw new StageAdvanceError(
         (launchQaGate.messages ?? ['Cần xác nhận Launch QA trước khi chuyển Handover'])[0] ??
@@ -59,6 +66,12 @@ export function validateStageAdvance(input: {
     }
   }
   if (toStage === 'retain' && fromStage === 'handover') {
+    if (clientGate && !clientGate.ok) {
+      throw new StageAdvanceError(
+        (clientGate.messages ?? ['Cần khách duyệt Nghiệm thu trước khi chuyển Giữ chân.'])[0] ??
+          'Cần khách duyệt Nghiệm thu trước khi chuyển Giữ chân.',
+      );
+    }
     if (paymentGate && !paymentGate.ok) {
       throw new StageAdvanceError(
         (paymentGate.messages ?? ['Cần xác nhận công nợ trước khi chuyển Retain'])[0] ??
@@ -97,6 +110,8 @@ export function getStageAdvanceInfo(input: {
     status: string | null;
     messages: string[];
   };
+  clientGate?: { ok: boolean; messages?: string[] };
+  client_gates?: unknown;
 }): {
   current_stage: string;
   next_stage: string | null;
@@ -133,8 +148,9 @@ export function getStageAdvanceInfo(input: {
     status: string | null;
     messages: string[];
   };
+  client_gates?: unknown;
 } {
-  const { currentStage, currentStageComplete, currentDone, currentTotal, tmmtGate, onboardGate, paymentGate, launchQaGate } =
+  const { currentStage, currentStageComplete, currentDone, currentTotal, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate } =
     input;
   const nxt = nextStage(currentStage);
   let blockReason = '';
@@ -153,7 +169,11 @@ export function getStageAdvanceInfo(input: {
       canForward = true;
     }
   } else if (nxt === 'retain' && currentStage === 'handover') {
-    if (paymentGate?.requires_confirm) {
+    if (clientGate && !clientGate.ok) {
+      blockReason =
+        (clientGate.messages ?? ['Cần khách duyệt Nghiệm thu trước khi chuyển Giữ chân.'])[0] ??
+        'Cần khách duyệt Nghiệm thu trước khi chuyển Giữ chân.';
+    } else if (paymentGate?.requires_confirm) {
       blockReason =
         (paymentGate.messages ?? ['Còn công nợ HĐ — xác nhận trên workflow detail trước khi Retain'])[0] ??
         'Còn công nợ HĐ — xác nhận trên workflow detail trước khi Retain';
@@ -161,7 +181,11 @@ export function getStageAdvanceInfo(input: {
       canForward = true;
     }
   } else if (nxt === 'handover' && currentStage === 'deliver') {
-    if (launchQaGate?.requires_confirm) {
+    if (clientGate && !clientGate.ok) {
+      blockReason =
+        (clientGate.messages ?? ['Cần khách duyệt Kế hoạch và Go-live trước khi chuyển Bàn giao.'])[0] ??
+        'Cần khách duyệt Kế hoạch và Go-live trước khi chuyển Bàn giao.';
+    } else if (launchQaGate?.requires_confirm) {
       blockReason =
         (launchQaGate.messages ?? ['Launch QA chưa launch_ready — xác nhận trước khi Handover'])[0] ??
         'Launch QA chưa launch_ready — xác nhận trước khi Handover';
@@ -219,5 +243,6 @@ export function getStageAdvanceInfo(input: {
     payment_gate: paymentGateOut,
     onboard_gate: onboardGateOut,
     launch_qa_gate: launchQaGateOut,
+    client_gates: input.client_gates,
   };
 }
