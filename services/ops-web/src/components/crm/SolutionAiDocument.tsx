@@ -339,9 +339,10 @@ function buildSolutionHtmlDocument(input: {
     .filter(Boolean)
     .map(escapeHtml)
     .join(' · ');
+  const title = (input.subtitle || '').trim();
   const subtitle =
-    input.subtitle && input.sub!['solution', 'file solution'].includes(title.trim().toLowerCase())
-      ? `<p style="margin:6px 0 0;color:#334;font-size:14px;">${escapeHtml(input.subtitle)}</p>`
+    title && !/^bản nháp solution$/i.test(title) && !['solution', 'file solution'].includes(title.toLowerCase())
+      ? `<p style="margin:6px 0 0;color:#334;font-size:14px;">${escapeHtml(title)}</p>`
       : '';
   const sections = input.sections
     .map((section, index) => {
