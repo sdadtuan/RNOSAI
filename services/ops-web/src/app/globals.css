@@ -4598,16 +4598,25 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__extras {
-  margin: 0.7rem 0 0;
+  margin: 0.85rem 0 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid #eee8e0;
   display: grid;
-  gap: 0.2rem;
+  gap: 0.35rem;
 }
 
 .quote-sheet__extras-label {
-  margin: 0 0 0.1rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #5c6b66;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #163047;
+  line-height: 1.3;
+}
+
+.quote-sheet__cap-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8a3b12;
 }
 
 .quote-sheet__extra {
@@ -4657,8 +4666,16 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__chevron {
-  font-size: 0.75rem;
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
   color: #5c6b66;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.quote-sheet__extra-head[aria-expanded='true'] .quote-sheet__chevron {
+  transform: rotate(180deg);
 }
 
 .quote-sheet__extra .quote-sheet__group {

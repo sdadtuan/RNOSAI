@@ -205,6 +205,7 @@ export function LeadQuoteSheet({
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const [loadingCode, setLoadingCode] = useState('');
   const [openGroupKeys, setOpenGroupKeys] = useState<string[]>([]);
+  const [serviceCapNote, setServiceCapNote] = useState('');
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
@@ -347,10 +348,12 @@ export function LeadQuoteSheet({
     };
     if (nextSheet.selected_service_codes.length > MAX_QUOTE_SERVICES) {
       const message = 'Chỉ được tính tối đa 4 dịch vụ trên một báo giá.';
+      setServiceCapNote(message);
       setLocalError(message);
       onError?.(message);
       return;
     }
+    setServiceCapNote('');
     selectedRef.current = nextSheet.selected_service_codes;
     setSheet(nextSheet);
   }
@@ -488,12 +491,16 @@ export function LeadQuoteSheet({
     );
   }
 
-  function renderGroups(groups: NonNullable<LeadQuoteSheet['groups']>) {
+  function renderGroups(
+    groups: NonNullable<LeadQuoteSheet['groups']>,
+    options?: { revealAll?: boolean },
+  ) {
     return groups.map((group) => {
       const key = groupKey(group);
       const hiddenCount = group.rows.filter((row) => !row.included).length;
-      const expanded = openGroupKeys.includes(key);
+      const expanded = Boolean(options?.revealAll) || openGroupKeys.includes(key);
       const visibleRows = expanded ? group.rows : group.rows.filter((row) => row.included);
+      const showMoreLink = hiddenCount > 0 && !options?.revealAll;
       return (
         <div key={key} className="quote-sheet__group">
           <h3>
@@ -596,7 +603,7 @@ export function LeadQuoteSheet({
               </tbody>
             </table>
           ) : null}
-          {hiddenCount > 0 ? (
+          {showMoreLink ? (
             <button type="button" className="quote-sheet__more" onClick={() => toggleGroupRows(key)}>
               {expanded ? 'Ẩn bớt' : `Xem thêm ${hiddenCount} hạng mục`}
             </button>
@@ -632,7 +639,8 @@ export function LeadQuoteSheet({
           ))}
           {extraServices.length > 0 ? (
             <div className="quote-sheet__extras">
-              <p className="quote-sheet__extras-label">Thêm dịch vụ khác</p>
+              <h3 className="quote-sheet__extras-label">Thêm dịch vụ khác</h3>
+              {serviceCapNote ? <p className="quote-sheet__cap-note">{serviceCapNote}</p> : null}
               {extraServices.map((service) => {
                 const key = service.code.trim().toUpperCase();
                 const open = openSet.has(key);
@@ -649,9 +657,15 @@ export function LeadQuoteSheet({
                     >
                       <span className="quote-sheet__extra-name">{service.name}</span>
                       <span className="muted">{loading ? 'Đang tải…' : `${service.item_count} hạng mục`}</span>
-                      <span className="quote-sheet__chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                      <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
                     </button>
-                    {open ? renderServiceTables(service.code) : null}
+                    {open ? (
+                      loading ? (
+                        <p className="muted">Đang tải…</p>
+                      ) : (
+                        renderGroups(groupsFor(service.code), { revealAll: true })
+                      )
+                    ) : null}
                   </div>
                 );
               })}
