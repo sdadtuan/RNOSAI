@@ -4706,6 +4706,11 @@ html.ops-shell-bitrix .win-home__scope {
   font-variant-numeric: tabular-nums;
 }
 
+.quote-sheet__lines tr.is-off td {
+  color: #6b7280;
+  background: #fafaf8;
+}
+
 .quote-sheet select,
 .quote-sheet input[type='number'] {
   width: 100%;

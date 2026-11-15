@@ -11,11 +11,12 @@ import {
   type LeadFunnelSnapshot,
   type LeadQuoteSheet,
   type LeadQuoteSheetRow,
+  type LeadQuoteSheetStaff,
 } from '@/lib/api';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { readIntakeP13Scope } from '@/lib/crm/intake-p13-scope';
 import { suggestQuotePrefillFromDiscovery } from '@/lib/crm/quote-discovery-prefill';
-import { quoteRoleLabel, quoteUnitLabel } from '@/lib/crm/quote-unit-label';
+import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
 import { readDiscoveryBriefFromAnswers } from '@/lib/crm/sales-discovery';
 
 const MAX_QUOTE_SERVICES = 4;
@@ -41,11 +42,35 @@ function linesFromSheet(sheet: LeadQuoteSheet) {
   );
 }
 
+/** Catalog role → HR position used to suggest a default hourly rate when no staff is assigned. */
+const QUOTE_ROLE_POSITION: Record<string, string> = {
+  am: 'AE',
+  strategist: 'GDKD',
+  content: 'MKL',
+  design: 'MKL',
+  ads: 'MKL',
+  dev: 'MKL',
+  data_crm: 'MKL',
+  media_booking: 'MKL',
+  video_production: 'MKL',
+};
+
+function defaultHourlyForRole(roleCode: string, staff: LeadQuoteSheetStaff[]): number {
+  const position = QUOTE_ROLE_POSITION[roleCode];
+  if (!position) return 0;
+  const person = staff
+    .filter((row) => row.position_code === position && row.hourly_vnd > 0)
+    .sort((left, right) => left.id - right.id)[0];
+  return person?.hourly_vnd ?? 0;
+}
+
 function amountOf(
-  row: Pick<LeadQuoteSheetRow, 'included' | 'chargeable' | 'hours' | 'qty' | 'hourly_vnd'>,
+  row: Pick<LeadQuoteSheetRow, 'chargeable' | 'hours' | 'qty' | 'hourly_vnd' | 'role_code'>,
+  staff: LeadQuoteSheetStaff[] = [],
 ): number {
-  if (!row.included || !row.chargeable) return 0;
-  return Math.round((row.hours || 0) * (row.qty || 0) * (row.hourly_vnd || 0));
+  if (!row.chargeable) return 0;
+  const hourly = row.hourly_vnd > 0 ? row.hourly_vnd : defaultHourlyForRole(row.role_code, staff);
+  return Math.round((row.hours || 0) * (row.qty || 0) * (hourly || 0));
 }
 
 
@@ -84,7 +109,7 @@ function mergeCatalogGroups(base: LeadQuoteSheet, incoming: LeadQuoteSheet): Lea
       ...group,
       rows: group.rows.map((row) => {
         const next = { ...row, included: false };
-        return { ...next, amount_vnd: amountOf(next) };
+        return { ...next, amount_vnd: amountOf(next, base.staff) };
       }),
     }));
   return sortSheetGroups({ ...base, groups: [...base.groups, ...added] });
@@ -145,11 +170,11 @@ function applyLoadedSheet(
             qty: edit.qty ?? row.qty,
             included: row.chargeable ? edit.included : false,
           };
-          return { ...next, amount_vnd: amountOf(next) };
+          return { ...next, amount_vnd: amountOf(next, sheet.staff) };
         }
         const included = Boolean(row.chargeable && includeItemCodes?.has(row.item_code));
         const next = { ...row, included };
-        return { ...next, amount_vnd: amountOf(next) };
+        return { ...next, amount_vnd: amountOf(next, sheet.staff) };
       }),
     })),
   };
@@ -320,7 +345,7 @@ export function LeadQuoteSheet({
       rows: group.rows.map((row) => {
         if (row.item_code !== itemCode) return row;
         const next = { ...row, ...patch };
-        return { ...next, amount_vnd: amountOf(next) };
+        return { ...next, amount_vnd: amountOf(next, sheet.staff) };
       }),
     }));
     const nextSheet: LeadQuoteSheet = {
@@ -523,30 +548,24 @@ export function LeadQuoteSheet({
                   </td>
                   <td className="quote-sheet__qty">
                     {editable && row.chargeable ? (
-                      <>
-                        <input
-                          type="number"
-                          min={0.01}
-                          max={9999}
-                          step={1}
-                          value={row.qty}
-                          aria-label={`Số lượng ${row.task}`}
-                          disabled={busy}
-                          onChange={(event) => {
-                            const qty = Math.max(0, Number(event.target.value) || 0);
-                            patchRow(row.item_code, { qty });
-                          }}
-                        />
-                        {row.unit ? <span className="muted">{quoteUnitLabel(row.unit)}</span> : null}
-                      </>
+                      <input
+                        type="number"
+                        min={0.01}
+                        max={9999}
+                        step={1}
+                        value={row.qty}
+                        aria-label={`Số lượng ${row.task}`}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const qty = Math.max(0, Number(event.target.value) || 0);
+                          patchRow(row.item_code, { qty });
+                        }}
+                      />
                     ) : (
-                      <>
-                        {row.qty}
-                        {row.unit ? ` ${quoteUnitLabel(row.unit)}` : ''}
-                      </>
+                      row.qty
                     )}
                   </td>
-                  <td className="quote-sheet__amount">{row.included ? vnd(row.amount_vnd) : '—'}</td>
+                  <td className="quote-sheet__amount">{vnd(row.amount_vnd)}</td>
                 </tr>
               ))}
             </tbody>
