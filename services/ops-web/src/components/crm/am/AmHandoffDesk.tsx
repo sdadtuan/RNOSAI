@@ -550,8 +550,10 @@ export function AmHandoffDesk({
   });
 
   const canAssign = flow.currentKey === 'await_solutions';
+  const canSubmit =
+    handoff?.status === 'pending' || handoff?.status === 'with_solution';
   const hasSolutionArtifact = files.some((file) => String((file as { name?: string }).name ?? '').trim()) || artifactReady;
-  const submitDisabledReason = !canAssign
+  const submitDisabledReason = !canSubmit
     ? 'Lead không còn ở bước Chờ Solutions.'
     : hasSolutionArtifact
       ? ''
@@ -1006,7 +1008,7 @@ export function AmHandoffDesk({
               onError={onError}
               userName={userName}
               actionsPanel
-              canSubmit={canAssign}
+              canSubmit={canSubmit}
               submitDisabledReason={submitDisabledReason}
               submitBusy={busy}
               onSubmitToSales={() => void submitSolutionToSales()}

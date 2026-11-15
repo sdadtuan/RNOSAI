@@ -4,7 +4,7 @@ import type { HandoffSlaClockView } from '@/components/crm/HandoffSlaCountdown';
 export const HANDOFF_STEP_CLOCK_KEYS: Record<HandoffFlowStepKey, string[]> = {
   receive_lead: ['sales_accept', 'sales_update'],
   sales_brief: ['sales_brief', 'missing_info'],
-  await_solutions: ['solution_accept', 'solution_work'],
+  await_solutions: ['solution_revision', 'solution_accept', 'solution_work'],
   doing_solutions: ['solution_revision', 'solution_work'],
   await_quote: ['quote_accept', 'quote_finish', 'ceo_approve', 'customer_response'],
   negotiate: ['negotiate'],

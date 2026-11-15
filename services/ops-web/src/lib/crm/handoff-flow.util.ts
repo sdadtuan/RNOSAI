@@ -231,10 +231,10 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     return 'negotiate';
   }
 
-  // Revision / still making Solution wins over a leftover bao_gia lead status
-  // from a previous Nộp, so 'Cần chỉnh sửa' does not look like Chờ báo giá.
-  if (handoff === 'with_solution') return 'doing_solutions';
-  if (handoff === 'pending') return 'await_solutions';
+  // pending + with_solution (first write or chinh_sua revision) stay on
+  // step 3 Chờ Solutions so the stepper keeps 6 steps and does not insert
+  // 'AM làm Solution'. Still wins over a leftover bao_gia lead status.
+  if (handoff === 'with_solution' || handoff === 'pending') return 'await_solutions';
 
   if (
     handoff === 'released' ||
