@@ -2084,6 +2084,25 @@ export default function CrmLeadDetailPage() {
 
             {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
               <>
+                {funnelSnap?.presales?.quote_case ? (
+                  <QuoteCasePanel
+                    compact
+                    token={accessToken}
+                    leadId={leadId}
+                    funnel={funnelSnap}
+                    viewerIsCeo={isCeoPosition(user) || superAdmin}
+                    viewerIsSuperAdmin={superAdmin}
+                    viewerIsSales={salesViewer}
+                    onFunnelChange={setFunnelSnap}
+                    onLeadReload={async () => {
+                      const row = await fetchLead(accessToken, leadId);
+                      setLead(row);
+                      setStatus(row.status || 'moi');
+                    }}
+                    onMessage={setMessage}
+                    onError={setError}
+                  />
+                ) : null}
                 <LeadQuoteSheet
                   token={accessToken}
                   leadId={leadId}

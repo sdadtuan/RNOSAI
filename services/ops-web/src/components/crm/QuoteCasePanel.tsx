@@ -65,6 +65,7 @@ export function QuoteCasePanel({
   viewerIsCeo = false,
   viewerIsSuperAdmin = false,
   viewerIsSales = false,
+  compact = false,
   onFunnelChange,
   onLeadReload,
   onMessage,
@@ -76,6 +77,7 @@ export function QuoteCasePanel({
   viewerIsCeo?: boolean;
   viewerIsSuperAdmin?: boolean;
   viewerIsSales?: boolean;
+  compact?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onLeadReload: () => Promise<void>;
   onMessage?: (message: string) => void;
@@ -248,6 +250,154 @@ export function QuoteCasePanel({
   }
 
 
+  const canCeoDecide = viewerIsCeo || viewerIsSuperAdmin;
+
+  if (compact && (quote.phase === 'chuyen_bao_gia')) {
+    return (
+      <section id="quote-case" className="solution-feedback" aria-label="Nhận Case Báo Giá" data-testid="quote-accept-case">
+        <h3 className="solution-feedback__title">Nhận Case Báo Giá</h3>
+        {assignee ? <p className="solution-feedback__due">{assignee}</p> : null}
+        <ActionErrorToast message={onError ? '' : localError} />
+        <div className="solution-feedback__actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() => void run(() => acceptLeadQuoteCase(token, leadId), 'Đã nhận case báo giá. Hạn nộp là 2 giờ.')}
+          >
+            Nhận Case Báo Giá
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (compact && (quote.phase === 'ceo_review' || quote.phase === 'sale_review')) {
+    return (
+      <section id="quote-case" className="solution-feedback" aria-label="Duyệt báo giá" data-testid="quote-ceo-review">
+        <h3 className="solution-feedback__title">Duyệt báo giá</h3>
+        <p className="solution-feedback__due">
+          {viewerIsSales && !canCeoDecide
+            ? 'Báo giá đang chờ CEO duyệt. Sales chỉ xem và tải sau khi được duyệt.'
+            : 'Báo giá đã nộp, đang chờ CEO duyệt.'}
+        </p>
+        <ActionErrorToast message={onError ? '' : localError} />
+        {canCeoDecide ? (
+          <>
+            <div className="solution-feedback__actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => approveLeadQuote(token, leadId),
+                    'CEO đã duyệt báo giá. AM lập hợp đồng; Sales chỉ xem và tải.',
+                  )
+                }
+              >
+                Duyệt báo giá
+              </button>
+              {!reviseOpen ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => setReviseOpen(true)}
+                >
+                  Từ chối, gửi lại AM
+                </button>
+              ) : null}
+            </div>
+            {reviseOpen ? (
+              <div className="solution-feedback__revise">
+                <label>
+                  Lý do từ chối
+                  <textarea
+                    rows={3}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    aria-label="Lý do từ chối báo giá"
+                    placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
+                  />
+                </label>
+                <div className="solution-feedback__actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || note.trim().length < 5}
+                    onClick={() =>
+                      void run(
+                        () => requestLeadQuoteEdits(token, leadId, note.trim()),
+                        'Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.',
+                      )
+                    }
+                  >
+                    Từ chối, gửi lại AM
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setReviseOpen(false);
+                      setNote('');
+                    }}
+                  >
+                    Huỷ
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="muted">Chờ CEO duyệt báo giá rồi mới lập hợp đồng.</p>
+        )}
+      </section>
+    );
+  }
+
+  if (compact && quote.phase === 'hop_dong') {
+    return (
+      <section id="quote-case" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
+        <h3 className="solution-feedback__title">Lập hợp đồng</h3>
+        <p className="solution-feedback__due" data-testid="quote-hop-dong-copy">
+          {viewerIsSales && !viewerIsSuperAdmin
+            ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
+            : 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) lập hợp đồng và gửi GĐKD duyệt trên tab Hợp đồng và Chốt. Sales chỉ xem và tải.'}
+        </p>
+        <ActionErrorToast message={onError ? '' : localError} />
+        <div className="solution-feedback__actions">
+          {!viewerIsSales || viewerIsSuperAdmin ? (
+            <a href="#lead-contract" className="btn btn-primary" data-testid="quote-lap-hop-dong">
+              Lập hợp đồng
+            </a>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setLocalError('');
+              void downloadLeadContractDocx(token, leadId)
+                .catch((err: unknown) => {
+                  const message = err instanceof Error ? err.message : 'Không tải được file hợp đồng';
+                  setLocalError(message);
+                  onError?.(message);
+                })
+                .finally(() => setBusy(false));
+            }}
+          >
+            Tải file hợp đồng
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (compact) return null;
+
   return (
     <section id="quote-case" className="solution-desk" aria-label="Duyệt Solution và báo giá">
       <header className="solution-desk__head">
@@ -371,7 +521,7 @@ export function QuoteCasePanel({
           </button>
         ) : null}
         {quote.phase === 'ceo_review' || quote.phase === 'sale_review' ? (
-          viewerIsCeo ? (
+          viewerIsCeo || viewerIsSuperAdmin ? (
             <>
               <button
                 type="button"
