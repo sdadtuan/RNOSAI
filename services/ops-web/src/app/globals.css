@@ -4595,6 +4595,74 @@ html.ops-shell-bitrix .win-home__scope {
   line-height: 1.35;
 }
 
+.quote-sheet__extras {
+  margin: 0.7rem 0 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.quote-sheet__extras-label {
+  margin: 0 0 0.1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5c6b66;
+}
+
+.quote-sheet__extra {
+  min-width: 0;
+}
+
+.quote-sheet__extra-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid #eee8e0;
+  border-radius: 6px;
+  background: #fffdf8;
+  font: inherit;
+  font-size: 0.84rem;
+  color: #163047;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quote-sheet__extra-head:hover,
+.quote-sheet__extra-head:focus-visible {
+  background: #f7f3eb;
+}
+
+.quote-sheet__extra-head:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.quote-sheet__extra-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-sheet__extra-head .muted {
+  margin: 0;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.quote-sheet__chevron {
+  font-size: 0.75rem;
+  color: #5c6b66;
+}
+
+.quote-sheet__extra .quote-sheet__group {
+  margin: 0.45rem 0 0.35rem;
+}
+
 .quote-sheet__lines {
   width: 100%;
   border-collapse: collapse;

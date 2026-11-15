@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   downloadLeadQuoteXlsx,
   fetchDiscoveryOptions,
@@ -115,24 +115,6 @@ function mergeCatalogGroups(base: LeadQuoteSheet, incoming: LeadQuoteSheet): Lea
   return sortSheetGroups({ ...base, groups: [...base.groups, ...added] });
 }
 
-async function fetchMissingCatalog(
-  token: string,
-  leadId: number,
-  base: LeadQuoteSheet,
-  cancelled: () => boolean,
-): Promise<LeadQuoteSheet> {
-  const have = new Set(base.groups.map((group) => group.service_code));
-  const missing = base.services.map((service) => service.code).filter((code) => code && !have.has(code));
-  let merged = base;
-  for (let index = 0; index < missing.length; index += MAX_QUOTE_SERVICES) {
-    if (cancelled()) return merged;
-    const batch = missing.slice(index, index + MAX_QUOTE_SERVICES);
-    const next = await fetchLeadQuoteSheet(token, leadId, batch);
-    merged = mergeCatalogGroups(merged, next);
-  }
-  return merged;
-}
-
 function quoteHasExistingItems(sheet: LeadQuoteSheet): boolean {
   if ((sheet.selected_service_codes ?? []).length > 0) return true;
   return sheet.groups.some((group) => group.rows.some((row) => row.included));
@@ -210,6 +192,8 @@ export function LeadQuoteSheet({
   const [localError, setLocalError] = useState('');
   const selectedRef = useRef<string[] | null>(null);
   const prefilledRef = useRef(false);
+  const [openCodes, setOpenCodes] = useState<string[]>([]);
+  const [loadingCode, setLoadingCode] = useState('');
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
@@ -227,7 +211,6 @@ export function LeadQuoteSheet({
         ]);
         if (cancelled) return;
 
-        const canExpand = Boolean(next.editable) && !viewerIsSales;
         const picked = selectedRef.current;
         if (picked && picked.length > 0) {
           setSheet((current) => {
@@ -298,16 +281,14 @@ export function LeadQuoteSheet({
               new Set(mapped.itemCodes),
             );
             selectedRef.current = applied.selected_service_codes;
-            const expanded = canExpand ? await fetchMissingCatalog(token, leadId, applied, () => cancelled) : applied;
             if (cancelled) return;
-            setSheet(expanded);
+            setSheet(applied);
             return;
           }
         }
 
-        const expanded = canExpand ? await fetchMissingCatalog(token, leadId, next, () => cancelled) : next;
         if (cancelled) return;
-        setSheet(expanded);
+        setSheet(next);
       } catch (err: unknown) {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
       }
@@ -375,9 +356,7 @@ export function LeadQuoteSheet({
       vat_percent: percentOf(sheet.vat_percent),
       promo_percent: percentOf(sheet.promo_percent),
     });
-    const expanded =
-      next.editable && !viewerIsSales ? await fetchMissingCatalog(token, leadId, next, () => false) : next;
-    setSheet(expanded);
+    setSheet(mergeCatalogGroups(next, sheet));
     return next;
   }
 
@@ -420,11 +399,7 @@ export function LeadQuoteSheet({
   }
 
   const editable = Boolean(sheet?.editable) && !viewerIsSales;
-  const visibleGroups = !sheet
-    ? []
-    : editable
-      ? sheet.groups
-      : sheet.groups.filter((group) => group.rows.some((row) => row.included));
+  const visibleGroups = (sheet?.groups ?? []).filter((group) => group.rows.some((row) => row.included));
   const tickedCodes = sheet ? tickedServiceCodes(sheet) : [];
   const includedRows =
     sheet?.groups.flatMap((group) =>
@@ -432,6 +407,47 @@ export function LeadQuoteSheet({
         .filter((row) => row.included)
         .map((row) => ({ group, row })),
     ) ?? [];
+  const catalogServices = sheet?.services ?? [];
+  const tickedSet = new Set(tickedCodes.map((code) => code.trim().toUpperCase()));
+  const openSet = new Set(openCodes.map((code) => code.trim().toUpperCase()));
+  const primaryServices = catalogServices.filter((service) => tickedSet.has(service.code.trim().toUpperCase()));
+  const extraServices = catalogServices.filter((service) => !tickedSet.has(service.code.trim().toUpperCase()));
+
+  function groupsFor(serviceCode: string) {
+    const key = serviceCode.trim().toUpperCase();
+    return (sheet?.groups ?? []).filter((group) => group.service_code.trim().toUpperCase() === key);
+  }
+
+  function serviceLoaded(serviceCode: string): boolean {
+    return groupsFor(serviceCode).length > 0;
+  }
+
+  async function toggleExtraService(serviceCode: string) {
+    const key = serviceCode.trim().toUpperCase();
+    if (tickedSet.has(key)) return;
+    if (openSet.has(key)) {
+      setOpenCodes((current) => current.filter((code) => code.trim().toUpperCase() !== key));
+      return;
+    }
+    if (serviceLoaded(serviceCode)) {
+      setOpenCodes((current) => (current.some((code) => code.trim().toUpperCase() === key) ? current : [...current, key]));
+      return;
+    }
+    if (!sheet || loadingCode) return;
+    setLoadingCode(key);
+    setLocalError('');
+    try {
+      const incoming = await fetchLeadQuoteSheet(token, leadId, [key]);
+      setSheet((current) => (current ? mergeCatalogGroups(current, incoming) : incoming));
+      setOpenCodes((current) => (current.some((code) => code.trim().toUpperCase() === key) ? current : [...current, key]));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không tải được dịch vụ';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setLoadingCode('');
+    }
+  }
   const subtotal = includedRows.reduce((sum, item) => sum + item.row.amount_vnd, 0);
   const promoPercent = percentOf(sheet?.promo_percent ?? 0);
   const vatPercent = percentOf(sheet?.vat_percent ?? 0);
@@ -455,22 +471,8 @@ export function LeadQuoteSheet({
     }
   }
 
-  return (
-    <section id="lead-quote-sheet" className="quote-sheet" aria-label="Bảng báo giá">
-      <header className="quote-sheet__head">
-        <p className="solution-desk__kicker">Bảng báo giá</p>
-        <p className="muted">
-          {phase === 'ceo_review' || phase === 'sale_review'
-            ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
-            : ceoApproved
-              ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
-              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'}
-        </p>
-      </header>
-      <ActionErrorToast message={localError} />
-      {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
-      {!sheet && localError ? <p className="muted">{localError}</p> : null}
-      {visibleGroups.map((group) => (
+  function renderGroups(groups: NonNullable<LeadQuoteSheet['groups']>) {
+    return groups.map((group) => (
         <div key={`${group.service_code}-${group.phase_code}`} className="quote-sheet__group">
           <h3>
             {group.service_name}
@@ -538,7 +540,7 @@ export function LeadQuoteSheet({
                               <option key={person.id} value={person.id}>
                                 {person.name}
                               </option>
-                            ))}
+                          ));
                           </optgroup>
                         ))}
                       </select>
@@ -572,6 +574,63 @@ export function LeadQuoteSheet({
           </table>
         </div>
       ))}
+  }
+
+  function renderServiceTables(serviceCode: string) {
+    return renderGroups(groupsFor(serviceCode));
+  }
+
+  return (
+    <section id="lead-quote-sheet" className="quote-sheet" aria-label="Bảng báo giá">
+      <header className="quote-sheet__head">
+        <p className="solution-desk__kicker">Bảng báo giá</p>
+        <p className="muted">
+          {phase === 'ceo_review' || phase === 'sale_review'
+            ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
+            : ceoApproved
+              ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
+              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'}
+        </p>
+      </header>
+      <ActionErrorToast message={localError} />
+      {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
+      {!sheet && localError ? <p className="muted">{localError}</p> : null}
+      {editable ? (
+        <>
+          {primaryServices.map((service) => (
+            <Fragment key={service.code}>{renderServiceTables(service.code)}</Fragment>
+          ))}
+          {extraServices.length > 0 ? (
+            <div className="quote-sheet__extras">
+              <p className="quote-sheet__extras-label">Thêm dịch vụ khác</p>
+              {extraServices.map((service) => {
+                const key = service.code.trim().toUpperCase();
+                const open = openSet.has(key);
+                const loading = loadingCode === key;
+                return (
+                  <div key={service.code} className="quote-sheet__extra">
+                    <button
+                      type="button"
+                      className="quote-sheet__extra-head"
+                      aria-expanded={open}
+                      aria-label={`${open ? 'Thu gọn' : 'Mở'} ${service.name}`}
+                      disabled={busy || Boolean(loadingCode)}
+                      onClick={() => void toggleExtraService(service.code)}
+                    >
+                      <span className="quote-sheet__extra-name">{service.name}</span>
+                      <span className="muted">{loading ? 'Đang tải…' : `${service.item_count} hạng mục`}</span>
+                      <span className="quote-sheet__chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                    </button>
+                    {open ? renderServiceTables(service.code) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        renderGroups(visibleGroups)
+      )}
       {sheet && (editable || tickedCodes.length > 0) ? (
         <>
           {editable ? (
