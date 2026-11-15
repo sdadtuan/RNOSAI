@@ -294,6 +294,7 @@ export default function CrmLeadDetailPage() {
   const [b2CallJustPlaced, setB2CallJustPlaced] = useState(false);
   const [cockpitOpen, setCockpitOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [solutionPreviewOpen, setSolutionPreviewOpen] = useState(false);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const funnelReqIdRef = useRef(0);
   const funnelAbortRef = useRef<AbortController | null>(null);
@@ -319,7 +320,10 @@ export default function CrmLeadDetailPage() {
   const salesViewer = isAccountExecutive(user) && !superAdmin;
   const quoteWithSale = quoteCasePhase === 'ceo_review' || quoteCasePhase === 'sale_review';
   const showLeadQuoteSheet =
-    ((quoteCasePhase === 'bao_gia' || quoteCasePhase === 'ceo_review' || quoteCasePhase === 'sale_review') &&
+    ((quoteCasePhase === 'chuyen_bao_gia' ||
+      quoteCasePhase === 'bao_gia' ||
+      quoteCasePhase === 'ceo_review' ||
+      quoteCasePhase === 'sale_review') &&
       !salesViewer) ||
     quoteCasePhase === 'hop_dong' ||
     quoteCasePhase === 'trien_khai' ||
@@ -1781,7 +1785,7 @@ export default function CrmLeadDetailPage() {
           amName={assignedAmName}
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
-          waitingSolutionFeedback={waitingSolutionFeedback || atQuoteStep}
+          waitingSolutionFeedback={waitingSolutionFeedback}
           exchangeLines={careHistory}
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
@@ -2015,7 +2019,7 @@ export default function CrmLeadDetailPage() {
             )}
 
 
-            {handoffStatus === 'released' && accessToken && lead ? (
+            {handoffStatus === 'released' && !atQuoteStep && accessToken && lead ? (
               <SolutionCaseDesk
                 filesOnly
                 token={accessToken}
@@ -2059,15 +2063,52 @@ export default function CrmLeadDetailPage() {
             ) : null}
 
             {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
-              <LeadQuoteSheet
-                token={accessToken}
-                leadId={leadId}
-                phase={superAdmin && !quoteCasePhase ? 'bao_gia' : quoteCasePhase}
-                viewerIsSales={salesViewer}
-                onFunnelChange={setFunnelSnap}
-                onMessage={setMessage}
-                onError={setError}
-              />
+              <>
+                <p className="quote-solution-link">
+                  <button
+                    type="button"
+                    className="quote-solution-link__btn"
+                    onClick={() => setSolutionPreviewOpen(true)}
+                  >
+                    Xem File Solution
+                  </button>
+                </p>
+                <LeadQuoteSheet
+                  token={accessToken}
+                  leadId={leadId}
+                  phase={superAdmin && !quoteCasePhase ? 'bao_gia' : quoteCasePhase}
+                  viewerIsSales={salesViewer}
+                  onFunnelChange={setFunnelSnap}
+                  onMessage={setMessage}
+                  onError={setError}
+                />
+                {solutionPreviewOpen ? (
+                  <div
+                    className="ahd-modal-back"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="File Solution"
+                    onClick={() => setSolutionPreviewOpen(false)}
+                  >
+                    <div className="ahd-modal ahd-modal--wide" onClick={(event) => event.stopPropagation()}>
+                      <div className="ahd-modal__actions" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSolutionPreviewOpen(false)}>
+                          Đóng
+                        </button>
+                      </div>
+                      <SolutionCaseDesk
+                        filesOnly
+                        token={accessToken}
+                        lead={lead}
+                        party={party}
+                        funnel={funnelSnap}
+                        onFunnelChange={setFunnelSnap}
+                        userName={user?.display_name || user?.email}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </>
             ) : null}
 
             {accessToken && lead && quoteCasePhase === 'trien_khai' ? (

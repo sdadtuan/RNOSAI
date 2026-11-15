@@ -27384,3 +27384,30 @@ html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
   line-height: 1.45;
   color: #163047;
 }
+
+
+/* t185: quote step — discreet Solution preview link and wide preview modal */
+.quote-solution-link {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+}
+.quote-solution-link__btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: #17692f;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.quote-solution-link__btn:hover,
+.quote-solution-link__btn:focus {
+  color: #0f4d22;
+  outline: none;
+}
+.ahd-modal--wide {
+  width: min(760px, 100%);
+  max-height: min(86vh, 900px);
+  overflow: auto;
+}
