@@ -993,8 +993,11 @@ export class LeadsFunnelService {
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     await this.assertPresalesPolicy(leadId, 'release', staffUser);
+    // SUPER-ADMIN keeps full access: the release guard lets them through, so the repository's
+    // "assigned AM / Solution owner only" check must not reject them either.
+    const superAdmin = Boolean(staffUser && (await this.staffAuth.isSuperAdminUser(staffUser)));
     try {
-      const released = await this.pgRepo.releaseToSales(leadId, staffId);
+      const released = await this.pgRepo.releaseToSales(leadId, staffId, { superAdmin });
       await this.logSolutionHandoffActivity(
         leadId,
         SOLUTION_HANDOFF_ACTIVITY_TYPES.released,

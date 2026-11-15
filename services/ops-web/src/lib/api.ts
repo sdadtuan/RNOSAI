@@ -2183,6 +2183,7 @@ function nestApiErrorMessage(body: {
   error?: string | string[] | Record<string, unknown>;
   message?: string | string[] | Record<string, unknown>;
   details?: string[] | string;
+  reason?: unknown;
 }): string | undefined {
   const pick = (v: string | string[] | Record<string, unknown> | undefined): string | undefined => {
     if (v == null) return undefined;
@@ -2207,7 +2208,13 @@ function nestApiErrorMessage(body: {
       ? (nested.details as string[])
       : undefined;
   if (!rawMessage && !rawError) return undefined;
-  return humanizeCrmApiError(rawError, rawMessage, details);
+  const reason =
+    typeof body.reason === 'string'
+      ? body.reason
+      : nested && typeof nested.reason === 'string'
+        ? nested.reason
+        : undefined;
+  return humanizeCrmApiError(rawError, rawMessage, details, reason);
 }
 
 async function leadFunnelMutate<T>(token: string, path: string, init: RequestInit): Promise<T> {

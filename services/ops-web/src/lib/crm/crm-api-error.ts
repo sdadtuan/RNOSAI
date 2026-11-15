@@ -9,6 +9,9 @@ const GENERIC_HTTP = new Set([
   'ForbiddenException',
   'UnauthorizedException',
   'BadRequestException',
+  'Forbidden resource',
+  'Internal server error',
+  'Internal Server Error Exception',
 ]);
 
 const CRM_API_ERROR_VI: Record<string, string> = {
@@ -25,7 +28,23 @@ const CRM_API_ERROR_VI: Record<string, string> = {
   unauthorized: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
   Forbidden: 'Bạn không có quyền thực hiện thao tác này.',
   forbidden: 'Bạn không có quyền thực hiện thao tác này.',
+  not_solution_assignee:
+    'Chỉ người được giao làm Solution của lead này (hoặc SUPER-ADMIN) mới được dùng chức năng này.',
+  review_queue_active: 'Lead đang ở danh mục Phải tra soát — chỉ GDKD được xử lý.',
+  policy_denied: 'Lead chưa đủ điều kiện cho bước này (chính sách pre-sales).',
+  policy_service_unavailable: 'Hệ thống kiểm tra quyền đang tạm lỗi. Vui lòng thử lại sau.',
+  session_revoked: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+  token_revoked: 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+  'Invalid or expired token': 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+  chat_scope_forbidden: 'Bạn không có quyền thực hiện thao tác này.',
+  invalid_lead_id: 'Mã lead không hợp lệ.',
+  lead_not_found: 'Không tìm thấy lead.',
 };
+
+/** A server sentence worth showing as-is (not an HTTP default and not a snake_case code). */
+function isReadableMessage(value: string): boolean {
+  return Boolean(value) && !GENERIC_HTTP.has(value) && !looksLikeCode(value);
+}
 
 const CLIENT_BRIEF_INCOMPLETE = 'client_brief_incomplete';
 const CLIENT_BRIEF_INCOMPLETE_VI = CRM_API_ERROR_VI[CLIENT_BRIEF_INCOMPLETE];
@@ -75,15 +94,20 @@ export function humanizeCrmApiError(
   error?: string | null,
   message?: string | null,
   details?: string[] | string | null,
+  reason?: string | null,
 ): string {
   const err = String(error ?? '').trim();
   const msg = String(message ?? '').trim();
+  const why = String(reason ?? '').trim();
   if (isClientBriefIncomplete(err, msg)) {
     const fields = formatClientBriefMissingFields(msg, details);
     const base = CLIENT_BRIEF_INCOMPLETE_VI.replace(/\.$/, '');
     return fields ? `${base}. Thiếu: ${fields}.` : `${base}.`;
   }
+  // Prefer the API's own sentence (e.g. "Chỉ AM phụ trách…") over a generic mapped code.
   const mapped =
+    (isReadableMessage(msg) && !CRM_API_ERROR_VI[msg] ? msg : '') ||
+    (why && CRM_API_ERROR_VI[why]) ||
     (err && CRM_API_ERROR_VI[err]) ||
     (msg && CRM_API_ERROR_VI[msg]) ||
     '';

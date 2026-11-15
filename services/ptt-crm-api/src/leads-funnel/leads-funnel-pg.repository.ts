@@ -2708,7 +2708,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return Boolean(out.rows[0]);
   }
 
-  async releaseToSales(leadId: number, staffId: number): Promise<PresalesRow> {
+  async releaseToSales(
+    leadId: number,
+    staffId: number,
+    opts?: { superAdmin?: boolean },
+  ): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (snap.presales.handoff_status === 'released') {
@@ -2720,7 +2724,9 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
     const assignedAm = snap.presales.assigned_am != null ? Number(snap.presales.assigned_am) : 0;
     const ownerId = snap.presales.solution_owner_staff_id != null ? Number(snap.presales.solution_owner_staff_id) : 0;
+    // SUPER-ADMIN keeps full access (the route guard already let them through).
     const canRelease =
+      Boolean(opts?.superAdmin) ||
       (assignedAm > 0 && assignedAm === staffId) ||
       (ownerId > 0 && ownerId === staffId) ||
       !ownerId;
