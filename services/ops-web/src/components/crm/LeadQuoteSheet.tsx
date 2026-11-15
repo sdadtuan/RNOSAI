@@ -522,7 +522,7 @@ export function LeadQuoteSheet({
                         disabled={busy}
                         onChange={(event) => {
                           const staffId = Number(event.target.value);
-                          const person = sheet.staff.find((item) => item.id === staffId);
+                          const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
                           patchRow(row.item_code, {
                             staff_id: person?.id ?? null,
                             staff_name: person?.name ?? '',
@@ -540,7 +540,7 @@ export function LeadQuoteSheet({
                               <option key={person.id} value={person.id}>
                                 {person.name}
                               </option>
-                          ));
+                            ))}
                           </optgroup>
                         ))}
                       </select>
@@ -573,7 +573,7 @@ export function LeadQuoteSheet({
             </tbody>
           </table>
         </div>
-      ))}
+      ));
   }
 
   function renderServiceTables(serviceCode: string) {
