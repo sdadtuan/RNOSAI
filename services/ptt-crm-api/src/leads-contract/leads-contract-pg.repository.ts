@@ -348,7 +348,11 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       [leadId],
     );
     const existing = existingResult.rows[0] as Record<string, unknown> | undefined;
-    if (existing) return this.mapContract(existing);
+    if (existing) {
+      const existingAmount = Number(existing.amount_vnd ?? 0) || 0;
+      await this.stampPresalesContractCreated(leadId, existingAmount, this.ts());
+      return this.mapContract(existing);
+    }
 
     const slug = String(presalesCtx.row.service_slug ?? '').trim();
     if (!slug) throw new Error('Pre-sales thiếu service_slug');
@@ -383,7 +387,22 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     const contract = insert.rows[0] as Record<string, unknown>;
     const contractId = Number(contract.id);
     await this.logContractEvent(this.db, contractId, 'draft_created', actor, { lead_id: leadId });
+    await this.stampPresalesContractCreated(leadId, amount, ts);
     return this.mapContract(contract);
+  }
+
+  private async stampPresalesContractCreated(leadId: number, amountVnd: number, ts: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_lead_presales
+          SET contract_created_at = COALESCE(contract_created_at, $2::timestamptz),
+              contract_amount_vnd = CASE
+                WHEN $3::bigint > 0 THEN $3::bigint
+                ELSE contract_amount_vnd
+              END,
+              updated_at = $2::timestamptz
+        WHERE lead_id = $1`,
+      [leadId, ts, Math.max(0, Math.round(Number(amountVnd) || 0) || 0)],
+    );
   }
 
   private async ensurePlaceholderCustomer(leadId: number, fullName: string, ts: string): Promise<number> {

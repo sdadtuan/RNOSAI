@@ -86,6 +86,8 @@ export interface QuoteCaseSource {
   contract_created_at?: string;
   contract_signed_at?: string;
   contract_amount_vnd?: number | string;
+  contract_status?: string;
+  approval_status?: string;
 }
 
 export type QuoteCasePhase =
@@ -119,7 +121,7 @@ export interface QuoteCaseView {
   quote_sent_back_at: string;
   quote_approved_at: string;
   implementation_status: string;
-  contract_state: 'none' | 'draft' | 'signed';
+  contract_state: QuoteContractState;
   contract_amount_vnd: number;
   ceo_escalation: QuoteCeoEscalation | null;
   late_events: QuoteLateEvent[];
@@ -210,6 +212,31 @@ export function isBaoGiaColumnStatus(status: string | null | undefined): boolean
   return (BAO_GIA_COLUMN_STATUSES as readonly string[]).includes(value);
 }
 
+export type QuoteContractState = 'none' | 'draft' | 'submitted' | 'active';
+
+/** Map the live contract + approval (or presales timestamps) to the quote_case badge. */
+export function resolveQuoteContractState(input: {
+  quoteApproved?: boolean;
+  contractSignedAt?: string | null;
+  contractCreatedAt?: string | null;
+  contractStatus?: string | null;
+  approvalStatus?: string | null;
+  hasContract?: boolean;
+}): QuoteContractState {
+  if (input.quoteApproved === false) return 'none';
+  const status = String(input.contractStatus ?? '').trim().toLowerCase();
+  const approval = String(input.approvalStatus ?? '').trim().toLowerCase();
+  const signedAt = Boolean(String(input.contractSignedAt ?? '').trim());
+  if (signedAt || status === 'active' || status === 'signed') return 'active';
+  if (approval === 'pending' || status === 'submitted' || status === 'pending_approval') {
+    return 'submitted';
+  }
+  if (input.hasContract || status === 'draft' || Boolean(String(input.contractCreatedAt ?? '').trim())) {
+    return 'draft';
+  }
+  return 'none';
+}
+
 export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseView | null {
   const approved = Boolean(String(row.solution_approved_at ?? '').trim());
   const accepted = Boolean(String(row.quote_accepted_at ?? '').trim());
@@ -271,9 +298,17 @@ export function buildQuoteCaseView(row: QuoteCaseSource, now: Date): QuoteCaseVi
     slaNote = `Quá ${QUOTE_FINISH_HOURS} giờ chưa nộp báo giá cho Sale. Giữ nguyên AM và báo CEO.`;
   }
 
-  const contractSigned = Boolean(String(row.contract_signed_at ?? '').trim());
-  const contractCreated = contractSigned || Boolean(String(row.contract_created_at ?? '').trim());
-  const contractState = contractSigned ? 'signed' : contractCreated ? 'draft' : 'none';
+  const contractStatus = String(row.contract_status ?? '').trim();
+  const approvalStatus = String(row.approval_status ?? '').trim();
+  const hasLiveContract = Boolean(contractStatus);
+  const contractState = resolveQuoteContractState({
+    quoteApproved,
+    contractSignedAt: row.contract_signed_at,
+    contractCreatedAt: row.contract_created_at,
+    contractStatus,
+    approvalStatus,
+    hasContract: hasLiveContract,
+  });
   const contractAmount = Number(row.contract_amount_vnd);
   const assigneeId = Number(row.quote_assignee_staff_id);
   const assigneeStaffId = Number.isInteger(assigneeId) && assigneeId > 0 ? assigneeId : null;

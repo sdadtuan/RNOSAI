@@ -2110,7 +2110,7 @@ export interface LeadFunnelSnapshot {
         logged_at: string;
       }>;
       transfer_candidates?: Array<{ id: number; name: string; title?: string }>;
-      contract_state?: 'none' | 'draft' | 'signed';
+      contract_state?: 'none' | 'draft' | 'submitted' | 'active' | 'signed';
       contract_amount_vnd?: number;
     } | null;
     implementation_handoff?: {

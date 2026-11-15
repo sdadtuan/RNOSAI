@@ -1329,10 +1329,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.syncQuoteWithSolutionOwner(ps);
     const assigneeName = await this.quoteAssigneeName(ps.quote_assignee_staff_id);
     const now = new Date();
+    const liveContract = await this.loadLeadContractSnapshot(ps.lead_id);
     let quoteCase = buildQuoteCaseView(
       {
         ...ps,
         quote_assignee_name: assigneeName,
+        contract_status: liveContract?.status,
+        approval_status: liveContract?.approval_status,
+        contract_created_at: ps.contract_created_at || liveContract?.created_at || '',
+        contract_signed_at: ps.contract_signed_at || liveContract?.signed_on || '',
+        contract_amount_vnd: Number(ps.contract_amount_vnd) || liveContract?.amount_vnd || 0,
       },
       now,
     );
@@ -3688,6 +3694,40 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       );
     }
     return { ...current, year: period.year, month: period.month, metric_name: QUOTE_DELIVERY_HOURS_NAME };
+  }
+
+  private async loadLeadContractSnapshot(leadId: number): Promise<{
+    status: string;
+    amount_vnd: number;
+    created_at: string;
+    signed_on: string;
+    approval_status: string;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT c.status, c.amount_vnd, c.created_at, c.signed_on,
+              a.status AS approval_status
+         FROM crm_contracts c
+         LEFT JOIN LATERAL (
+           SELECT status
+             FROM crm_contract_approvals
+            WHERE contract_id = c.id
+            ORDER BY id DESC
+            LIMIT 1
+         ) a ON TRUE
+        WHERE c.lead_id = $1
+        ORDER BY c.id DESC
+        LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      status: String(row.status ?? '').trim(),
+      amount_vnd: Number(row.amount_vnd ?? 0) || 0,
+      created_at: row.created_at ? String(row.created_at) : '',
+      signed_on: row.signed_on ? String(row.signed_on) : '',
+      approval_status: String(row.approval_status ?? '').trim(),
+    };
   }
 
   async createQuoteContract(leadId: number, staffId: number): Promise<void> {

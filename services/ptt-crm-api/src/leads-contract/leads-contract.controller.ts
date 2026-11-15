@@ -43,9 +43,9 @@ export class LeadsContractController {
 
   @Get(':id/contract/readiness')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  readiness(@Param('id', ParseIntPipe) id: number) {
+  async readiness(@Param('id', ParseIntPipe) id: number) {
     try {
-      return this.contracts.getReadiness(id);
+      return await this.contracts.getReadiness(id);
     } catch (err) {
       this.fail(err);
     }
@@ -149,9 +149,9 @@ export class ContractsApprovalController {
   @Post('approvals/:id/approve')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsGdkdGuard)
-  approve(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }) {
+  async approve(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }) {
     try {
-      return this.contracts.approve(id, this.actor(req));
+      return await this.contracts.approve(id, this.actor(req));
     } catch (err) {
       this.fail(err);
     }
@@ -160,13 +160,13 @@ export class ContractsApprovalController {
   @Post('approvals/:id/reject')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsGdkdGuard)
-  reject(
+  async reject(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: RejectApprovalBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return this.contracts.reject(id, this.actor(req), String(body.decision_notes ?? ''));
+      return await this.contracts.reject(id, this.actor(req), String(body.decision_notes ?? ''));
     } catch (err) {
       this.fail(err);
     }
