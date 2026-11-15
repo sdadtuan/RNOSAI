@@ -1491,6 +1491,9 @@ export default function CrmLeadDetailPage() {
     (handoffStatus === 'pending' || handoffStatus === 'with_solution') &&
     !solutionCaps.isAeTrackOnly &&
     (solutionCaps.canClaim || solutionCaps.canEditConsult);
+  const waitingSolutionFeedback =
+    handoffStatus === 'released' &&
+    String(funnelSnap?.presales?.quote_case?.phase ?? '') === 'sale_approve_solution';
   const flowStatusLabel = lead
     ? handoffFlowStatusLabel({
         leadStatus: lead.status || status,
@@ -1742,6 +1745,11 @@ export default function CrmLeadDetailPage() {
           amName={assignedAmName}
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
+          waitingSolutionFeedback={waitingSolutionFeedback}
+          exchangeLines={careHistory}
+          ownerLines={ownerLines}
+          selectedActivityId={selectedActivityId}
+          onSelectActivity={setSelectedActivityId}
           mgmtExtra={
             superAdmin && accessToken && lead ? (
               <LeadOwnerReassignControl
@@ -1893,7 +1901,7 @@ export default function CrmLeadDetailPage() {
             </>
           ) : null}
 
-          {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
+          {!waitingSolutionFeedback && stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -1915,7 +1923,7 @@ export default function CrmLeadDetailPage() {
             </div>
           ) : null}
 
-          {accessToken && !showPipelineTab ? (
+          {accessToken && !showPipelineTab && !waitingSolutionFeedback ? (
             <LeadFrSlaPanel
               token={accessToken}
               leadId={leadId}
@@ -1925,7 +1933,7 @@ export default function CrmLeadDetailPage() {
             />
           ) : null}
 
-          {showSlaSciUnifiedPanel && !showPipelineTab ? (
+          {showSlaSciUnifiedPanel && !showPipelineTab && !waitingSolutionFeedback ? (
             <LeadSlaCarePanel
               token={accessToken!}
               leadId={leadId}
@@ -1970,7 +1978,7 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
-            {accessToken && stageVis.showDealRoomBanner && showDealQuoteEntry ? (
+            {accessToken && !waitingSolutionFeedback && stageVis.showDealRoomBanner && showDealQuoteEntry ? (
               <div className="deal-room-entry-banner">
                 <div>
                   <strong>Deal Room</strong>
@@ -2027,7 +2035,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && showLeadQuoteSheet ? (
+            {accessToken && lead && showLeadQuoteSheet && !waitingSolutionFeedback ? (
               <LeadQuoteSheet
                 token={accessToken}
                 leadId={leadId}
@@ -2100,7 +2108,7 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {(!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
+            {!waitingSolutionFeedback && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
               <div className="lead-zone">
@@ -2308,7 +2316,7 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
+            {!waitingSolutionFeedback && ((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
               <LeadConsultWorkspace
                 token={accessToken}
                 leadId={leadId}
@@ -2322,7 +2330,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {showHistoryPane && !showPipelineTab ? (
+            {!waitingSolutionFeedback && showHistoryPane && !showPipelineTab ? (
               <LeadHistoryTab
                 token={accessToken!}
                 leadId={leadId}

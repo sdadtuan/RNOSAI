@@ -414,85 +414,26 @@ export function SolutionCaseDesk({
 
   if (filesOnly) {
     if (!session && files.length === 0 && !aiDraft) return null;
-    const company = sessionCompany || companyOnCard;
-    const contact = sessionContact || leadName;
     return (
-      <section className="solution-desk" aria-label="File Solution đã nộp">
-        <h3>File Solution đã nộp</h3>
-        <div className="solution-desk__file-row">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={busy || !canEditFiles}
-            onClick={() => solutionFileInputRef.current?.click()}
-          >
-            Chọn file
-          </button>
-          {canEditFiles ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy || notAssignee}
-              title={notAssignee ? notAssigneeTip : undefined}
-              data-testid="solution-desk-ai"
-              onClick={() => void run(runAiSolution)}
-            >
-              {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
-            </button>
-          ) : null}
-        </div>
+      <section className="solution-desk" aria-label="File Solution" data-testid="solution-desk-submitted">
         {files.length === 0 && !aiDraft ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : files.length === 0 ? null : (
           <SolutionFileList files={files} />
         )}
-        <dl className="solution-desk__facts">
-          {company ? (
-            <div>
-              <dt>Công ty</dt>
-              <dd>{company}</dd>
-            </div>
-          ) : null}
-          {contact ? (
-            <div>
-              <dt>Người liên hệ</dt>
-              <dd>{contact}</dd>
-            </div>
-          ) : null}
-          {serviceLabel ? (
-            <div>
-              <dt>Dịch vụ</dt>
-              <dd>{serviceLabel}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Nhu cầu</dt>
-            <dd>{need || 'Chưa ghi nhu cầu.'}</dd>
-          </div>
-          <div>
-            <dt>Quyết định</dt>
-            <dd>
-              {discoveryBrief
-                ? temperatureLabel(discoveryBrief.temperature) || discoveryBrief.temperature || '?'
-                : DECISION_LABEL[session?.decision || ''] || session?.decision || '?'}
-              {session?.bant_total != null ? ` · BANT ${session.bant_total}/30` : ''}
-            </dd>
-          </div>
-        </dl>
-        <ul className="solution-desk__bant">
-          {BANT_KEYS.map((key) => {
-            const score = Number(bant[key] ?? 0);
-            return (
-              <li key={key}>
-                <div className="solution-desk__bant-top">
-                  <strong>{BANT_FIELD_LABELS[key].label.split(' "')[0]}</strong>
-                  <span>{score >= 1 ? `${score}/5` : 'Chưa chấm'}</span>
-                </div>
-                <p>{score >= 1 ? bantScoreText(key, score) : BANT_CHECKLIST[key].hint}</p>
-              </li>
-            );
-          })}
-        </ul>
+        {aiDraft ? (
+          <SolutionAiDraftBody
+            title={aiDraft.title}
+            badge={aiDraft.badge}
+            sections={aiDraft.sections}
+            pending={aiDraft.status === 'pending'}
+            canEdit={false}
+            companyName={companyOnCard || sessionCompany || lead.company_name || leadName}
+            contactName={leadName || sessionContact}
+            leadCode={lead.project_code || ('LD-' + String(lead.id))}
+            createdAt={aiDraft.requestedAt}
+          />
+        ) : null}
       </section>
     );
   }

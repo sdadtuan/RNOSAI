@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   acceptLeadQuoteCase,
   approveLeadQuote,
@@ -90,6 +90,8 @@ export function QuoteCasePanel({
   const [customerAgreed, setCustomerAgreed] = useState(
     () => Boolean(funnel?.presales?.quote_case) && funnel?.presales?.quote_case?.phase !== 'sale_approve_solution',
   );
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const runLockRef = useRef(false);
   const timerDue = quote?.timer_due_at ?? '';
   const timerStopped = Boolean(quote?.timer_stopped);
 
@@ -117,6 +119,8 @@ export function QuoteCasePanel({
   if (!quote) return null;
 
   async function run(action: () => Promise<{ funnel: LeadFunnelSnapshot }>, done: string) {
+    if (runLockRef.current || busy) return false;
+    runLockRef.current = true;
     setBusy(true);
     setLocalError('');
     try {
@@ -131,6 +135,7 @@ export function QuoteCasePanel({
       onError?.(message);
       return false;
     } finally {
+      runLockRef.current = false;
       setBusy(false);
     }
   }
@@ -140,6 +145,108 @@ export function QuoteCasePanel({
     quote.phase === 'chuyen_bao_gia' && quote.assignee_name
       ? `${quote.assignee_name} bấm Nhận Case Báo Giá trong 15 phút.`
       : '';
+
+  if (quote.phase === 'sale_approve_solution') {
+    const dueLabel = solution?.timer_label || quote.timer_label || 'Hạn phản hồi khách';
+    const dueAt = solution?.timer_due_at || quote.timer_due_at || '';
+    const dueMs = Date.parse(dueAt);
+    const remain = Number.isFinite(dueMs) ? dueMs - Date.now() : NaN;
+    const dueLine = Number.isFinite(remain) ? formatRemain(remain, dueAt, dueLabel) : dueLabel;
+    return (
+      <section id="quote-case" className="solution-feedback" aria-label="Phản hồi Solution" data-testid="solution-feedback">
+        <h3 className="solution-feedback__title">Phản hồi Solution</h3>
+        {dueLine ? <p className="solution-feedback__due">{dueLine}</p> : null}
+        {solution?.warning_note ? (
+          <div className="lead-alert" role="status">{solution.warning_note}</div>
+        ) : null}
+        {solution?.sla_note ? (
+          <div className="lead-alert lead-alert--error" role="alert">{solution.sla_note}</div>
+        ) : null}
+        {quote.warning_note && !quote.timer_overdue ? (
+          <div className="lead-alert" role="status">{quote.warning_note}</div>
+        ) : null}
+        {quote.sla_note ? (
+          <div className="lead-alert lead-alert--error" role="alert">{quote.sla_note}</div>
+        ) : null}
+        <ActionErrorToast message={onError ? '' : localError} />
+        {!customerAgreed ? (
+          <>
+            <div className="solution-feedback__actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => {
+                  setCustomerAgreed(true);
+                  void run(
+                    () => approveLeadSolution(token, leadId),
+                    'Khách đồng ý Solutions. Sang bước Chờ lập báo giá.',
+                  ).then((ok) => {
+                    if (!ok) setCustomerAgreed(false);
+                  });
+                }}
+              >
+                Khách đồng ý — Chuyển báo giá
+              </button>
+              {!reviseOpen ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => setReviseOpen(true)}
+                >
+                  Cần chỉnh sửa
+                </button>
+              ) : null}
+            </div>
+            {reviseOpen ? (
+              <div className="solution-feedback__revise">
+                <label>
+                  Nội dung cần chỉnh (bắt buộc)
+                  <textarea
+                    rows={5}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    aria-label="Nội dung cần chỉnh (bắt buộc)"
+                    placeholder="Nhập nội dung khách cần chỉnh, ít nhất 5 ký tự"
+                  />
+                </label>
+                <div className="solution-feedback__actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || note.trim().length < 5}
+                    onClick={() =>
+                      void run(
+                        () => requestLeadSolutionEdits(token, leadId, note.trim()),
+                        'Đã gửi yêu cầu chỉnh Solutions. Hạn trả lại là 2 giờ.',
+                      )
+                    }
+                  >
+                    Gửi yêu cầu chỉnh sửa
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setReviseOpen(false);
+                      setNote('');
+                    }}
+                  >
+                    Huỷ
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="muted">Đã ghi nhận phản hồi Solution.</p>
+        )}
+      </section>
+    );
+  }
+
 
   return (
     <section id="quote-case" className="solution-desk" aria-label="Duyệt Solution và báo giá">

@@ -28,6 +28,8 @@ import {
 } from '@/lib/crm/handoff-flow.util';
 import { funnelAssignedAmId } from '@/lib/crm/funnel-snapshot.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
+import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
+import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
@@ -72,6 +74,9 @@ const I = {
   users: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
   list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01',
   arrow: 'M5 12h14M13 6l6 6-6 6',
+  chat: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
+  note: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6',
+  clip: 'M21.4 11.4l-8.8 8.8a6 6 0 01-8.5-8.5l8.8-8.8a4 4 0 015.7 5.7L9.7 19.5a2 2 0 01-2.8-2.8l8-8',
 };
 
 function initials(name: string): string {
@@ -110,6 +115,16 @@ function EmptyState({ text = 'Chưa có dữ liệu.' }: { text?: string }) {
   return <p className="ahd-empty-state">{text}</p>;
 }
 
+function BriefPara({ text }: { text?: string | string[] }) {
+  const value = Array.isArray(text)
+    ? text.map((item) => String(item ?? '').trim()).filter(Boolean).join(', ')
+    : String(text ?? '').trim();
+  if (!value) return null;
+  return <p className="ahd-brief-text">{value}</p>;
+}
+
+type DeskTabKey = 'brief' | 'solution' | 'history' | 'notes';
+
 function FieldList({ children }: { children: ReactNode }) {
   const items = Children.toArray(children).filter(Boolean);
   if (!items.length) return <EmptyState />;
@@ -143,6 +158,11 @@ export type SalesLeadDeskProps = {
   userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
+  waitingSolutionFeedback?: boolean;
+  exchangeLines?: LeadHistoryLine[];
+  ownerLines?: LeadHistoryLine[];
+  selectedActivityId?: number | null;
+  onSelectActivity?: (id: number | null) => void;
 };
 
 export function SalesLeadDesk({
@@ -159,7 +179,13 @@ export function SalesLeadDesk({
   userId,
   mgmtExtra,
   children,
+  waitingSolutionFeedback = false,
+  exchangeLines = [],
+  ownerLines = [],
+  selectedActivityId = null,
+  onSelectActivity,
 }: SalesLeadDeskProps) {
+  const [tab, setTab] = useState<DeskTabKey>('solution');
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
@@ -327,7 +353,7 @@ export function SalesLeadDesk({
       <HandoffFlowStepper view={flow} />
       <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
-      <div className="ahd-body ahd-body--notes-only" data-side="notes">
+      <div className={`ahd-body${waitingSolutionFeedback ? '' : ' ahd-body--notes-only'}`} data-side="notes">
         <div className="ahd-col">
           <section className="ahd-card" data-testid="sld-quick">
             <h3 className="ahd-card__title">
@@ -416,7 +442,129 @@ export function SalesLeadDesk({
           </section>
         </div>
 
-        <div className="ahd-col ahd-col--main">{children}</div>
+        <div className="ahd-col ahd-col--main">
+          {waitingSolutionFeedback ? (
+            <>
+              <div className="ahd-tabs" role="tablist" aria-label="Hồ sơ Sales">
+                {(
+                  [
+                    ['brief', 'Sales Brief', I.brief],
+                    ['solution', 'File Solution', I.clip],
+                    ['history', 'Lịch sử', I.chat],
+                    ['notes', 'Ghi chú nội bộ', I.note],
+                  ] as const
+                ).map(([key, label, icon]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === key}
+                    className={`ahd-tab${tab === key ? ' is-active' : ''}`}
+                    data-testid={`sld-tab-${key}`}
+                    onClick={() => setTab(key)}
+                  >
+                    <Icon d={icon} size={13} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {tab === 'brief' ? (
+                <div className="ahd-brief-grid" data-testid="sld-brief">
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Mục tiêu Marketing</h3>
+                    <div className="ahd-card__body">
+                      <BriefPara text={view.marketing_goal} />
+                      {!view.marketing_goal ? <EmptyState /> : null}
+                    </div>
+                  </section>
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Vấn đề khách hàng đang gặp</h3>
+                    <div className="ahd-card__body">
+                      <BriefPara text={view.biggest_problem} />
+                      {!view.biggest_problem ? <EmptyState /> : null}
+                    </div>
+                  </section>
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Khách hàng mục tiêu</h3>
+                    <div className="ahd-card__body">
+                      <BriefPara text={view.target_customers} />
+                      {!view.target_customers ? <EmptyState /> : null}
+                    </div>
+                  </section>
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Ngân sách &amp; Thời gian</h3>
+                    <div className="ahd-card__body">
+                      <BriefPara text={view.budget_band} />
+                      <BriefPara text={view.timeline_band} />
+                      {!view.budget_band && !view.timeline_band ? <EmptyState /> : null}
+                    </div>
+                  </section>
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Hiện trạng Marketing</h3>
+                    <div className="ahd-card__body">
+                      <BriefPara text={view.current_budget} />
+                      <BriefPara text={view.current_results} />
+                      <BriefPara text={view.difficulties} />
+                      <BriefPara text={view.channels_text} />
+                      {!view.current_budget && !view.current_results && !view.difficulties && !view.channels_text ? (
+                        <EmptyState />
+                      ) : null}
+                    </div>
+                  </section>
+                  <section className="ahd-card">
+                    <h3 className="ahd-card__title">Dịch vụ quan tâm</h3>
+                    <div className="ahd-card__body">
+                      {view.services.length ? (
+                        <div className="ahd-chips">
+                          {view.services.map((item) => (
+                            <span className="ahd-chip" key={item}>
+                              <span className="ahd-chip__name">{item}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState />
+                      )}
+                    </div>
+                  </section>
+                  {view.call_notes ? (
+                    <section className="ahd-card">
+                      <h3 className="ahd-card__title">Ghi chú cuộc gọi</h3>
+                      <div className="ahd-card__body">
+                        <BriefPara text={view.call_notes} />
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              ) : null}
+              {tab === 'solution' ? children : null}
+              {tab === 'history' ? (
+                <LeadHistoryTab
+                  token={token}
+                  leadId={lead.id}
+                  exchangeLines={exchangeLines}
+                  ownerLines={ownerLines}
+                  selectedActivityId={selectedActivityId}
+                  onSelectActivity={onSelectActivity ?? (() => undefined)}
+                />
+              ) : null}
+              {tab === 'notes' ? (
+                <LeadInternalNotes
+                  token={token}
+                  leadId={lead.id}
+                  compact
+                  onMessage={undefined}
+                  onError={undefined}
+                  sectionTestId="sld-tab-notes"
+                  inputTestId="sld-tab-internal-input"
+                />
+              ) : null}
+            </>
+          ) : (
+            children
+          )}
+        </div>
+
 
         <div className="ahd-col ahd-col--side ahd-col--side-notes" data-testid="sld-side" data-side="notes">
           <LeadInternalNotes
@@ -450,6 +598,11 @@ export function SalesOrLegacyLeadLayout({
   userId,
   mgmtExtra,
   children,
+  waitingSolutionFeedback,
+  exchangeLines,
+  ownerLines,
+  selectedActivityId,
+  onSelectActivity,
 }: {
   useDesk: boolean;
   token?: string | null;
@@ -466,6 +619,11 @@ export function SalesOrLegacyLeadLayout({
   userId?: number;
   mgmtExtra?: ReactNode;
   children?: ReactNode;
+  waitingSolutionFeedback?: boolean;
+  exchangeLines?: LeadHistoryLine[];
+  ownerLines?: LeadHistoryLine[];
+  selectedActivityId?: number | null;
+  onSelectActivity?: (id: number | null) => void;
 }) {
   if (useDesk && token && lead) {
     return (
@@ -483,6 +641,11 @@ export function SalesOrLegacyLeadLayout({
         amStaffId={amStaffId}
         userId={userId}
         mgmtExtra={mgmtExtra}
+        waitingSolutionFeedback={waitingSolutionFeedback}
+        exchangeLines={exchangeLines}
+        ownerLines={ownerLines}
+        selectedActivityId={selectedActivityId}
+        onSelectActivity={onSelectActivity}
       >
         {children}
       </SalesLeadDesk>
