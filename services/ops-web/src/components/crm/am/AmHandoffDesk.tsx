@@ -334,7 +334,8 @@ export function AmHandoffDesk({
   const [files, setFiles] = useState<Attachment[]>([]);
   const [consultPrefill, setConsultPrefill] = useState('');
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
-  const [tab, setTab] = useState<TabKey>('brief');
+  const revisionNote = String(funnel?.presales?.solution_case?.revision_note ?? '').trim();
+  const [tab, setTab] = useState<TabKey>(revisionNote ? 'solution' : 'brief');
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
   const [assignNote, setAssignNote] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
@@ -826,6 +827,23 @@ export function AmHandoffDesk({
               </button>
             ))}
           </div>
+
+          {revisionNote ? (
+            <aside className="ahd-revision" data-testid="ahd-revision-note">
+              <h3 className="ahd-revision__title">Khách cần chỉnh</h3>
+              {(() => {
+                const lines = [...ownerHistoryExchange, ...ownerLines];
+                const hit = lines.find((line) =>
+                  /yêu cầu chỉnh Solutions|Khách cần chỉnh|request_solution_edits/i.test(
+                    `${line.what ?? ''} ${line.tag ?? ''} ${line.key ?? ''}`,
+                  ),
+                );
+                const meta = hit ? [hit.who, hit.when].filter(Boolean).join(' · ') : '';
+                return meta ? <p className="ahd-revision__meta">{meta}</p> : null;
+              })()}
+              <p className="ahd-revision__body">{revisionNote}</p>
+            </aside>
+          ) : null}
 
           {tab === 'brief' ? (
             <div className="ahd-brief-grid" data-testid="ahd-brief">

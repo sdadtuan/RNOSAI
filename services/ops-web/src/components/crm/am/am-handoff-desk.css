@@ -869,3 +869,31 @@ button.ahd-check__item:focus-visible {
 .ahd-card--actions .solution-desk__upload-progress {
   margin: 0 0 10px;
 }
+
+
+/* t178: highlighted edit-request card on the Solution revision step */
+.ahd-revision {
+  background: #fff8e8;
+  border: 1px solid #e8d39a;
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 0.75rem;
+}
+.ahd-revision__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #163047;
+}
+.ahd-revision__meta {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.78rem;
+  color: #5b6570;
+}
+.ahd-revision__body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #163047;
+}
