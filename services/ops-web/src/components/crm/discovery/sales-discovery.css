@@ -46,14 +46,16 @@
 .sd-label { font-size: 0.86rem; font-weight: 600; color: #314255; }
 .sd-req { color: #d32f2f; margin-left: 2px; }
 .sd-input, .sd-select, .sd-textarea {
-  width: 100%; border: 1px solid #cfd8e3; border-radius: 10px;
-  padding: 9px 11px; font: inherit; background: #ffffcd; color: #163047;
+  width: 100%; border: 1px solid #e3dccd; border-radius: 10px;
+  padding: 9px 11px; font: inherit; background: #fffdf8; color: #163047;
 }
 .sd-textarea { min-height: 88px; resize: vertical; }
 .sd-input:focus, .sd-select:focus, .sd-textarea:focus {
-  outline: 2px solid #b7e0c6; border-color: #00762f;
+  outline: none; border-color: #17692f;
+  box-shadow: 0 0 0 3px rgba(23, 105, 47, 0.18);
 }
-.sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled { background: #ffffcd; color: #526070; }
+.sd-input:disabled, .sd-select:disabled, .sd-textarea:disabled,
+.sd-input:read-only, .sd-select:read-only, .sd-textarea:read-only { background: #f7f4ee; color: #526070; }
 .sd-hint { font-size: 0.78rem; color: #6a7a8b; }
 .sd-radios { display: flex; flex-direction: column; gap: 8px; }
 .sd-radio { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; cursor: pointer; }

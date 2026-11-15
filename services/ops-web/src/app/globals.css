@@ -27164,8 +27164,8 @@ html.rs-mobile-chrome .crm-leads-signal {
   resize: vertical;
   box-sizing: border-box;
   max-width: 100%;
-  background: #ffffcd;
-  border: 1px solid #cfd8e3;
+  background: #fffdf8;
+  border: 1px solid #e3dccd;
   border-radius: 6px;
 }
 .handoff-sla-banner--line.quote-case-timer,
@@ -27173,7 +27173,7 @@ html.rs-mobile-chrome .crm-leads-signal {
   margin: 0 0 12px;
 }
 
-/* t152: one shared CRM lead-page field fill (incl. disabled / readonly) */
+/* t169: lead-page fields match the cream UI (warm white, not yellow) */
 .lead-detail-page,
 .ahd,
 .sld,
@@ -27181,8 +27181,10 @@ html.rs-mobile-chrome .crm-leads-signal {
 .sd-embed,
 .ahd-modal,
 .lead-fr-sla {
-  --crm-lead-field-bg: #ffffcd;
-  --crm-lead-field-border: #cfd8e3;
+  --crm-lead-field-bg: #fffdf8;
+  --crm-lead-field-border: #e3dccd;
+  --crm-lead-field-disabled-bg: #f7f4ee;
+  --crm-lead-field-focus: #17692f;
 }
 
 .lead-detail-page input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
@@ -27258,9 +27260,45 @@ html.ops-shell-bitrix .sld textarea,
 html.ops-shell-bitrix .lead-fr-sla__form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
 html.ops-shell-bitrix .lead-fr-sla__form select,
 html.ops-shell-bitrix .lead-fr-sla__form textarea {
-  background: var(--crm-lead-field-bg, #ffffcd) !important;
-  background-color: var(--crm-lead-field-bg, #ffffcd) !important;
-  border-color: var(--crm-lead-field-border, #cfd8e3) !important;
+  background: var(--crm-lead-field-bg, #fffdf8) !important;
+  background-color: var(--crm-lead-field-bg, #fffdf8) !important;
+  border-color: var(--crm-lead-field-border, #e3dccd) !important;
+}
+
+/* t169: readonly/disabled slightly muted; focus uses theme green + light ring */
+:is(.lead-detail-page, .ahd, .sld, .sd-page, .sd-embed, .ahd-modal, .lead-fr-sla, .lead-fr-sla__form)
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='range']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']),
+    select,
+    textarea,
+    [contenteditable='true']
+  ):is(:disabled, :read-only, [readonly]),
+html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='range']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']),
+    select,
+    textarea
+  ):is(:disabled, :read-only, [readonly]) {
+  background: var(--crm-lead-field-disabled-bg, #f7f4ee) !important;
+  background-color: var(--crm-lead-field-disabled-bg, #f7f4ee) !important;
+}
+
+:is(.lead-detail-page, .ahd, .sld, .sd-page, .sd-embed, .ahd-modal, .lead-fr-sla, .lead-fr-sla__form)
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='range']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']),
+    select,
+    textarea,
+    [contenteditable='true']
+  ):focus,
+html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='range']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']),
+    select,
+    textarea
+  ):focus {
+  border-color: var(--crm-lead-field-focus, #17692f) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 105, 47, 0.18);
 }
 
 .lead-detail-page input:-webkit-autofill,
@@ -27275,7 +27313,7 @@ html.ops-shell-bitrix .lead-fr-sla__form textarea {
 .sd-page input:-webkit-autofill,
 .sd-embed input:-webkit-autofill,
 .lead-fr-sla__form input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
-  box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #ffffcd) inset !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #fffdf8) inset !important;
+  box-shadow: 0 0 0 1000px var(--crm-lead-field-bg, #fffdf8) inset !important;
 }
 

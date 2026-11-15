@@ -571,15 +571,32 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-field select,
 .ahd-field textarea {
   width: 100%;
-  border: 1px solid #cfd8e3;
+  border: 1px solid #e3dccd;
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
   color: var(--ahd-ink);
-  background: #ffffcd;
+  background: #fffdf8;
 }
 .ahd-field textarea { min-height: 88px; resize: vertical; }
+.ahd-note-form textarea:focus,
+.ahd-field input:focus,
+.ahd-field select:focus,
+.ahd-field textarea:focus,
+.ahd-card--actions .solution-desk__deadline input:focus {
+  border-color: #17692f;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(23, 105, 47, 0.18);
+}
+.ahd-note-form textarea:is(:disabled, :read-only, [readonly]),
+.ahd-field input:is(:disabled, :read-only, [readonly]),
+.ahd-field select:is(:disabled, :read-only, [readonly]),
+.ahd-field textarea:is(:disabled, :read-only, [readonly]),
+.ahd-card--actions .solution-desk__deadline input:is(:disabled, :read-only, [readonly]) {
+  background: #f7f4ee;
+}
+
 .ahd-field { display: grid; gap: 5px; margin-bottom: 10px; }
 .ahd-field span { font-size: 12.5px; font-weight: 600; }
 .ahd-req { color: var(--ahd-danger); margin-left: 2px; }
@@ -831,10 +848,10 @@ button.ahd-check__item:focus-visible {
   width: 100%;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid #cfd8e3;
+  border: 1px solid #e3dccd;
   border-radius: 8px;
   font-size: 14px;
-  background: #ffffcd;
+  background: #fffdf8;
 }
 .ahd-card--actions .solution-desk__file-row {
   display: flex;

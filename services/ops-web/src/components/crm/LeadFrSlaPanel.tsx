@@ -753,16 +753,22 @@ export function LeadFrSlaPanel({
         .lead-fr-sla__form textarea {
           font: inherit;
           font-weight: 450;
-          border: 1px solid #cfd8e3;
+          border: 1px solid #e3dccd;
           border-radius: 6px;
           padding: 0.4rem 0.5rem;
-          background: #ffffcd;
+          background: #fffdf8;
+        }
+        .lead-fr-sla__form select:is(:disabled, :read-only, [readonly]),
+        .lead-fr-sla__form input:is(:disabled, :read-only, [readonly]),
+        .lead-fr-sla__form textarea:is(:disabled, :read-only, [readonly]) {
+          background: #f7f4ee;
         }
         .lead-fr-sla__form select:focus,
         .lead-fr-sla__form input:focus,
         .lead-fr-sla__form textarea:focus {
-          outline: 2px solid rgba(23, 105, 47, 0.28);
+          outline: none;
           border-color: #17692f;
+          box-shadow: 0 0 0 3px rgba(23, 105, 47, 0.18);
         }
         .lead-fr-sla__form label:nth-child(n + 4) {
           grid-column: 1 / -1;
