@@ -48,6 +48,66 @@ function amountOf(
   return Math.round((row.hours || 0) * (row.qty || 0) * (row.hourly_vnd || 0));
 }
 
+
+function groupKey(group: { service_code: string; phase_code: string }): string {
+  return `${group.service_code}:${group.phase_code}`;
+}
+
+function tickedServiceCodes(sheet: LeadQuoteSheet): string[] {
+  const codes: string[] = [];
+  const seen = new Set<string>();
+  for (const group of sheet.groups) {
+    if (!group.rows.some((row) => row.included)) continue;
+    if (seen.has(group.service_code)) continue;
+    seen.add(group.service_code);
+    codes.push(group.service_code);
+  }
+  return codes;
+}
+
+function sortSheetGroups(sheet: LeadQuoteSheet): LeadQuoteSheet {
+  const order = new Map(sheet.services.map((service, index) => [service.code, index]));
+  const groups = [...sheet.groups].sort((left, right) => {
+    const delta = (order.get(left.service_code) ?? 999) - (order.get(right.service_code) ?? 999);
+    if (delta !== 0) return delta;
+    return String(left.phase_code).localeCompare(String(right.phase_code));
+  });
+  return { ...sheet, groups };
+}
+
+/** Incoming catalog groups start unticked so the API default (all chargeable rows included) does not select them. */
+function mergeCatalogGroups(base: LeadQuoteSheet, incoming: LeadQuoteSheet): LeadQuoteSheet {
+  const have = new Set(base.groups.map(groupKey));
+  const added = incoming.groups
+    .filter((group) => !have.has(groupKey(group)))
+    .map((group) => ({
+      ...group,
+      rows: group.rows.map((row) => {
+        const next = { ...row, included: false };
+        return { ...next, amount_vnd: amountOf(next) };
+      }),
+    }));
+  return sortSheetGroups({ ...base, groups: [...base.groups, ...added] });
+}
+
+async function fetchMissingCatalog(
+  token: string,
+  leadId: number,
+  base: LeadQuoteSheet,
+  cancelled: () => boolean,
+): Promise<LeadQuoteSheet> {
+  const have = new Set(base.groups.map((group) => group.service_code));
+  const missing = base.services.map((service) => service.code).filter((code) => code && !have.has(code));
+  let merged = base;
+  for (let index = 0; index < missing.length; index += MAX_QUOTE_SERVICES) {
+    if (cancelled()) return merged;
+    const batch = missing.slice(index, index + MAX_QUOTE_SERVICES);
+    const next = await fetchLeadQuoteSheet(token, leadId, batch);
+    merged = mergeCatalogGroups(merged, next);
+  }
+  return merged;
+}
+
 function quoteHasExistingItems(sheet: LeadQuoteSheet): boolean {
   if ((sheet.selected_service_codes ?? []).length > 0) return true;
   return sheet.groups.some((group) => group.rows.some((row) => row.included));
@@ -142,6 +202,7 @@ export function LeadQuoteSheet({
         ]);
         if (cancelled) return;
 
+        const canExpand = Boolean(next.editable) && !viewerIsSales;
         const picked = selectedRef.current;
         if (picked && picked.length > 0) {
           setSheet((current) => {
@@ -212,12 +273,16 @@ export function LeadQuoteSheet({
               new Set(mapped.itemCodes),
             );
             selectedRef.current = applied.selected_service_codes;
-            setSheet(applied);
+            const expanded = canExpand ? await fetchMissingCatalog(token, leadId, applied, () => cancelled) : applied;
+            if (cancelled) return;
+            setSheet(expanded);
             return;
           }
         }
 
-        setSheet(next);
+        const expanded = canExpand ? await fetchMissingCatalog(token, leadId, next, () => cancelled) : next;
+        if (cancelled) return;
+        setSheet(expanded);
       } catch (err: unknown) {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
       }
@@ -233,7 +298,7 @@ export function LeadQuoteSheet({
       cancelled = true;
       window.removeEventListener('sld:discovery-changed', onDiscoveryChanged);
     };
-  }, [visible, token, leadId, phase]);
+  }, [visible, token, leadId, phase, viewerIsSales]);
 
   const staffGroups = useMemo(() => {
     const order = ['AE', 'GDKD', 'MKL'];
@@ -248,70 +313,46 @@ export function LeadQuoteSheet({
 
   if (!visible) return null;
 
-  async function loadServices(codes: string[], includeItemCodes: Set<string> | null = null) {
+  function patchRow(itemCode: string, patch: Partial<LeadQuoteSheetRow>) {
     if (!sheet) return;
-    const previous = sheet.selected_service_codes;
-    selectedRef.current = codes;
-    setSheet((current) => (current ? { ...current, selected_service_codes: codes } : current));
-    setBusy(true);
-    setLocalError('');
-    try {
-      const next = await fetchLeadQuoteSheet(token, leadId, codes);
-      setSheet(applyLoadedSheet({
-        ...next,
-        selected_service_codes: next.selected_service_codes?.length ? next.selected_service_codes : codes,
-      }, sheet, includeItemCodes));
-    } catch (err) {
-      selectedRef.current = previous;
-      setSheet((current) => (current ? { ...current, selected_service_codes: previous } : current));
-      const message = err instanceof Error ? err.message : 'Không tải được việc của dịch vụ';
+    const nextGroups = sheet.groups.map((group) => ({
+      ...group,
+      rows: group.rows.map((row) => {
+        if (row.item_code !== itemCode) return row;
+        const next = { ...row, ...patch };
+        return { ...next, amount_vnd: amountOf(next) };
+      }),
+    }));
+    const nextSheet: LeadQuoteSheet = {
+      ...sheet,
+      groups: nextGroups,
+      selected_service_codes: tickedServiceCodes({ ...sheet, groups: nextGroups }),
+    };
+    if (nextSheet.selected_service_codes.length > MAX_QUOTE_SERVICES) {
+      const message = 'Chỉ được tính tối đa 4 dịch vụ trên một báo giá.';
       setLocalError(message);
       onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function patchRow(itemCode: string, patch: Partial<LeadQuoteSheetRow>) {
-    setSheet((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        groups: current.groups.map((group) => ({
-          ...group,
-          rows: group.rows.map((row) => {
-            if (row.item_code !== itemCode) return row;
-            const next = { ...row, ...patch };
-            return { ...next, amount_vnd: amountOf(next) };
-          }),
-        })),
-      };
-    });
-  }
-
-  function toggleService(code: string, want: boolean) {
-    if (!sheet) return;
-    if (want) {
-      if (sheet.selected_service_codes.includes(code)) return;
-      if (sheet.selected_service_codes.length >= MAX_QUOTE_SERVICES) return;
-      void loadServices([...sheet.selected_service_codes, code], null);
       return;
     }
-    void loadServices(
-      sheet.selected_service_codes.filter((item) => item !== code),
-      null,
-    );
+    selectedRef.current = nextSheet.selected_service_codes;
+    setSheet(nextSheet);
   }
 
   async function save() {
     if (!sheet) return null;
+    const serviceCodes = tickedServiceCodes(sheet);
+    if (serviceCodes.length > MAX_QUOTE_SERVICES) {
+      throw new Error('Chỉ được tính tối đa 4 dịch vụ trên một báo giá.');
+    }
     const next = await saveLeadQuoteSheet(token, leadId, {
-      service_codes: sheet.selected_service_codes,
+      service_codes: serviceCodes,
       lines: linesFromSheet(sheet),
       vat_percent: percentOf(sheet.vat_percent),
       promo_percent: percentOf(sheet.promo_percent),
     });
-    setSheet(next);
+    const expanded =
+      next.editable && !viewerIsSales ? await fetchMissingCatalog(token, leadId, next, () => false) : next;
+    setSheet(expanded);
     return next;
   }
 
@@ -354,6 +395,12 @@ export function LeadQuoteSheet({
   }
 
   const editable = Boolean(sheet?.editable) && !viewerIsSales;
+  const visibleGroups = !sheet
+    ? []
+    : editable
+      ? sheet.groups
+      : sheet.groups.filter((group) => group.rows.some((row) => row.included));
+  const tickedCodes = sheet ? tickedServiceCodes(sheet) : [];
   const includedRows =
     sheet?.groups.flatMap((group) =>
       group.rows
@@ -398,28 +445,7 @@ export function LeadQuoteSheet({
       <ActionErrorToast message={localError} />
       {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
       {!sheet && localError ? <p className="muted">{localError}</p> : null}
-      {sheet && editable ? (
-        <div className="quote-sheet__services" data-testid="quote-service-picker">
-          {sheet.services.map((service) => {
-            const selected = sheet.selected_service_codes.includes(service.code);
-            const atLimit = !selected && sheet.selected_service_codes.length >= MAX_QUOTE_SERVICES;
-            return (
-              <label key={service.code} className="quote-sheet__svc-pick" data-testid={`quote-svc-label-${service.code}`}>
-                <input
-                  type="checkbox"
-                  data-testid={`quote-svc-${service.code}`}
-                  checked={selected}
-                  disabled={busy || atLimit}
-                  aria-label={`Chọn dịch vụ ${service.name}`}
-                  onChange={(event) => toggleService(service.code, event.target.checked)}
-                />
-                <span>{service.name}</span>
-              </label>
-            );
-          })}
-        </div>
-      ) : null}
-      {sheet?.groups.map((group) => (
+      {visibleGroups.map((group) => (
         <div key={`${group.service_code}-${group.phase_code}`} className="quote-sheet__group">
           <h3>
             {group.service_name}
@@ -527,10 +553,7 @@ export function LeadQuoteSheet({
           </table>
         </div>
       ))}
-      {sheet && sheet.selected_service_codes.length < 1 && editable ? (
-        <p className="muted">Chưa chọn dịch vụ. Tick dịch vụ ở trên, rồi tick từng việc trong bảng.</p>
-      ) : null}
-      {sheet && sheet.selected_service_codes.length > 0 ? (
+      {sheet && (editable || tickedCodes.length > 0) ? (
         <>
           {editable ? (
             <div className="quote-sheet__commercial">
@@ -587,7 +610,7 @@ export function LeadQuoteSheet({
                 type="button"
                 className="btn btn-primary"
                 data-testid="quote-send-ceo"
-                disabled={busy || !sheet || sheet.selected_service_codes.length < 1}
+                disabled={busy || !sheet || tickedCodes.length < 1}
                 onClick={() => void onSend()}
               >
                 Nộp báo giá cho CEO
