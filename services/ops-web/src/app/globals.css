@@ -4525,33 +4525,30 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__commercial {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.1rem;
 }
 
 .quote-sheet__commercial label {
   display: grid;
-  gap: 0.15rem;
-  font-size: 0.75rem;
+  gap: 0.2rem;
+  font-size: 0.78rem;
   color: #445;
 }
 
 .quote-sheet__commercial input {
-  width: 100%;
-  max-width: 7rem;
+  width: 6.5rem;
 }
 
 .quote-sheet {
   display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.7rem 0.6rem;
-  border: 1px solid var(--surface-border, #d9e2dc);
-  border-radius: 12px;
+  gap: 0.85rem;
+  margin-top: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   background: #fff;
-  container-type: inline-size;
-  container-name: quote-sheet;
 }
 
 .quote-sheet__head p {
@@ -4559,181 +4556,183 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__head .muted {
-  font-size: 0.78rem;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .quote-sheet__services {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.3rem 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
   align-items: start;
 }
 
-.quote-sheet__svc {
-  min-width: 0;
-  border: 1px solid #ececee;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.quote-sheet__svc.is-active {
-  border-color: #c9d8ce;
-}
-
-.quote-sheet__svc-head {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.15rem 0.25rem 0.15rem 0.35rem;
-}
-
-.quote-sheet__svc-check {
-  display: flex;
-  margin: 0;
-}
-
-.quote-sheet__svc-check input {
-  margin: 0;
-}
-
-.quote-sheet__svc-toggle {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-  padding: 0.15rem 0.2rem;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 0.8rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.quote-sheet__svc-name {
-  min-width: 0;
-  overflow-wrap: break-word;
-  line-height: 1.3;
-}
-
-.quote-sheet__svc-count {
-  color: #6d7d73;
-  font-size: 0.7rem;
-  white-space: nowrap;
-}
-
-.quote-sheet__svc-remove,
-.quote-sheet__remove,
-.quote-sheet__more-btn {
-  border: 0;
-  background: transparent;
-  color: #5c6b60;
-  font: inherit;
-  font-size: 0.72rem;
-  cursor: pointer;
-}
-
-.quote-sheet__remove {
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 0.2rem;
-}
-
-.quote-sheet__svc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0 0.4rem 0.35rem 1.4rem;
-  border-top: 1px solid #ececee;
-  max-height: 11rem;
-  overflow: auto;
-}
-
-.quote-sheet__svc-item {
+.quote-sheet__svc-pick {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.3rem;
+  column-gap: 0.4rem;
   align-items: start;
-  padding: 0.2rem 0;
-  font-size: 0.76rem;
-  line-height: 1.3;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
-.quote-sheet__svc-item input {
+.quote-sheet__svc-pick input {
   margin: 0.15rem 0 0;
 }
 
-.quote-sheet__scroll {
-  overflow: auto;
+.quote-sheet__group {
+  min-width: 0;
 }
 
-.quote-sheet table {
+.quote-sheet__group h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #163047;
+  line-height: 1.35;
+}
+
+.quote-sheet__lines {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.76rem;
+  table-layout: fixed;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  background: #fff;
 }
 
-.quote-sheet__lines th:nth-child(1) {
-  width: 36%;
+.quote-sheet__col-check {
+  width: 3.1rem;
 }
 
-.quote-sheet__lines th:nth-child(2) {
-  width: 8.5rem;
+.quote-sheet__col-task {
+  width: 22%;
 }
 
-.quote-sheet__lines th:nth-child(3),
-.quote-sheet__lines th:nth-child(4),
-.quote-sheet__lines th:nth-child(5) {
-  width: 5.6rem;
+.quote-sheet__col-subtask {
+  width: auto;
 }
 
-.quote-sheet__lines th:nth-child(6) {
-  width: 1.6rem;
+.quote-sheet__col-staff {
+  width: 9.5rem;
 }
 
-.quote-sheet th,
-.quote-sheet td {
-  padding: 0.22rem 0.3rem;
-  border-bottom: 1px solid #e4ece6;
+.quote-sheet__col-qty {
+  width: 6.4rem;
+}
+
+.quote-sheet__col-amount {
+  width: 7.2rem;
+}
+
+.quote-sheet__lines th {
+  padding: 0.4rem 0.5rem;
+  background: #f3eee6;
+  color: #6f6a62;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid #e8e2d8;
+  vertical-align: middle;
+}
+
+.quote-sheet__lines th:last-child,
+.quote-sheet__amount {
+  text-align: right;
+}
+
+.quote-sheet__lines td {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid #eee8e0;
   vertical-align: top;
   text-align: left;
+  color: #243027;
+  background: #fff;
 }
 
+.quote-sheet__check {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.quote-sheet__check input {
+  margin: 0.15rem 0 0;
+}
+
+.quote-sheet__task strong {
+  display: block;
+  font-weight: 700;
+  color: #1a2a33;
+}
+
+.quote-sheet__task .muted,
 .quote-sheet td .muted,
 .quote-sheet td span.muted {
   display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.quote-sheet__subtask {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.quote-sheet__staff {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-transform: none;
+}
+
+.quote-sheet__qty {
+  white-space: nowrap;
+}
+
+.quote-sheet__qty .muted {
+  display: inline;
+  margin: 0 0 0 0.2rem;
+  font-size: 0.72rem;
+}
+
+.quote-sheet__amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .quote-sheet select,
 .quote-sheet input[type='number'] {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   font: inherit;
+  font-size: 0.78rem;
+  padding: 0.22rem 0.35rem;
+  background: #fffdf8;
+  border: 1px solid #e3dccd;
+  border-radius: 6px;
 }
 
-.quote-sheet__advanced {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.quote-sheet__more-btn {
-  justify-self: start;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+.quote-sheet__qty input[type='number'] {
+  width: 3.6rem;
+  display: inline-block;
 }
 
 .quote-sheet__totals {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.15rem 0.7rem;
-  font-size: 0.78rem;
+  justify-items: end;
+  gap: 0.2rem;
+  font-size: 0.82rem;
 }
 
 .quote-sheet__grand {
-  grid-column: 1 / -1;
   font-weight: 700;
 }
 
@@ -27386,7 +27385,7 @@ html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
 }
 
 
-/* t185: quote step — discreet Solution preview link and wide preview modal */
+/* t185: quote step — discreet Solution preview link */
 .quote-solution-link {
   margin: 0 0 0.55rem;
   font-size: 0.82rem;
@@ -27406,8 +27405,149 @@ html.ops-shell-bitrix :is(.lead-detail-page, .ahd, .sld, .lead-fr-sla__form)
   color: #0f4d22;
   outline: none;
 }
-.ahd-modal--wide {
-  width: min(760px, 100%);
-  max-height: min(86vh, 900px);
+
+/* t189: File Solution document viewer */
+.solution-preview {
+  width: min(920px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  min-width: 0;
+}
+.solution-preview__bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #e7eee8;
+  background: #fff;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.solution-preview__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #173526;
+}
+.solution-preview__close {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #44554a;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.solution-preview__close:hover,
+.solution-preview__close:focus {
+  background: #f3f4f2;
+  color: #173526;
+  outline: none;
+}
+.solution-preview__body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  padding: 1rem 1.15rem 1.5rem;
+}
+.solution-preview .solution-desk,
+.solution-preview .solution-ai-doc,
+.solution-preview .solution-ai-draft {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.solution-preview .solution-ai-doc__toolbar {
+  display: none;
+}
+.solution-preview .solution-file-list {
+  margin: 0 0 1rem;
+  gap: 0;
+  border: 1px solid #ececee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.solution-preview .solution-file-row {
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid #eee8e0;
+  border-radius: 0;
+  background: #fff;
+}
+.solution-preview .solution-file-row:last-child {
+  border-bottom: 0;
+}
+.solution-preview .solution-file-row__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.7rem;
+  min-width: 0;
+}
+.solution-preview .solution-file-row__meta {
+  margin: 0;
+  white-space: nowrap;
+}
+.solution-preview .solution-file-row__actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.solution-preview .solution-ai-doc__header {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 0 0.85rem;
+  border-bottom: 1px solid #e6ece8;
+  background: transparent;
+}
+.solution-preview .solution-ai-doc__file {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.7rem;
+}
+.solution-preview .solution-ai-doc__file-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.solution-preview .solution-ai-doc__file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.solution-preview .solution-ai-doc__file-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.solution-preview .solution-ai-doc__sections,
+.solution-preview .solution-ai-doc__pending,
+.solution-preview .solution-ai-doc__empty {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.solution-preview .solution-ai-doc__sections {
+  padding: 0;
+}
+.solution-preview .solution-ai-doc__prose {
+  font-size: 0.95rem;
+  line-height: 1.65;
 }

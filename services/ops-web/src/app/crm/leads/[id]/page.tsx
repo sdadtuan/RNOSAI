@@ -295,6 +295,14 @@ export default function CrmLeadDetailPage() {
   const [cockpitOpen, setCockpitOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [solutionPreviewOpen, setSolutionPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (!solutionPreviewOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSolutionPreviewOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [solutionPreviewOpen]);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const funnelReqIdRef = useRef(0);
   const funnelAbortRef = useRef<AbortController | null>(null);
@@ -2087,24 +2095,34 @@ export default function CrmLeadDetailPage() {
                     className="ahd-modal-back"
                     role="dialog"
                     aria-modal="true"
-                    aria-label="File Solution"
+                    aria-labelledby="solution-preview-title"
                     onClick={() => setSolutionPreviewOpen(false)}
                   >
-                    <div className="ahd-modal ahd-modal--wide" onClick={(event) => event.stopPropagation()}>
-                      <div className="ahd-modal__actions" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSolutionPreviewOpen(false)}>
-                          Đóng
+                    <div className="solution-preview" onClick={(event) => event.stopPropagation()}>
+                      <header className="solution-preview__bar">
+                        <h2 id="solution-preview-title" className="solution-preview__title">
+                          File Solution
+                        </h2>
+                        <button
+                          type="button"
+                          className="solution-preview__close"
+                          aria-label="Đóng"
+                          onClick={() => setSolutionPreviewOpen(false)}
+                        >
+                          <span aria-hidden="true">×</span>
                         </button>
+                      </header>
+                      <div className="solution-preview__body">
+                        <SolutionCaseDesk
+                          filesOnly
+                          token={accessToken}
+                          lead={lead}
+                          party={party}
+                          funnel={funnelSnap}
+                          onFunnelChange={setFunnelSnap}
+                          userName={user?.display_name || user?.email}
+                        />
                       </div>
-                      <SolutionCaseDesk
-                        filesOnly
-                        token={accessToken}
-                        lead={lead}
-                        party={party}
-                        funnel={funnelSnap}
-                        onFunnelChange={setFunnelSnap}
-                        userName={user?.display_name || user?.email}
-                      />
                     </div>
                   </div>
                 ) : null}

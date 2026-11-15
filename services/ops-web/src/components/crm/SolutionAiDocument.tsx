@@ -164,7 +164,7 @@ export function SolutionAiDraftBody({
             </div>
           ) : null}
         </div>
-        {canEdit || !isPending ? (
+        {canEdit && !isPending ? (
           <div className="solution-ai-doc__toolbar">
             {canEdit && !isPending && !editing ? (
               <button

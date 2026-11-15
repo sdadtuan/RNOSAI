@@ -123,8 +123,6 @@ export function LeadQuoteSheet({
   const [sheet, setSheet] = useState<LeadQuoteSheet | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [showMore, setShowMore] = useState(false);
-  const [openServices, setOpenServices] = useState<Record<string, boolean>>({});
   const selectedRef = useRef<string[] | null>(null);
   const prefilledRef = useRef(false);
 
@@ -215,13 +213,11 @@ export function LeadQuoteSheet({
             );
             selectedRef.current = applied.selected_service_codes;
             setSheet(applied);
-            setOpenServices(Object.fromEntries(applied.selected_service_codes.map((code) => [code, true])));
             return;
           }
         }
 
         setSheet(next);
-        setOpenServices(Object.fromEntries((next.selected_service_codes ?? []).map((code) => [code, true])));
       } catch (err: unknown) {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
       }
@@ -293,16 +289,14 @@ export function LeadQuoteSheet({
     });
   }
 
-  function toggleParent(code: string) {
-    setOpenServices((current) => ({ ...current, [code]: !current[code] }));
-    if (!sheet || sheet.selected_service_codes.includes(code)) return;
-    if (sheet.selected_service_codes.length >= MAX_QUOTE_SERVICES) return;
-    void loadServices([...sheet.selected_service_codes, code], null);
-  }
-
-  function removeService(code: string) {
+  function toggleService(code: string, want: boolean) {
     if (!sheet) return;
-    setOpenServices((current) => ({ ...current, [code]: false }));
+    if (want) {
+      if (sheet.selected_service_codes.includes(code)) return;
+      if (sheet.selected_service_codes.length >= MAX_QUOTE_SERVICES) return;
+      void loadServices([...sheet.selected_service_codes, code], null);
+      return;
+    }
     void loadServices(
       sheet.selected_service_codes.filter((item) => item !== code),
       null,
@@ -398,7 +392,7 @@ export function LeadQuoteSheet({
             ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
             : ceoApproved
               ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
-              : 'Chọn đúng hạng mục đã tick ở Dịch vụ quan tâm. Bấm mục chính chỉ để mở, không chọn hết mục con.'}
+              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'}
         </p>
       </header>
       <ActionErrorToast message={localError} />
@@ -408,114 +402,66 @@ export function LeadQuoteSheet({
         <div className="quote-sheet__services" data-testid="quote-service-picker">
           {sheet.services.map((service) => {
             const selected = sheet.selected_service_codes.includes(service.code);
-            const rows = sheet.groups.filter((group) => group.service_code === service.code).flatMap((group) => group.rows);
-            const chargeable = rows.filter((row) => row.chargeable);
-            const included = chargeable.filter((row) => row.included).length;
-            const allOn = chargeable.length > 0 && included === chargeable.length;
-            const someOn = included > 0 && !allOn;
-            const open = Boolean(openServices[service.code]);
             const atLimit = !selected && sheet.selected_service_codes.length >= MAX_QUOTE_SERVICES;
             return (
-              <div
-                key={service.code}
-                className={`quote-sheet__svc${open ? ' is-open' : ''}${selected || included ? ' is-active' : ''}`}
-                data-testid={`quote-svc-label-${service.code}`}
-              >
-                <div className="quote-sheet__svc-head">
-                  <label className="quote-sheet__svc-check">
-                    <input
-                      type="checkbox"
-                      data-testid={`quote-svc-${service.code}`}
-                      checked={allOn}
-                      disabled={busy || atLimit}
-                      ref={(node) => {
-                        if (node) node.indeterminate = someOn;
-                      }}
-                      aria-label={`Mở ${service.name}`}
-                      onChange={() => toggleParent(service.code)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="quote-sheet__svc-toggle"
-                    aria-expanded={open}
-                    disabled={busy || atLimit}
-                    onClick={() => toggleParent(service.code)}
-                  >
-                    <span className="quote-sheet__svc-chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
-                    <span className="quote-sheet__svc-name">{service.name}</span>
-                    <span className="quote-sheet__svc-count">
-                      {selected || included ? `${included}/${chargeable.length || service.item_count}` : service.item_count}
-                    </span>
-                  </button>
-                  {selected ? (
-                    <button
-                      type="button"
-                      className="quote-sheet__svc-remove"
-                      disabled={busy}
-                      aria-label={`Gỡ ${service.name}`}
-                      onClick={() => removeService(service.code)}
-                    >
-                      Gỡ
-                    </button>
-                  ) : null}
-                </div>
-                {open ? (
-                  <ul className="quote-sheet__svc-list">
-                    {rows.length === 0 ? (
-                      <li className="muted">{atLimit ? 'Đã chọn tối đa 4 dịch vụ.' : 'Đang tải hạng mục…'}</li>
-                    ) : (
-                      rows.map((row) => (
-                        <li key={row.item_code}>
-                          <label className="quote-sheet__svc-item">
-                            <input
-                              type="checkbox"
-                              checked={row.included}
-                              disabled={!editable || !row.chargeable || busy}
-                              aria-label={`Chọn ${row.task}`}
-                              onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
-                            />
-                            <span>
-                              <strong>{row.task}</strong>
-                              {row.subtask ? <span className="muted"> · {row.subtask}</span> : null}
-                            </span>
-                          </label>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                ) : null}
-              </div>
+              <label key={service.code} className="quote-sheet__svc-pick" data-testid={`quote-svc-label-${service.code}`}>
+                <input
+                  type="checkbox"
+                  data-testid={`quote-svc-${service.code}`}
+                  checked={selected}
+                  disabled={busy || atLimit}
+                  aria-label={`Chọn dịch vụ ${service.name}`}
+                  onChange={(event) => toggleService(service.code, event.target.checked)}
+                />
+                <span>{service.name}</span>
+              </label>
             );
           })}
         </div>
       ) : null}
-      {sheet && includedRows.length > 0 ? (
-        <div className="quote-sheet__scroll">
+      {sheet?.groups.map((group) => (
+        <div key={`${group.service_code}-${group.phase_code}`} className="quote-sheet__group">
+          <h3>
+            {group.service_name}
+            {group.phase_name ? ` - ${group.phase_name}` : ''}
+          </h3>
           <table className="quote-sheet__lines">
+            <colgroup>
+              <col className="quote-sheet__col-check" />
+              <col className="quote-sheet__col-task" />
+              <col className="quote-sheet__col-subtask" />
+              <col className="quote-sheet__col-staff" />
+              <col className="quote-sheet__col-qty" />
+              <col className="quote-sheet__col-amount" />
+            </colgroup>
             <thead>
               <tr>
-                <th>Tên dịch vụ</th>
+                <th>Tính</th>
+                <th>Việc</th>
+                <th>Việc nhỏ</th>
                 <th>Nhân sự</th>
-                <th>SL</th>
-                <th>Đơn giá</th>
+                <th>Số lượng</th>
                 <th>Thành tiền</th>
-                {editable ? <th /> : null}
               </tr>
             </thead>
             <tbody>
-              {includedRows.map(({ group, row }) => (
-                <tr key={row.item_code}>
-                  <td>
-                    <strong>{row.task}</strong>
-                    {row.subtask ? <span className="muted"> · {row.subtask}</span> : null}
-                    <span className="muted">
-                      {group.service_name}
-                      {group.phase_name ? ` · ${group.phase_name}` : ''}
-                      {` · ${quoteRoleLabel(row.role_label)}`}
-                    </span>
+              {group.rows.map((row) => (
+                <tr key={row.item_code} className={row.included ? undefined : 'is-off'}>
+                  <td className="quote-sheet__check">
+                    <input
+                      type="checkbox"
+                      checked={row.included}
+                      disabled={!editable || !row.chargeable || busy}
+                      aria-label={`Tính tiền ${row.task}`}
+                      onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
+                    />
                   </td>
-                  <td>
+                  <td className="quote-sheet__task">
+                    <strong>{row.task}</strong>
+                    <span className="muted">{quoteRoleLabel(row.role_label)}</span>
+                  </td>
+                  <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
+                  <td className="quote-sheet__staff">
                     {editable && row.chargeable ? (
                       <select
                         value={row.staff_id ?? ''}
@@ -546,10 +492,10 @@ export function LeadQuoteSheet({
                         ))}
                       </select>
                     ) : (
-                      row.staff_name || '—'
+                      row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
                     )}
                   </td>
-                  <td>
+                  <td className="quote-sheet__qty">
                     {editable && row.chargeable ? (
                       <>
                         <input
@@ -565,7 +511,7 @@ export function LeadQuoteSheet({
                             patchRow(row.item_code, { qty });
                           }}
                         />
-                        {row.unit ? <span className="qt-muted"> {quoteUnitLabel(row.unit)}</span> : null}
+                        {row.unit ? <span className="muted">{quoteUnitLabel(row.unit)}</span> : null}
                       </>
                     ) : (
                       <>
@@ -574,77 +520,52 @@ export function LeadQuoteSheet({
                       </>
                     )}
                   </td>
-                  <td>{vnd(row.hourly_vnd)}</td>
-                  <td>{vnd(row.amount_vnd)}</td>
-                  {editable ? (
-                    <td>
-                      <button
-                        type="button"
-                        className="quote-sheet__remove"
-                        disabled={busy || !row.chargeable}
-                        aria-label={`Xóa ${row.task}`}
-                        onClick={() => patchRow(row.item_code, { included: false })}
-                      >
-                        ×
-                      </button>
-                    </td>
-                  ) : null}
+                  <td className="quote-sheet__amount">{row.included ? vnd(row.amount_vnd) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      ) : sheet && sheet.selected_service_codes.length > 0 ? (
-        <p className="muted">Chưa chọn hạng mục nào. Mở dịch vụ ở trên rồi tick từng mục con.</p>
+      ))}
+      {sheet && sheet.selected_service_codes.length < 1 && editable ? (
+        <p className="muted">Chưa chọn dịch vụ. Tick dịch vụ ở trên, rồi tick từng việc trong bảng.</p>
       ) : null}
       {sheet && sheet.selected_service_codes.length > 0 ? (
         <>
           {editable ? (
-            <div className="quote-sheet__advanced">
-              <button
-                type="button"
-                className="quote-sheet__more-btn"
-                aria-expanded={showMore}
-                onClick={() => setShowMore((value) => !value)}
-              >
-                {showMore ? 'Thu gọn' : 'Xem thêm'} · chi tiết thuế / chiết khấu
-              </button>
-              {showMore ? (
-                <div className="quote-sheet__commercial">
-                  <label>
-                    Khuyến mại %
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={promoPercent}
-                      aria-label="Khuyến mại %"
-                      disabled={busy}
-                      onChange={(event) => {
-                        const promo_percent = percentOf(Number(event.target.value));
-                        setSheet((current) => (current ? { ...current, promo_percent } : current));
-                      }}
-                    />
-                  </label>
-                  <label>
-                    VAT %
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={vatPercent}
-                      aria-label="VAT %"
-                      disabled={busy}
-                      onChange={(event) => {
-                        const vat_percent = percentOf(Number(event.target.value));
-                        setSheet((current) => (current ? { ...current, vat_percent } : current));
-                      }}
-                    />
-                  </label>
-                </div>
-              ) : null}
+            <div className="quote-sheet__commercial">
+              <label>
+                Khuyến mại %
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={promoPercent}
+                  aria-label="Khuyến mại %"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const promo_percent = percentOf(Number(event.target.value));
+                    setSheet((current) => (current ? { ...current, promo_percent } : current));
+                  }}
+                />
+              </label>
+              <label>
+                VAT %
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={vatPercent}
+                  aria-label="VAT %"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const vat_percent = percentOf(Number(event.target.value));
+                    setSheet((current) => (current ? { ...current, vat_percent } : current));
+                  }}
+                />
+              </label>
             </div>
           ) : null}
           <div className="quote-sheet__totals">
