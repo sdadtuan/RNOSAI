@@ -127,6 +127,10 @@ export function QuoteCasePanel({
   const [onTimeScored, setOnTimeScored] = useState(0);
   const [quoteHours, setQuoteHours] = useState(0);
   const [actualHours, setActualHours] = useState(0);
+  const [campaignOverallPct, setCampaignOverallPct] = useState<number | null>(null);
+  const [csatScore, setCsatScore] = useState<number | null>(null);
+  const [revisionCount, setRevisionCount] = useState(0);
+  const [targetsFilled, setTargetsFilled] = useState(false);
   const [rejectNotes, setRejectNotes] = useState('');
 
   async function applyContractReadiness(data: {
@@ -141,6 +145,10 @@ export function QuoteCasePanel({
     on_time_scored?: number;
     quote_hours?: number;
     actual_hours?: number;
+    campaign_overall_pct?: number | null;
+    csat_score?: number | null;
+    revision_count?: number;
+    targets_filled?: boolean;
   }) {
     setContractInfo(data.contract ? { id: data.contract.id, status: data.contract.status } : null);
     setApprovalPending(data.approval?.status === 'pending');
@@ -154,6 +162,10 @@ export function QuoteCasePanel({
     setOnTimeScored(Number(data.on_time_scored ?? 0));
     setQuoteHours(Number(data.quote_hours ?? 0));
     setActualHours(Number(data.actual_hours ?? 0));
+    setCampaignOverallPct(data.campaign_overall_pct == null ? null : Number(data.campaign_overall_pct));
+    setCsatScore(data.csat_score == null ? null : Number(data.csat_score));
+    setRevisionCount(Number(data.revision_count ?? 0));
+    setTargetsFilled(Boolean(data.targets_filled));
   }
 
   useEffect(() => {
@@ -657,7 +669,10 @@ export function QuoteCasePanel({
         <h3 className="solution-feedback__title">Triển Khai</h3>
         <p className="solution-feedback__due" data-testid="quote-trien-khai-copy">
           Giai đoạn hiện tại: {stageLabel}. Người nhận case (MKL): {receiver}. Tiến độ: {taskDone}/{taskTotal} ({percent}%).{' '}
-          % đúng hạn: {onTimeScored > 0 ? `${onTimePct}% (${onTimeDone}/${onTimeScored})` : '—'}. Giờ thực: {actualHours} / giờ báo giá: {quoteHours}.
+          % đúng hạn: {onTimeScored > 0 ? `${onTimePct}% (${onTimeDone}/${onTimeScored})` : '—'}. Giờ thực: {actualHours} / giờ báo giá: {quoteHours}.{' '}
+          KPI chiến dịch: {campaignOverallPct != null ? `${campaignOverallPct}% đạt` : targetsFilled ? 'chưa có số thực tế' : 'chưa nhập mục tiêu'}.
+          {csatScore != null ? ` CSAT: ${csatScore}/5.` : ''}
+          {revisionCount > 0 ? ` Số lần sửa: ${revisionCount}.` : ''}
         </p>
         <div className="solution-feedback__actions">
           {lifecycleId ? (

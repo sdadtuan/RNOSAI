@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
@@ -25,10 +26,13 @@ import {
   fetchKpiChart,
   fetchKpiMetricTrend,
   fetchKpiMetrics,
+  fetchDeliveryKpiRollup,
   fetchStaffKpi,
   patchStaffKpiProgress,
   staffMe,
   staffRefresh,
+  type DeliveryKpiCaseRow,
+  type DeliveryKpiStaffRow,
   type KpiChartData,
   type KpiMetricRow,
   type StaffKpiGridEntry,
@@ -62,6 +66,9 @@ export default function CrmKpiPage() {
   const [prevRows, setPrevRows] = useState<StaffKpiGridEntry[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deliveryStaffRows, setDeliveryStaffRows] = useState<DeliveryKpiStaffRow[]>([]);
+  const [deliveryCaseRows, setDeliveryCaseRows] = useState<DeliveryKpiCaseRow[]>([]);
+  const [deliveryCanViewMargin, setDeliveryCanViewMargin] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -125,14 +132,18 @@ export default function CrmKpiPage() {
       try {
         const prev = prevYearMonth(year, month);
         const teamParam = team === 'all' ? undefined : team;
-        const [metricRows, staffKpiRows, prevKpiRows] = await Promise.all([
+        const [metricRows, staffKpiRows, prevKpiRows, deliveryRollup] = await Promise.all([
           fetchKpiMetrics(access),
           fetchStaffKpi(access, { year, month, team: teamParam }).catch(() => []),
           fetchStaffKpi(access, { year: prev.year, month: prev.month, team: teamParam }).catch(() => []),
+          fetchDeliveryKpiRollup(access, year, month).catch(() => null),
         ]);
         setMetrics(metricRows);
         setGridRows(staffKpiRows);
         setPrevRows(prevKpiRows);
+        setDeliveryStaffRows(deliveryRollup?.staff_rows ?? []);
+        setDeliveryCaseRows(deliveryRollup?.case_rows ?? []);
+        setDeliveryCanViewMargin(Boolean(deliveryRollup?.can_view_margin));
         const nextMetricId = chartMetricId || (metricRows[0] ? String(metricRows[0].id) : '');
         if (!chartMetricId && metricRows[0]) {
           setChartMetricId(String(metricRows[0].id));
@@ -314,6 +325,76 @@ export default function CrmKpiPage() {
             <KpiCockpitInsight insight={summary.insight} />
             <KpiRagDonut green={summary.green} yellow={summary.yellow} red={summary.red} />
           </div>
+        </section>
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">KPI triển khai theo nhân sự</h3>
+          {deliveryStaffRows.length === 0 ? (
+            <p className="muted">Chưa có case triển khai trong kỳ này (theo ngày ký HĐ, hoặc ngày tạo lifecycle nếu chưa ký).</p>
+          ) : (
+            <table className="kpi-cockpit-table">
+              <thead>
+                <tr>
+                  <th>Nhân sự</th>
+                  <th>% đúng hạn</th>
+                  <th>Giờ thực / báo giá</th>
+                  <th>Số lần sửa</th>
+                  <th>Tỷ lệ KH duyệt lần đầu</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryStaffRows.map((row) => (
+                  <tr key={`${row.staff_id ?? 'x'}-${row.name}`}>
+                    <td>{row.name}</td>
+                    <td>{row.on_time_pct == null ? '—' : `${row.on_time_pct}% (${row.on_time}/${row.scored})`}</td>
+                    <td>{row.actual_hours} / {row.quote_hours}</td>
+                    <td>{row.rework_count}</td>
+                    <td>{row.first_approval_pct == null ? '—' : `${row.first_approval_pct}%`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">KPI triển khai theo case / AM</h3>
+          {deliveryCaseRows.length === 0 ? (
+            <p className="muted">Chưa có case triển khai trong kỳ này.</p>
+          ) : (
+            <table className="kpi-cockpit-table">
+              <thead>
+                <tr>
+                  <th>Case</th>
+                  <th>AM</th>
+                  <th>Tiến độ</th>
+                  <th>Số lần trễ</th>
+                  <th>CSAT</th>
+                  {deliveryCanViewMargin ? <th>Biên lợi nhuận</th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryCaseRows.map((row) => (
+                  <tr key={row.lifecycle_id}>
+                    <td>
+                      <Link href={`/crm/service-delivery/${row.lifecycle_id}`}>
+                        {row.lead_name || `Lifecycle ${row.lifecycle_id}`}
+                      </Link>
+                    </td>
+                    <td>{row.am_name || '—'}</td>
+                    <td>{row.progress_pct == null ? '—' : `${row.progress_pct}% (${row.task_done}/${row.task_total})`}</td>
+                    <td>{row.late_count}</td>
+                    <td>{row.csat_score == null ? '—' : `${row.csat_score}/5`}</td>
+                    {deliveryCanViewMargin ? (
+                      <td>
+                        {row.margin
+                          ? `${Number(row.margin.margin_vnd).toLocaleString('vi-VN')} ₫${row.margin.margin_pct != null ? ` (${row.margin.margin_pct}%)` : ''}`
+                          : '—'}
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
         <section className="kpi-page__section">
           <h3 className="kpi-section-title">Nhập actual KPI</h3>

@@ -36,12 +36,14 @@ import type { WorkingHoursConfig } from '../lead-sla-settings/lead-sla-working-h
 import {
   appendActualHoursLog,
   appendAssigneeHistory,
+  bumpReworkCount,
   computeDueYmd,
   dueEndAt,
   isTaskOverdue,
   normalizeWorkStatus,
   quoteHoursFromForm,
   readActualHoursLog,
+  readReworkCount,
   sumActualHours,
   summarizeDeliveryOps,
   taskOnTime,
@@ -50,12 +52,30 @@ import {
 } from './delivery-ops.util';
 import {
   applyClientGateDecision,
+  CLIENT_GATE_KEYS,
   clientGatesBlockReason,
   normalizeClientGateKey,
   parseClientGates,
+  parseCsatScore,
   serializeClientGates,
   type ClientGateDecision,
 } from './client-gates.util';
+import {
+  campaignAttainment,
+  campaignKpiGate,
+  campaignTargetsFilled,
+  canEditCampaignKpi,
+  canViewMargin,
+  caseRevisionCount,
+  computeCaseMargin,
+  computeLaborCost,
+  firstApprovalRate,
+  mergeCampaignActuals,
+  mergeCampaignTargets,
+  parseCampaignKpi,
+  parseNullableNumber,
+  serializeCampaignKpi,
+} from './campaign-kpi.util';
 
 @Injectable()
 export class ServiceLifecycleService {
@@ -165,6 +185,7 @@ export class ServiceLifecycleService {
           paymentGate: await this.paymentGate(id, existing.stage, toStage, financeConfirm, actor?.positionId),
           launchQaGate: await this.launchQaGate(id, existing.stage, toStage, Boolean(body.launch_qa_confirm)),
           clientGate: await this.clientAdvanceGate(id, existing.stage, toStage),
+          campaignKpiGate: await this.campaignTargetsGate(id, existing.stage, toStage),
         });
       } catch (err) {
         if (err instanceof StageAdvanceError) {
@@ -177,6 +198,12 @@ export class ServiceLifecycleService {
           ? body.notes.trim().slice(0, 2000)
           : existing.notes;
       const advanced = await this.pg.advanceStage(id, toStage, notes);
+      if (existing.stage === 'handover' && toStage === 'retain' && advanced) {
+        await this.mergeRetentionNotes(id, {
+          retro_note: body.retro_note,
+          upsell_note: body.upsell_note,
+        });
+      }
       if (existing.stage === 'handover' && toStage === 'retain' && financeConfirm && advanced) {
         const summary = this.svcFinance.summary(id) as {
           outstanding_vnd?: number;
@@ -262,6 +289,8 @@ export class ServiceLifecycleService {
     const clientBlock = clientGatesBlockReason(lc.stage, nxt, clientGates);
     const positionCode = actorStaffId ? await this.pg.staffPositionCode(actorStaffId) : null;
     const canRecord = await this.canRecordClientGates(id, actorStaffId ?? null, positionCode);
+    const campaignGate = lc.stage === 'onboard' ? await this.campaignTargetsGate(id, lc.stage, 'deliver') : undefined;
+    const campaignKpi = await this.buildCampaignKpiView(lc, { staffId: actorStaffId ?? null, positionCode });
     return getStageAdvanceInfo({
       currentStage: lc.stage,
       currentStageComplete: complete,
@@ -280,6 +309,8 @@ export class ServiceLifecycleService {
       launchQaGate,
       clientGate: clientBlock ? { ok: false, messages: [clientBlock] } : { ok: true, messages: [] },
       client_gates: { ...clientGates, can_record: canRecord },
+      campaignKpiGate: campaignGate,
+      campaign_kpi: campaignKpi,
     });
   }
 
@@ -311,6 +342,10 @@ export class ServiceLifecycleService {
     const tmmtGate = validateOfficialTmmt(await this.getOfficialMarketingPlan(lifecycleId));
     if (!tmmtGate.ok) {
       return { advanced: false, lifecycle_id: lifecycleId, reason: 'tmmt_incomplete' };
+    }
+    const kpiGate = await this.campaignTargetsGate(lifecycleId, 'onboard', 'deliver');
+    if (kpiGate && !kpiGate.ok) {
+      return { advanced: false, lifecycle_id: lifecycleId, reason: 'campaign_kpi_incomplete' };
     }
     const advanced = await this.pg.advanceStage(
       lifecycleId,
@@ -382,8 +417,18 @@ export class ServiceLifecycleService {
     }
     let isDone = body.is_done;
     if (workStatus) {
+      const prevStatus = normalizeWorkStatus(task.form_data?.work_status, task.is_done === true);
       formData.work_status = workStatus;
       isDone = workStatusIsDone(workStatus);
+      if (workStatusIsDone(prevStatus) && (workStatus === 'todo' || workStatus === 'in_progress')) {
+        formData = bumpReworkCount(formData, {
+          at: new Date().toISOString(),
+          by_staff_id: staffId,
+          by_name: actorName || (staffId ? await this.pg.staffName(staffId) : ''),
+          from_status: prevStatus,
+          to_status: workStatus,
+        });
+      }
     }
 
     const hoursChanged =
@@ -459,7 +504,7 @@ export class ServiceLifecycleService {
 
   async recordClientGate(
     lifecycleId: number,
-    body: { gate?: string; decision?: string; note?: string },
+    body: { gate?: string; decision?: string; note?: string; csat_score?: unknown; csat_note?: string },
     actor?: { staffId?: number | null; name?: string; positionCode?: string | null },
   ) {
     const lc = await this.requireLifecycle(lifecycleId);
@@ -490,6 +535,12 @@ export class ServiceLifecycleService {
     if (!note) {
       throw new BadRequestException({ error: 'Cần ghi chú khi ghi cửa khách duyệt.' });
     }
+    if (key === 'acceptance') {
+      const score = parseCsatScore(body.csat_score);
+      if (score == null) {
+        throw new BadRequestException({ error: 'Cần ghi khách hài lòng (1–5) khi nghiệm thu.' });
+      }
+    }
     const current = await this.readClientGates(lifecycleId);
     const next = applyClientGateDecision(
       current,
@@ -498,6 +549,7 @@ export class ServiceLifecycleService {
       note,
       { staffId, name: String(actor?.name ?? '').trim() || (staffId ? await this.pg.staffName(staffId) : '') },
       new Date(),
+      key === 'acceptance' ? { score: body.csat_score, note: body.csat_note ?? note } : undefined,
     );
     await this.pg.saveClientGatesJson(lifecycleId, serializeClientGates(next));
     return { client_gates: next };
@@ -909,6 +961,284 @@ export class ServiceLifecycleService {
         cursor = dueEndAt(due, calendar.workingHours) ?? cursor;
       }
     }
+  }
+
+
+  private async campaignTargetsGate(
+    lifecycleId: number,
+    fromStage: string,
+    toStage: string,
+  ): Promise<{ ok: boolean; messages: string[] } | undefined> {
+    if (fromStage !== 'onboard' || toStage !== 'deliver') return undefined;
+    const state = parseCampaignKpi(await this.pg.getCampaignKpiJson(lifecycleId));
+    return campaignKpiGate(state.targets);
+  }
+
+  private async mergeRetentionNotes(
+    lifecycleId: number,
+    patch: { retro_note?: string; upsell_note?: string },
+  ): Promise<void> {
+    const state = parseCampaignKpi(await this.pg.getCampaignKpiJson(lifecycleId));
+    if (patch.retro_note != null) state.retention.retro_note = String(patch.retro_note).trim().slice(0, 4000);
+    if (patch.upsell_note != null) state.retention.upsell_note = String(patch.upsell_note).trim().slice(0, 4000);
+    await this.pg.saveCampaignKpiJson(lifecycleId, serializeCampaignKpi(state));
+  }
+
+  private async laborCostForTasks(
+    tasks: Array<{ assignee_staff_id: number | null; quote_hours?: number; actual_hours?: number }>,
+  ): Promise<number> {
+    const staffIds = tasks
+      .map((task) => task.assignee_staff_id)
+      .filter((id): id is number => id != null && Number.isFinite(id) && id > 0);
+    const rates = await this.pg.listStaffHourlyRates(staffIds);
+    let cost = 0;
+    for (const task of tasks) {
+      const actual = Number(task.actual_hours ?? 0);
+      const quote = Number(task.quote_hours ?? 0);
+      const hours = actual > 0 ? actual : quote;
+      const rate = task.assignee_staff_id != null ? rates.get(task.assignee_staff_id) ?? 0 : 0;
+      cost += computeLaborCost(hours, rate);
+    }
+    return cost;
+  }
+
+  private async buildCampaignKpiView(
+    lc: ServiceLifecycleRow,
+    actor?: { staffId?: number | null; positionCode?: string | null },
+  ) {
+    const state = parseCampaignKpi(await this.pg.getCampaignKpiJson(lc.id));
+    const gates = await this.readClientGates(lc.id);
+    const grouped = await this.tasksPg.listTasksGrouped(lc.id);
+    const tasks = Object.values(grouped).flat();
+    const gateRev = CLIENT_GATE_KEYS.reduce((sum, key) => sum + (gates[key].revision_count || 0), 0);
+    const taskRework = tasks.reduce((sum, task) => sum + readReworkCount(task.form_data), 0);
+    const positionCode = actor?.positionCode ?? null;
+    const assigned =
+      actor?.staffId != null && lc.assigned_am != null && Number(lc.assigned_am) === Number(actor.staffId);
+    const canEdit = canEditCampaignKpi(positionCode, assigned);
+    const canMargin = canViewMargin(positionCode, assigned);
+    const staffCost = canMargin ? await this.laborCostForTasks(tasks) : 0;
+    const amount = canMargin ? await this.pg.getContractAmount(lc.contract_id) : 0;
+    const margin = canMargin
+      ? computeCaseMargin({
+          amount_vnd: amount,
+          staff_cost_vnd: staffCost,
+          ads_media_cost_vnd: state.ads_media_cost_vnd,
+        })
+      : null;
+    return {
+      ...state,
+      attainment: campaignAttainment(state),
+      csat_score: gates.acceptance.csat_score,
+      csat_note: gates.acceptance.csat_note,
+      revision_count: caseRevisionCount(gateRev, taskRework),
+      gate_revision_count: gateRev,
+      task_rework_count: taskRework,
+      targets_filled: campaignTargetsFilled(state.targets),
+      can_edit: canEdit,
+      can_view_margin: canMargin,
+      margin,
+    };
+  }
+
+  async getCampaignKpi(lifecycleId: number, actor?: { staffId?: number | null; positionCode?: string | null }) {
+    const lc = await this.requireLifecycle(lifecycleId);
+    const positionCode =
+      actor?.positionCode ?? (actor?.staffId ? await this.pg.staffPositionCode(actor.staffId) : null);
+    return { campaign_kpi: await this.buildCampaignKpiView(lc, { staffId: actor?.staffId ?? null, positionCode }) };
+  }
+
+  async patchCampaignKpi(
+    lifecycleId: number,
+    body: {
+      targets?: unknown;
+      actuals?: unknown;
+      ads_media_cost_vnd?: unknown;
+      retro_note?: unknown;
+      upsell_note?: unknown;
+    },
+    actor?: { staffId?: number | null; name?: string; positionCode?: string | null },
+  ) {
+    const lc = await this.requireLifecycle(lifecycleId);
+    const staffId = actor?.staffId ?? null;
+    const positionCode = actor?.positionCode ?? (staffId ? await this.pg.staffPositionCode(staffId) : null);
+    const assigned = staffId != null && lc.assigned_am != null && Number(lc.assigned_am) === Number(staffId);
+    if (!canEditCampaignKpi(positionCode, assigned)) {
+      throw new BadRequestException({ error: 'Chỉ AM phụ trách hoặc Super-Admin được nhập KPI chiến dịch.' });
+    }
+    const state = parseCampaignKpi(await this.pg.getCampaignKpiJson(lifecycleId));
+    if (body.targets != null) {
+      state.targets = mergeCampaignTargets(state.targets, body.targets);
+    }
+    if (body.actuals != null) {
+      const merged = mergeCampaignActuals(
+        state.actuals,
+        body.actuals,
+        { staffId, name: String(actor?.name ?? '').trim() || (staffId ? await this.pg.staffName(staffId) : '') },
+        new Date(),
+      );
+      state.actuals = merged.actuals;
+      state.actuals_log = [...state.actuals_log, merged.logEntry].slice(-50);
+    }
+    if (body.ads_media_cost_vnd !== undefined) {
+      state.ads_media_cost_vnd = parseNullableNumber(body.ads_media_cost_vnd);
+    }
+    if (body.retro_note != null) state.retention.retro_note = String(body.retro_note).trim().slice(0, 4000);
+    if (body.upsell_note != null) state.retention.upsell_note = String(body.upsell_note).trim().slice(0, 4000);
+    await this.pg.saveCampaignKpiJson(lifecycleId, serializeCampaignKpi(state));
+    return this.getCampaignKpi(lifecycleId, { staffId, positionCode });
+  }
+
+  async deliveryKpiRollup(
+    year: number,
+    month: number,
+    actor?: { staffId?: number | null; positionCode?: string | null },
+  ) {
+    const y = Number.isFinite(year) && year >= 2000 ? Math.round(year) : new Date().getFullYear();
+    const m = Number.isFinite(month) && month >= 1 && month <= 12 ? Math.round(month) : new Date().getMonth() + 1;
+    const positionCode =
+      actor?.positionCode ?? (actor?.staffId ? await this.pg.staffPositionCode(actor.staffId) : null);
+    const cases = await this.pg.listDeliveryKpiCases(y, m);
+    const tasks = await this.tasksPg.listTasksForLifecycles(cases.map((row) => row.lifecycle_id));
+    const calendar = await this.pg.workingCalendar();
+    const now = new Date();
+    const tasksByLc = new Map<number, typeof tasks>();
+    for (const task of tasks) {
+      const list = tasksByLc.get(task.lifecycle_id) ?? [];
+      list.push(task);
+      tasksByLc.set(task.lifecycle_id, list);
+    }
+    const canMargin = canViewMargin(positionCode, false);
+    const staffMap = new Map<
+      string,
+      {
+        staff_id: number | null;
+        name: string;
+        on_time: number;
+        scored: number;
+        quote_hours: number;
+        actual_hours: number;
+        rework_count: number;
+        first_approvals: number;
+        decided_gates: number;
+        case_ids: Set<number>;
+      }
+    >();
+    const caseRows: Array<Record<string, unknown>> = [];
+
+    for (const row of cases) {
+      const lcTasks = tasksByLc.get(row.lifecycle_id) ?? [];
+      const ops = summarizeDeliveryOps(
+        lcTasks.map((task) => ({
+          work_status: task.work_status ?? normalizeWorkStatus(task.form_data?.work_status, task.is_done),
+          due_date: task.due_date,
+          done_at: task.done_at || null,
+          quote_hours: Number(task.quote_hours ?? 0),
+          actual_hours: Number(task.actual_hours ?? 0),
+          assignee: task.assignee,
+          assignee_staff_id: task.assignee_staff_id,
+        })),
+        calendar.workingHours,
+        now,
+      );
+      const gates = parseClientGates(row.client_gates_json);
+      const gateRev = CLIENT_GATE_KEYS.reduce((sum, key) => sum + (gates[key].revision_count || 0), 0);
+      const taskRework = lcTasks.reduce((sum, task) => sum + readReworkCount(task.form_data), 0);
+      const decided = CLIENT_GATE_KEYS.map((key) => gates[key]).filter(
+        (gate) => gate.status === 'approved' || gate.status === 'revision_requested',
+      );
+      const firstRate = firstApprovalRate(decided);
+      const state = parseCampaignKpi(row.campaign_kpi_json);
+      const staffCost = canMargin ? await this.laborCostForTasks(lcTasks) : 0;
+      const margin = canMargin
+        ? computeCaseMargin({
+            amount_vnd: row.amount_vnd,
+            staff_cost_vnd: staffCost,
+            ads_media_cost_vnd: state.ads_media_cost_vnd,
+          })
+        : null;
+      const done = lcTasks.filter((task) => task.is_done).length;
+      const total = lcTasks.length;
+      caseRows.push({
+        lifecycle_id: row.lifecycle_id,
+        lead_id: row.lead_id,
+        lead_name: row.lead_name,
+        assigned_am: row.assigned_am,
+        am_name: row.am_name,
+        stage: row.stage,
+        progress_pct: total > 0 ? Math.round((done / total) * 1000) / 10 : null,
+        task_done: done,
+        task_total: total,
+        late_count: Math.max(0, ops.case.scored - ops.case.on_time),
+        on_time_pct: ops.case.scored > 0 ? ops.case.pct : null,
+        csat_score: gates.acceptance.csat_score,
+        first_approval_pct: firstRate,
+        revision_count: caseRevisionCount(gateRev, taskRework),
+        margin,
+      });
+
+      const staffSeen = new Set<string>();
+      for (const task of lcTasks) {
+        const staffId = task.assignee_staff_id != null && task.assignee_staff_id > 0 ? task.assignee_staff_id : null;
+        const name = String(task.assignee ?? '').trim() || (staffId != null ? `#${staffId}` : 'Chưa gán');
+        const key = staffId != null ? `id:${staffId}` : `name:${name.toLowerCase()}`;
+        const current = staffMap.get(key) ?? {
+          staff_id: staffId,
+          name,
+          on_time: 0,
+          scored: 0,
+          quote_hours: 0,
+          actual_hours: 0,
+          rework_count: 0,
+          first_approvals: 0,
+          decided_gates: 0,
+          case_ids: new Set<number>(),
+        };
+        current.rework_count += readReworkCount(task.form_data);
+        if (!staffSeen.has(key)) {
+          staffSeen.add(key);
+          current.case_ids.add(row.lifecycle_id);
+          current.decided_gates += decided.length;
+          current.first_approvals += decided.filter((gate) => gate.status === 'approved' && gate.revision_count === 0).length;
+          current.rework_count += gateRev;
+        }
+        staffMap.set(key, current);
+      }
+      for (const staff of ops.staff) {
+        const key = staff.staff_id != null ? `id:${staff.staff_id}` : `name:${staff.name.toLowerCase()}`;
+        const current = staffMap.get(key);
+        if (!current) continue;
+        current.on_time += staff.on_time;
+        current.scored += staff.scored;
+        current.quote_hours += staff.quote_hours;
+        current.actual_hours += staff.actual_hours;
+        current.name = staff.name || current.name;
+      }
+    }
+
+    const staff_rows = [...staffMap.values()]
+      .map((row) => ({
+        staff_id: row.staff_id,
+        name: row.name,
+        on_time_pct: row.scored > 0 ? Math.round((row.on_time / row.scored) * 1000) / 10 : null,
+        on_time: row.on_time,
+        scored: row.scored,
+        quote_hours: Math.round(row.quote_hours * 100) / 100,
+        actual_hours: Math.round(row.actual_hours * 100) / 100,
+        rework_count: row.rework_count,
+        first_approval_pct:
+          row.decided_gates > 0 ? Math.round((row.first_approvals / row.decided_gates) * 1000) / 10 : null,
+        case_count: row.case_ids.size,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+    return {
+      year: y,
+      month: m,
+      can_view_margin: canMargin,
+      staff_rows,
+      case_rows: caseRows,
+    };
   }
 
 }

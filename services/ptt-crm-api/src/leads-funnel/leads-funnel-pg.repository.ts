@@ -129,6 +129,7 @@ import {
 import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
 import { formatPttContractNo } from './ptt-contract-template';
 import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
+import { parseCampaignKpi } from '../service-lifecycle/campaign-kpi.util';
 import {
   QUOTE_DELIVERY_HOURS_CODE,
   QUOTE_DELIVERY_HOURS_NAME,
@@ -3307,7 +3308,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const view = await this.getQuoteSheet(leadId, null);
     const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
     const label = String(name.rows[0]?.full_name ?? '').trim() || `Lead ${leadId}`;
-    const buffer = await renderLeadQuoteXlsx(view, label);
+    let campaignTargets: ReturnType<typeof parseCampaignKpi>['targets'] | null = null;
+    try {
+      const kpi = await this.db.query(
+        `SELECT campaign_kpi_json FROM crm_service_lifecycle WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
+        [leadId],
+      );
+      if (kpi.rows[0]) {
+        campaignTargets = parseCampaignKpi((kpi.rows[0] as { campaign_kpi_json?: unknown }).campaign_kpi_json).targets;
+      }
+    } catch {
+      campaignTargets = null;
+    }
+    const buffer = await renderLeadQuoteXlsx(view, label, campaignTargets);
     return { filename: `bao-gia-${leadId}.xlsx`, buffer };
   }
 

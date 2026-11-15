@@ -42,6 +42,8 @@ export interface PatchServiceLifecycleBody {
   assigned_sp?: number | null;
   finance_confirm?: boolean;
   launch_qa_confirm?: boolean;
+  retro_note?: string;
+  upsell_note?: string;
 }
 
 export const VALID_STAGES = [

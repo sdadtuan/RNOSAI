@@ -16,7 +16,9 @@ import type {
   PatchContractBody,
 } from './contract.types';
 import { inferBillingType, SERVICE_LABELS } from './lifecycle-workflow-steps.util';
-import { loadWorkingCalendar, normalizeWorkStatus, quoteHoursFromForm, readActualHoursLog, sumActualHours, summarizeDeliveryOps } from '../service-lifecycle/delivery-ops.util';
+import { loadWorkingCalendar, normalizeWorkStatus, quoteHoursFromForm, readActualHoursLog, readReworkCount, sumActualHours, summarizeDeliveryOps } from '../service-lifecycle/delivery-ops.util';
+import { campaignAttainment, campaignTargetsFilled, caseRevisionCount, parseCampaignKpi } from '../service-lifecycle/campaign-kpi.util';
+import { CLIENT_GATE_KEYS, parseClientGates } from '../service-lifecycle/client-gates.util';
 
 @Injectable()
 export class LeadsContractPgRepository implements OnModuleDestroy {
@@ -127,13 +129,18 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     let taskDone = 0;
     let taskTotal = 0;
     let ops = { case: { on_time: 0, scored: 0, pct: 0, quote_hours: 0, actual_hours: 0 }, staff: [] as ReturnType<typeof summarizeDeliveryOps>['staff'] };
+    let campaignJson: unknown = {};
+    let gatesJson: unknown = {};
+    let taskRework = 0;
     if (lifecycleId != null && lifecycleId > 0) {
       const lcResult = await this.db.query(
-        `SELECT stage FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
+        `SELECT stage, campaign_kpi_json, client_gates_json FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
         [lifecycleId],
       );
-      const lcRow = lcResult.rows[0] as { stage: string } | undefined;
+      const lcRow = lcResult.rows[0] as { stage?: string; campaign_kpi_json?: unknown; client_gates_json?: unknown } | undefined;
       lifecycleStage = lcRow ? String(lcRow.stage ?? '') : null;
+      campaignJson = lcRow?.campaign_kpi_json ?? {};
+      gatesJson = lcRow?.client_gates_json ?? {};
       const progress = await this.db.query(
         `SELECT COUNT(*)::int AS total,
                 SUM(CASE WHEN is_done THEN 1 ELSE 0 END)::int AS done
@@ -155,6 +162,7 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
               ? row.form_data
               : {};
           const assign = formData as Record<string, unknown>;
+          taskRework += readReworkCount(formData);
           return {
             work_status: normalizeWorkStatus(assign.work_status, row.is_done === true),
             due_date: assign.due_date != null ? String(assign.due_date).slice(0, 10) : null,
@@ -185,6 +193,21 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       quote_hours: ops.case.quote_hours,
       actual_hours: ops.case.actual_hours,
       staff_ops: ops.staff,
+      ...(() => {
+        const campaignState = parseCampaignKpi(campaignJson);
+        const attainment = campaignAttainment(campaignState);
+        const gates = parseClientGates(gatesJson);
+        return {
+          campaign_overall_pct: attainment.overall_pct,
+          campaign_items: attainment.items,
+          csat_score: gates.acceptance.csat_score,
+          revision_count: caseRevisionCount(
+            CLIENT_GATE_KEYS.reduce((sum, key) => sum + (gates[key].revision_count || 0), 0),
+            taskRework,
+          ),
+          targets_filled: campaignTargetsFilled(campaignState.targets),
+        };
+      })(),
     };
   }
 

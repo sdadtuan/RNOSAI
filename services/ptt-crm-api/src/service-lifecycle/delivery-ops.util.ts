@@ -297,3 +297,17 @@ export function summarizeDeliveryOps(
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
   return { case: withPct(caseScore), staff };
 }
+
+export function readReworkCount(form: Record<string, unknown>): number {
+  const n = Number(form.rework_count);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function bumpReworkCount(
+  form: Record<string, unknown>,
+  entry: { at: string; by_staff_id: number | null; by_name: string; from_status: string; to_status: string },
+): Record<string, unknown> {
+  const log = Array.isArray(form.rework_log) ? [...form.rework_log] : [];
+  log.push(entry);
+  return { ...form, rework_count: readReworkCount(form) + 1, rework_log: log };
+}

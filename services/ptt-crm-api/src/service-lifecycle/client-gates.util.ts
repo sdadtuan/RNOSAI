@@ -28,6 +28,8 @@ export type ClientGateState = {
   decided_by_staff_id: number | null;
   decided_by_name: string;
   history: ClientGateHistoryEntry[];
+  csat_score: number | null;
+  csat_note: string;
 };
 
 function emptyGate(key: ClientGateKey): ClientGateState {
@@ -41,7 +43,16 @@ function emptyGate(key: ClientGateKey): ClientGateState {
     decided_by_staff_id: null,
     decided_by_name: '',
     history: [],
+    csat_score: null,
+    csat_note: '',
   };
+}
+
+
+export function parseCsatScore(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1 || n > 5) return null;
+  return Math.round(n);
 }
 
 function asRecord(raw: unknown): Record<string, unknown> {
@@ -83,6 +94,8 @@ function parseOne(key: ClientGateKey, raw: unknown): ClientGateState {
     decided_by_staff_id: rec.decided_by_staff_id != null ? Number(rec.decided_by_staff_id) : null,
     decided_by_name: String(rec.decided_by_name ?? '').trim(),
     history,
+    csat_score: parseCsatScore(rec.csat_score),
+    csat_note: String(rec.csat_note ?? '').trim(),
   };
 }
 
@@ -107,6 +120,8 @@ export function serializeClientGates(gates: Record<ClientGateKey, ClientGateStat
       decided_by_staff_id: gate.decided_by_staff_id,
       decided_by_name: gate.decided_by_name,
       history: gate.history,
+      csat_score: gate.csat_score,
+      csat_note: gate.csat_note,
     };
   }
   return out;
@@ -119,6 +134,7 @@ export function applyClientGateDecision(
   note: string,
   actor: { staffId: number | null; name: string },
   at: Date,
+  csat?: { score?: unknown; note?: unknown },
 ): Record<ClientGateKey, ClientGateState> {
   const current = gates[key] ?? emptyGate(key);
   const trimmed = String(note ?? '').trim().slice(0, 2000);
@@ -138,6 +154,10 @@ export function applyClientGateDecision(
     decided_by_staff_id: actor.staffId,
     decided_by_name: actor.name,
     history: [...current.history, entry],
+    csat_score: key === 'acceptance' ? (parseCsatScore(csat?.score) ?? current.csat_score) : current.csat_score,
+    csat_note: key === 'acceptance'
+      ? (csat?.note != null ? String(csat.note).trim().slice(0, 2000) : current.csat_note)
+      : current.csat_note,
   };
   return { ...gates, [key]: next };
 }

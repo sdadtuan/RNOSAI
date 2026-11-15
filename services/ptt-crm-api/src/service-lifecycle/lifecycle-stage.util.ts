@@ -22,8 +22,9 @@ export function validateStageAdvance(input: {
   paymentGate?: { ok: boolean; messages?: string[] };
   launchQaGate?: { ok: boolean; messages?: string[] };
   clientGate?: { ok: boolean; messages?: string[] };
+  campaignKpiGate?: { ok: boolean; messages?: string[] };
 }): void {
-  const { fromStage, toStage, currentStageComplete, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate } = input;
+  const { fromStage, toStage, currentStageComplete, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate, campaignKpiGate } = input;
   if (!(VALID_STAGES as readonly string[]).includes(toStage)) {
     throw new StageAdvanceError(`Stage không hợp lệ: ${toStage}`);
   }
@@ -49,6 +50,14 @@ export function validateStageAdvance(input: {
     }
     if (!tmmtGate?.ok) {
       throw new StageAdvanceError((tmmtGate?.messages ?? ['TMMT chưa đủ'])[0] ?? 'TMMT chưa đủ');
+    }
+    if (campaignKpiGate && !campaignKpiGate.ok) {
+      throw new StageAdvanceError(
+        (campaignKpiGate.messages ?? [
+          'Cần nhập KPI chiến dịch (mục tiêu, thời gian truyền thông, ngân sách và các chỉ số) trước khi chuyển Triển khai.',
+        ])[0] ??
+          'Cần nhập KPI chiến dịch (mục tiêu, thời gian truyền thông, ngân sách và các chỉ số) trước khi chuyển Triển khai.',
+      );
     }
   }
   if (toStage === 'handover' && fromStage === 'deliver') {
@@ -111,7 +120,9 @@ export function getStageAdvanceInfo(input: {
     messages: string[];
   };
   clientGate?: { ok: boolean; messages?: string[] };
+  campaignKpiGate?: { ok: boolean; messages?: string[] };
   client_gates?: unknown;
+  campaign_kpi?: unknown;
 }): {
   current_stage: string;
   next_stage: string | null;
@@ -149,8 +160,10 @@ export function getStageAdvanceInfo(input: {
     messages: string[];
   };
   client_gates?: unknown;
+  campaign_kpi_gate?: { ok: boolean; messages: string[] };
+  campaign_kpi?: unknown;
 } {
-  const { currentStage, currentStageComplete, currentDone, currentTotal, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate } =
+  const { currentStage, currentStageComplete, currentDone, currentTotal, tmmtGate, onboardGate, paymentGate, launchQaGate, clientGate, campaignKpiGate } =
     input;
   const nxt = nextStage(currentStage);
   let blockReason = '';
@@ -165,6 +178,12 @@ export function getStageAdvanceInfo(input: {
         (onboardGate.messages ?? ['Onboard orchestrator chưa đủ'])[0] ?? 'Onboard orchestrator chưa đủ';
     } else if (!tmmtGate?.ok) {
       blockReason = (tmmtGate?.messages ?? ['TMMT chưa đủ'])[0] ?? 'TMMT chưa đủ';
+    } else if (campaignKpiGate && !campaignKpiGate.ok) {
+      blockReason =
+        (campaignKpiGate.messages ?? [
+          'Cần nhập KPI chiến dịch (mục tiêu, thời gian truyền thông, ngân sách và các chỉ số) trước khi chuyển Triển khai.',
+        ])[0] ??
+        'Cần nhập KPI chiến dịch (mục tiêu, thời gian truyền thông, ngân sách và các chỉ số) trước khi chuyển Triển khai.';
     } else {
       canForward = true;
     }
@@ -244,5 +263,10 @@ export function getStageAdvanceInfo(input: {
     onboard_gate: onboardGateOut,
     launch_qa_gate: launchQaGateOut,
     client_gates: input.client_gates,
+    campaign_kpi_gate:
+      nxt === 'deliver' && currentStage === 'onboard' && campaignKpiGate
+        ? { ok: campaignKpiGate.ok, messages: campaignKpiGate.messages ?? [] }
+        : undefined,
+    campaign_kpi: input.campaign_kpi,
   };
 }

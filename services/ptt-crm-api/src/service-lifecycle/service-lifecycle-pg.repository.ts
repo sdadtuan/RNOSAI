@@ -623,4 +623,99 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
   async workingCalendar() {
     return loadWorkingCalendar(this.db);
   }
+
+  async getCampaignKpiJson(lifecycleId: number): Promise<unknown> {
+    const result = await this.db.query(
+      `SELECT campaign_kpi_json FROM crm_service_lifecycle WHERE id = $1 OR sqlite_lifecycle_id = $1 LIMIT 1`,
+      [lifecycleId],
+    );
+    return (result.rows[0] as { campaign_kpi_json?: unknown } | undefined)?.campaign_kpi_json ?? {};
+  }
+
+  async saveCampaignKpiJson(lifecycleId: number, payload: unknown): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_service_lifecycle
+          SET campaign_kpi_json = $2::jsonb, updated_at = NOW()
+        WHERE id = $1 OR sqlite_lifecycle_id = $1`,
+      [lifecycleId, JSON.stringify(payload ?? {})],
+    );
+  }
+
+  async listStaffHourlyRates(staffIds: number[]): Promise<Map<number, number>> {
+    const ids = [...new Set(staffIds.filter((id) => Number.isFinite(id) && id > 0))];
+    const out = new Map<number, number>();
+    if (ids.length === 0) return out;
+    const result = await this.db.query(
+      `SELECT s.id, r.monthly_salary_vnd, r.hours_per_month
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+         LEFT JOIN crm_position_rates r ON r.position_id = p.id
+        WHERE s.id = ANY($1::int[])`,
+      [ids],
+    );
+    for (const row of result.rows as Array<{ id?: number; monthly_salary_vnd?: number; hours_per_month?: number }>) {
+      const monthly = Number(row.monthly_salary_vnd) || 0;
+      const hours = Number(row.hours_per_month) || 0;
+      const hourly = hours > 0 && monthly > 0 ? Math.round(monthly / hours) : 0;
+      out.set(Number(row.id), hourly);
+    }
+    return out;
+  }
+
+  async getContractAmount(contractId: number | null | undefined): Promise<number> {
+    if (contractId == null || !Number.isFinite(contractId) || contractId <= 0) return 0;
+    const result = await this.db.query(`SELECT amount_vnd FROM crm_contracts WHERE id = $1 LIMIT 1`, [contractId]);
+    return Number((result.rows[0] as { amount_vnd?: number } | undefined)?.amount_vnd ?? 0) || 0;
+  }
+
+  async listDeliveryKpiCases(year: number, month: number): Promise<
+    Array<{
+      lifecycle_id: number;
+      lead_id: number | null;
+      lead_name: string;
+      assigned_am: number | null;
+      am_name: string;
+      stage: string;
+      created_at: string;
+      contract_signed_at: string | null;
+      amount_vnd: number;
+      client_gates_json: unknown;
+      campaign_kpi_json: unknown;
+    }>
+  > {
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const end = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+    const result = await this.db.query(
+      `SELECT sl.id AS lifecycle_id, sl.lead_id, sl.assigned_am, sl.stage, sl.created_at,
+              sl.client_gates_json, sl.campaign_kpi_json, sl.contract_id,
+              COALESCE(l.full_name, '') AS lead_name,
+              l.contract_signed_at,
+              COALESCE(am.name, '') AS am_name,
+              COALESCE(ct.amount_vnd, 0) AS amount_vnd
+         FROM crm_service_lifecycle sl
+         LEFT JOIN crm_leads l ON l.sqlite_lead_id = sl.lead_id
+         LEFT JOIN crm_staff am ON am.id = sl.assigned_am
+         LEFT JOIN crm_contracts ct ON ct.id = sl.contract_id
+        WHERE (COALESCE(l.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date >= $1::date
+          AND (COALESCE(l.contract_signed_at, sl.created_at) AT TIME ZONE 'Asia/Saigon')::date < $2::date
+        ORDER BY sl.id DESC`,
+      [start, end],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      lifecycle_id: Number(row.lifecycle_id),
+      lead_id: row.lead_id != null ? Number(row.lead_id) : null,
+      lead_name: String(row.lead_name ?? '').trim(),
+      assigned_am: row.assigned_am != null ? Number(row.assigned_am) : null,
+      am_name: String(row.am_name ?? '').trim(),
+      stage: String(row.stage ?? ''),
+      created_at: row.created_at ? String(row.created_at) : '',
+      contract_signed_at: row.contract_signed_at ? String(row.contract_signed_at) : null,
+      amount_vnd: Number(row.amount_vnd ?? 0) || 0,
+      client_gates_json: row.client_gates_json ?? {},
+      campaign_kpi_json: row.campaign_kpi_json ?? {},
+    }));
+  }
+
 }

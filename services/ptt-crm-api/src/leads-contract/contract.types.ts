@@ -83,6 +83,12 @@ export interface ContractReadiness {
     quote_hours: number;
     actual_hours: number;
   }>;
+  campaign_overall_pct?: number | null;
+  campaign_items?: Array<{ key: string; label: string; target: number | null; actual: number | null; pct: number | null }>;
+  csat_score?: number | null;
+  revision_count?: number;
+  targets_filled?: boolean;
+
 }
 
 export interface CreateContractBody {

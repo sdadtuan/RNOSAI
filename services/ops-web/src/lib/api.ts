@@ -4561,13 +4561,86 @@ export async function patchServiceLifecycleTask(
 export async function recordServiceLifecycleClientGate(
   token: string,
   lifecycleId: number,
-  body: { gate: string; decision: string; note: string },
+  body: { gate: string; decision: string; note: string; csat_score?: number | null; csat_note?: string },
 ): Promise<{ client_gates: Record<string, unknown> }> {
   return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/client-gates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchServiceLifecycleCampaignKpi(
+  token: string,
+  lifecycleId: number,
+): Promise<{ campaign_kpi: Record<string, unknown> }> {
+  return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/campaign-kpi`);
+}
+
+export async function patchServiceLifecycleCampaignKpi(
+  token: string,
+  lifecycleId: number,
+  body: {
+    targets?: Record<string, unknown>;
+    actuals?: Record<string, unknown>;
+    ads_media_cost_vnd?: number | null;
+    retro_note?: string;
+    upsell_note?: string;
+  },
+): Promise<{ campaign_kpi: Record<string, unknown> }> {
+  return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/campaign-kpi`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export type DeliveryKpiStaffRow = {
+  staff_id: number | null;
+  name: string;
+  on_time_pct: number | null;
+  on_time: number;
+  scored: number;
+  quote_hours: number;
+  actual_hours: number;
+  rework_count: number;
+  first_approval_pct: number | null;
+  case_count: number;
+};
+
+export type DeliveryKpiCaseRow = {
+  lifecycle_id: number;
+  lead_id: number | null;
+  lead_name: string;
+  assigned_am: number | null;
+  am_name: string;
+  stage: string;
+  progress_pct: number | null;
+  task_done: number;
+  task_total: number;
+  late_count: number;
+  on_time_pct: number | null;
+  csat_score: number | null;
+  first_approval_pct?: number | null;
+  revision_count: number;
+  margin: {
+    amount_vnd: number;
+    staff_cost_vnd: number;
+    ads_media_cost_vnd: number;
+    margin_vnd: number;
+    margin_pct: number | null;
+  } | null;
+};
+
+export async function fetchDeliveryKpiRollup(
+  token: string,
+  year: number,
+  month: number,
+): Promise<{ year: number; month: number; can_view_margin: boolean; staff_rows: DeliveryKpiStaffRow[]; case_rows: DeliveryKpiCaseRow[] }> {
+  return crmFetch(
+    token,
+    `/api/crm/service-lifecycle/delivery-kpi-rollup?year=${encodeURIComponent(String(year))}&month=${encodeURIComponent(String(month))}`,
+  );
 }
 
 export async function fetchServiceLifecycleMarketingPlan(
@@ -5037,6 +5110,8 @@ export async function patchServiceLifecycle(
     assigned_sp: number | null;
     finance_confirm: boolean;
     launch_qa_confirm: boolean;
+    retro_note: string;
+    upsell_note: string;
   }>,
 ): Promise<ServiceLifecycleRow> {
   return crmFetch<ServiceLifecycleRow>(token, `/api/crm/service-lifecycle/${id}`, {

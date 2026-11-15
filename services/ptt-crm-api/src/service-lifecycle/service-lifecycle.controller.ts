@@ -35,9 +35,56 @@ export class ServiceLifecycleController {
     return this.serviceLifecycle.list(serviceSlug, amId, includeDraft);
   }
 
+  @Get('delivery-kpi-rollup')
+  deliveryKpiRollup(@Query('year') year: string | undefined, @Query('month') month: string | undefined, @Req() req: Request) {
+    const staff = (req as Request & { staffUser?: { sub?: string; id?: number } }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : undefined);
+    return this.serviceLifecycle.deliveryKpiRollup(
+      Number(year),
+      Number(month),
+      { staffId: staffId && Number.isFinite(staffId) ? staffId : null },
+    );
+  }
+
   @Get(':id/context')
   context(@Param('id', ParseIntPipe) id: number) {
     return this.serviceLifecycle.context(id);
+  }
+
+  @Get(':id/campaign-kpi')
+  getCampaignKpi(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    const staff = (req as Request & { staffUser?: { sub?: string; id?: number } }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : undefined);
+    return this.serviceLifecycle.getCampaignKpi(id, {
+      staffId: staffId && Number.isFinite(staffId) ? staffId : null,
+    });
+  }
+
+  @Patch(':id/campaign-kpi')
+  @UseGuards(StaffServiceLifecycleWriteGuard)
+  patchCampaignKpi(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const staff = (req as Request & {
+      staffUser?: { id?: number; sub?: string; display_name?: string; email?: string };
+    }).staffUser;
+    const staffId = staff?.id ?? (staff?.sub ? Number(staff.sub) : null);
+    return this.serviceLifecycle.patchCampaignKpi(
+      id,
+      {
+        targets: body.targets,
+        actuals: body.actuals,
+        ads_media_cost_vnd: body.ads_media_cost_vnd,
+        retro_note: body.retro_note,
+        upsell_note: body.upsell_note,
+      },
+      {
+        staffId: staffId && Number.isFinite(staffId) ? staffId : null,
+        name: String(staff?.display_name || staff?.email || ''),
+      },
+    );
   }
 
   @Get(':id/advance-info')
@@ -238,6 +285,8 @@ export class ServiceLifecycleController {
         gate: body.gate != null ? String(body.gate) : undefined,
         decision: body.decision != null ? String(body.decision) : undefined,
         note: body.note != null ? String(body.note) : undefined,
+        csat_score: body.csat_score,
+        csat_note: body.csat_note != null ? String(body.csat_note) : undefined,
       },
       {
         staffId: staffId && Number.isFinite(staffId) ? staffId : null,

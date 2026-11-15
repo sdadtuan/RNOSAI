@@ -127,6 +127,17 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
     return out;
   }
 
+  async listTasksForLifecycles(lifecycleIds: number[]): Promise<SvcTaskRow[]> {
+    const ids = [...new Set(lifecycleIds.filter((id) => Number.isFinite(id) && id > 0))];
+    if (ids.length === 0) return [];
+    const result = await this.db.query(
+      `SELECT * FROM crm_svc_tasks WHERE lifecycle_id = ANY($1::int[])
+       ORDER BY lifecycle_id, stage, step_index ASC, id ASC`,
+      [ids],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => this.mapTask(row));
+  }
+
   async getTask(taskId: number): Promise<SvcTaskRow | null> {
     const result = await this.db.query(`SELECT * FROM crm_svc_tasks WHERE id = $1`, [taskId]);
     const row = result.rows[0] as Record<string, unknown> | undefined;

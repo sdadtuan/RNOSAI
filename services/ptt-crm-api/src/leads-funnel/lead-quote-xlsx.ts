@@ -156,7 +156,22 @@ function writeTotal(
   valueCell.numFmt = MONEY;
 }
 
-export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: string): Promise<Buffer> {
+export type QuoteCampaignKpiCells = {
+  goal?: string | null;
+  comms_period?: string | null;
+  like_page?: number | null;
+  impression?: number | null;
+  reach?: number | null;
+  click?: number | null;
+  ctr?: number | null;
+  lead?: number | null;
+};
+
+export async function renderLeadQuoteXlsx(
+  view: QuoteSheetView,
+  leadLabel: string,
+  campaignTargets?: QuoteCampaignKpiCells | null,
+): Promise<Buffer> {
   const templatePath = resolveBaoGiaTemplatePath();
   if (!templatePath) {
     throw new Error('Thiếu mẫu báo giá Excel (bao-gia-mau.xlsx).');
@@ -183,14 +198,16 @@ export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: strin
   const included = includedGroups(view);
   const project = [...new Set(included.map((group) => group.channel).filter((name) => name && name !== '—'))].join(' · ');
 
-  sheet.getCell('C5').value = '';
+  const goal = String(campaignTargets?.goal ?? '').trim();
+  const comms = String(campaignTargets?.comms_period ?? '').trim();
+  sheet.getCell('C5').value = goal || '';
   sheet.getCell('C6').value = project;
   sheet.getCell('C7').value = leadLabel.trim() || 'Khách hàng';
   sheet.getCell('C8').value = '';
   sheet.getRow(8).height = 32;
   sheet.getCell('C9').value = view.grand_total_vnd;
   sheet.getCell('C9').numFmt = MONEY;
-  sheet.getCell('C10').value = '';
+  sheet.getCell('C10').value = comms || '';
 
   const body: BodyRow[] = [];
   if (included.length === 0) {
@@ -326,6 +343,24 @@ export async function renderLeadQuoteXlsx(view: QuoteSheetView, leadLabel: strin
     grandValueStyle,
     `H${tongRow}-H${promoRow}+H${vatRow}`,
   );
+
+  const kpiValues: Array<number | null> = [
+    campaignTargets?.like_page ?? null,
+    campaignTargets?.impression ?? null,
+    campaignTargets?.reach ?? null,
+    campaignTargets?.click ?? null,
+    campaignTargets?.ctr ?? null,
+    campaignTargets?.lead ?? null,
+  ];
+  kpiValues.forEach((value, index) => {
+    const cell = sheet.getRow(tongRow).getCell(9 + index);
+    if (value == null || !Number.isFinite(Number(value))) {
+      cell.value = null;
+      return;
+    }
+    cell.value = Number(value);
+    cell.numFmt = '#,##0.####';
+  });
 
   sheet.getRow(grandRow + 1).height = 24;
   sheet.getRow(grandRow + 2).height = 24;

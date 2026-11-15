@@ -11,6 +11,7 @@ import {
   fetchServiceLifecycleProgress,
   fetchServiceLifecycleTasks,
   patchServiceLifecycle,
+  patchServiceLifecycleCampaignKpi,
   patchServiceLifecycleTask,
   recordServiceLifecycleClientGate,
   type CrmStaffRow,
@@ -106,6 +107,32 @@ type ClientGateState = {
   revision_count?: number;
   decided_at?: string | null;
   decided_by_name?: string;
+  csat_score?: number | null;
+  csat_note?: string;
+};
+
+type CampaignKpiView = {
+  targets?: {
+    goal?: string;
+    comms_period?: string;
+    budget_vnd?: number | null;
+    like_page?: number | null;
+    impression?: number | null;
+    reach?: number | null;
+    click?: number | null;
+    ctr?: number | null;
+    lead?: number | null;
+  };
+  actuals?: Record<string, number | null | string>;
+  ads_media_cost_vnd?: number | null;
+  retention?: { retro_note?: string; upsell_note?: string };
+  attainment?: { items?: Array<{ key: string; label: string; target: number | null; actual: number | null; pct: number | null }>; overall_pct?: number | null };
+  csat_score?: number | null;
+  revision_count?: number;
+  targets_filled?: boolean;
+  can_edit?: boolean;
+  can_view_margin?: boolean;
+  margin?: { amount_vnd?: number; staff_cost_vnd?: number; ads_media_cost_vnd?: number; margin_vnd?: number; margin_pct?: number | null } | null;
 };
 
 type ClientGates = {
@@ -158,6 +185,27 @@ export function ServiceDeliveryWorkflowPanel({
   const [hourDraft, setHourDraft] = useState<Record<number, { hours: string; note: string; actual: string }>>({});
   const [assigneeReason, setAssigneeReason] = useState<Record<number, string>>({});
   const [gateNote, setGateNote] = useState<Record<string, string>>({});
+  const [csatDraft, setCsatDraft] = useState<{ score: string; note: string }>({ score: '', note: '' });
+  const [kpiDraft, setKpiDraft] = useState({
+    goal: '',
+    comms_period: '',
+    budget_vnd: '',
+    like_page: '',
+    impression: '',
+    reach: '',
+    click: '',
+    ctr: '',
+    lead: '',
+    actual_like_page: '',
+    actual_impression: '',
+    actual_reach: '',
+    actual_click: '',
+    actual_ctr: '',
+    actual_lead: '',
+    ads_media_cost_vnd: '',
+    retro_note: '',
+    upsell_note: '',
+  });
   const canReassign = isMarketingLeader(user) || isSuperAdmin(user);
 
   useEffect(() => {
@@ -177,6 +225,33 @@ export function ServiceDeliveryWorkflowPanel({
       setOps((taskOut as { ops?: DeliveryOps }).ops ?? null);
       setProgress(progOut.progress);
       setAdvance(advOut);
+      const kpi = advOut.campaign_kpi as CampaignKpiView | undefined;
+      if (kpi) {
+        setKpiDraft((prev) => ({
+          ...prev,
+          goal: String(kpi.targets?.goal ?? ''),
+          comms_period: String(kpi.targets?.comms_period ?? ''),
+          budget_vnd: kpi.targets?.budget_vnd == null ? '' : String(kpi.targets.budget_vnd),
+          like_page: kpi.targets?.like_page == null ? '' : String(kpi.targets.like_page),
+          impression: kpi.targets?.impression == null ? '' : String(kpi.targets.impression),
+          reach: kpi.targets?.reach == null ? '' : String(kpi.targets.reach),
+          click: kpi.targets?.click == null ? '' : String(kpi.targets.click),
+          ctr: kpi.targets?.ctr == null ? '' : String(kpi.targets.ctr),
+          lead: kpi.targets?.lead == null ? '' : String(kpi.targets.lead),
+          actual_like_page: kpi.actuals?.like_page == null ? '' : String(kpi.actuals.like_page),
+          actual_impression: kpi.actuals?.impression == null ? '' : String(kpi.actuals.impression),
+          actual_reach: kpi.actuals?.reach == null ? '' : String(kpi.actuals.reach),
+          actual_click: kpi.actuals?.click == null ? '' : String(kpi.actuals.click),
+          actual_ctr: kpi.actuals?.ctr == null ? '' : String(kpi.actuals.ctr),
+          actual_lead: kpi.actuals?.lead == null ? '' : String(kpi.actuals.lead),
+          ads_media_cost_vnd: kpi.ads_media_cost_vnd == null ? '' : String(kpi.ads_media_cost_vnd),
+          retro_note: String(kpi.retention?.retro_note ?? ''),
+          upsell_note: String(kpi.retention?.upsell_note ?? ''),
+        }));
+        if (kpi.csat_score != null) {
+          setCsatDraft((prev) => ({ ...prev, score: String(kpi.csat_score), note: String((advOut.client_gates as ClientGates | undefined)?.acceptance?.csat_note ?? prev.note) }));
+        }
+      }
       if (tab === 'onboard') {
         const mp = await fetchServiceLifecycleMarketingPlan(token, lifecycleId);
         setTmmtValidation(mp.validation);
@@ -257,6 +332,9 @@ export function ServiceDeliveryWorkflowPanel({
         gate,
         decision,
         note: (gateNote[gate] ?? '').trim(),
+        ...(gate === 'acceptance'
+          ? { csat_score: Number(csatDraft.score), csat_note: csatDraft.note.trim() || (gateNote[gate] ?? '').trim() }
+          : {}),
       });
       setGateNote((prev) => ({ ...prev, [gate]: '' }));
       setMessage(decision === 'approved' ? 'Đã ghi khách duyệt.' : 'Đã ghi yêu cầu sửa.');
@@ -268,10 +346,68 @@ export function ServiceDeliveryWorkflowPanel({
     }
   }
 
+  async function saveCampaignKpi(kind: 'targets' | 'actuals' | 'retention' | 'ads') {
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const num = (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const n = Number(trimmed.replace(/%/g, '').replace(/,/g, ''));
+        return Number.isFinite(n) ? n : null;
+      };
+      if (kind === 'targets') {
+        await patchServiceLifecycleCampaignKpi(token, lifecycleId, {
+          targets: {
+            goal: kpiDraft.goal,
+            comms_period: kpiDraft.comms_period,
+            budget_vnd: num(kpiDraft.budget_vnd),
+            like_page: num(kpiDraft.like_page),
+            impression: num(kpiDraft.impression),
+            reach: num(kpiDraft.reach),
+            click: num(kpiDraft.click),
+            ctr: num(kpiDraft.ctr),
+            lead: num(kpiDraft.lead),
+          },
+        });
+        setMessage('Đã lưu mục tiêu KPI chiến dịch.');
+      } else if (kind === 'actuals' || kind === 'ads') {
+        await patchServiceLifecycleCampaignKpi(token, lifecycleId, {
+          actuals:
+            kind === 'actuals'
+              ? {
+                  like_page: num(kpiDraft.actual_like_page),
+                  impression: num(kpiDraft.actual_impression),
+                  reach: num(kpiDraft.actual_reach),
+                  click: num(kpiDraft.actual_click),
+                  ctr: num(kpiDraft.actual_ctr),
+                  lead: num(kpiDraft.actual_lead),
+                }
+              : undefined,
+          ads_media_cost_vnd: num(kpiDraft.ads_media_cost_vnd),
+        });
+        setMessage(kind === 'ads' ? 'Đã lưu chi phí ads/media.' : 'Đã lưu số thực tế KPI chiến dịch.');
+      } else {
+        await patchServiceLifecycleCampaignKpi(token, lifecycleId, {
+          retro_note: kpiDraft.retro_note,
+          upsell_note: kpiDraft.upsell_note,
+        });
+        setMessage('Đã lưu ghi chú giữ chân / gia hạn.');
+      }
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu KPI chiến dịch thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const paymentGate = advance.payment_gate as PaymentGate | undefined;
   const onboardGate = advance.onboard_gate as OnboardGate | undefined;
   const launchQaGate = advance.launch_qa_gate as LaunchQaGate | undefined;
   const clientGates = advance.client_gates as ClientGates | undefined;
+  const campaignKpi = advance.campaign_kpi as CampaignKpiView | undefined;
   const showPlanGoLiveGates = tab === 'deliver';
   const showAcceptanceGate = tab === 'handover';
   const showOnboardGate =
@@ -307,6 +443,8 @@ export function ServiceDeliveryWorkflowPanel({
         stage: nxt,
         finance_confirm: showPaymentGate && financeConfirm ? true : undefined,
         launch_qa_confirm: showLaunchQaGate && launchQaConfirm ? true : undefined,
+        retro_note: nxt === 'retain' ? kpiDraft.retro_note : undefined,
+        upsell_note: nxt === 'retain' ? kpiDraft.upsell_note : undefined,
       });
       setTab(nxt);
       setFinanceConfirm(false);
@@ -346,6 +484,16 @@ export function ServiceDeliveryWorkflowPanel({
           {tabProg.done}/{tabProg.total} task · {tabProg.pct}%
           {ops
             ? ` · % đúng hạn ${ops.case.scored > 0 ? `${ops.case.pct}% (${ops.case.on_time}/${ops.case.scored})` : '—'} · Giờ thực ${ops.case.actual_hours} / báo giá ${ops.case.quote_hours}`
+            : ''}
+          {campaignKpi?.attainment?.overall_pct != null
+            ? ` · KPI % đạt ${campaignKpi.attainment.overall_pct}%`
+            : campaignKpi?.targets_filled
+              ? ' · KPI chưa có số thực tế'
+              : ' · KPI chưa nhập mục tiêu'}
+          {campaignKpi?.revision_count ? ` · sửa ${campaignKpi.revision_count} lần` : ''}
+          {campaignKpi?.csat_score != null ? ` · CSAT ${campaignKpi.csat_score}/5` : ''}
+          {campaignKpi?.can_view_margin && campaignKpi.margin
+            ? ` · biên ${Number(campaignKpi.margin.margin_vnd ?? 0).toLocaleString('vi-VN')} ₫${campaignKpi.margin.margin_pct != null ? ` (${campaignKpi.margin.margin_pct}%)` : ''}`
             : ''}
         </span>
       </div>
@@ -529,8 +677,30 @@ export function ServiceDeliveryWorkflowPanel({
                   {gate?.revision_count ? ` · sửa ${gate.revision_count} lần` : ''}
                 </p>
                 {gate?.note ? <p className="muted" style={{ margin: '0 0 0.35rem', fontSize: '0.85rem' }}>{gate.note}{gate.decided_by_name ? ` — ${gate.decided_by_name}` : ''}</p> : null}
+                {key === 'acceptance' && (gate?.csat_score != null || campaignKpi?.csat_score != null) ? (
+                  <p className="muted" style={{ margin: '0 0 0.35rem', fontSize: '0.85rem' }}>
+                    Khách hài lòng: {gate?.csat_score ?? campaignKpi?.csat_score}/5
+                    {gate?.csat_note ? ` — ${gate.csat_note}` : ''}
+                  </p>
+                ) : null}
                 {clientGates?.can_record ? (
                   <>
+                    {key === 'acceptance' ? (
+                      <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                        <span className="muted">Khách hài lòng (1–5)</span>
+                        <select
+                          value={csatDraft.score}
+                          onChange={(e) => setCsatDraft((prev) => ({ ...prev, score: e.target.value }))}
+                          disabled={saving}
+                          style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }}
+                        >
+                          <option value="">Chọn điểm</option>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={String(n)}>{n}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                     <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
                       <span className="muted">Ghi chú</span>
                       <textarea
@@ -542,10 +712,20 @@ export function ServiceDeliveryWorkflowPanel({
                       />
                     </label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.4rem' }}>
-                      <button type="button" className="btn btn-sm btn-primary" disabled={saving || !(gateNote[key] ?? '').trim()} onClick={() => void recordGate(key, 'approved')}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        disabled={saving || !(gateNote[key] ?? '').trim() || (key === 'acceptance' && !csatDraft.score)}
+                        onClick={() => void recordGate(key, 'approved')}
+                      >
                         Khách duyệt
                       </button>
-                      <button type="button" className="btn btn-sm btn-secondary" disabled={saving || !(gateNote[key] ?? '').trim()} onClick={() => void recordGate(key, 'revision_requested')}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        disabled={saving || !(gateNote[key] ?? '').trim() || (key === 'acceptance' && !csatDraft.score)}
+                        onClick={() => void recordGate(key, 'revision_requested')}
+                      >
                         Yêu cầu sửa
                       </button>
                     </div>
@@ -554,6 +734,131 @@ export function ServiceDeliveryWorkflowPanel({
               </div>
             );
           })}
+        </div>
+      ) : null}
+
+      {(tab === 'onboard' || tab === 'deliver' || tab === 'handover' || tab === 'retain') ? (
+        <div
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.65rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.02)',
+            display: 'grid',
+            gap: '0.5rem',
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 600 }}>KPI chiến dịch</p>
+          {campaignKpi?.attainment?.items?.length ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.2rem 0.3rem' }}>Chỉ số</th>
+                    <th style={{ textAlign: 'right', padding: '0.2rem 0.3rem' }}>Mục tiêu</th>
+                    <th style={{ textAlign: 'right', padding: '0.2rem 0.3rem' }}>Thực tế</th>
+                    <th style={{ textAlign: 'right', padding: '0.2rem 0.3rem' }}>% đạt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaignKpi.attainment.items.map((item) => (
+                    <tr key={item.key}>
+                      <td style={{ padding: '0.2rem 0.3rem' }}>{item.label}</td>
+                      <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right' }}>{item.target == null ? '—' : item.target}</td>
+                      <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right' }}>{item.actual == null ? '—' : item.actual}</td>
+                      <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right' }}>{item.pct == null ? '—' : `${item.pct}%`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {tab === 'onboard' ? (
+            <>
+              <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                <span className="muted">Mục tiêu</span>
+                <textarea rows={2} value={kpiDraft.goal} onChange={(e) => setKpiDraft((prev) => ({ ...prev, goal: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+              </label>
+              <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                <span className="muted">Thời gian truyền thông</span>
+                <input value={kpiDraft.comms_period} onChange={(e) => setKpiDraft((prev) => ({ ...prev, comms_period: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.4rem' }}>
+                {([
+                  ['budget_vnd', 'Ngân sách'],
+                  ['like_page', 'Like Page'],
+                  ['impression', 'Impression'],
+                  ['reach', 'Reach'],
+                  ['click', 'Click'],
+                  ['ctr', 'CTR'],
+                  ['lead', 'Lead'],
+                ] as const).map(([field, label]) => (
+                  <label key={field} style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                    <span className="muted">{label}</span>
+                    <input value={kpiDraft[field]} onChange={(e) => setKpiDraft((prev) => ({ ...prev, [field]: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+                  </label>
+                ))}
+              </div>
+              {campaignKpi?.can_edit ? (
+                <div>
+                  <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveCampaignKpi('targets')}>
+                    Lưu mục tiêu
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {tab !== 'onboard' ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.4rem' }}>
+                {([
+                  ['actual_like_page', 'Like Page (thực tế)'],
+                  ['actual_impression', 'Impression (thực tế)'],
+                  ['actual_reach', 'Reach (thực tế)'],
+                  ['actual_click', 'Click (thực tế)'],
+                  ['actual_ctr', 'CTR (thực tế)'],
+                  ['actual_lead', 'Lead (thực tế)'],
+                ] as const).map(([field, label]) => (
+                  <label key={field} style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                    <span className="muted">{label}</span>
+                    <input value={kpiDraft[field]} onChange={(e) => setKpiDraft((prev) => ({ ...prev, [field]: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+                  </label>
+                ))}
+                {campaignKpi?.can_view_margin ? (
+                  <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                    <span className="muted">Chi phí ads/media</span>
+                    <input value={kpiDraft.ads_media_cost_vnd} onChange={(e) => setKpiDraft((prev) => ({ ...prev, ads_media_cost_vnd: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+                  </label>
+                ) : null}
+              </div>
+              {campaignKpi?.can_edit ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveCampaignKpi('actuals')}>Lưu số thực tế</button>
+                  {campaignKpi.can_view_margin ? (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => void saveCampaignKpi('ads')}>Lưu chi phí ads/media</button>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {tab === 'handover' || tab === 'retain' ? (
+            <>
+              <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                <span className="muted">Ghi chú retro (bàn giao → giữ chân)</span>
+                <textarea rows={2} value={kpiDraft.retro_note} onChange={(e) => setKpiDraft((prev) => ({ ...prev, retro_note: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+              </label>
+              <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+                <span className="muted">Ghi chú gia hạn / upsell</span>
+                <textarea rows={2} value={kpiDraft.upsell_note} onChange={(e) => setKpiDraft((prev) => ({ ...prev, upsell_note: e.target.value }))} disabled={saving || !campaignKpi?.can_edit} style={{ padding: '0.35rem 0.45rem', borderRadius: 8, border: '1px solid var(--border)' }} />
+              </label>
+              {campaignKpi?.can_edit ? (
+                <div>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => void saveCampaignKpi('retention')}>Lưu ghi chú giữ chân</button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
       ) : null}
 
