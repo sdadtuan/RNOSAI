@@ -328,7 +328,7 @@ export function LeadKanbanBoard({
       return;
     }
     if (target === 'dam_phan') {
-      void moveLead(lead, 'dam_phan', { audit_note: 'Chuyển sang Thương thảo' });
+      void moveLead(lead, 'dam_phan', { audit_note: 'Chuyển sang Báo Giá' });
       return;
     }
     if (target === 'bao_gia') {
