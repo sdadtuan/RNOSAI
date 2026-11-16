@@ -4,6 +4,7 @@ import {
   formatSolutionAiTime,
   SOLUTION_AI_PENDING_LABEL,
 } from '@/lib/crm/solution-ai-draft-display';
+import { downloadSolutionAiPptxDocument } from '@/lib/crm/solution-ai-pptx';
 
 type Section = { key: string; label: string; body: string };
 
@@ -102,7 +103,7 @@ export function SolutionAiDraftBody({
   }
 
   function downloadDocument() {
-    const html = buildSolutionHtmlDocument({
+    void downloadSolutionAiPptxDocument({
       customer,
       contactName: contactName || '',
       leadCode: leadCode || '',
@@ -110,15 +111,6 @@ export function SolutionAiDraftBody({
       subtitle: title,
       sections: readable,
     });
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = sanitizeFileName(`Solution - ${customer} (AI).html`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 4_000);
   }
 
   return (

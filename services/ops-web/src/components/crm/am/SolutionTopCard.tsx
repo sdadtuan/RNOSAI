@@ -8,7 +8,7 @@ import {
 } from '@/lib/crm/solution-activity';
 import { formatAttachmentMeta, formatFileSize } from '@/lib/crm/solution-file-display';
 import { formatSolutionAiTime } from '@/lib/crm/solution-ai-draft-display';
-import { downloadSolutionAiWordDocument } from '@/components/crm/SolutionAiDocument';
+import { downloadSolutionAiPptxDocument } from '@/lib/crm/solution-ai-pptx';
 
 /** dd-mm-yyyy in Asia/Saigon. */
 function saigonDmy(iso?: string): string {
@@ -158,7 +158,7 @@ export function SolutionTopCard({
               onClick={() => {
                 const draft = aiState.draft;
                 const who = customerName.trim() || leadCode.trim() || 'Lead';
-                downloadSolutionAiWordDocument({
+                void downloadSolutionAiPptxDocument({
                   customer: customerName.trim() || who,
                   leadCode,
                   createdAt: formatSolutionAiTime(draft.requestedAt),

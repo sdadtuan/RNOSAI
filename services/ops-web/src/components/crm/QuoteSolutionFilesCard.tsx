@@ -10,7 +10,7 @@ import {
   type SolutionAttachment,
 } from '@/lib/crm/solution-file-display';
 import { formatHistoryClock } from '@/lib/crm/lead-history';
-import { downloadSolutionAiHtmlDocument } from '@/components/crm/SolutionAiDocument';
+import { downloadSolutionAiPptxDocument } from '@/lib/crm/solution-ai-pptx';
 
 const DOC_ICON =
   'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6';
@@ -55,7 +55,7 @@ export function QuoteSolutionFilesCard({
 
   function downloadAi() {
     if (!aiDraft || aiDraft.status === 'pending') return;
-    downloadSolutionAiHtmlDocument({
+    void downloadSolutionAiPptxDocument({
       customer,
       leadCode: leadCode || '',
       createdAt: formatSolutionAiTime(aiDraft.requestedAt),
