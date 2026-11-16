@@ -5,7 +5,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { assertPresalesCareGate, parseLeadMeta } from '../leads-funnel/care-pipeline.util';
 import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
 import { buildReadinessChecks } from './contract-readiness.util';
-import { ContractPromotePgUtil, PresalesPromoteSource } from './contract-promote-pg.util';
+import { ContractPromotePgUtil, optionalPromoteStep, PresalesPromoteSource } from './contract-promote-pg.util';
 import type {
   ApprovalStatus,
   ContractApprovalRow,
@@ -576,6 +576,21 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     agency_client_link_mode: AgencyClientLinkMode;
   }> {
     const client = await this.db.connect();
+    // Remember the first real Postgres error so the UI never shows only "current transaction is aborted".
+    let firstPgError: Error | null = null;
+    const patchable = client as unknown as { query: (...args: unknown[]) => unknown };
+    const originalQuery = patchable.query;
+    const rawQuery = originalQuery.bind(client) as (...args: unknown[]) => unknown;
+    patchable.query = (...args: unknown[]) => {
+      const out = rawQuery(...args);
+      if (out && typeof (out as Promise<unknown>).catch === 'function') {
+        (out as Promise<unknown>).catch((e: unknown) => {
+          const code = (e as { code?: string })?.code;
+          if (!firstPgError && code !== '25P02' && e instanceof Error) firstPgError = e;
+        });
+      }
+      return out;
+    };
     try {
       await client.query('BEGIN');
 
@@ -595,8 +610,13 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         if (!ctx) throw new Error('Lead chưa có pre-sales');
         const plan = ctx.marketingPlan;
         const quoteApproved = Boolean(ctx.row.quote_approved_at);
-        if (!plan && !quoteApproved) throw new Error('Thiếu Kế hoạch MKT sơ bộ');
-        const tasks = await this.funnelPg.getPresalesTasksForPromote(Number(ctx.row.id));
+        // KH MKT sơ bộ + presales tasks are optional at approve time — missing ones are skipped.
+        let tasks: Array<Record<string, unknown>> = [];
+        try {
+          tasks = await this.funnelPg.getPresalesTasksForPromote(Number(ctx.row.id));
+        } catch (taskErr) {
+          console.warn(`[contract-approve] presales tasks unavailable for lead ${leadId}: ${(taskErr as Error)?.message ?? taskErr}`);
+        }
         presalesSource = {
           presalesId: Number(ctx.row.id),
           leadId,
@@ -620,9 +640,11 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         `UPDATE crm_contract_approvals SET status = 'approved', decided_by = $2, decided_at = $3::timestamptz WHERE id = $1`,
         [approvalId, actor, ts],
       );
-      await this.logContractEvent(client, contractId, 'approved', actor, { approval_id: approvalId });
-      await this.logContractEvent(client, contractId, 'activated', actor, { lifecycle_id: promote.lifecycle_id });
-      await this.logContractEvent(client, contractId, 'promoted', actor, promote);
+      await optionalPromoteStep(client, 'contract_events', async () => {
+        await this.logContractEvent(client, contractId, 'approved', actor, { approval_id: approvalId });
+        await this.logContractEvent(client, contractId, 'activated', actor, { lifecycle_id: promote.lifecycle_id });
+        await this.logContractEvent(client, contractId, 'promoted', actor, promote);
+      }, undefined);
 
       const approvalUpdated = await client.query(`SELECT * FROM crm_contract_approvals WHERE id = $1`, [approvalId]);
       const contractUpdated = await client.query(`SELECT * FROM crm_contracts WHERE id = $1`, [contractId]);
@@ -639,9 +661,15 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         agency_client_link_mode: promote.agency_client_link_mode,
       };
     } catch (err) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => undefined);
+      const code = (err as { code?: string })?.code;
+      const realErr = firstPgError as Error | null;
+      if (code === '25P02' && realErr) {
+        throw new Error(`Duyệt HĐ thất bại: ${realErr.message}`);
+      }
       throw err;
     } finally {
+      patchable.query = originalQuery;
       client.release();
     }
   }

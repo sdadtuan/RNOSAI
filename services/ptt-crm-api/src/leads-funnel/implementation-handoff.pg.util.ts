@@ -46,16 +46,15 @@ export async function notifyMarketingLeadersImplementationHandoff(
        SELECT u.id::uuid,
               'implementation_handoff',
               'Case Triển khai chờ MKL nhận',
-              $2,
+              $1::text,
               '/crm/implementation/queue',
-              $3::jsonb
+              $2::jsonb
          FROM crm_staff s
          JOIN crm_positions p ON p.id = s.position_id
          JOIN staff_users u ON lower(trim(u.email)) = lower(trim(s.email))
         WHERE s.active IS TRUE
           AND lower(replace(p.code, ' ', '')) IN ('mkl', 'mkt-01', 'mkt01')`,
       [
-        leadId,
         `${label} — nhận case Triển khai trong ${IMPLEMENTATION_ACCEPT_MINUTES} phút.`,
         JSON.stringify({ lead_id: leadId }),
       ],

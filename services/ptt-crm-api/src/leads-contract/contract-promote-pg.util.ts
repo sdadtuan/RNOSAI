@@ -1,6 +1,5 @@
 import type { PoolClient } from 'pg';
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
-import { PRESALES_STAGES } from '../leads-funnel/leads-funnel.types';
 import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan.util';
 import { ensureAgencyClientOnPromote } from './contract-promote-client-pg.util';
 import type { ContractPromoteResult } from './contract.types';
@@ -28,6 +27,33 @@ function toIsoTs(value: unknown): string | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   const ms = Date.parse(String(value));
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+let optionalStepSeq = 0;
+
+/**
+ * Run a non-critical promote side step inside a SAVEPOINT. On error only that step is rolled back
+ * (logged + skipped) so the surrounding approval transaction is never left aborted.
+ */
+export async function optionalPromoteStep<T>(
+  client: PoolClient,
+  label: string,
+  fn: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  optionalStepSeq = (optionalStepSeq + 1) % 1_000_000;
+  const sp = `sp_promote_opt_${optionalStepSeq}`;
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const out = await fn();
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    return out;
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    console.warn(`[contract-promote] skipped optional step "${label}": ${err instanceof Error ? err.message : String(err)}`);
+    return fallback;
+  }
 }
 
 function asJsonb(val: unknown, fallback: string): string {
@@ -96,69 +122,36 @@ export class ContractPromotePgUtil {
           contract.case_id != null ? Number(contract.case_id) : null,
         );
         if (String(contract.status ?? '').trim().toLowerCase() === 'active') {
-          await recordLifecycleMilestone(client, {
+          await optionalPromoteStep(client, 'lifecycle_milestone', () => recordLifecycleMilestone(client, {
             leadId,
             key: 'contract_active',
             occurredAt: ts,
             source: 'contract_promote',
             refId: String(contractId),
             payload: { lifecycle_id: lifecycleId },
-          });
+          }), undefined);
         }
-        await client.query(
+        await optionalPromoteStep(client, 'contract_signed_at', () => client.query(
           `UPDATE crm_lead_presales
               SET contract_signed_at = COALESCE(contract_signed_at, $2::timestamptz),
                   implementation_status = COALESCE(NULLIF(implementation_status, ''), 'trien_khai'),
                   updated_at = $2::timestamptz
             WHERE lead_id = $1`,
           [leadId, ts],
-        );
-        await seedQuoteDeliveryTasks(client, {
+        ), undefined);
+        await optionalPromoteStep(client, 'quote_delivery_tasks', () => seedQuoteDeliveryTasks(client, {
           leadId,
           lifecycleId,
           presalesId,
           assignedAm,
           startedAt: ts,
-        });
+        }), undefined);
         if (manageTx) await client.query('COMMIT');
         return withClient;
       }
 
-      const quoteApproved = Boolean(ps.quote_approved_at) || presalesSource?.quoteApproved === true;
-      if (!quoteApproved && presalesSource) {
-        for (const stage of PRESALES_STAGES) {
-          const pending = presalesSource.tasks.filter(
-            (task) =>
-              String(task.stage) === stage &&
-              !Number(task.is_custom) &&
-              !Boolean(task.is_done),
-          ).length;
-          if (pending > 0) throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
-        }
-        const planGate = validatePreliminaryPlan(presalesSource.plan);
-        if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
-      } else if (!quoteApproved) {
-        for (const stage of PRESALES_STAGES) {
-          const pending = await client.query(
-            `SELECT COUNT(*)::int AS c FROM crm_lead_presales_tasks
-             WHERE presales_id = $1 AND stage = $2 AND is_custom = FALSE AND is_done = FALSE`,
-            [presalesId, stage],
-          );
-          if (Number(pending.rows[0]?.c ?? 0) > 0) {
-            throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
-          }
-        }
-
-        const planResult = await client.query(
-          `SELECT * FROM crm_marketing_plans
-           WHERE presales_id = $1 AND plan_kind = 'preliminary'
-           ORDER BY id DESC LIMIT 1`,
-          [presalesId],
-        );
-        const plan = planResult.rows[0] as Record<string, unknown> | undefined;
-        const planGate = validatePreliminaryPlan(plan ?? null);
-        if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
-      }
+      // Presales task completion + preliminary MKT plan are optional at approve time (Tú 16/11):
+      // missing data is skipped, not a blocker. Contract + presales record + GDKD approver stay required.
 
       const convert = await this.convertLeadToCrm(client, leadId, actor, ts);
       await client.query(
@@ -183,14 +176,14 @@ export class ContractPromotePgUtil {
         presalesSource,
       );
 
-      await recordLifecycleMilestone(client, {
+      await optionalPromoteStep(client, 'lifecycle_milestone', () => recordLifecycleMilestone(client, {
         leadId,
         key: 'contract_active',
         occurredAt: ts,
         source: 'contract_promote',
         refId: String(contractId),
         payload: { lifecycle_id: lifecycleId },
-      });
+      }), undefined);
 
       await client.query(
         `UPDATE crm_leads SET status = 'trien_khai', updated_at = $2::timestamptz, updated_by = $3
@@ -205,19 +198,31 @@ export class ContractPromotePgUtil {
           WHERE lead_id = $1`,
         [leadId, ts],
       );
-      const handoffCreated = await ensureImplementationHandoffOnTrienKhai(client, leadId);
+      const handoffCreated = await optionalPromoteStep(
+        client,
+        'implementation_handoff',
+        () => ensureImplementationHandoffOnTrienKhai(client, leadId),
+        false,
+      );
       if (handoffCreated) {
-        const leadNameRow = await client.query(
-          `SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
-          [leadId],
-        );
-        const leadName = String(leadNameRow.rows[0]?.full_name ?? '').trim();
-        await notifyMarketingLeadersImplementationHandoff(client, leadId, leadName);
+        await optionalPromoteStep(client, 'notify_mkl_implementation', async () => {
+          const leadNameRow = await client.query(
+            `SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
+            [leadId],
+          );
+          const leadName = String(leadNameRow.rows[0]?.full_name ?? '').trim();
+          await notifyMarketingLeadersImplementationHandoff(client, leadId, leadName);
+        }, undefined);
       }
 
       const placeholderId = Number(contract.customer_id);
       if (placeholderId !== convert.customer_id) {
-        await this.deletePlaceholderIfOrphan(client, placeholderId);
+        await optionalPromoteStep(
+          client,
+          'delete_placeholder_customer',
+          () => this.deletePlaceholderIfOrphan(client, placeholderId),
+          undefined,
+        );
       }
 
       const assignedAm =
@@ -285,7 +290,7 @@ export class ContractPromotePgUtil {
     caseId: number | null,
   ): Promise<ContractPromoteResult> {
     const leadCtx = await this.loadLeadPromoteContext(client, leadId);
-    const clientResult = await ensureAgencyClientOnPromote(client, {
+    const clientResult = await optionalPromoteStep(client, 'agency_client_link', () => ensureAgencyClientOnPromote(client, {
       contractId,
       leadId,
       lifecycleId,
@@ -296,6 +301,9 @@ export class ContractPromotePgUtil {
       assignedAmStaffId,
       leadOwnerStaffId: leadCtx.owner_id,
       actorEmail,
+    }), {
+      agency_client_id: String(contract.agency_client_id ?? leadCtx.agency_client_id ?? ''),
+      agency_client_link_mode: 'link_ambiguous' as const,
     });
     return {
       lifecycle_id: lifecycleId,
@@ -323,8 +331,8 @@ export class ContractPromotePgUtil {
     if (ld.converted_case_id) {
       return { customer_id: Number(ld.converted_customer_id), case_id: Number(ld.converted_case_id) };
     }
-    const name = String(ld.full_name ?? '').trim();
-    if (!name) throw new Error('Lead thiếu họ tên');
+    // Missing name is not a blocker — fall back to the lead code.
+    const name = String(ld.full_name ?? '').trim() || `Lead #${leadId}`;
 
     let custId = await this.findExistingCustomer(client, String(ld.phone ?? ''), String(ld.email ?? ''));
     if (!custId) {
@@ -435,11 +443,11 @@ export class ContractPromotePgUtil {
     );
     const lifecycleId = Number(lcInsert.rows[0].id);
 
-    await client.query(
+    await optionalPromoteStep(client, 'lifecycle_event', () => client.query(
       `INSERT INTO crm_service_lifecycle_events (lifecycle_id, from_stage, to_stage, actor_type, notes, created_at)
        VALUES ($1, 'proposal', 'onboard', 'system', $2, $3::timestamptz)`,
       [lifecycleId, `Ký HĐ #${contractId}`, ts],
-    );
+    ), undefined);
 
     const srcTasks = presalesSource
       ? presalesSource.tasks
@@ -451,7 +459,7 @@ export class ContractPromotePgUtil {
         ).rows as Array<Record<string, unknown>>);
 
     for (const src of srcTasks) {
-      await client.query(
+      await optionalPromoteStep(client, `copy_presales_task_${String(src.id ?? '')}`, () => client.query(
         `INSERT INTO crm_svc_tasks
            (lifecycle_id, stage, step_index, title, description, ai_prompt_key, form_fields, form_data,
             ai_output, is_done, done_at, done_by, notes, is_custom, created_at, updated_at)
@@ -473,39 +481,55 @@ export class ContractPromotePgUtil {
           Boolean(src.is_custom),
           ts,
         ],
-      );
+      ), undefined);
     }
 
-    await seedQuoteDeliveryTasks(client, {
+    await optionalPromoteStep(client, 'quote_delivery_tasks', () => seedQuoteDeliveryTasks(client, {
       leadId,
       lifecycleId,
       presalesId,
       assignedAm,
       startedAt: ts,
-    });
-    await seedPostOnboardLifecycleTasks(client, lifecycleId, serviceSlug, ts);
-    const skipPlanGate = presalesSource?.quoteApproved === true;
+    }), undefined);
+    await optionalPromoteStep(
+      client,
+      'post_onboard_lifecycle_tasks',
+      () => seedPostOnboardLifecycleTasks(client, lifecycleId, serviceSlug, ts),
+      undefined,
+    );
+    // Preliminary MKT plan is optional: clone when present, never block approve (skipGate).
     if (presalesSource?.plan && Object.keys(presalesSource.plan).length > 0) {
-      await this.clonePreliminaryToOfficialFromPlan(
+      const plan = presalesSource.plan;
+      await optionalPromoteStep(client, 'clone_official_plan', () => this.clonePreliminaryToOfficialFromPlan(
         client,
-        presalesSource.plan,
+        plan,
         lifecycleId,
         leadId,
         presalesId,
         ts,
-        skipPlanGate,
-      );
+        true,
+      ), undefined);
     } else {
-      await this.clonePreliminaryToOfficial(client, presalesId, lifecycleId, leadId, ts, skipPlanGate);
+      await optionalPromoteStep(
+        client,
+        'clone_official_plan',
+        () => this.clonePreliminaryToOfficial(client, presalesId, lifecycleId, leadId, ts, true),
+        undefined,
+      );
     }
-    await this.linkPresalesExpensesToLifecycle(client, presalesId, lifecycleId, ts);
+    await optionalPromoteStep(
+      client,
+      'link_presales_expenses',
+      () => this.linkPresalesExpensesToLifecycle(client, presalesId, lifecycleId, ts),
+      0,
+    );
 
-    await client.query(
+    await optionalPromoteStep(client, 'link_intake_sessions', () => client.query(
       `UPDATE crm_lead_intake_sessions
        SET lifecycle_id = $1, updated_at = NOW()
        WHERE lead_id = $2 AND (lifecycle_id IS NULL OR lifecycle_id = 0)`,
       [lifecycleId, leadId],
-    );
+    ), undefined);
 
     await client.query(
       `UPDATE crm_lead_presales SET status = 'converted', lifecycle_id = $2, updated_at = $3::timestamptz WHERE id = $1`,

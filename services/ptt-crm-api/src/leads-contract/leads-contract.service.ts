@@ -166,16 +166,27 @@ export class LeadsContractService {
 
   async approve(approvalId: number, actor: string) {
     const result = await this.pgRepo.approveAndPromote(approvalId, actor);
-    await this.b2bCommissionLedger.postOnContractActive({
-      leadId: Number(result.contract.lead_id),
-      contractId: Number(result.contract.id),
-      amountVnd: Number(result.contract.amount_vnd ?? 0),
-    });
-    const sop = await this.sopAutoStart.maybeStartOnLifecyclePromote({
-      lifecycleId: result.lifecycle_id,
-      contractId: result.contract.id,
-      serviceSlug: result.contract.service_slug ?? '',
-    });
+    // Approval is committed above; the steps below are optional and only log on failure.
+    await this.b2bCommissionLedger
+      .postOnContractActive({
+        leadId: Number(result.contract.lead_id),
+        contractId: Number(result.contract.id),
+        amountVnd: Number(result.contract.amount_vnd ?? 0),
+      })
+      .catch((err: unknown) => {
+        console.warn(`[contract-approve] commission ledger skipped: ${(err as Error)?.message ?? err}`);
+      });
+    const sop = await this.sopAutoStart
+      .maybeStartOnLifecyclePromote({
+        lifecycleId: result.lifecycle_id,
+        contractId: result.contract.id,
+        serviceSlug: result.contract.service_slug ?? '',
+      })
+      .catch((err: unknown) => {
+        const reason = (err as Error)?.message ?? String(err);
+        console.warn(`[contract-approve] SOP auto-start skipped: ${reason}`);
+        return { started: false, reason } as Awaited<ReturnType<SopAutoStartService['maybeStartOnLifecyclePromote']>>;
+      });
     if (
       result.agency_client_link_mode === 'created' &&
       result.agency_client_id &&
@@ -192,7 +203,9 @@ export class LeadsContractService {
         amEmail,
         'GDKD đã duyệt hợp đồng',
         `Lead #${result.contract.lead_id} — HĐ đã được duyệt, lead sang Triển khai.`,
-      );
+      ).catch((err: unknown) => {
+        console.warn(`[contract-approve] AM notify skipped: ${(err as Error)?.message ?? err}`);
+      });
     }
     return { ...result, sop_auto_start: sop };
   }
