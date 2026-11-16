@@ -3,6 +3,7 @@ import { Pool, PoolClient } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { parseLeadMetaIndustry } from '../intake/intake-context.util';
 import { prefillCompanyName } from '../leads/lead-party.util';
+import { LEAD_LOCKED_CONTACT_STATUS, leadNotLockedSql } from '../leads/lead-lock.util';
 import { AppConfigService } from '../config/app-config.service';
 import { assertEligibleLeadOwner, ELIGIBLE_LEAD_OWNER_SQL } from '../ae-team/eligible-lead-owner';
 import { isSpokenCallResult, preB2HoldState, type PreB2HoldState } from './pre-b2-hold.util';
@@ -722,6 +723,18 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       `UPDATE crm_leads SET updated_at = NOW(), updated_by = $2 WHERE sqlite_lead_id = $1`,
       [leadId, actor.slice(0, 120)],
     );
+    if (careStatus === 'so_sai') {
+      // Sales confirmed "Sai số" → lock the lead (hidden from all but super admin, no transfers).
+      await this.db.query(
+        `UPDATE crm_leads
+            SET contact_status = $2,
+                last_call_result = 'wrong_number',
+                contact_closed_reason = COALESCE(NULLIF(contact_closed_reason, ''), 'sales_confirmed_wrong_number'),
+                updated_at = NOW()
+          WHERE sqlite_lead_id = $1`,
+        [leadId, LEAD_LOCKED_CONTACT_STATUS],
+      );
+    }
   }
 
   async completeCareStage(
@@ -863,7 +876,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT COUNT(*)::int AS c FROM crm_leads l
        WHERE COALESCE(l.meta_json->'review_queue'->>'active', '') = 'true'
-         AND l.is_duplicate IS NOT TRUE${scopeParts.sql}`,
+         AND l.is_duplicate IS NOT TRUE AND ${leadNotLockedSql('l')}${scopeParts.sql}`,
       scopeParts.params,
     );
     return Number(result.rows[0]?.c ?? 0);
@@ -893,7 +906,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.meta_json->'review_queue'->>'assigned_at', '') AS first_assigned_at
        FROM crm_leads l
        WHERE COALESCE(l.meta_json->'review_queue'->>'active', '') = 'true'
-         AND l.is_duplicate IS NOT TRUE${scopeParts.sql}
+         AND l.is_duplicate IS NOT TRUE AND ${leadNotLockedSql('l')}${scopeParts.sql}
        ORDER BY l.meta_json->'review_queue'->>'queued_at' DESC NULLS LAST, l.sqlite_lead_id DESC
        LIMIT $1`,
       [lim, ...scopeParts.params],
@@ -937,7 +950,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.is_hot, FALSE) AS is_hot
        FROM crm_leads l
        WHERE l.owner_id IS NOT NULL
-         AND l.is_duplicate IS NOT TRUE
+         AND l.is_duplicate IS NOT TRUE AND ${leadNotLockedSql('l')}
          AND l.status NOT IN ('lost')
          AND COALESCE(l.meta_json->'review_queue'->>'active', '') != 'true'
          AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''`,
@@ -1035,7 +1048,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.is_hot, FALSE) AS is_hot
          FROM crm_leads l
         WHERE l.owner_id IS NOT NULL
-          AND l.is_duplicate IS NOT TRUE
+          AND l.is_duplicate IS NOT TRUE AND ${leadNotLockedSql('l')}
           AND l.status NOT IN ('lost')
           AND COALESCE(l.meta_json->'review_queue'->>'active', '') != 'true'
           AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''
@@ -3869,7 +3882,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
        WHERE ps.status = 'active'
-         AND ps.handoff_status = ANY($1::text[])
+         AND ps.handoff_status = ANY($1::text[]) AND ${leadNotLockedSql('l')}
          ${ownerClause}
        ORDER BY ps.handed_off_at DESC NULLS LAST, ps.id DESC
        LIMIT $2`,
@@ -3896,7 +3909,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          ON ps.lead_id = l.sqlite_lead_id AND ps.status = 'active'
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
-       WHERE l.owner_id = $1
+       WHERE l.owner_id = $1 AND ${leadNotLockedSql('l')}
          AND lower(trim(COALESCE(l.status, ''))) IN ('dang_tu_van', 'da_lien_he', 'moi')
          AND COALESCE(ps.handoff_status, '') NOT IN ('pending', 'with_solution')
          AND EXISTS (
@@ -3962,7 +3975,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff impl ON impl.id = ps.implementation_owner_staff_id
-       WHERE lower(trim(COALESCE(ps.status, ''))) IN ('active', 'converted')
+       WHERE lower(trim(COALESCE(ps.status, ''))) IN ('active', 'converted') AND ${leadNotLockedSql('l')}
          AND ps.implementation_status = 'trien_khai'
          AND lower(COALESCE(ps.implementation_handoff_status, '')) = ANY($1::text[])
        ORDER BY ps.implementation_accept_due_at ASC NULLS LAST, ps.id DESC

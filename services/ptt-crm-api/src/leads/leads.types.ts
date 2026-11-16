@@ -1,5 +1,7 @@
 export interface LeadV1 {
   id: number;
+  /** Sales confirmed "Sai số" — lead locked, visible to super admin only. */
+  lead_locked?: boolean;
   full_name: string;
   phone: string;
   email: string;
@@ -93,6 +95,7 @@ export interface LeadRow {
 
 export interface PgLeadRow {
   sqlite_lead_id: number | string;
+  lead_locked?: boolean | null;
   full_name: string | null;
   phone: string | null;
   email: string | null;
@@ -185,6 +188,8 @@ export interface ListLeadsQuery {
   };
   /** Marketing Leader: only leads already handed to Solution or past that step. */
   from_solution_onward?: boolean;
+  /** Super admin only: include leads locked as "Sai số" (contact_status=invalid_contact). */
+  include_locked?: boolean;
 }
 
 export interface CreateLeadV1Body {

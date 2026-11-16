@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { leadNotLockedSql } from '../leads/lead-lock.util';
 import { buildB2bProspectListFilter } from '../leads-funnel/lead-flow-list-filter.util';
 
 function isStaffUserUuid(value: string): boolean {
@@ -199,6 +200,7 @@ export class AeTeamRepository implements OnModuleDestroy {
        FROM crm_leads l
        WHERE l.owner_id = ANY($1::bigint[])
          AND l.is_duplicate IS NOT TRUE
+         AND ${leadNotLockedSql('l')}
          AND ${flow}`,
       [ownerIds],
     );

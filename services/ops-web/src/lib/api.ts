@@ -61,6 +61,8 @@ export interface StaffMeResponse extends StoredStaffUser {
 
 export interface LeadRow {
   id: number;
+  /** Sales confirmed "Sai số" — locked, only super admin can view. */
+  lead_locked?: boolean;
   full_name: string;
   phone: string;
   email: string;

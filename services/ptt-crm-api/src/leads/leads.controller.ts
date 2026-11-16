@@ -453,7 +453,9 @@ export class LeadsController {
     let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
     let b2bListScope: ListLeadsQuery['b2b_list_scope'];
     let fromSolutionOnward = false;
+    let includeLocked = false;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      includeLocked = await this.staffAuth.isSuperAdminUser(req.staffUser);
       const me = await this.staffAuth.me(req.staffUser);
       fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
       const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
@@ -510,6 +512,7 @@ export class LeadsController {
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       b2b_list_scope: b2bListScope,
       from_solution_onward: fromSolutionOnward || undefined,
+      include_locked: includeLocked || undefined,
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
       const caps = (await this.staffAuth.isSuperAdminUser(req.staffUser))

@@ -39,6 +39,7 @@ const CRM_API_ERROR_VI: Record<string, string> = {
   chat_scope_forbidden: 'Bạn không có quyền thực hiện thao tác này.',
   invalid_lead_id: 'Mã lead không hợp lệ.',
   lead_not_found: 'Không tìm thấy lead.',
+  lead_locked: 'Lead đã khóa (Sai số) — không ai được chỉnh sửa hoặc chuyển lead này.',
 };
 
 /** A server sentence worth showing as-is (not an HTTP default and not a snake_case code). */

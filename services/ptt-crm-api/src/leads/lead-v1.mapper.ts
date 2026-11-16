@@ -200,6 +200,7 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     quote_sent_to_sale: Boolean(row.quote_sent_to_sale),
     quote_approved: Boolean(row.quote_approved),
     quote_case_open: Boolean(row.quote_case_open),
+    lead_locked: Boolean(row.lead_locked),
   };
 }
 

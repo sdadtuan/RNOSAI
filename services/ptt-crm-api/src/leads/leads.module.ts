@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
 import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
@@ -26,6 +27,7 @@ import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
+import { LockedLeadGuard } from './guards/locked-lead.guard';
 import { LeadAutoAssignService } from './ingest/lead-auto-assign.service';
 import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
 import { LeadDedupRepository } from './ingest/lead-dedup.repository';
@@ -82,6 +84,7 @@ import { StaffNotificationsModule } from '../staff-notifications/staff-notificat
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
+    { provide: APP_GUARD, useClass: LockedLeadGuard },
   ],
   exports: [
     LeadsRepository,

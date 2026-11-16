@@ -227,6 +227,7 @@ export default function CrmLeadDetailPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
@@ -1006,11 +1007,14 @@ export default function CrmLeadDetailPage() {
       }
       if (openLeadIdRef.current !== leadId) setLoading(true);
       setError('');
+      setLoadError('');
       let row: Awaited<ReturnType<typeof fetchLead>>;
       try {
         row = await fetchLead(access, leadId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải lead thất bại');
+        const loadMsg = err instanceof Error ? err.message : 'Tải lead thất bại';
+        setLoadError(loadMsg);
+        setError(loadMsg);
         setLoading(false);
         return;
       }
@@ -1611,6 +1615,51 @@ export default function CrmLeadDetailPage() {
   }
 
 
+  if (lead?.lead_locked && !loading) {
+    return (
+      <StaffPageShell
+        user={user}
+        onLogout={logout}
+        width="full"
+        breadcrumb={[
+          { label: 'CRM', href: '/crm/leads' },
+          { label: 'Leads', href: '/crm/leads' },
+          { label: lead.full_name || `#${leadId}` },
+        ]}
+      >
+        <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 720, padding: '1rem 0' }}>
+          <span
+            className="lead-locked-badge"
+            style={{
+              justifySelf: 'start',
+              padding: '0.2rem 0.6rem',
+              borderRadius: 999,
+              background: '#fde8e8',
+              color: '#b42318',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+            }}
+          >
+            Lead đã khóa (Sai số)
+          </span>
+          <h1 style={{ margin: 0, fontSize: '1.25rem' }}>{lead.full_name || `Lead #${leadId}`}</h1>
+          <p style={{ margin: 0 }}>
+            SĐT: {lead.phone || '—'} · Email: {lead.email || '—'} · Trạng thái: {lead.status || '—'}
+          </p>
+          <p style={{ margin: 0, color: '#6b7280' }}>
+            Sales đã xác nhận số sai. Lead chỉ hiển thị cho admin — không ai có thể chỉnh sửa, chuyển
+            hoặc giao lead này.
+          </p>
+          <div>
+            <button type="button" className="btn btn-secondary" onClick={() => router.push('/crm/leads')}>
+              Quay lại danh sách
+            </button>
+          </div>
+        </div>
+      </StaffPageShell>
+    );
+  }
+
   if (isGdkdContractDesk(user)) {
     return (
       <StaffPageShell
@@ -1794,6 +1843,9 @@ export default function CrmLeadDetailPage() {
       ) : null}
 
       {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
+      {!loading && !lead && loadError ? (
+        <p className="lead-empty-state lead-empty-state--page">{loadError}</p>
+      ) : null}
       <ActionErrorToast message={error} />
       <ActionSuccessToast message={message} />
       {copilotMessage ? <p className="lead-copilot-hint">{copilotMessage}</p> : null}

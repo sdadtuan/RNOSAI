@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { leadNotLockedSql } from '../leads/lead-lock.util';
 import { SearchEntityDocument, SearchEntityType } from './crm-search.types';
 
 @Injectable()
@@ -58,7 +59,7 @@ export class SearchDocumentProvider implements OnModuleDestroy {
       const result = await this.db.query(
         `SELECT sqlite_lead_id, full_name, phone, email, status, source, channel, created_at
          FROM crm_leads
-         WHERE is_duplicate IS NOT TRUE
+         WHERE is_duplicate IS NOT TRUE AND ${leadNotLockedSql('')}
          ORDER BY sqlite_lead_id DESC
          LIMIT $1`,
         [limit],
