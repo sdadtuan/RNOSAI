@@ -604,7 +604,12 @@ export function LeadQuoteSheet({
           <span className="quote-sheet__group-icon" aria-hidden="true">
             <QuoteGlyph name={groupGlyph(serviceCode)} size={16} />
           </span>
-          <span className="quote-sheet__service-title">{serviceName}</span>
+          <span className="quote-sheet__service-label">
+            <span className="quote-sheet__service-title">{serviceName}</span>
+            {canToggle ? (
+              <span className="quote-sheet__chevron quote-sheet__service-caret" aria-hidden="true">▾</span>
+            ) : null}
+          </span>
           <span className="quote-sheet__pill" aria-label={`${serviceIncluded} trên ${serviceTotal} hạng mục`}>
             {serviceIncluded}/{serviceTotal}
           </span>
@@ -728,17 +733,6 @@ export function LeadQuoteSheet({
             </tbody>
           </table>
         ) : null}
-        {canToggle ? (
-          <button
-            type="button"
-            className="quote-sheet__more quote-sheet__service-more"
-            aria-expanded={expanded}
-            onClick={toggle}
-          >
-            <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-            {expanded ? 'Thu gọn' : `${hiddenCount} mục khác`}
-          </button>
-        ) : null}
       </div>
     );
   }
@@ -797,33 +791,39 @@ export function LeadQuoteSheet({
           {serviceCapNote ? <p className="quote-sheet__cap-note">{serviceCapNote}</p> : null}
           {extraServices.map((service) => {
             const key = service.code.trim().toUpperCase();
-            const open = openSet.has(key);
+            const loaded = serviceLoaded(service.code);
             const loading = loadingCode === key;
+            const itemCount = Number(service.item_count) || 0;
             return (
               <div key={service.code} className="quote-sheet__extra">
-                {open ? (
-                  loading ? (
-                    <p className="muted">Đang tải…</p>
-                  ) : (
-                    renderServiceTables(service.code)
-                  )
+                {loaded ? (
+                  renderServiceTables(service.code)
                 ) : (
-                  <button
-                    type="button"
-                    className="quote-sheet__extra-head"
-                    aria-expanded={false}
-                    aria-label={`Mở ${service.name}`}
-                    disabled={busy || Boolean(loadingCode)}
-                    onClick={() => void toggleExtraService(service.code)}
-                  >
-                    <span className="quote-sheet__extra-name">{service.name}</span>
-                    {loading ? (
-                      <span className="muted">Đang tải…</span>
-                    ) : (
-                      <span className="quote-sheet__pill">{service.item_count} hạng mục</span>
-                    )}
-                    <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-                  </button>
+                  <div className="quote-sheet__group quote-sheet__service">
+                    <button
+                      type="button"
+                      className="quote-sheet__group-head"
+                      aria-expanded={false}
+                      aria-label={`Mở ${service.name}`}
+                      disabled={busy || Boolean(loadingCode)}
+                      onClick={() => void toggleExtraService(service.code)}
+                    >
+                      <span className="quote-sheet__group-icon" aria-hidden="true">
+                        <QuoteGlyph name={groupGlyph(service.code)} size={16} />
+                      </span>
+                      <span className="quote-sheet__service-label">
+                        <span className="quote-sheet__service-title">{service.name}</span>
+                        <span className="quote-sheet__chevron quote-sheet__service-caret" aria-hidden="true">▾</span>
+                      </span>
+                      {loading ? (
+                        <span className="muted">Đang tải…</span>
+                      ) : (
+                        <span className="quote-sheet__pill" aria-label={`0 trên ${itemCount} hạng mục`}>
+                          0/{itemCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             );

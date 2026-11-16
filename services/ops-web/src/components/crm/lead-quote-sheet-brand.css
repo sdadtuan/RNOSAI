@@ -273,14 +273,34 @@
   margin: 0 16px;
 }
 
+.quote-sheet--brand .quote-sheet__service-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .quote-sheet--brand .quote-sheet__service-title {
   margin: 0;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   font-size: 0.92rem;
   font-weight: 700;
   color: var(--ahd-primary-700, #125a28);
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-sheet--brand .quote-sheet__service-caret {
+  flex: 0 0 auto;
+  color: var(--ahd-primary, #17692f);
+}
+
+.quote-sheet--brand button.quote-sheet__group-head[aria-expanded='true'] .quote-sheet__service-caret {
+  transform: rotate(180deg);
 }
 
 .quote-sheet--brand button.quote-sheet__group-head {
@@ -302,6 +322,10 @@
 .quote-sheet--brand button.quote-sheet__group-head:focus-visible:not(:disabled) {
   background: #f3fbf6;
   outline: none;
+}
+
+.quote-sheet--brand button.quote-sheet__group-head:last-child {
+  border-bottom: 0;
 }
 
 .quote-sheet--brand .quote-sheet__phase-inner {
@@ -327,17 +351,6 @@
 .quote-sheet--brand .quote-sheet__phase .quote-sheet__pill {
   padding: 1px 7px;
   font-size: 0.64rem;
-}
-
-.quote-sheet--brand .quote-sheet__service-more {
-  display: flex;
-  justify-content: center;
-  width: auto;
-  margin: 0.55rem auto 0.7rem;
-}
-
-.quote-sheet--brand .quote-sheet__service-more[aria-expanded='true'] .quote-sheet__chevron {
-  transform: rotate(180deg);
 }
 
 .quote-sheet--brand .quote-sheet__extra:has(.quote-sheet__service) {
