@@ -55,12 +55,16 @@ export function notifyLeadContractChanged() {
 export function LeadDealFilesCard({
   token,
   leadId,
+  showContractColumn = true,
+  allowCreateContract = true,
   onMessage,
   onError,
   onFunnelChange,
 }: {
   token: string;
   leadId: number;
+  showContractColumn?: boolean;
+  allowCreateContract?: boolean;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
@@ -197,7 +201,7 @@ export function LeadDealFilesCard({
     const current = bucket?.current ?? null;
     const older = (bucket?.versions ?? []).filter((row) => row.id !== current?.id);
     const inputRef = kind === 'quote' ? quoteInputRef : contractInputRef;
-    const showCreateContract = kind === 'contract' && !current && Boolean(bucket?.can_upload);
+    const showCreateContract = kind === 'contract' && !current && Boolean(bucket?.can_upload) && allowCreateContract;
     const showUpload = Boolean(bucket?.can_upload) && (kind !== 'contract' || Boolean(current));
     return (
       <div className="lead-deal-files__col">
@@ -272,13 +276,14 @@ export function LeadDealFilesCard({
     );
   }
 
+  const heading = showContractColumn ? 'File báo giá và hợp đồng' : 'File báo giá';
   return (
-    <section className="lead-deal-files" aria-label="File báo giá và hợp đồng">
-      <h2 className="lead-deal-files__title">File báo giá và hợp đồng</h2>
+    <section className="lead-deal-files" aria-label={heading}>
+      <h2 className="lead-deal-files__title">{heading}</h2>
       {localError ? <p className="muted">{localError}</p> : null}
-      <div className="lead-deal-files__grid">
+      <div className={showContractColumn ? 'lead-deal-files__grid' : 'lead-deal-files__grid lead-deal-files__grid--quote-only'}>
         {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Tải lên bản sửa nếu cần.' : 'Đang tải file báo giá…')}
-        {renderColumn('contract', 'File hợp đồng', 'Chưa có file hợp đồng.')}
+        {showContractColumn ? renderColumn('contract', 'File hợp đồng', 'Chưa có file hợp đồng.') : null}
       </div>
     </section>
   );

@@ -2746,6 +2746,8 @@ export interface LeadQuoteSheetRow {
 
 export interface LeadQuoteSheet {
   editable: boolean;
+  submitted_for_ceo?: boolean;
+  phase?: string;
   services: Array<{ code: string; name: string; item_count: number }>;
   staff: LeadQuoteSheetStaff[];
   selected_service_codes: string[];

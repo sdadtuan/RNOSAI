@@ -1478,8 +1478,43 @@ export class LeadsFunnelService {
         };
       }
       const out = await this.pgRepo.quoteContractDocx(leadId);
-      await this.persistGeneratedDealFile(leadId, 'contract', out.filename, CONTRACT_DOCX_MIME, out.buffer, staffUser);
+      await this.persistGeneratedDealFile(
+        leadId,
+        'contract',
+        out.filename,
+        CONTRACT_DOCX_MIME,
+        out.buffer,
+        staffUser,
+        'replace-export',
+      );
       return out;
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async ensureContractDealFile(leadId: number, staffUser?: StaffJwtPayload) {
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      await this.assertCanDownloadDealFile(leadId, 'contract', access, staffUser);
+      const perm = await this.dealFilePermissions(leadId, 'contract', access, staffUser);
+      if (!perm.can_upload) {
+        throw new ForbiddenException({ error: perm.blocked_reason || 'Bạn không được tạo file hợp đồng.' });
+      }
+      const stored = await this.pgRepo.latestDealFile(leadId, 'contract');
+      if (!stored?.storage_path) {
+        const out = await this.pgRepo.quoteContractDocx(leadId);
+        await this.persistGeneratedDealFile(
+          leadId,
+          'contract',
+          out.filename,
+          CONTRACT_DOCX_MIME,
+          out.buffer,
+          staffUser,
+          'replace-export',
+        );
+      }
+      return await this.listDealFiles(leadId, staffUser);
     } catch (err) {
       this.funnelError(err);
     }
@@ -1493,6 +1528,11 @@ export class LeadsFunnelService {
       const hasQuoteFile = files.some((row) => row.kind === 'quote');
       if (!hasQuoteFile && this.quoteHasBeenSubmitted(snap)) {
         await this.attachQuoteExportOnSubmit(leadId, staffUser);
+        files = await this.pgRepo.listDealFiles(leadId);
+      }
+      const hasContractFile = files.some((row) => row.kind === 'contract');
+      if (!hasContractFile && Boolean(snap?.presales?.contract_created_at)) {
+        await this.attachContractExport(leadId, staffUser);
         files = await this.pgRepo.listDealFiles(leadId);
       }
       const quotePerm = await this.dealFilePermissions(leadId, 'quote', access, staffUser, snap);
@@ -1624,6 +1664,25 @@ export class LeadsFunnelService {
     }
   }
 
+  private async attachContractExport(leadId: number, staffUser?: StaffJwtPayload): Promise<void> {
+    try {
+      const stored = await this.pgRepo.latestDealFile(leadId, 'contract');
+      if (stored?.storage_path) return;
+      const out = await this.pgRepo.quoteContractDocx(leadId);
+      await this.persistGeneratedDealFile(
+        leadId,
+        'contract',
+        out.filename,
+        CONTRACT_DOCX_MIME,
+        out.buffer,
+        staffUser,
+        'replace-export',
+      );
+    } catch (err) {
+      console.warn(`[deal-files] attach contract export failed: ${(err as Error)?.message ?? err}`);
+    }
+  }
+
   private async attachQuoteExportOnSubmit(leadId: number, staffUser?: StaffJwtPayload): Promise<void> {
     try {
       const access = await this.quoteSheetAccess(staffUser);
@@ -1709,6 +1768,17 @@ export class LeadsFunnelService {
     }
     if (access.isSales && !asSuper && !asCeo) {
       return { can_upload: false, can_download: true };
+    }
+    const implemented =
+      String(current?.presales.implementation_status ?? '').trim() === 'trien_khai' ||
+      String(current?.quote_case?.phase ?? '') === 'trien_khai' ||
+      Boolean(String(current?.presales.contract_signed_at ?? '').trim());
+    if (implemented) {
+      return {
+        can_upload: false,
+        can_download: true,
+        blocked_reason: 'Hợp đồng đã được GĐKD duyệt.',
+      };
     }
     const canUpload = asCeo || asAssignee;
     return {

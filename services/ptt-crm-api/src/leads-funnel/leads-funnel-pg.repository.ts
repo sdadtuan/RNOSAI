@@ -263,6 +263,18 @@ type PgPresalesRow = {
   contract_amount_vnd?: string | number | null;
 };
 
+
+function isoStamp(value: Date | string | null | undefined): string {
+  if (value == null || value === '') return '';
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+  }
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const ms = Date.parse(raw);
+  return Number.isNaN(ms) ? raw : new Date(ms).toISOString();
+}
+
 @Injectable()
 export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -316,15 +328,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       status: String(row.status ?? 'active'),
       assigned_am: row.assigned_am != null ? Number(row.assigned_am) : null,
       lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
-      stage_entered_at: row.stage_entered_at ? String(row.stage_entered_at) : '',
-      consult_entered_at: row.consult_entered_at ? String(row.consult_entered_at) : '',
-      proposal_entered_at: row.proposal_entered_at ? String(row.proposal_entered_at) : '',
+      stage_entered_at: isoStamp(row.stage_entered_at),
+      consult_entered_at: isoStamp(row.consult_entered_at),
+      proposal_entered_at: isoStamp(row.proposal_entered_at),
       notes: String(row.notes ?? ''),
       draft_marketing_plan_id:
         row.draft_marketing_plan_id != null ? Number(row.draft_marketing_plan_id) : null,
       l2_docs_json: parsePresalesL2DocsJson(row.l2_docs_json ?? {}),
       handoff_status: normalizeHandoffStatus(row.handoff_status),
-      handed_off_at: row.handed_off_at ? String(row.handed_off_at) : '',
+      handed_off_at: isoStamp(row.handed_off_at),
       handed_off_by_staff_id:
         row.handed_off_by_staff_id != null ? Number(row.handed_off_by_staff_id) : null,
       solution_owner_staff_id:
@@ -333,22 +345,22 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         row.last_solution_owner_staff_id != null && Number(row.last_solution_owner_staff_id) > 0
           ? Number(row.last_solution_owner_staff_id)
           : null,
-      solution_claimed_at: row.solution_claimed_at ? String(row.solution_claimed_at) : '',
-      solution_released_at: row.solution_released_at ? String(row.solution_released_at) : '',
-      solution_accept_due_at: row.solution_accept_due_at ? String(row.solution_accept_due_at) : '',
-      solution_due_at: row.solution_due_at ? String(row.solution_due_at) : '',
-      solution_customer_due_at: row.solution_customer_due_at ? String(row.solution_customer_due_at) : '',
+      solution_claimed_at: isoStamp(row.solution_claimed_at),
+      solution_released_at: isoStamp(row.solution_released_at),
+      solution_accept_due_at: isoStamp(row.solution_accept_due_at),
+      solution_due_at: isoStamp(row.solution_due_at),
+      solution_customer_due_at: isoStamp(row.solution_customer_due_at),
       solution_revision_note: String(row.solution_revision_note ?? ''),
-      solution_revision_due_at: row.solution_revision_due_at ? String(row.solution_revision_due_at) : '',
-      solution_approved_at: row.solution_approved_at ? String(row.solution_approved_at) : '',
-      quote_offered_at: row.quote_offered_at ? String(row.quote_offered_at) : '',
-      quote_accept_due_at: row.quote_accept_due_at ? String(row.quote_accept_due_at) : '',
-      quote_accepted_at: row.quote_accepted_at ? String(row.quote_accepted_at) : '',
-      quote_due_at: row.quote_due_at ? String(row.quote_due_at) : '',
-      quote_sent_back_at: row.quote_sent_back_at ? String(row.quote_sent_back_at) : '',
+      solution_revision_due_at: isoStamp(row.solution_revision_due_at),
+      solution_approved_at: isoStamp(row.solution_approved_at),
+      quote_offered_at: isoStamp(row.quote_offered_at),
+      quote_accept_due_at: isoStamp(row.quote_accept_due_at),
+      quote_accepted_at: isoStamp(row.quote_accepted_at),
+      quote_due_at: isoStamp(row.quote_due_at),
+      quote_sent_back_at: isoStamp(row.quote_sent_back_at),
       quote_change_note: String(row.quote_change_note ?? ''),
-      quote_approved_at: row.quote_approved_at ? String(row.quote_approved_at) : '',
-      quote_ceo_escalated_at: row.quote_ceo_escalated_at ? String(row.quote_ceo_escalated_at) : '',
+      quote_approved_at: isoStamp(row.quote_approved_at),
+      quote_ceo_escalated_at: isoStamp(row.quote_ceo_escalated_at),
       quote_late_events: readQuoteLateEvents(row.quote_late_events),
       quote_assignee_staff_id:
         row.quote_assignee_staff_id != null && Number(row.quote_assignee_staff_id) > 0
@@ -356,23 +368,21 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           : null,
       quote_reassign_note: String(row.quote_reassign_note ?? ''),
       implementation_status: String(row.implementation_status ?? ''),
-      contract_created_at: row.contract_created_at ? String(row.contract_created_at) : '',
-      contract_signed_at: row.contract_signed_at ? String(row.contract_signed_at) : '',
+      contract_created_at: isoStamp(row.contract_created_at),
+      contract_signed_at: isoStamp(row.contract_signed_at),
       contract_amount_vnd: Number(row.contract_amount_vnd) || 0,
       implementation_handoff_status: normalizeImplementationHandoffStatus(row.implementation_handoff_status),
       implementation_owner_staff_id:
         row.implementation_owner_staff_id != null && Number(row.implementation_owner_staff_id) > 0
           ? Number(row.implementation_owner_staff_id)
           : null,
-      implementation_accept_due_at: row.implementation_accept_due_at
-        ? String(row.implementation_accept_due_at)
-        : '',
-      implementation_claimed_at: row.implementation_claimed_at ? String(row.implementation_claimed_at) : '',
-      missing_info_due_at: row.missing_info_due_at ? String(row.missing_info_due_at) : '',
-      brief_entered_at: row.brief_entered_at ? String(row.brief_entered_at) : '',
-      brief_due_at: row.brief_due_at ? String(row.brief_due_at) : '',
-      negotiate_due_at: row.negotiate_due_at ? String(row.negotiate_due_at) : '',
-      contract_due_at: row.contract_due_at ? String(row.contract_due_at) : '',
+      implementation_accept_due_at: isoStamp(row.implementation_accept_due_at),
+      implementation_claimed_at: isoStamp(row.implementation_claimed_at),
+      missing_info_due_at: isoStamp(row.missing_info_due_at),
+      brief_entered_at: isoStamp(row.brief_entered_at),
+      brief_due_at: isoStamp(row.brief_due_at),
+      negotiate_due_at: isoStamp(row.negotiate_due_at),
+      contract_due_at: isoStamp(row.contract_due_at),
     };
   }
 
@@ -3317,7 +3327,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.assertQuoteSheetReadable(leadId, snap, access);
     const stored = await this.storedQuoteSheet(snap.presales.id);
     const catalog = await this.loadQuoteCatalog(requestedCodes ?? stored.service_codes);
-    return assembleQuoteSheet({
+    const sheet = assembleQuoteSheet({
       editable: this.quoteSheetEditableFor(snap, access),
       services: catalog.services,
       staff: catalog.staff,
@@ -3327,6 +3337,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       vatPercent: stored.vat_percent,
       promoPercent: stored.promo_percent,
     });
+    return {
+      ...sheet,
+      submitted_for_ceo: this.quoteSheetAwaitingCeo(snap) || Boolean(snap.presales.quote_approved_at),
+      phase: snap.quote_case?.phase,
+    };
   }
 
   async saveQuoteSheet(

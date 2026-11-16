@@ -373,6 +373,7 @@ export function flowTimesFromFunnel(funnel: {
     if (!obj) return null;
     for (const key of keys) {
       const value = obj[key];
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
       if (typeof value === 'string' && value.trim()) return value;
     }
     return null;

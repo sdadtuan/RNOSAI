@@ -344,7 +344,10 @@ export default function CrmLeadDetailPage() {
   });
   const quoteSentBackAt = Boolean(
     funnelSnap?.presales?.handoff?.quote_sent_back_at ||
-      (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at,
+      (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
+      (funnelSnap?.presales?.quote_case as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
+      quoteCasePhase === 'ceo_review' ||
+      quoteCasePhase === 'sale_review',
   );
   const quoteSubmittedForFiles =
     quoteSentBackAt ||
@@ -1727,6 +1730,8 @@ export default function CrmLeadDetailPage() {
             <LeadDealFilesCard
               token={accessToken}
               leadId={leadId}
+              showContractColumn
+              allowCreateContract={!atImplementStep}
               onMessage={setMessage}
               onError={setError}
               onFunnelChange={setFunnelSnap}
@@ -2191,6 +2196,8 @@ export default function CrmLeadDetailPage() {
                 <LeadDealFilesCard
                   token={accessToken}
                   leadId={leadId}
+                  showContractColumn
+                  allowCreateContract={!atImplementStep}
                   onMessage={setMessage}
                   onError={setError}
                   onFunnelChange={setFunnelSnap}
@@ -2202,6 +2209,7 @@ export default function CrmLeadDetailPage() {
               <LeadDealFilesCard
                 token={accessToken}
                 leadId={leadId}
+                showContractColumn={false}
                 onMessage={setMessage}
                 onError={setError}
                 onFunnelChange={setFunnelSnap}
@@ -2291,6 +2299,7 @@ export default function CrmLeadDetailPage() {
                 <LeadDealFilesCard
                   token={accessToken}
                   leadId={leadId}
+                  showContractColumn={false}
                   onMessage={setMessage}
                   onError={setError}
                   onFunnelChange={setFunnelSnap}

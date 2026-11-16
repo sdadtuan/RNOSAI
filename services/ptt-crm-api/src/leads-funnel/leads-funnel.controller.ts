@@ -675,6 +675,20 @@ export class LeadsFunnelController {
     }
   }
 
+  @Post(':id/presales/deal-files/contract/export')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async ensureContractExport(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.ensureContractDealFile(id, req.staffUser);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
   @Post(':id/presales/deal-files/:kind')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)

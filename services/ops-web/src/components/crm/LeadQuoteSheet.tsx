@@ -461,7 +461,8 @@ export function LeadQuoteSheet({
     phase === 'ceo_review' ||
     phase === 'sale_review' ||
     phase === 'hop_dong' ||
-    phase === 'trien_khai';
+    phase === 'trien_khai' ||
+    Boolean(sheet?.submitted_for_ceo);
   const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
   const submittedView = submittedForCeo || ceoApproved;
   const tableEditable = editable && !submittedView;

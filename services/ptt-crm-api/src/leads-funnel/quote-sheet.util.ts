@@ -121,6 +121,8 @@ export type QuoteSheetGroup = {
 
 export type QuoteSheetView = {
   editable: boolean;
+  submitted_for_ceo?: boolean;
+  phase?: string;
   services: QuoteSheetService[];
   staff: QuoteSheetStaff[];
   selected_service_codes: string[];
