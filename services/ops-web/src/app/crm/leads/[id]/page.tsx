@@ -1928,8 +1928,16 @@ export default function CrmLeadDetailPage() {
               <LeadContractSubmitCard
                 token={accessToken}
                 leadId={leadId}
+                viewerIsGdkd={isGdkdContractDesk(user)}
+                viewerIsSuperAdmin={superAdmin}
                 onMessage={setMessage}
                 onError={setError}
+                onFunnelChange={setFunnelSnap}
+                onLeadReload={async () => {
+                  const row = await fetchLead(accessToken, leadId);
+                  setLead(row);
+                  setStatus(row.status || 'moi');
+                }}
               />
             ) : null
           }

@@ -5,8 +5,11 @@ import {
   createLeadContract,
   ensureLeadContractFile,
   downloadLeadDealFile,
+  approveContractApproval,
   fetchLeadContractReadiness,
   fetchLeadDealFiles,
+  fetchPendingContractApprovals,
+  rejectContractApproval,
   submitLeadContract,
   uploadLeadDealFile,
   type LeadDealFileKind,
@@ -18,6 +21,18 @@ import './lead-deal-files.css';
 
 const FILES_CHANGED = 'lead-deal-files-changed';
 export const LEAD_CONTRACT_CHANGED_EVENT = 'lead-contract-changed';
+
+function isSubmittedForGdkd(status: string | null | undefined, approvalStatus?: string | null): boolean {
+  const contractStatus = String(status ?? '').toLowerCase();
+  const approval = String(approvalStatus ?? '').toLowerCase();
+  return (
+    approval === 'pending' ||
+    contractStatus === 'submitted' ||
+    contractStatus === 'pending' ||
+    contractStatus === 'pending_approval'
+  );
+}
+
 
 function formatDealTime(iso: string): string {
   const date = new Date(iso);
@@ -73,6 +88,7 @@ export function LeadDealFilesCard({
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
   const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
+  const [gdkdApprovalPending, setGdkdApprovalPending] = useState(false);
   const quoteInputRef = useRef<HTMLInputElement | null>(null);
   const contractInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -85,6 +101,7 @@ export function LeadDealFilesCard({
   const reloadContract = useCallback(async () => {
     const ready = await fetchLeadContractReadiness(token, leadId);
     setContractInfo(ready.contract ? { id: ready.contract.id, status: ready.contract.status } : null);
+    setGdkdApprovalPending(isSubmittedForGdkd(ready.contract?.status, ready.approval?.status));
     return ready;
   }, [token, leadId]);
 
@@ -105,6 +122,7 @@ export function LeadDealFilesCard({
       .then((ready) => {
         if (cancelled) return;
         setContractInfo(ready.contract ? { id: ready.contract.id, status: ready.contract.status } : null);
+        setGdkdApprovalPending(isSubmittedForGdkd(ready.contract?.status, ready.approval?.status));
       })
       .catch(() => undefined);
     function onChanged() {
@@ -201,8 +219,9 @@ export function LeadDealFilesCard({
     const current = bucket?.current ?? null;
     const older = (bucket?.versions ?? []).filter((row) => row.id !== current?.id);
     const inputRef = kind === 'quote' ? quoteInputRef : contractInputRef;
-    const showCreateContract = kind === 'contract' && !current && Boolean(bucket?.can_upload) && allowCreateContract;
-    const showUpload = Boolean(bucket?.can_upload) && (kind !== 'contract' || Boolean(current));
+    const canUpload = Boolean(bucket?.can_upload) && !gdkdApprovalPending;
+    const showCreateContract = kind === 'contract' && !current && canUpload && allowCreateContract;
+    const showUpload = canUpload && (kind !== 'contract' || Boolean(current));
     return (
       <div className="lead-deal-files__col">
         <h3>{title}</h3>
@@ -292,20 +311,32 @@ export function LeadDealFilesCard({
 export function LeadContractSubmitCard({
   token,
   leadId,
+  viewerIsGdkd = false,
+  viewerIsSuperAdmin = false,
   onMessage,
   onError,
+  onFunnelChange,
+  onLeadReload,
 }: {
   token: string;
   leadId: number;
+  viewerIsGdkd?: boolean;
+  viewerIsSuperAdmin?: boolean;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
+  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onLeadReload?: () => Promise<void> | void;
 }) {
+  const canDecide = viewerIsGdkd || viewerIsSuperAdmin;
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(false);
   const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
   const [approvalPending, setApprovalPending] = useState(false);
+  const [approvalId, setApprovalId] = useState<number | null>(null);
   const [canSubmit, setCanSubmit] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectNotes, setRejectNotes] = useState('');
 
   const reload = useCallback(async () => {
     const [files, ready] = await Promise.all([
@@ -314,12 +345,26 @@ export function LeadContractSubmitCard({
     ]);
     const current = files.contract?.current ?? null;
     const info = ready?.contract ? { id: ready.contract.id, status: ready.contract.status } : null;
-    const pending = ready?.approval?.status === 'pending';
+    let approval = ready?.approval ?? null;
+    const submitted = isSubmittedForGdkd(info?.status, approval?.status);
+    if (submitted && approval?.status !== 'pending') {
+      try {
+        const listed = await fetchPendingContractApprovals(token, 80);
+        const hit = (listed.approvals ?? []).find(
+          (row) => Number(row.lead_id) === Number(leadId) && String(row.status).toLowerCase() === 'pending',
+        );
+        if (hit) approval = hit;
+      } catch {
+        /* readiness already loaded */
+      }
+    }
+    const pending = isSubmittedForGdkd(info?.status, approval?.status);
     setContractInfo(info);
     setApprovalPending(pending);
-    setCanSubmit(Boolean(files.contract?.can_upload));
-    setVisible(Boolean(current) && Boolean(files.contract?.can_upload));
-    return { current, info, pending };
+    setApprovalId(approval?.status === 'pending' && approval.id ? approval.id : null);
+    setCanSubmit(Boolean(files.contract?.can_upload) && !pending);
+    setVisible(Boolean(current) && (Boolean(files.contract?.can_upload) || pending));
+    return { current, info, pending, approval };
   }, [token, leadId]);
 
   useEffect(() => {
@@ -356,7 +401,8 @@ export function LeadContractSubmitCard({
           if (!ready.contract) throw new Error('Chưa có hợp đồng để gửi duyệt');
           info = { id: ready.contract.id, status: ready.contract.status };
           setContractInfo(info);
-          setApprovalPending(ready.approval?.status === 'pending');
+          setApprovalPending(isSubmittedForGdkd(ready.contract.status, ready.approval?.status));
+          setApprovalId(ready.approval?.status === 'pending' ? ready.approval.id : null);
         }
       }
       if (approvalPending || (info.status && info.status !== 'draft')) {
@@ -379,31 +425,144 @@ export function LeadContractSubmitCard({
     }
   }
 
+  async function onApproveContract() {
+    if (!approvalId) {
+      setLocalError('Chưa tìm thấy yêu cầu duyệt hợp đồng.');
+      return;
+    }
+    setBusy(true);
+    setLocalError('');
+    try {
+      const out = await approveContractApproval(token, approvalId);
+      notifyLeadContractChanged();
+      const funnel = (out as { funnel?: LeadFunnelSnapshot }).funnel;
+      if (funnel) onFunnelChange?.(funnel);
+      await onLeadReload?.();
+      setApprovalPending(false);
+      setVisible(false);
+      onMessage?.(`Đã duyệt hợp đồng. Lead sang Triển Khai.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Duyệt hợp đồng thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onReturnContract() {
+    if (!approvalId) {
+      setLocalError('Chưa tìm thấy yêu cầu duyệt hợp đồng.');
+      return;
+    }
+    if (rejectNotes.trim().length < 5) {
+      setLocalError('Nhập lý do trả lại, ít nhất 5 ký tự');
+      return;
+    }
+    setBusy(true);
+    setLocalError('');
+    try {
+      await rejectContractApproval(token, approvalId, { decision_notes: rejectNotes.trim() });
+      notifyLeadContractChanged();
+      await onLeadReload?.();
+      setRejectOpen(false);
+      setRejectNotes('');
+      await reload();
+      onMessage?.('Đã trả lại AM kèm lý do.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Trả lại hợp đồng thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!visible) return null;
 
   return (
     <section className="ahd-card lead-contract-submit-card" data-testid="lead-contract-submit-card">
-      <h3 className="ahd-card__title">Gửi GĐKD duyệt</h3>
+      <h3 className="ahd-card__title">{approvalPending && canDecide ? 'Duyệt hợp đồng' : 'Gửi GĐKD duyệt'}</h3>
+      {localError ? <p className="muted">{localError}</p> : null}
       {approvalPending ? (
-        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-          Đã gửi GĐKD duyệt — chờ phê duyệt.
-        </p>
-      ) : (
         <>
-          {localError ? <p className="muted">{localError}</p> : null}
-          <button
-            type="button"
-            className="btn btn-primary"
-            id="lead-contract-submit"
-            data-testid="quote-gui-gdkd-duyet"
-            disabled={busy || !canSubmit}
-            onClick={() => void onSubmitContract()}
-          >
-            Gửi GĐKD duyệt
-          </button>
+          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            Đã gửi GĐKD duyệt — chờ phê duyệt.
+          </p>
+          {canDecide ? (
+            <>
+              <div className="solution-feedback__actions" style={{ marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  data-testid="quote-duyet-hop-dong-btn"
+                  disabled={busy || !approvalId}
+                  onClick={() => void onApproveContract()}
+                >
+                  Duyệt
+                </button>
+                {!rejectOpen ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    data-testid="quote-tra-lai-am-hd"
+                    disabled={busy || !approvalId}
+                    onClick={() => setRejectOpen(true)}
+                  >
+                    Trả lại AM
+                  </button>
+                ) : null}
+              </div>
+              {rejectOpen ? (
+                <div className="solution-feedback__revise" style={{ marginTop: '0.75rem' }}>
+                  <label>
+                    Lý do trả lại
+                    <textarea
+                      rows={3}
+                      value={rejectNotes}
+                      onChange={(event) => setRejectNotes(event.target.value)}
+                      aria-label="Lý do trả lại hợp đồng"
+                      placeholder="Bắt buộc khi trả lại cho AM, ít nhất 5 ký tự"
+                    />
+                  </label>
+                  <div className="solution-feedback__actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy || rejectNotes.trim().length < 5}
+                      onClick={() => void onReturnContract()}
+                    >
+                      Trả lại AM
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setRejectOpen(false);
+                        setRejectNotes('');
+                      }}
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-primary"
+          id="lead-contract-submit"
+          data-testid="quote-gui-gdkd-duyet"
+          disabled={busy || !canSubmit}
+          onClick={() => void onSubmitContract()}
+        >
+          Gửi GĐKD duyệt
+        </button>
       )}
     </section>
   );
 }
-

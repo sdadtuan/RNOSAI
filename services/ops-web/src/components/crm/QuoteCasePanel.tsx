@@ -425,7 +425,7 @@ export function QuoteCasePanel({
           disabled={busy}
           onClick={() => void onApproveContract()}
         >
-          Duyệt &amp; ký Active
+          Duyệt
         </button>
         {!rejectOpen ? (
           <button
@@ -434,7 +434,7 @@ export function QuoteCasePanel({
             disabled={busy}
             onClick={() => setRejectOpen(true)}
           >
-            Từ chối
+            Trả lại AM
           </button>
         ) : null}
       </div>
@@ -457,7 +457,7 @@ export function QuoteCasePanel({
               disabled={busy || rejectNotes.trim().length < 5}
               onClick={() => void onRejectContract()}
             >
-              Từ chối
+              Trả lại AM
             </button>
             <button
               type="button"
@@ -692,10 +692,8 @@ export function QuoteCasePanel({
   }
 
   if (compact && quote.phase === 'hop_dong') {
-    const approverPending = canApproveContract && approvalPending;
     return (
       <>
-      {approverPending ? null : (
       <section id="lead-contract" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
         <LeadStepHero
           title="KÝ HỢP ĐỒNG"
@@ -711,7 +709,6 @@ export function QuoteCasePanel({
         {approvalPending ? <p className="muted">Đã gửi GĐKD duyệt — chờ phê duyệt.</p> : null}
         <ActionErrorToast message={onError ? '' : localError} />
       </section>
-      )}
       {contractApproveCard}
       </>
     );

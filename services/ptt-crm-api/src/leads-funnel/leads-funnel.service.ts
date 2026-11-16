@@ -1777,6 +1777,13 @@ export class LeadsFunnelService {
     if (access.isSales && !asSuper && !asCeo) {
       return { can_upload: false, can_download: true };
     }
+    if (await this.pgRepo.contractIsPendingGdkd(leadId)) {
+      return {
+        can_upload: false,
+        can_download: true,
+        blocked_reason: 'Hợp đồng đang chờ GĐKD duyệt.',
+      };
+    }
     const implemented =
       String(current?.presales.implementation_status ?? '').trim() === 'trien_khai' ||
       String(current?.quote_case?.phase ?? '') === 'trien_khai' ||

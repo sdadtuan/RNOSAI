@@ -4539,6 +4539,29 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return result.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
   }
 
+  async contractIsPendingGdkd(leadId: number): Promise<boolean> {
+    const result = await this.db.query(
+      SELECT c.status AS contract_status,
+              (SELECT a.status FROM crm_contract_approvals a
+                WHERE a.contract_id = c.id
+                ORDER BY a.id DESC LIMIT 1) AS approval_status
+         FROM crm_contracts c
+        WHERE c.lead_id =         ORDER BY c.id DESC
+        LIMIT 1,
+      [leadId],
+    );
+    const row = result.rows[0] as { contract_status?: string; approval_status?: string } | undefined;
+    if (!row) return false;
+    const contractStatus = String(row.contract_status ?? '').toLowerCase();
+    const approval = String(row.approval_status ?? '').toLowerCase();
+    return (
+      approval === 'pending' ||
+      contractStatus === 'submitted' ||
+      contractStatus === 'pending' ||
+      contractStatus === 'pending_approval'
+    );
+  }
+
   async solutionDeskAuthUserIds(): Promise<string[]> {
     const am = await this.accountManagerAuthUserIds();
     try {
