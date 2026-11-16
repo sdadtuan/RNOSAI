@@ -228,23 +228,41 @@ function firstIso(...values: Array<string | null | undefined>): string | null {
  * Derive the current step key from stored lead + funnel fields.
  * Does not invent data; later stages win over earlier ones.
  */
+/** Shared signal: quote has been submitted to the CEO and is not yet approved. */
+export type QuoteCeoStateInput = {
+  quotePhase?: string | null;
+  quoteApprovedAt?: string | null;
+  quoteSentBackAt?: string | null;
+  submittedForCeo?: boolean;
+};
+
+export function isQuoteApproved(input: QuoteCeoStateInput): boolean {
+  const phase = String(input.quotePhase ?? '').trim();
+  return (
+    Boolean(String(input.quoteApprovedAt ?? '').trim()) ||
+    phase === 'hop_dong' ||
+    phase === 'trien_khai'
+  );
+}
+
+export function isQuoteAwaitingCeo(input: QuoteCeoStateInput, quoteSentToCeo = false): boolean {
+  if (isQuoteApproved(input)) return false;
+  const phase = String(input.quotePhase ?? '').trim();
+  return (
+    quoteSentToCeo ||
+    Boolean(input.submittedForCeo) ||
+    phase === 'ceo_review' ||
+    phase === 'sale_review' ||
+    Boolean(String(input.quoteSentBackAt ?? '').trim())
+  );
+}
+
 /** When the quote is with the CEO, leftover lead status bao_gia must not keep step 4 current. */
 export function withSubmittedToCeoFlowInput(
   input: HandoffFlowInput,
   quoteSentToCeo = false,
 ): HandoffFlowInput {
-  const phase = String(input.quotePhase ?? '').trim();
-  const approved =
-    Boolean(String(input.quoteApprovedAt ?? '').trim()) ||
-    phase === 'hop_dong' ||
-    phase === 'trien_khai';
-  const submitted =
-    !approved &&
-    (quoteSentToCeo ||
-      phase === 'ceo_review' ||
-      phase === 'sale_review' ||
-      Boolean(String(input.quoteSentBackAt ?? '').trim()));
-  if (!submitted) return input;
+  if (!isQuoteAwaitingCeo(input, quoteSentToCeo)) return input;
   return { ...input, quotePhase: input.quotePhase || 'ceo_review' };
 }
 

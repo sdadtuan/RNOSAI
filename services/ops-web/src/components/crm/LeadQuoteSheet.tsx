@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   fetchDiscoveryOptions,
   fetchIntakeSessions,
@@ -20,6 +20,8 @@ import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
 import './lead-quote-sheet-brand.css';
 import { notifyLeadDealFilesChanged } from './LeadDealFilesCard';
 import { readDiscoveryBriefFromAnswers } from '@/lib/crm/sales-discovery';
+import { isQuoteAwaitingCeo } from '@/lib/crm/handoff-flow.util';
+import { CeoQuoteApproveCard } from '@/components/crm/CeoQuoteApproveCard';
 
 function QuoteGlyph({
   name,
@@ -237,18 +239,23 @@ export function LeadQuoteSheet({
   phase,
   viewerIsSales = false,
   viewerIsCeo = false,
+  viewerIsSuperAdmin = false,
   quoteSentToCeo = false,
+  filesSlot,
   onFunnelChange,
   onSubmittedToCeo,
   onMessage,
   onError,
+  onLeadReload,
 }: {
   token: string;
   leadId: number;
   phase: string;
   viewerIsSales?: boolean;
   viewerIsCeo?: boolean;
+  viewerIsSuperAdmin?: boolean;
   quoteSentToCeo?: boolean;
+  filesSlot?: ReactNode;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onSubmittedToCeo?: (submitted: boolean) => void;
   onMessage?: (message: string) => void;
@@ -385,13 +392,14 @@ export function LeadQuoteSheet({
     };
   }, [visible, token, leadId, phase, viewerIsSales]);
 
-  const submittedForCeo =
-    quoteSentToCeo ||
-    phase === 'ceo_review' ||
-    phase === 'sale_review' ||
-    phase === 'hop_dong' ||
-    phase === 'trien_khai' ||
-    Boolean(sheet?.submitted_for_ceo);
+  const submittedForCeo = isQuoteAwaitingCeo(
+    {
+      quotePhase: phase,
+      submittedForCeo: Boolean(sheet?.submitted_for_ceo),
+    },
+    quoteSentToCeo,
+  );
+  const canDecideCeoQuote = viewerIsCeo || viewerIsSuperAdmin;
 
   useEffect(() => {
     onSubmittedToCeo?.(submittedForCeo && !ceoApproved);
@@ -459,6 +467,10 @@ export function LeadQuoteSheet({
       }
       const out = await sendLeadQuoteToSales(token, leadId);
       onFunnelChange(out.funnel);
+      setSheet((current) =>
+        current ? { ...current, submitted_for_ceo: true, editable: false } : current,
+      );
+      onSubmittedToCeo?.(true);
       notifyLeadDealFilesChanged();
       onMessage?.(`Đã nộp báo giá, chờ CEO duyệt. Tổng ${vnd(next.grand_total_vnd)}.`);
     } catch (err) {
@@ -854,6 +866,19 @@ export function LeadQuoteSheet({
           </div>
         </>
       ) : null}
+      {filesSlot ? <div className="quote-sheet__files">{filesSlot}</div> : null}
+      {submittedForCeo && !ceoApproved ? (
+        <CeoQuoteApproveCard
+          token={token}
+          leadId={leadId}
+          canDecide={canDecideCeoQuote}
+          viewerIsSales={viewerIsSales}
+          onFunnelChange={onFunnelChange}
+          onLeadReload={onLeadReload}
+          onMessage={onMessage}
+          onError={onError}
+        />
+      ) : null}
       {(() => {
         const canSubmitQuote =
           !viewerIsSales &&
@@ -866,9 +891,7 @@ export function LeadQuoteSheet({
             : '';
         const toolbarHidden = submittedForCeo || ceoApproved;
         if (toolbarHidden) {
-          return submittedForCeo && !ceoApproved ? (
-            <p className="muted quote-sheet__submit-hint">Báo giá đã nộp, đang chờ CEO duyệt.</p>
-          ) : null;
+          return null;
         }
         if (!editable && !canSubmitQuote) return null;
         return (

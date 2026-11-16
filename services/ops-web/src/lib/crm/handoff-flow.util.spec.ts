@@ -16,6 +16,8 @@ import {
   formatHandoffStamp,
   splitBriefIdeas,
   visibleHandoffFlowSteps,
+  isQuoteApproved,
+  isQuoteAwaitingCeo,
   withSubmittedToCeoFlowInput,
 } from './handoff-flow.util';
 
@@ -106,6 +108,15 @@ describe('handoff-flow.util', () => {
     expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.state).toBe('current');
     expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.isActive).toBe(true);
     expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.index).toBe(5);
+
+    expect(isQuoteAwaitingCeo({ quotePhase: 'bao_gia', quoteSentBackAt: '2026-11-16T09:04:10.856Z' })).toBe(true);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'ceo_review', quoteApprovedAt: '' })).toBe(true);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'bao_gia' }, true)).toBe(true);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'bao_gia', submittedForCeo: true })).toBe(true);
+    expect(isQuoteApproved({ quotePhase: 'hop_dong' })).toBe(true);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'hop_dong', quoteSentBackAt: '2026-11-16T09:04:10.856Z' })).toBe(false);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'ceo_review', quoteApprovedAt: '2026-11-16T10:00:00.000Z' })).toBe(false);
+    expect(isQuoteAwaitingCeo({ quotePhase: 'bao_gia' })).toBe(false);
     expect(
       resolveHandoffFlowStep({
         leadStatus: 'bao_gia',

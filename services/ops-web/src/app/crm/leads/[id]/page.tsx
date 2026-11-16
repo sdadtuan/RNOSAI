@@ -78,7 +78,7 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
-import { flowTimesFromFunnel, handoffFlowStatusLabel, resolveHandoffFlow, withSubmittedToCeoFlowInput } from '@/lib/crm/handoff-flow.util';
+import { flowTimesFromFunnel, handoffFlowStatusLabel, isQuoteAwaitingCeo, resolveHandoffFlow, withSubmittedToCeoFlowInput } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelAssignedAmId,
@@ -347,13 +347,20 @@ export default function CrmLeadDetailPage() {
     quoteSheetVisible: showLeadQuoteSheet,
     existingProposalHref: quoteHref,
   });
-  const quoteSentBackAt = Boolean(
-    sheetAwaitingCeo ||
-      funnelSnap?.presales?.handoff?.quote_sent_back_at ||
-      (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
-      (funnelSnap?.presales?.quote_case as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
-      quoteCasePhase === 'ceo_review' ||
-      quoteCasePhase === 'sale_review',
+  const quoteSentBackAt = isQuoteAwaitingCeo(
+    {
+      quotePhase: quoteCasePhase,
+      quoteApprovedAt:
+        (funnelSnap?.presales?.quote_case as { quote_approved_at?: string } | undefined)?.quote_approved_at ||
+        funnelSnap?.presales?.handoff?.quote_approved_at ||
+        (funnelSnap?.presales?.presales as { quote_approved_at?: string } | undefined)?.quote_approved_at,
+      quoteSentBackAt:
+        funnelSnap?.presales?.handoff?.quote_sent_back_at ||
+        (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
+        (funnelSnap?.presales?.quote_case as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at,
+      submittedForCeo: sheetAwaitingCeo,
+    },
+    sheetAwaitingCeo,
   );
   const quoteSubmittedForFiles =
     quoteSentBackAt ||
@@ -2288,14 +2295,8 @@ export default function CrmLeadDetailPage() {
                   phase={quoteCasePhase || 'bao_gia'}
                   viewerIsSales={salesViewer}
                   viewerIsCeo={isCeoPosition(user) || superAdmin}
-                  quoteSentToCeo={
-                    quoteSentBackAt ||
-                    quoteSubmittedForFiles ||
-                    quoteCasePhase === 'ceo_review' ||
-                    quoteCasePhase === 'sale_review' ||
-                    quoteCasePhase === 'hop_dong' ||
-                    quoteCasePhase === 'trien_khai'
-                  }
+                  viewerIsSuperAdmin={superAdmin}
+                  quoteSentToCeo={quoteSentBackAt}
                   onSubmittedToCeo={setSheetAwaitingCeo}
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
@@ -2305,6 +2306,16 @@ export default function CrmLeadDetailPage() {
                     setLead(row);
                     setStatus(row.status || 'moi');
                   }}
+                  filesSlot={
+                    <LeadDealFilesCard
+                      token={accessToken}
+                      leadId={leadId}
+                      showContractColumn={false}
+                      onMessage={setMessage}
+                      onError={setError}
+                      onFunnelChange={setFunnelSnap}
+                    />
+                  }
                 />
                 ) : funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel
@@ -2340,6 +2351,7 @@ export default function CrmLeadDetailPage() {
                     />
                   </section>
                 )}
+                {showLeadQuoteSheet ? null : (
                 <LeadDealFilesCard
                   token={accessToken}
                   leadId={leadId}
@@ -2348,27 +2360,7 @@ export default function CrmLeadDetailPage() {
                   onError={setError}
                   onFunnelChange={setFunnelSnap}
                 />
-                {showLeadQuoteSheet && funnelSnap?.presales?.quote_case ? (
-                  <QuoteCasePanel
-                    compact
-                    token={accessToken}
-                    leadId={leadId}
-                    funnel={funnelSnap}
-                    viewerIsCeo={isCeoPosition(user) || superAdmin}
-                    viewerIsSuperAdmin={superAdmin}
-                    submittedToCeo={quoteSentBackAt}
-                    viewerIsGdkd={isGdkdContractDesk(user)}
-                    viewerIsSales={salesViewer}
-                    onFunnelChange={setFunnelSnap}
-                    onLeadReload={async () => {
-                      const row = await fetchLead(accessToken, leadId);
-                      setLead(row);
-                      setStatus(row.status || 'moi');
-                    }}
-                    onMessage={setMessage}
-                    onError={setError}
-                  />
-                ) : null}
+                )}
               </div>
                 {solutionPreviewOpen ? (
                   <div

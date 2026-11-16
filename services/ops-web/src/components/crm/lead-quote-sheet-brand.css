@@ -363,3 +363,32 @@
 .quote-sheet--brand .quote-sheet__extra .quote-sheet__service {
   margin: 0;
 }
+
+.quote-sheet--brand .quote-sheet__files,
+.quote-sheet--brand .quote-sheet__ceo-decide {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.quote-sheet--brand .quote-sheet__files {
+  margin-top: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e4efe8;
+}
+
+.quote-sheet--brand .quote-sheet__files .lead-deal-files {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.quote-sheet--brand .quote-sheet__ceo-decide {
+  margin-top: 0.35rem;
+  margin-bottom: 1rem;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0.75rem 0 0.25rem;
+}
