@@ -28,7 +28,6 @@ import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
-import { QuoteSolutionFilesCard } from '@/components/crm/QuoteSolutionFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
@@ -1836,17 +1835,7 @@ export default function CrmLeadDetailPage() {
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
           waitingSolutionFeedback={waitingSolutionFeedback}
-          sideTop={
-            accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
-              <QuoteSolutionFilesCard
-                token={accessToken}
-                leadId={leadId}
-                customerName={party?.company_name || lead.company_name || lead.full_name || ''}
-                leadCode={lead.project_code || ('LD-' + String(lead.id))}
-                onView={() => setSolutionPreviewOpen(true)}
-              />
-            ) : null
-          }
+          sideTop={null}
           exchangeLines={careHistory}
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
@@ -2068,7 +2057,7 @@ export default function CrmLeadDetailPage() {
           >
           <div className="lead-detail-main">
           <div className={hideMainPane ? 'lead-detail-pane--hidden' : ''}>
-            <LeadAttributionChips attribution={attribution} />
+            {!atQuoteStep ? <LeadAttributionChips attribution={attribution} /> : null}
 
             {showB2bFlow ? null : (
               <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
@@ -2112,7 +2101,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && funnelSnap?.presales?.implementation_handoff ? (
+            {accessToken && lead && funnelSnap?.presales?.implementation_handoff && !atQuoteStep ? (
               <ImplementationHandoffCard
                 token={accessToken}
                 leadId={leadId}
@@ -2126,6 +2115,15 @@ export default function CrmLeadDetailPage() {
 
             {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
               <>
+                <LeadQuoteSheet
+                  token={accessToken}
+                  leadId={leadId}
+                  phase={quoteCasePhase || 'bao_gia'}
+                  viewerIsSales={salesViewer}
+                  onFunnelChange={setFunnelSnap}
+                  onMessage={setMessage}
+                  onError={setError}
+                />
                 {funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel
                     compact
@@ -2146,15 +2144,6 @@ export default function CrmLeadDetailPage() {
                     onError={setError}
                   />
                 ) : null}
-                <LeadQuoteSheet
-                  token={accessToken}
-                  leadId={leadId}
-                  phase={quoteCasePhase || 'bao_gia'}
-                  viewerIsSales={salesViewer}
-                  onFunnelChange={setFunnelSnap}
-                  onMessage={setMessage}
-                  onError={setError}
-                />
                 {solutionPreviewOpen ? (
                   <div
                     className="ahd-modal-back"

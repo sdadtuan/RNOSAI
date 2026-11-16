@@ -313,3 +313,21 @@
 .sld .ahd-col--main .ahd-sol-top {
   margin-top: 0;
 }
+
+/* t252: pin Bảng báo giá to the same top edge as Thông tin nhanh Lead and the right rail.
+   Zero leftover top margin on the quote sheet and compact quote-case wrappers, and match
+   the left ahd-card 14px top padding so the first heading lines up. */
+.sld .ahd-col--main .quote-sheet,
+.sld .ahd-col--main #lead-quote-sheet,
+.sld .ahd-col--main .solution-feedback,
+.sld .ahd-col--main #quote-case,
+.sld .ahd-col--main .solution-desk {
+  margin-top: 0;
+}
+.sld .ahd-col--main .quote-sheet,
+.sld .ahd-col--main #lead-quote-sheet {
+  padding-top: 14px;
+}
+.sld .ahd-col--main .quote-sheet__submit-hint {
+  margin: 8px 0 0;
+}

@@ -756,13 +756,26 @@ export function LeadQuoteSheet({
           </div>
         </>
       ) : null}
-      {editable || canDownload ? (
+      {(() => {
+        const canSubmitQuote =
+          !viewerIsSales &&
+          !ceoApproved &&
+          (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia');
+        const submitBlockedReason =
+          canSubmitQuote && sheet && tickedCodes.length < 1
+            ? 'Chọn ít nhất một hạng mục để nộp.'
+            : '';
+        if (!editable && !canDownload && !canSubmitQuote) return null;
+        return (
+        <>
         <div className="solution-desk__actions">
-          {editable ? (
+          {canSubmitQuote ? (
             <>
-              <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
-                Lưu bảng
-              </button>
+              {editable ? (
+                <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
+                  Lưu bảng
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn btn-primary"
@@ -780,7 +793,10 @@ export function LeadQuoteSheet({
             </button>
           ) : null}
         </div>
-      ) : null}
+        {submitBlockedReason ? <p className="muted quote-sheet__submit-hint">{submitBlockedReason}</p> : null}
+        </>
+        );
+      })()}
     </section>
   );
 }
