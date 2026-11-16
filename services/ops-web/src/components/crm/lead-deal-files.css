@@ -103,3 +103,35 @@
 .lead-deal-files__history button:focus-visible {
   text-decoration: underline;
 }
+
+.lead-deal-files .lead-contract-submit-inline {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #e4efe8);
+}
+
+.lead-contract-submit-inline__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+}
+
+.lead-contract-submit-inline__status {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
+.lead-contract-submit-inline__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lead-contract-submit-inline__actions .btn {
+  width: auto;
+  margin-top: 0;
+  min-width: 7.5rem;
+}

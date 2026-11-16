@@ -671,3 +671,8 @@
   margin-top: 0.55rem;
 }
 
+.sld .lead-step-panel .lead-contract-submit-inline__actions .btn {
+  width: auto;
+  margin-top: 0;
+}
+

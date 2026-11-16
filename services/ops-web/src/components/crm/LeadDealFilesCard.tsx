@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   createLeadContract,
   ensureLeadContractFile,
@@ -75,6 +75,7 @@ export function LeadDealFilesCard({
   onMessage,
   onError,
   onFunnelChange,
+  footer,
 }: {
   token: string;
   leadId: number;
@@ -83,6 +84,7 @@ export function LeadDealFilesCard({
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  footer?: ReactNode;
 }) {
   const [data, setData] = useState<LeadDealFilesResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -304,6 +306,7 @@ export function LeadDealFilesCard({
         {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Tải lên bản sửa nếu cần.' : 'Đang tải file báo giá…')}
         {showContractColumn ? renderColumn('contract', 'File hợp đồng', 'Chưa có file hợp đồng.') : null}
       </div>
+      {footer}
     </section>
   );
 }
@@ -313,6 +316,7 @@ export function LeadContractSubmitCard({
   leadId,
   viewerIsGdkd = false,
   viewerIsSuperAdmin = false,
+  placement = 'sidebar',
   onMessage,
   onError,
   onFunnelChange,
@@ -322,6 +326,7 @@ export function LeadContractSubmitCard({
   leadId: number;
   viewerIsGdkd?: boolean;
   viewerIsSuperAdmin?: boolean;
+  placement?: 'sidebar' | 'inline';
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
@@ -479,90 +484,101 @@ export function LeadContractSubmitCard({
   }
 
   if (!visible) return null;
+  if (placement === 'sidebar' && approvalPending) return null;
+  if (placement === 'inline' && !approvalPending) return null;
 
-  return (
-    <section className="ahd-card lead-contract-submit-card" data-testid="lead-contract-submit-card">
-      <h3 className="ahd-card__title">{approvalPending && canDecide ? 'Duyệt hợp đồng' : 'Gửi GĐKD duyệt'}</h3>
-      {localError ? <p className="muted">{localError}</p> : null}
-      {approvalPending ? (
-        <>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Đã gửi GĐKD duyệt — chờ phê duyệt.
-          </p>
-          {canDecide ? (
-            <>
-              <div className="solution-feedback__actions" style={{ marginTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  data-testid="quote-duyet-hop-dong-btn"
-                  disabled={busy || !approvalId}
-                  onClick={() => void onApproveContract()}
-                >
-                  Duyệt
-                </button>
-                {!rejectOpen ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    data-testid="quote-tra-lai-am-hd"
-                    disabled={busy || !approvalId}
-                    onClick={() => setRejectOpen(true)}
-                  >
-                    Trả lại AM
-                  </button>
-                ) : null}
-              </div>
-              {rejectOpen ? (
-                <div className="solution-feedback__revise" style={{ marginTop: '0.75rem' }}>
-                  <label>
-                    Lý do trả lại
-                    <textarea
-                      rows={3}
-                      value={rejectNotes}
-                      onChange={(event) => setRejectNotes(event.target.value)}
-                      aria-label="Lý do trả lại hợp đồng"
-                      placeholder="Bắt buộc khi trả lại cho AM, ít nhất 5 ký tự"
-                    />
-                  </label>
-                  <div className="solution-feedback__actions">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={busy || rejectNotes.trim().length < 5}
-                      onClick={() => void onReturnContract()}
-                    >
-                      Trả lại AM
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        setRejectOpen(false);
-                        setRejectNotes('');
-                      }}
-                    >
-                      Huỷ
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </>
-      ) : (
+  const approveButton = (
+    <button
+      type="button"
+      className="btn btn-primary"
+      data-testid="quote-duyet-hop-dong-btn"
+      disabled={busy || !approvalId}
+      onClick={() => void onApproveContract()}
+    >
+      Duyệt
+    </button>
+  );
+  const returnButton = !rejectOpen ? (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      data-testid="quote-tra-lai-am-hd"
+      disabled={busy || !approvalId}
+      onClick={() => setRejectOpen(true)}
+    >
+      Trả lại AM
+    </button>
+  ) : null;
+  const rejectForm = rejectOpen ? (
+    <div className="solution-feedback__revise" style={{ marginTop: '0.75rem' }}>
+      <label>
+        Lý do trả lại
+        <textarea
+          rows={3}
+          value={rejectNotes}
+          onChange={(event) => setRejectNotes(event.target.value)}
+          aria-label="Lý do trả lại hợp đồng"
+          placeholder="Bắt buộc khi trả lại cho AM, ít nhất 5 ký tự"
+        />
+      </label>
+      <div className="solution-feedback__actions">
         <button
           type="button"
           className="btn btn-primary"
-          id="lead-contract-submit"
-          data-testid="quote-gui-gdkd-duyet"
-          disabled={busy || !canSubmit}
-          onClick={() => void onSubmitContract()}
+          disabled={busy || rejectNotes.trim().length < 5}
+          onClick={() => void onReturnContract()}
         >
-          Gửi GĐKD duyệt
+          Trả lại AM
         </button>
-      )}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => {
+            setRejectOpen(false);
+            setRejectNotes('');
+          }}
+        >
+          Huỷ
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  if (placement === 'inline') {
+    return (
+      <div className="lead-contract-submit-inline" data-testid="lead-contract-submit-card">
+        {localError ? <p className="muted">{localError}</p> : null}
+        <div className="lead-contract-submit-inline__row">
+          <p className="muted lead-contract-submit-inline__status">
+            Đã gửi GĐKD duyệt — chờ phê duyệt.
+          </p>
+          {canDecide ? (
+            <div className="lead-contract-submit-inline__actions">
+              {approveButton}
+              {returnButton}
+            </div>
+          ) : null}
+        </div>
+        {canDecide ? rejectForm : null}
+      </div>
+    );
+  }
+
+  return (
+    <section className="ahd-card lead-contract-submit-card" data-testid="lead-contract-submit-card">
+      <h3 className="ahd-card__title">Gửi GĐKD duyệt</h3>
+      {localError ? <p className="muted">{localError}</p> : null}
+      <button
+        type="button"
+        className="btn btn-primary"
+        id="lead-contract-submit"
+        data-testid="quote-gui-gdkd-duyet"
+        disabled={busy || !canSubmit}
+        onClick={() => void onSubmitContract()}
+      >
+        Gửi GĐKD duyệt
+      </button>
     </section>
   );
 }

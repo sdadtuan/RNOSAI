@@ -2249,6 +2249,25 @@ export default function CrmLeadDetailPage() {
                   onMessage={setMessage}
                   onError={setError}
                   onFunnelChange={setFunnelSnap}
+                  footer={
+                    atContractStep ? (
+                      <LeadContractSubmitCard
+                        placement="inline"
+                        token={accessToken}
+                        leadId={leadId}
+                        viewerIsGdkd={isGdkdContractDesk(user)}
+                        viewerIsSuperAdmin={superAdmin}
+                        onMessage={setMessage}
+                        onError={setError}
+                        onFunnelChange={setFunnelSnap}
+                        onLeadReload={async () => {
+                          const row = await fetchLead(accessToken, leadId);
+                          setLead(row);
+                          setStatus(row.status || 'moi');
+                        }}
+                      />
+                    ) : null
+                  }
                 />
               </div>
             ) : null}
