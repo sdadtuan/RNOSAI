@@ -720,11 +720,11 @@ export function LeadQuoteSheet({
   return (
     <section id="lead-quote-sheet" className="quote-sheet quote-sheet--brand" aria-label="Bảng báo giá">
       <LeadStepHero
-        title="BÁO GIÁ"
+        title={submittedForCeo && !ceoApproved ? 'CHỜ CEO DUYỆT' : 'BÁO GIÁ'}
         icon="quote"
         subtitle={
-          phase === 'ceo_review' || phase === 'sale_review'
-            ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
+          submittedForCeo && !ceoApproved
+            ? 'Báo giá đã nộp, CEO xem các mục đã tick và duyệt.'
             : ceoApproved
               ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
               : 'Tick hạng mục cần tính tiền và chọn số lượng. Thành tiền chỉ cộng các dòng đã tick.'
