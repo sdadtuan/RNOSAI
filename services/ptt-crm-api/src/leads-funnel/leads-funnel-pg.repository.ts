@@ -4541,13 +4541,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   async contractIsPendingGdkd(leadId: number): Promise<boolean> {
     const result = await this.db.query(
-      SELECT c.status AS contract_status,
+      `SELECT c.status AS contract_status,
               (SELECT a.status FROM crm_contract_approvals a
                 WHERE a.contract_id = c.id
                 ORDER BY a.id DESC LIMIT 1) AS approval_status
          FROM crm_contracts c
-        WHERE c.lead_id =         ORDER BY c.id DESC
-        LIMIT 1,
+        WHERE c.lead_id = $1
+        ORDER BY c.id DESC
+        LIMIT 1`,
       [leadId],
     );
     const row = result.rows[0] as { contract_status?: string; approval_status?: string } | undefined;
