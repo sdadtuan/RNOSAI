@@ -335,7 +335,7 @@ export default function CrmLeadDetailPage() {
       !salesViewer) ||
     quoteCasePhase === 'hop_dong' ||
     quoteCasePhase === 'trien_khai' ||
-    (superAdmin && inBaoGiaColumn);
+    (inBaoGiaColumn && !salesViewer);
   const quoteOpenHref = resolveLeadQuoteOpenHref({
     isSales: salesViewer,
     quoteSheetVisible: showLeadQuoteSheet,
@@ -1512,12 +1512,6 @@ export default function CrmLeadDetailPage() {
     String(funnelSnap?.presales?.quote_case?.phase ?? '') === 'sale_approve_solution';
   const needsSolutionRevision =
     String(funnelSnap?.presales?.solution_case?.phase ?? '') === 'chinh_sua';
-  const atQuoteStep =
-    !waitingSolutionFeedback &&
-    !needsSolutionRevision &&
-    ['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review', 'hop_dong', 'trien_khai'].includes(
-      String(funnelSnap?.presales?.quote_case?.phase ?? ''),
-    );
   const flowCurrentKey = lead
     ? resolveHandoffFlow({
         leadStatus: lead.status || status,
@@ -1533,6 +1527,19 @@ export default function CrmLeadDetailPage() {
         ...flowTimesFromFunnel(funnelSnap),
       }).currentKey
     : '';
+  // Quote desk follows the stepper (Chờ báo giá / Chờ CEO duyệt) and the
+  // Báo giá kanban column, not only quote_case.phase. A lead can sit on
+  // Chờ báo giá from status bao_gia / handoff released while quote_case is
+  // missing, leaving the middle column empty if we key off phase alone.
+  const atQuoteStep =
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    (['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review', 'hop_dong', 'trien_khai'].includes(
+      String(funnelSnap?.presales?.quote_case?.phase ?? ''),
+    ) ||
+      flowCurrentKey === 'await_quote' ||
+      flowCurrentKey === 'negotiate' ||
+      inBaoGiaColumn);
   const atSalesBriefStep =
     !solutionDesk &&
     !waitingSolutionFeedback &&
@@ -2142,7 +2149,7 @@ export default function CrmLeadDetailPage() {
                 <LeadQuoteSheet
                   token={accessToken}
                   leadId={leadId}
-                  phase={superAdmin && !quoteCasePhase ? 'bao_gia' : quoteCasePhase}
+                  phase={quoteCasePhase || 'bao_gia'}
                   viewerIsSales={salesViewer}
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
