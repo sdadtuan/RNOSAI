@@ -10,6 +10,8 @@ import { LeadSlaDeskService } from './lead-sla-desk.service';
 import { LeadSlaGdkdController } from './lead-sla-gdkd.controller';
 import { LeadSlaReassignService } from './lead-sla-reassign.service';
 import { LeadSlaReassignWorker } from './lead-sla-reassign.worker';
+import { LeadClaimTimeoutReassignService } from './lead-claim-timeout-reassign.service';
+import { LeadClaimTimeoutReassignWorker } from './lead-claim-timeout-reassign.worker';
 
 @Module({
   imports: [StaffAuthModule, LeadSlaSettingsModule, LeadsModule, StaffNotificationsModule],
@@ -19,6 +21,8 @@ import { LeadSlaReassignWorker } from './lead-sla-reassign.worker';
     LeadFrSlaRepository,
     LeadSlaReassignService,
     LeadSlaReassignWorker,
+    LeadClaimTimeoutReassignService,
+    LeadClaimTimeoutReassignWorker,
     LeadSlaDeskService,
   ],
   exports: [LeadFrSlaService, LeadSlaReassignService, LeadSlaDeskService],

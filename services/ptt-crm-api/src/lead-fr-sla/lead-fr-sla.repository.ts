@@ -3,9 +3,23 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { leadNotLockedSql } from '../leads/lead-lock.util';
 import type { LeadFrSlaSnapshot } from './lead-fr-sla.types';
+import { claimTimeoutExcludedStatusSql } from './lead-claim-timeout-reassign.util';
+import type { PoolCandidate } from './lead-sla-reassign.util';
+
+
+export type ClaimTimeoutDueLead = {
+  lead_id: number;
+  owner_id: number;
+  assigned_at: Date;
+  b2b_project_id: string | null;
+  previous_assignee_ids: unknown;
+  reassign_count: number;
+  attempts_since_assign: number;
+};
 
 export type LeadCallAttemptRow = {
   id: number;
@@ -432,10 +446,12 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     attemptCount: number;
     jobRunId: string;
     dryRun: boolean;
+    client?: PoolClient;
   }): Promise<{ id: number; inserted: boolean }> {
     await this.ensureReassignSchema();
+    const db = input.client ?? this.db;
     try {
-      const result = await this.db.query(
+      const result = await db.query(
         `INSERT INTO crm_lead_reassign_events
            (sqlite_lead_id, from_staff_id, to_staff_id, would_to_staff_id,
             reason, decision, notes, hold_until_snapshot, attempt_count_snapshot,
@@ -863,6 +879,173 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
       `UPDATE crm_leads SET fr1_breached = FALSE, needs_gdkd_escalate = FALSE, updated_at = NOW()
        WHERE sqlite_lead_id = $1`,
       [leadId],
+    );
+  }
+
+  async withLeadTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
+    const tx = await this.db.connect();
+    try {
+      await tx.query("BEGIN");
+      const out = await fn(tx);
+      await tx.query("COMMIT");
+      return out;
+    } catch (err) {
+      try {
+        await tx.query("ROLLBACK");
+      } catch {
+        /* keep the original error */
+      }
+      throw err;
+    } finally {
+      tx.release();
+    }
+  }
+
+  async lockClaimTimeoutDueLeads(
+    tx: PoolClient,
+    opts: { now: Date; claimMinutes: number; limit: number },
+  ): Promise<ClaimTimeoutDueLead[]> {
+    await this.ensureReassignSchema();
+    const minutes = Math.max(1, Math.floor(Number(opts.claimMinutes) || 15));
+    const limit = Math.min(Math.max(opts.limit, 1), 100);
+    const result = await tx.query(
+      `SELECT l.sqlite_lead_id AS lead_id,
+              l.owner_id,
+              l.assigned_at,
+              l.b2b_project_id::text AS b2b_project_id,
+              l.previous_assignee_ids,
+              COALESCE(l.reassign_count, 0) AS reassign_count,
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign
+       FROM crm_leads l
+       WHERE l.sales_claimed_at IS NULL
+         AND l.first_call_at IS NULL
+         AND l.last_call_at IS NULL
+         AND l.hold_until IS NULL
+         AND l.owner_id IS NOT NULL
+         AND l.assigned_at IS NOT NULL
+         AND l.assigned_at + ($1::int * INTERVAL '1 minute') <= $2::timestamptz
+         AND COALESCE(l.is_duplicate, FALSE) IS NOT TRUE
+         AND ${leadNotLockedSql("l")}
+         AND lower(trim(COALESCE(l.status, ''))) NOT IN (${claimTimeoutExcludedStatusSql()})
+         AND trim(COALESCE(l.last_call_result, '')) = ''
+         AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''
+       ORDER BY l.assigned_at ASC
+       LIMIT $3
+       FOR UPDATE OF l SKIP LOCKED`,
+      [minutes, opts.now.toISOString(), limit],
+    );
+    return result.rows.map((row) => ({
+      lead_id: Number(row.lead_id),
+      owner_id: Number(row.owner_id),
+      assigned_at: row.assigned_at instanceof Date ? row.assigned_at : new Date(String(row.assigned_at)),
+      b2b_project_id: row.b2b_project_id ? String(row.b2b_project_id) : null,
+      previous_assignee_ids: row.previous_assignee_ids,
+      reassign_count: Number(row.reassign_count ?? 0),
+      attempts_since_assign: Number(row.attempts_since_assign ?? 0),
+    }));
+  }
+
+  async listClaimTimeoutSalesPool(projectId: string | null): Promise<PoolCandidate[]> {
+    await this.ensureReassignSchema();
+    const projectFilter = projectId
+      ? `JOIN crm_b2b_project_staff ps ON ps.staff_id = s.id
+            AND ps.project_id = $1::uuid
+            AND ps.assign_enabled IS TRUE`
+      : "";
+    const params: unknown[] = projectId ? [projectId] : [];
+    const result = await this.db.query(
+      `SELECT s.id AS staff_id,
+              COALESCE(s.can_receive_leads, FALSE) AS accepts_leads,
+              s.active,
+              COALESCE((
+                SELECT COUNT(*)::int FROM crm_leads l
+                WHERE l.owner_id = s.id
+                  AND lower(COALESCE(l.contact_status, '')) IN
+                    ('new','attempting','meet_pending','callback_scheduled')
+              ), 0) AS open_attempting
+       FROM crm_staff s
+       ${projectFilter}
+       WHERE s.active IS TRUE
+         AND COALESCE(s.can_receive_leads, FALSE) IS TRUE
+       ORDER BY s.id ASC`,
+      params,
+    );
+    return result.rows.map((r) => ({
+      staff_id: Number(r.staff_id),
+      open_attempting: Number(r.open_attempting ?? 0),
+      accepts_leads: r.accepts_leads === true || r.accepts_leads === 1,
+      active: r.active === true || r.active === 1,
+    }));
+  }
+
+  async applyClaimTimeoutReassign(
+    tx: PoolClient,
+    input: {
+      leadId: number;
+      fromOwnerId: number;
+      toOwnerId: number;
+      previousAssigneeIds: number[];
+    },
+  ): Promise<boolean> {
+    const nextPrev = Array.from(
+      new Set([...input.previousAssigneeIds.map(Number), input.fromOwnerId].filter((n) => Number.isFinite(n) && n > 0)),
+    );
+    const result = await tx.query(
+      `UPDATE crm_leads SET
+         first_assigned_at = COALESCE(first_assigned_at, assigned_at),
+         previous_assignee_ids = $3::jsonb,
+         owner_id = $2,
+         assigned_at = NOW(),
+         reassign_count = COALESCE(reassign_count, 0) + 1,
+         attempts_since_assign = 0,
+         sales_claimed_at = NULL,
+         sales_claimed_by = NULL,
+         fr1_breached = FALSE,
+         assign_strategy = 'claim_timeout',
+         assign_reason = 'claim_timeout',
+         updated_at = NOW()
+       WHERE sqlite_lead_id = $1
+         AND owner_id = $4
+         AND sales_claimed_at IS NULL
+         AND first_call_at IS NULL
+         AND hold_until IS NULL
+       RETURNING sqlite_lead_id`,
+      [
+        input.leadId,
+        input.toOwnerId,
+        JSON.stringify(nextPrev),
+        input.fromOwnerId,
+      ],
+    );
+    return result.rows.length > 0;
+  }
+
+  async insertClaimTimeoutSystemNote(
+    tx: PoolClient,
+    leadId: number,
+    fromOwnerId: number,
+    toOwnerId: number,
+    claimMinutes: number,
+  ): Promise<void> {
+    const names = await tx.query(
+      `SELECT id, name FROM crm_staff WHERE id = ANY($1::bigint[])`,
+      [[fromOwnerId, toOwnerId]],
+    );
+    const label = new Map<number, string>(
+      names.rows.map((row) => [Number(row.id), String(row.name || "").trim() || `#${row.id}`]),
+    );
+    const fromName = label.get(fromOwnerId) || `#${fromOwnerId}`;
+    const toName = label.get(toOwnerId) || `#${toOwnerId}`;
+    const minutes = Math.max(1, Math.floor(Number(claimMinutes) || 15));
+    const content = `Hết hạn nhận lead (${minutes} phút) — đã chuyển từ ${fromName} sang ${toName}.`;
+    await tx.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'note', $2, 'claim_timeout', 'reassigned', NOW(), 'system', COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000)],
     );
   }
 }
