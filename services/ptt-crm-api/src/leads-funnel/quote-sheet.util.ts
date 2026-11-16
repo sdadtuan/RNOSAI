@@ -301,7 +301,7 @@ export function assembleQuoteSheet(input: {
     const qty = clampHours(override?.qty ?? item.qty, item.qty);
     const requestedStaff = override?.staff_id ?? defaultStaffId(item.role_code, input.staff);
     const person = requestedStaff != null ? staffById.get(requestedStaff) ?? null : null;
-    const included = chargeable ? (override ? override.included : true) : false;
+    const included = chargeable && override ? override.included : false;
     const amount = included ? quoteLineAmount(hours, qty, person?.hourly_vnd ?? 0) : 0;
     if (included) {
       includedCount += 1;

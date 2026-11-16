@@ -126,8 +126,13 @@ function mergeCatalogGroups(base: LeadQuoteSheet, incoming: LeadQuoteSheet): Lea
 }
 
 function quoteHasExistingItems(sheet: LeadQuoteSheet): boolean {
-  if ((sheet.selected_service_codes ?? []).length > 0) return true;
   return sheet.groups.some((group) => group.rows.some((row) => row.included));
+}
+
+/** True when every chargeable row is included — the API default for a preselected service, not a user tick. */
+function looksLikeCatalogDefault(sheet: LeadQuoteSheet): boolean {
+  const rows = sheet.groups.flatMap((group) => group.rows).filter((row) => row.chargeable);
+  return rows.length > 0 && rows.every((row) => row.included);
 }
 
 function applyLoadedSheet(
@@ -238,6 +243,8 @@ export function LeadQuoteSheet({
           return;
         }
 
+        const incoming = looksLikeCatalogDefault(next) ? applyLoadedSheet(next, null, new Set()) : next;
+
         const sessionsList = Array.isArray(sessions) ? sessions : [];
         const latest = [...sessionsList].sort((left, right) =>
           String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? '')),
@@ -254,12 +261,12 @@ export function LeadQuoteSheet({
           }
         }
 
-        const canPrefill = !prefilledRef.current && !quoteHasExistingItems(next) && (discoveryServices.length > 0 || Boolean(p13Scope?.service_code));
+        const canPrefill = !prefilledRef.current && !quoteHasExistingItems(incoming) && (discoveryServices.length > 0 || Boolean(p13Scope?.service_code));
         if (canPrefill) {
           const firstPass = suggestQuotePrefillFromDiscovery({
             discoveryServices,
             serviceGroups: options?.service_groups,
-            quoteServices: next.services,
+            quoteServices: incoming.services,
             quoteItems: [],
             p13Scope,
           });
@@ -300,7 +307,7 @@ export function LeadQuoteSheet({
         }
 
         if (cancelled) return;
-        setSheet(withComputedAmounts(next));
+        setSheet(withComputedAmounts(incoming));
       } catch (err: unknown) {
         if (!cancelled) setLocalError(err instanceof Error ? err.message : 'Không tải được bảng báo giá');
       }
@@ -498,15 +505,22 @@ export function LeadQuoteSheet({
     return groups.map((group) => {
       const key = groupKey(group);
       const hiddenCount = group.rows.filter((row) => !row.included).length;
+      const includedCount = group.rows.filter((row) => row.included).length;
+      const totalCount = group.rows.length;
       const expanded = Boolean(options?.revealAll) || openGroupKeys.includes(key);
       const visibleRows = expanded ? group.rows : group.rows.filter((row) => row.included);
       const showMoreLink = hiddenCount > 0 && !options?.revealAll;
       return (
         <div key={key} className="quote-sheet__group">
-          <h3>
-            {group.service_name}
-            {group.phase_name ? ` - ${group.phase_name}` : ''}
-          </h3>
+          <div className="quote-sheet__group-head">
+            <h3>
+              {group.service_name}
+              {group.phase_name ? ` - ${group.phase_name}` : ''}
+            </h3>
+            <span className="quote-sheet__pill" aria-label={`${includedCount} trên ${totalCount} hạng mục`}>
+              {includedCount}/{totalCount}
+            </span>
+          </div>
           {visibleRows.length > 0 ? (
             <table className="quote-sheet__lines">
               <colgroup>
@@ -604,8 +618,15 @@ export function LeadQuoteSheet({
             </table>
           ) : null}
           {showMoreLink ? (
-            <button type="button" className="quote-sheet__more" onClick={() => toggleGroupRows(key)}>
-              {expanded ? 'Ẩn bớt' : `Xem thêm ${hiddenCount} hạng mục`}
+            <button
+              type="button"
+              className="quote-sheet__more"
+              aria-expanded={expanded}
+              onClick={() => toggleGroupRows(key)}
+            >
+              <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
+              {expanded ? 'Ẩn bớt' : 'Xem thêm'}
+              <span className="quote-sheet__pill">{hiddenCount}</span>
             </button>
           ) : null}
         </div>
@@ -658,7 +679,11 @@ export function LeadQuoteSheet({
                   onClick={() => void toggleExtraService(service.code)}
                 >
                   <span className="quote-sheet__extra-name">{service.name}</span>
-                  <span className="muted">{loading ? 'Đang tải…' : `${service.item_count} hạng mục`}</span>
+                  {loading ? (
+                    <span className="muted">Đang tải…</span>
+                  ) : (
+                    <span className="quote-sheet__pill">{service.item_count} hạng mục</span>
+                  )}
                   <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
                 </button>
                 {open ? (

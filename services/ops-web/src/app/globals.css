@@ -4585,31 +4585,63 @@ html.ops-shell-bitrix .win-home__scope {
   margin: 0.15rem 0 0;
 }
 
+/* t229: cream lead-page group cards, count pills, and more-toggle */
 .quote-sheet__group {
   min-width: 0;
+  background: var(--surface, #fff);
+  border: 1px solid var(--crm-lead-field-border, #e3dccd);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(22, 48, 71, 0.05);
+  overflow: hidden;
 }
 
-.quote-sheet__group h3 {
-  margin: 0 0 0.2rem;
-  font-size: 0.86rem;
+.quote-sheet__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--crm-lead-field-bg, #fffdf8);
+  border-bottom: 1px solid var(--crm-lead-field-border, #e3dccd);
+}
+
+.quote-sheet__group-head h3 {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.88rem;
   font-weight: 700;
-  color: #163047;
+  color: #173526;
   line-height: 1.3;
+}
+
+.quote-sheet__pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 105, 47, 0.18);
+  background: #e4f4ea;
+  color: var(--primary, #17692f);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .quote-sheet__extras {
   margin: 0.85rem 0 0;
-  padding-top: 0.65rem;
-  border-top: 1px solid #eee8e0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--crm-lead-field-border, #e3dccd);
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .quote-sheet__extras-label {
   margin: 0;
   font-size: 0.92rem;
   font-weight: 700;
-  color: #163047;
+  color: #173526;
   line-height: 1.3;
 }
 
@@ -4621,6 +4653,11 @@ html.ops-shell-bitrix .win-home__scope {
 
 .quote-sheet__extra {
   min-width: 0;
+  background: var(--surface, #fff);
+  border: 1px solid var(--crm-lead-field-border, #e3dccd);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(22, 48, 71, 0.05);
+  overflow: hidden;
 }
 
 .quote-sheet__extra-head {
@@ -4630,20 +4667,22 @@ html.ops-shell-bitrix .win-home__scope {
   column-gap: 0.5rem;
   width: 100%;
   margin: 0;
-  padding: 0.38rem 0.55rem;
-  border: 1px solid #eee8e0;
-  border-radius: 6px;
-  background: #fffdf8;
+  padding: 0.7rem 0.85rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--crm-lead-field-bg, #fffdf8);
   font: inherit;
   font-size: 0.84rem;
-  color: #163047;
+  font-weight: 600;
+  color: #173526;
   text-align: left;
   cursor: pointer;
 }
 
 .quote-sheet__extra-head:hover,
 .quote-sheet__extra-head:focus-visible {
-  background: #f7f3eb;
+  background: #f3efe6;
+  outline: none;
 }
 
 .quote-sheet__extra-head:disabled {
@@ -4679,7 +4718,11 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__extra .quote-sheet__group {
-  margin: 0.45rem 0 0.35rem;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--crm-lead-field-border, #e3dccd);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .quote-sheet__lines {
@@ -4862,22 +4905,41 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__more {
-  display: inline-block;
-  margin: 0.2rem 0 0;
-  padding: 0;
-  border: 0;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0.85rem 0.7rem;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--crm-lead-field-border, #e3dccd);
+  border-radius: 999px;
+  background: var(--crm-lead-field-bg, #fffdf8);
   font: inherit;
   font-size: 0.75rem;
-  color: #1d5a8a;
+  font-weight: 600;
+  color: var(--primary, #17692f);
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-decoration: none;
 }
 
 .quote-sheet__more:hover,
 .quote-sheet__more:focus-visible {
-  color: #123e62;
+  background: #f3efe6;
+  border-color: rgba(23, 105, 47, 0.35);
+  color: var(--primary-700, #125a28);
+  outline: none;
+}
+
+.quote-sheet__more .quote-sheet__chevron {
+  font-size: 0.85rem;
+}
+
+.quote-sheet__more[aria-expanded='true'] .quote-sheet__chevron {
+  transform: rotate(180deg);
+}
+
+.quote-sheet__more .quote-sheet__pill {
+  background: #fff;
+  color: var(--primary, #17692f);
 }
 
 .solution-pack {
