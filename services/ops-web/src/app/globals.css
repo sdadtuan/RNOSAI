@@ -4086,7 +4086,9 @@ html.ops-shell-bitrix .win-home__scope {
   line-height: 1.45;
 }
 
+/* t245: floating "Mở AI Copilot" pill hidden on lead detail (only mounted there); copilot feature kept. */
 .lead-copilot-fab {
+  display: none;
   position: fixed;
   right: 20px;
   bottom: 92px;
