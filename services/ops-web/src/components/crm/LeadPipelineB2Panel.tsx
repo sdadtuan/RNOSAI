@@ -20,7 +20,6 @@ export function LeadPipelineB2Panel({
   leadId,
   canWriteFr = true,
   embedFrSla = false,
-  statusChip,
   leadStatus = null,
 }: {
   funnel: LeadFunnelSnapshot;
@@ -87,20 +86,6 @@ export function LeadPipelineB2Panel({
 
   return (
     <div className="lead-b2-workspace" id="funnel-b2">
-      <header className="lead-b2-workspace__head">
-        <div className="lead-b2-workspace__titles">
-          <h3>Liên hệ lần đầu (B2)</h3>
-          <p className="lead-b2-workspace__sub">
-            {showFr
-              ? tab === 'fr'
-                ? 'Đang ở phần ghi phản hồi đầu. Sang Chốt kết quả B2 khi đã nói chuyện với khách.'
-                : 'Cửa sang Pre Sale. Không nghe máy và sai số vẫn ghi ở phần Ghi phản hồi đầu.'
-              : 'Xác nhận đã nói chuyện để hoàn thành B2 và sang Pre Sale.'}
-          </p>
-        </div>
-        {statusChip ? <span className="lead-b2-workspace__chip">{statusChip}</span> : null}
-      </header>
-
       {showFr ? (
         <>
           <span className="lead-zone__kicker">Trong bước Liên hệ lần đầu</span>
