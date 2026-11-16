@@ -448,7 +448,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     dryRun: boolean;
     client?: PoolClient;
   }): Promise<{ id: number; inserted: boolean }> {
-    await this.ensureReassignSchema();
+    // Never run DDL on a different connection while a caller transaction is open.
+    if (!input.client) await this.ensureReassignSchema();
     const db = input.client ?? this.db;
     try {
       const result = await db.query(
@@ -905,7 +906,6 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     tx: PoolClient,
     opts: { now: Date; claimMinutes: number; limit: number },
   ): Promise<ClaimTimeoutDueLead[]> {
-    await this.ensureReassignSchema();
     const minutes = Math.max(1, Math.floor(Number(opts.claimMinutes) || 15));
     const limit = Math.min(Math.max(opts.limit, 1), 100);
     const result = await tx.query(
@@ -946,7 +946,6 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
   }
 
   async listClaimTimeoutSalesPool(projectId: string | null): Promise<PoolCandidate[]> {
-    await this.ensureReassignSchema();
     const projectFilter = projectId
       ? `JOIN crm_b2b_project_staff ps ON ps.staff_id = s.id
             AND ps.project_id = $1::uuid
@@ -1027,7 +1026,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     toOwnerId: number,
     claimMinutes: number,
   ): Promise<void> {
-    const names = await tx.query(
+    // Look up names on the pool, not the open lead transaction (avoids locking crm_staff).
+    const names = await this.db.query(
       `SELECT id, name FROM crm_staff WHERE id = ANY($1::bigint[])`,
       [[fromOwnerId, toOwnerId]],
     );
