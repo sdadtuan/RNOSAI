@@ -510,11 +510,25 @@ export class IntakeService {
     actorId: number | null,
     actor?: IntakeStaffActor | null,
   ) {
-    const existing = await this.pg.getSession(id);
-    if (!existing) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
-    if (existing.lead_id) {
-      await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
-    }
+    const timings: Record<string, number> = {};
+    const startedAt = Date.now();
+    const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
+      const t = Date.now();
+      try {
+        return await run();
+      } finally {
+        timings[name] = Date.now() - t;
+      }
+    };
+
+    const existing = await timed('validate', async () => {
+      const row = await this.pg.getSession(id);
+      if (!row) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
+      if (row.lead_id) {
+        await this.b2bVisibility.assertLeadVisible(row.lead_id, actor);
+      }
+      return row;
+    });
     const incoming = body?.brief
       ? normalizeSalesDiscoveryBrief(body.brief)
       : readDiscoveryBriefFromAnswers(existing.answers_json) ?? normalizeSalesDiscoveryBrief({});
@@ -537,14 +551,14 @@ export class IntakeService {
       incoming.call_notes || 'Sales Discovery submitted after customer call.'
     ).trim().slice(0, 4000);
     try {
-      await this.funnelPg.satisfyCareGateForDiscovery(leadId, actorLabel, careNote);
+      await timed('care-gate', () => this.funnelPg.satisfyCareGateForDiscovery(leadId, actorLabel, careNote));
     } catch (err) {
       this.logger.warn(
         `satisfyCareGateForDiscovery failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
     try {
-      await this.funnelPg.ensurePresales(leadId, primary, actorLabel);
+      await timed('ensurePresales', () => this.funnelPg.ensurePresales(leadId, primary, actorLabel));
     } catch (err) {
       this.logger.warn(
         `ensurePresales failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
@@ -553,35 +567,30 @@ export class IntakeService {
 
     let completed;
     try {
-      completed = await this.pg.finalizeDiscoverySession(id, incoming, actorId);
+      completed = await timed('finalize', () => this.pg.finalizeDiscoverySession(id, incoming, actorId));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadRequestException({ error: msg });
     }
     if (!completed) throw new NotFoundException({ error: 'Không tìm thấy phiên' });
 
-    try {
-      await this.funnelPg.runPresalesConsultPrefill(leadId, false);
-    } catch (err) {
-      this.logger.warn(
-        `consult prefill skipped lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    await this.applyDiscoveryClientBrief(leadId, incoming, primary);
+    // Brief copy, consult prefill, and AM notify are not needed for the HTTP result.
+    // Prefill previously ran here and again inside handoffToSolution; keep one background
+    // run after a successful handoff (or here if handoff fails, same eventual state).
+    void this.applyDiscoveryClientBrief(leadId, incoming, primary);
 
     let handoff: unknown = null;
     let handoff_error: string | null = null;
     const staffId = actorId ?? actor?.staffId ?? 0;
     try {
-      handoff = await this.funnelPg.handoffToSolution(leadId, staffId, { confirm: true });
+      handoff = await timed('handoffToSolution', () =>
+        this.funnelPg.handoffToSolution(leadId, staffId, { confirm: true }),
+      );
       const handed = handoff as {
         handoff_status?: string | null;
         solution_owner_staff_id?: number | null;
       };
-      // Discovery calls the repository, not LeadsFunnelService.handoffToSolution —
-      // fire the same AM-desk notify (ACM + SUPER-ADMIN) before the HTTP response returns.
-      await this.funnel.notifyAfterHandoffToSolution(leadId, handed).catch((err) => {
+      void this.funnel.notifyAfterHandoffToSolution(leadId, handed).catch((err) => {
         this.logger.warn(
           `AM notify after discovery failed lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -589,6 +598,11 @@ export class IntakeService {
     } catch (err) {
       handoff_error = err instanceof Error ? err.message : String(err);
       this.logger.warn(`handoffToSolution after discovery failed lead=${leadId}: ${handoff_error}`);
+      void this.funnelPg.runPresalesConsultPrefill(leadId, false).catch((prefillErr) => {
+        this.logger.warn(
+          `consult prefill skipped lead=${leadId}: ${prefillErr instanceof Error ? prefillErr.message : String(prefillErr)}`,
+        );
+      });
     }
 
     void this.lmpEnqueue.enqueueAfterIntakeGo(leadId).catch((err) => {
@@ -597,7 +611,11 @@ export class IntakeService {
       );
     });
 
-    const session = await this.pg.getSession(id);
+    const session = await timed('reloadSession', () => this.pg.getSession(id));
+    timings.total = Date.now() - startedAt;
+    this.logger.log(
+      `submitDiscovery lead=${leadId} timings_ms=${JSON.stringify(timings)} deferred=brief,notify,prefill`,
+    );
     return {
       session,
       brief: incoming,
@@ -613,12 +631,12 @@ export class IntakeService {
     serviceSlug: string,
   ): Promise<void> {
     try {
-      const snap = await this.funnelPg.getPresalesSnapshot(leadId);
-      if (!snap) return;
+      const ps = await this.funnelPg.getPresalesRowByLeadId(leadId);
+      if (!ps) return;
       const plan = await this.funnelPg.getOrCreatePreliminaryPlan(
         leadId,
-        snap.presales.id,
-        serviceSlug || snap.presales.service_slug,
+        ps.id,
+        serviceSlug || ps.service_slug,
       );
       const patch = discoveryClientBriefPatch(brief);
       const rawProf = plan.target_market_prof_json;

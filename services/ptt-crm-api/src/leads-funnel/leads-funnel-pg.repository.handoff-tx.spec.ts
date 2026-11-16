@@ -27,8 +27,8 @@ function makeRepo(opts: { pool: number[]; assignedAm?: number; lockedHandoff?: s
   const db = { connect: jest.fn(async () => client), query: jest.fn(async () => ({ rows: [] })) };
   const r = repo as any;
   r.pool = db;
-  jest.spyOn(repo, 'getPresalesSnapshot').mockResolvedValue({
-    presales: { id: 7, stage: 'lead', handoff_status: '', assigned_am: 2, last_solution_owner_staff_id: null, service_slug: '' },
+  jest.spyOn(repo, 'getPresalesRowByLeadId').mockResolvedValue({
+    id: 7, stage: 'lead', handoff_status: '', assigned_am: 2, last_solution_owner_staff_id: null, service_slug: '',
   } as never);
   jest.spyOn(repo, 'buildConsultAdvanceGate').mockResolvedValue({ ok: true, requires_confirm: false, messages: [] } as never);
   r.staffIsEligibleSolutionOwner = jest.fn(async (id: number) => opts.pool.includes(id));

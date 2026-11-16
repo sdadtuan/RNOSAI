@@ -267,6 +267,7 @@ type PgPresalesRow = {
 export class LeadsFunnelPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
   private quoteCaseReady: Promise<void> | null = null;
+  private intakeLeadUpdatedIndexReady: Promise<void> | null = null;
   private deliveryKpiReady: Promise<void> | null = null;
 
   constructor(
@@ -373,6 +374,25 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       negotiate_due_at: row.negotiate_due_at ? String(row.negotiate_due_at) : '',
       contract_due_at: row.contract_due_at ? String(row.contract_due_at) : '',
     };
+  }
+
+
+  private ensureIntakeLeadUpdatedIndex(): Promise<void> {
+    if (!this.intakeLeadUpdatedIndexReady) {
+      this.intakeLeadUpdatedIndexReady = this.db
+        .query(
+          `CREATE INDEX IF NOT EXISTS idx_crm_lead_intake_lead_updated
+             ON crm_lead_intake_sessions (lead_id, updated_at DESC, id DESC)`,
+        )
+        .then(() => undefined)
+        .catch((err) => {
+          this.intakeLeadUpdatedIndexReady = null;
+          new Logger(LeadsFunnelPgRepository.name).warn(
+            `ensureIntakeLeadUpdatedIndex: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+    }
+    return this.intakeLeadUpdatedIndexReady ?? Promise.resolve();
   }
 
   private ensureQuoteCaseColumns(): Promise<void> {
@@ -1694,6 +1714,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     leadId: number,
     overwrite = false,
   ): Promise<{ task_id: number | null; filled: number; fields: string[]; skipped_existing: string[] }> {
+    await this.ensureIntakeLeadUpdatedIndex();
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     const consultTasks = snap.tasks.consult ?? [];
@@ -2286,24 +2307,24 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     staffId: number,
     opts: { confirm?: boolean; overrideReason?: string; acceptMinutes?: number } = {},
   ): Promise<PresalesRow> {
-    const snap = await this.getPresalesSnapshot(leadId);
-    if (!snap) throw new Error('Không tìm thấy pre-sales');
-    const stage = snap.presales.stage;
-    const handoff = snap.presales.handoff_status;
+    const ps = await this.getPresalesRowByLeadId(leadId);
+    if (!ps) throw new Error('Không tìm thấy pre-sales');
+    const stage = ps.stage;
+    const handoff = ps.handoff_status;
     if (handoff === 'pending' || handoff === 'with_solution') {
       throw new Error('Lead đã được giao Solution.');
     }
     if (stage !== 'lead' && !(stage === 'consult' && handoff === '')) {
       throw new Error('Chỉ giao Solution khi đang ở giai đoạn Lead (hoặc Tư vấn chưa giao queue).');
     }
-    const gate = await this.buildConsultAdvanceGate(leadId, snap.presales.id);
+    const gate = await this.buildConsultAdvanceGate(leadId, ps.id);
     const block = consultAdvanceBlockReason(gate, Boolean(opts.confirm));
     if (block) throw new Error(block);
     if (opts.overrideReason?.trim()) {
       const note = `Director override handoff: ${opts.overrideReason.trim().slice(0, 500)}`;
       await this.db.query(
         `UPDATE crm_lead_presales SET notes = TRIM(BOTH FROM notes || E'\\n' || $2), updated_at = NOW() WHERE id = $1`,
-        [snap.presales.id, note],
+        [ps.id, note],
       );
     }
 
@@ -2318,7 +2339,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            FROM crm_lead_presales
           WHERE id = $1
           FOR UPDATE`,
-        [snap.presales.id],
+        [ps.id],
       );
       const current = (locked.rows[0] ?? {}) as Record<string, unknown>;
       const currentHandoff = String(current.handoff_status ?? '');
@@ -2331,7 +2352,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       const autoAssigned = await this.autoAssignSolutionOwner(
         client,
         leadId,
-        snap.presales.id,
+        ps.id,
         assignedAm,
         lastSolutionOwner,
       );
@@ -2368,7 +2389,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              solution_revision_due_at = NULL
          WHERE id = $1
          RETURNING *`,
-        [snap.presales.id, staffId, lastOwner, due.toISOString()],
+        [ps.id, staffId, lastOwner, due.toISOString()],
         );
         updatedRow = updated.rows[0] as PgPresalesRow;
       } else {
@@ -2396,7 +2417,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            missing_info_due_at = NULL
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, staffId, due.toISOString()],
+      [ps.id, staffId, due.toISOString()],
         );
         updatedRow = updated.rows[0] as PgPresalesRow;
       }
@@ -2408,7 +2429,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       client.release();
     }
 
-    await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
+    void this.applyPresalesConsultPrefill(leadId, ps.id, ps.service_slug).catch((err) => {
+      new Logger(LeadsFunnelPgRepository.name).warn(
+        `consult prefill skipped lead=${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
     await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
     const status = await this.currentLeadStatus(leadId);
     if (reclaimed) {

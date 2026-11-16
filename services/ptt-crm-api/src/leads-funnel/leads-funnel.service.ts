@@ -197,22 +197,26 @@ export class LeadsFunnelService {
     const payload = caseStaffNotify({ kind: 'submitted_to_am', leadId });
     const notifiedUsers = new Set<string>();
     const staffIds = await this.pgRepo.amDeskStaffIds();
-    for (const staffId of staffIds) {
-      const userId = await this.notifications.notifyStaff(staffId, payload).catch(() => null);
+    const staffUserIds = await Promise.all(
+      staffIds.map((staffId) => this.notifications.notifyStaff(staffId, payload).catch(() => null)),
+    );
+    for (const userId of staffUserIds) {
       if (userId) notifiedUsers.add(String(userId));
     }
     // Auth users on the AM desk that do not map to a crm_staff row already notified.
     const userIds = await this.pgRepo.solutionDeskAuthUserIds();
-    for (const userId of userIds) {
-      const uid = String(userId ?? '').trim();
-      if (!uid || notifiedUsers.has(uid)) continue;
-      await this.notifications
-        .create({
-          user_id: uid,
-          ...payload,
-        })
-        .catch(() => undefined);
-    }
+    await Promise.all(
+      userIds.map((userId) => {
+        const uid = String(userId ?? '').trim();
+        if (!uid || notifiedUsers.has(uid)) return Promise.resolve();
+        return this.notifications
+          .create({
+            user_id: uid,
+            ...payload,
+          })
+          .catch(() => undefined);
+      }),
+    );
   }
 
   async notifyAfterHandoffToSolution(
@@ -918,7 +922,7 @@ export class LeadsFunnelService {
         staffId,
         staffUser,
       );
-      await this.notifyAfterHandoffToSolution(leadId, handed).catch(() => undefined);
+      void this.notifyAfterHandoffToSolution(leadId, handed).catch(() => undefined);
     } catch (err) {
       this.funnelError(err);
     }
