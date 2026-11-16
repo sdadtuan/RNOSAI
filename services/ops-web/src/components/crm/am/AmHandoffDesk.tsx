@@ -47,6 +47,8 @@ import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import { isAiDraftNotice, solutionAiDraftIsReady } from '@/lib/crm/solution-ai-draft-display';
 import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
+import { SolutionTopCard } from '@/components/crm/am/SolutionTopCard';
+import type { SolutionDeskActivity } from '@/lib/crm/solution-activity';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import {
@@ -326,6 +328,8 @@ export function AmHandoffDesk({
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [solutionTick, setSolutionTick] = useState(0);
+  const [solutionActivity, setSolutionActivity] = useState<SolutionDeskActivity | null>(null);
+  const [aiRetryNonce, setAiRetryNonce] = useState(0);
   const [artifactReady, setArtifactReady] = useState(false);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [consultPrefill, setConsultPrefill] = useState('');
@@ -797,6 +801,16 @@ export function AmHandoffDesk({
         </div>
 
         <div className="ahd-col">
+          {showSide ? (
+            <SolutionTopCard
+              activity={solutionActivity}
+              canRetry={canSubmit}
+              onOpenAi={() => setTab('solution')}
+              onRetryAi={() => setAiRetryNonce((n) => n + 1)}
+            />
+          ) : null}
+
+          <section className="ahd-panel" data-testid="ahd-panel">
           <div className="ahd-tabs" role="tablist" aria-label="Hồ sơ Sales">
             {(
               [
@@ -936,6 +950,7 @@ export function AmHandoffDesk({
               inputTestId="ahd-internal-input"
             />
           ) : null}
+          </section>
 
         </div>
 
@@ -966,6 +981,8 @@ export function AmHandoffDesk({
               submitDisabledReason={submitDisabledReason}
               submitBusy={busy}
               onSubmitToSales={() => void submitSolutionToSales()}
+              onActivity={setSolutionActivity}
+              aiRequestNonce={aiRetryNonce}
             />
           </section>
         </div>

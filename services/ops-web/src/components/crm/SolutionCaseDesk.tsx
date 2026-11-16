@@ -58,6 +58,7 @@ import {
 import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
 import { withoutLegacyMarketingPlanHints } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
+import type { SolutionAiJobPhase, SolutionDeskActivity } from '@/lib/crm/solution-activity';
 
 type Attachment = SolutionAttachment;
 
@@ -267,6 +268,8 @@ export function SolutionCaseDesk({
   submitBusy = false,
   onSubmitToSales,
   userName,
+  onActivity,
+  aiRequestNonce = 0,
 }: {
   token: string;
   lead: LeadRow;
@@ -283,6 +286,10 @@ export function SolutionCaseDesk({
   submitBusy?: boolean;
   onSubmitToSales?: () => void | Promise<void>;
   userName?: string;
+  /** Mirrors files / AI job / upload state to a parent (step-3 top Solution card). */
+  onActivity?: (activity: SolutionDeskActivity) => void;
+  /** Increment to ask this panel to run AI tạo Solution again (retry from the top card). */
+  aiRequestNonce?: number;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [items, setItems] = useState<Array<{ code: string; label: string }>>([]);
@@ -299,6 +306,16 @@ export function SolutionCaseDesk({
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'reading' | 'uploading'>('idle');
   const [aiResult, setAiResult] = useState('');
   const [aiDraft, setAiDraft] = useState<SolutionAiDraftView | null>(null);
+  const [aiJob, setAiJob] = useState<{ phase: SolutionAiJobPhase; startedAt: number | null; error: string }>({
+    phase: 'idle',
+    startedAt: null,
+    error: '',
+  });
+  const [uploadMeta, setUploadMeta] = useState<{ name: string; size: number }>({ name: '', size: 0 });
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const onActivityRef = useRef(onActivity);
+  onActivityRef.current = onActivity;
+  const aiNonceSeenRef = useRef(aiRequestNonce);
   const [serviceGroups, setServiceGroups] = useState<DiscoveryServiceGroup[]>([]);
   const solutionFileInputRef = useRef<HTMLInputElement>(null);
   const handoff = funnel?.presales?.handoff?.status ?? '';
@@ -380,6 +397,7 @@ export function SolutionCaseDesk({
     setLines(mergeSolutionLines(scopePack.items, draft.lines));
     setFiles(readFiles(plan));
     setAiDraft(presentSolutionAiDraft(plan));
+    setLoadedOnce(true);
   }, [funnel?.presales?.presales.service_slug, lead.id, token]);
 
   useEffect(() => {
@@ -393,6 +411,26 @@ export function SolutionCaseDesk({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [aiDraft?.status, load]);
+
+  useEffect(() => {
+    const emit = onActivityRef.current;
+    if (!emit || !loadedOnce) return;
+    emit({
+      files,
+      aiDraft,
+      ai: aiJob,
+      upload: { phase: uploadPhase, percent: uploadProgress, name: uploadMeta.name, size: uploadMeta.size },
+    });
+  }, [loadedOnce, files, aiDraft, aiJob, uploadPhase, uploadProgress, uploadMeta]);
+
+  useEffect(() => {
+    if (aiRequestNonce === aiNonceSeenRef.current) return;
+    aiNonceSeenRef.current = aiRequestNonce;
+    if (filesOnly || !canEditFiles || notAssignee) return;
+    void run(runAiSolutionTracked);
+    // Only a new retry nonce triggers a run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiRequestNonce]);
 
   const discoveryBrief = readDiscoveryBriefFromAnswers(session?.answers_json);
   const need = discoveryBrief?.biggest_problem || intakeNeed(session);
@@ -548,6 +586,18 @@ export function SolutionCaseDesk({
     onMessage?.(note);
   }
 
+  async function runAiSolutionTracked() {
+    setAiJob({ phase: 'running', startedAt: Date.now(), error: '' });
+    try {
+      await runAiSolution();
+      setAiJob({ phase: 'idle', startedAt: null, error: '' });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : 'AI chưa tạo được Solution.';
+      setAiJob({ phase: 'failed', startedAt: null, error: humanizeCrmApiError(undefined, raw) });
+      throw err;
+    }
+  }
+
   function updateAiSection(key: string, body: string) {
     setAiDraft((current) =>
       current
@@ -645,6 +695,7 @@ export function SolutionCaseDesk({
               }, 0);
               const blocked = solutionFileAddError(currentTotal, picked.size, files.length);
               if (blocked) throw new Error(blocked);
+              setUploadMeta({ name: picked.name, size: picked.size });
               setUploadPhase('reading');
               setUploadProgress(0);
               try {
@@ -702,7 +753,7 @@ export function SolutionCaseDesk({
               disabled={busy || notAssignee}
               title={notAssignee ? notAssigneeTip : undefined}
               data-testid="solution-desk-ai"
-              onClick={() => void run(runAiSolution)}
+              onClick={() => void run(runAiSolutionTracked)}
             >
               {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
             </button>
@@ -1178,7 +1229,7 @@ export function SolutionCaseDesk({
               disabled={busy || notAssignee}
               title={notAssignee ? notAssigneeTip : undefined}
               data-testid="solution-desk-ai"
-              onClick={() => void run(runAiSolution)}
+              onClick={() => void run(runAiSolutionTracked)}
             >
               {busy ? 'Đang tạo Solution…' : 'AI tạo Solution'}
             </button>
