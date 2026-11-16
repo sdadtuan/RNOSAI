@@ -1835,6 +1835,7 @@ export default function CrmLeadDetailPage() {
           amStaffId={assignedAmId}
           userId={Number(user?.id) || undefined}
           waitingSolutionFeedback={waitingSolutionFeedback}
+          atQuoteStep={atQuoteStep}
           sideTop={null}
           exchangeLines={careHistory}
           ownerLines={ownerLines}
@@ -2265,7 +2266,7 @@ export default function CrmLeadDetailPage() {
 {!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
-              <div className="lead-zone">
+              <div className="lead-zone sld-main-card">
                 <div className="lead-pipeline-tabs" role="tablist" aria-label="Hồ sơ lead">
                   {marketingLeader ? null : (
                   <button
@@ -2296,8 +2297,6 @@ export default function CrmLeadDetailPage() {
                     </button>
                   ) : null}
                 </div>
-              </div>
-            ) : null}
 
             {accessToken && showPipelineTab && desktopTab === 'history' ? (
               <LeadHistoryTab
@@ -2371,6 +2370,8 @@ export default function CrmLeadDetailPage() {
                 viewerIsSales={salesViewer}
                 quoteSheetVisible={showLeadQuoteSheet}
               />
+              </div>
+            ) : null}
               </div>
             ) : null}
 

@@ -331,3 +331,111 @@
 .sld .ahd-col--main .quote-sheet__submit-hint {
   margin: 8px 0 0;
 }
+
+
+/* t249b: the t249 margin/padding zeros were not enough ? the middle column
+   still started 8px lower than the side cards because leftover lead-detail /
+   intake / embed shells stay in the box tree (gap, collapsing margin, or a
+   more specific rule). Collapse those shells with display:contents so the
+   first visible card is a flex item of .ahd-col--main, same y as the left
+   and right ahd-cards. Do not collapse the visible cards themselves. */
+.sld .ahd-col--main > .lead-detail-grid,
+.sld .ahd-col--main .lead-detail-grid,
+.sld .ahd-col--main .lead-detail-grid--record,
+.sld .ahd-col--main .lead-detail-main,
+.sld .ahd-col--main .lead-detail-main > div:not(.lead-detail-pane--hidden),
+.sld .ahd-col--main #funnel-intake-discovery,
+.sld .ahd-col--main .card-inner#funnel-intake-discovery,
+.sld .ahd-col--main .sd-embed,
+.sld .ahd-col--main .sd-page,
+.sld .ahd-col--main .sd-page--embed {
+  display: contents;
+}
+
+/* Step 1: one card for the Pipeline / Lich su tabs and the B2 panel.
+   They used to be two nested boxes (tabs bar + panel) with a gap. */
+.sld .sld-main-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  background: var(--ahd-card, #fff);
+  border: 1px solid #ececee;
+  border-radius: var(--ahd-radius, 12px);
+  box-shadow: var(--ahd-shadow);
+}
+.sld .sld-main-card.lead-zone {
+  gap: 0;
+  margin: 0;
+}
+.sld .sld-main-card .lead-pipeline-tabs {
+  margin: 0;
+  padding: 4px 8px 0;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sld .sld-main-card .lead-pipeline-tab,
+.sld .sld-main-card .lead-pipeline-tab__head {
+  margin: 0;
+  padding-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* First visible card in each column starts at y=0 of the column. */
+.sld .ahd-body > .ahd-col > :first-child,
+.sld .ahd-col--main .sld-main-card,
+.sld .ahd-col--main .sd-card,
+.sld .ahd-col--main .ahd-panel,
+.sld .ahd-col--main .ahd-sol-top,
+.sld .ahd-col--main .quote-sheet,
+.sld .ahd-col--main #lead-quote-sheet {
+  margin-top: 0 !important;
+}
+
+
+/* t260: Bang bao gia brand layout - scoped to the quote step so Brief / Solution
+   and other pages keep their current cards and notes button. */
+.sld.sld--quote .ahd-col--main .quote-sheet,
+.sld.sld--quote .ahd-col--main #lead-quote-sheet {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.sld.sld--quote .ahd-col:not(.ahd-col--main) > .ahd-card,
+.sld.sld--quote .ahd-col--side-notes > .ahd-card {
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(22, 28, 22, 0.05), 0 4px 12px rgba(22, 28, 22, 0.05);
+}
+
+.sld.sld--quote .ahd-col:not(.ahd-col--main) .ahd-card__title svg,
+.sld.sld--quote .lin-notes .ahd-card__title svg {
+  color: var(--ahd-primary, #17692f);
+  background: var(--ahd-soft, #e8f6ee);
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.sld.sld--quote .lin-notes .ahd-btn--primary {
+  width: 100%;
+  background: var(--ahd-btn, #00762f);
+  border-color: var(--ahd-btn, #00762f);
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-size: 14px;
+}
+
+.sld.sld--quote .lin-notes .ahd-btn--primary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--ahd-primary-700, #125a28);
+  border-color: var(--ahd-primary-700, #125a28);
+}
