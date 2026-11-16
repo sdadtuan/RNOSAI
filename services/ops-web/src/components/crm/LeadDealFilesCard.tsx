@@ -200,7 +200,7 @@ export function LeadDealFilesCard({
       <h2 className="lead-deal-files__title">File báo giá và hợp đồng</h2>
       {localError ? <p className="muted">{localError}</p> : null}
       <div className="lead-deal-files__grid">
-        {renderColumn('quote', 'File báo giá', 'Chưa có file. Xuất file Báo Giá hoặc tải lên bản sửa để hiện ở đây.')}
+        {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Tải lên bản sửa nếu cần.' : 'Đang tải file báo giá…')}
         {renderColumn(
           'contract',
           'File hợp đồng',

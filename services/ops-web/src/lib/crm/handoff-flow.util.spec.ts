@@ -67,6 +67,38 @@ describe('handoff-flow.util', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', handoffStatus: 'released' })).toBe(
       'await_quote',
     );
+    expect(
+      resolveHandoffFlowStep({
+        leadStatus: 'bao_gia',
+        handoffStatus: 'released',
+        quotePhase: 'ceo_review',
+      }),
+    ).toBe('negotiate');
+    expect(
+      resolveHandoffFlowStep({
+        leadStatus: 'bao_gia',
+        handoffStatus: 'released',
+        quoteSentBackAt: '2026-11-16T06:15:04.000Z',
+      }),
+    ).toBe('negotiate');
+    const submitted = resolveHandoffFlow({
+      leadStatus: 'bao_gia',
+      handoffStatus: 'released',
+      quoteSentBackAt: '2026-11-16T06:15:04.000Z',
+    });
+    const submittedVisible = visibleHandoffFlowSteps(submitted);
+    expect(submittedVisible.currentKey).toBe('negotiate');
+    expect(submittedVisible.steps.find((step) => step.key === 'negotiate')?.index).toBe(5);
+    expect(
+      resolveHandoffFlowStep({
+        leadStatus: 'bao_gia',
+        handoffStatus: 'released',
+        quoteSentBackAt: '2026-11-16T06:15:04.000Z',
+        quoteApprovedAt: '2026-11-16T07:00:00.000Z',
+        quotePhase: 'hop_dong',
+        contractCreatedAt: '2026-11-16T07:05:00.000Z',
+      }),
+    ).toBe('sign_contract');
     expect(handoffFlowStatusLabel({ leadStatus: 'bao_gia' })).toBe('Chờ báo giá');
   });
 

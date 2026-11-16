@@ -341,6 +341,16 @@ export default function CrmLeadDetailPage() {
     quoteSheetVisible: showLeadQuoteSheet,
     existingProposalHref: quoteHref,
   });
+  const quoteSentBackAt = Boolean(
+    funnelSnap?.presales?.handoff?.quote_sent_back_at ||
+      (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at,
+  );
+  const quoteSubmittedForFiles =
+    quoteSentBackAt ||
+    quoteCasePhase === 'ceo_review' ||
+    quoteCasePhase === 'sale_review' ||
+    quoteCasePhase === 'hop_dong' ||
+    quoteCasePhase === 'trien_khai';
   const hourQuoteEdit = inBaoGiaColumn && !quoteWithSale;
   const hourQuoteView =
     quoteWithSale ||
@@ -1689,7 +1699,7 @@ export default function CrmLeadDetailPage() {
               viewerIsSales={salesViewer}
               viewerIsCeo={isCeoPosition(user) || superAdmin}
               quoteSentToCeo={
-                Boolean(funnelSnap?.presales?.handoff?.quote_sent_back_at) ||
+                quoteSentBackAt ||
                 quoteCasePhase === 'ceo_review' ||
                 quoteCasePhase === 'sale_review'
               }
@@ -2107,6 +2117,16 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
+            {accessToken && lead && quoteSubmittedForFiles && !((showLeadQuoteSheet && atQuoteStep) || atImplementStep) ? (
+              <LeadDealFilesCard
+                token={accessToken}
+                leadId={leadId}
+                onMessage={setMessage}
+                onError={setError}
+                onFunnelChange={setFunnelSnap}
+              />
+            ) : null}
+
             {accessToken && lead && funnelSnap?.presales?.quote_case && !atQuoteStep ? (
               <QuoteCasePanel
                 token={accessToken}
@@ -2148,7 +2168,7 @@ export default function CrmLeadDetailPage() {
                   viewerIsSales={salesViewer}
                   viewerIsCeo={isCeoPosition(user) || superAdmin}
                   quoteSentToCeo={
-                    Boolean(funnelSnap?.presales?.handoff?.quote_sent_back_at) ||
+                    quoteSentBackAt ||
                     quoteCasePhase === 'ceo_review' ||
                     quoteCasePhase === 'sale_review'
                   }

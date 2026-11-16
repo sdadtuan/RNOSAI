@@ -1244,6 +1244,7 @@ export class LeadsFunnelService {
         (await this.actorIsSuperAdmin(staffUser)) || isCeoPosition(await this.actorPositionCode(staffUser));
       await this.pgRepo.sendQuoteToSales(leadId, staffId, asPrivileged);
       await this.notifyCeos(leadId).catch(() => undefined);
+      await this.attachQuoteExportOnSubmit(leadId, staffUser);
     } catch (err) {
       this.funnelError(err);
     }
@@ -1401,11 +1402,16 @@ export class LeadsFunnelService {
     try {
       const access = await this.quoteSheetAccess(staffUser);
       await this.assertCanDownloadDealFile(leadId, 'quote', access, staffUser);
+      const existing = await this.pgRepo.latestExportDealFile(leadId, 'quote');
+      if (existing?.storage_path) {
+        return {
+          filename: existing.file_name,
+          buffer: this.pgRepo.readStoredDealFile(existing.storage_path),
+        };
+      }
       const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
       const estimated = await this.estimateQuoteExportKpis(leadId, view);
-      const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
-      await this.persistGeneratedDealFile(leadId, 'quote', out.filename, QUOTE_XLSX_MIME, out.buffer, staffUser);
-      return out;
+      return await this.pgRepo.quoteSheetXlsx(leadId, estimated);
     } catch (err) {
       this.funnelError(err);
     }
@@ -1479,7 +1485,12 @@ export class LeadsFunnelService {
     try {
       const access = await this.quoteSheetAccess(staffUser);
       const snap = await this.pgRepo.getPresalesSnapshot(leadId);
-      const files = await this.pgRepo.listDealFiles(leadId);
+      let files = await this.pgRepo.listDealFiles(leadId);
+      const hasQuoteFile = files.some((row) => row.kind === 'quote');
+      if (!hasQuoteFile && this.quoteHasBeenSubmitted(snap)) {
+        await this.attachQuoteExportOnSubmit(leadId, staffUser);
+        files = await this.pgRepo.listDealFiles(leadId);
+      }
       const quotePerm = await this.dealFilePermissions(leadId, 'quote', access, staffUser, snap);
       const contractPerm = await this.dealFilePermissions(leadId, 'contract', access, staffUser, snap);
       const quoteVersions = quotePerm.can_download ? files.filter((row) => row.kind === 'quote') : [];
@@ -1583,25 +1594,59 @@ export class LeadsFunnelService {
     mimeType: string,
     buffer: Buffer,
     staffUser?: StaffJwtPayload,
+    mode: 'insert' | 'replace-export' = 'insert',
   ): Promise<void> {
     try {
       const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
       const label = await this.pgRepo.staffLabelById(staffId);
       const email = String(staffUser?.email ?? label.email).trim();
-      await this.pgRepo.saveDealFile({
+      const payload = {
         leadId,
         kind,
         fileName,
         mimeType,
         buffer,
-        source: 'export',
         staffId,
         staffName: label.name || email,
         staffEmail: email,
-      });
+      };
+      if (mode === 'replace-export') {
+        await this.pgRepo.saveOrReplaceExportDealFile(payload);
+      } else {
+        await this.pgRepo.saveDealFile({ ...payload, source: 'export' });
+      }
     } catch (err) {
       console.warn(`[deal-files] persist ${kind} export failed: ${(err as Error)?.message ?? err}`);
     }
+  }
+
+  private async attachQuoteExportOnSubmit(leadId: number, staffUser?: StaffJwtPayload): Promise<void> {
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
+      const estimated = await this.estimateQuoteExportKpis(leadId, view);
+      const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+      await this.persistGeneratedDealFile(
+        leadId,
+        'quote',
+        out.filename,
+        QUOTE_XLSX_MIME,
+        out.buffer,
+        staffUser,
+        'replace-export',
+      );
+    } catch (err) {
+      console.warn(`[deal-files] attach quote export failed: ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  private quoteHasBeenSubmitted(
+    snap: Awaited<ReturnType<LeadsFunnelPgRepository['getPresalesSnapshot']>>,
+  ): boolean {
+    if (!snap) return false;
+    if (snap.presales.quote_sent_back_at || snap.presales.quote_approved_at) return true;
+    const phase = String(snap.presales.quote_case?.phase ?? '');
+    return phase === 'ceo_review' || phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
   }
 
   private quoteAwaitingCeo(snap: Awaited<ReturnType<LeadsFunnelPgRepository['getPresalesSnapshot']>>): boolean {

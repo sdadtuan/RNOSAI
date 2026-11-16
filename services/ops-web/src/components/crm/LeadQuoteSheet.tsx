@@ -2,12 +2,9 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  approveLeadQuote,
-  downloadLeadQuoteXlsx,
   fetchDiscoveryOptions,
   fetchIntakeSessions,
   fetchLeadQuoteSheet,
-  requestLeadQuoteEdits,
   saveLeadQuoteSheet,
   sendLeadQuoteToSales,
   type LeadFunnelSnapshot,
@@ -243,7 +240,6 @@ export function LeadQuoteSheet({
   onFunnelChange,
   onMessage,
   onError,
-  onLeadReload,
 }: {
   token: string;
   leadId: number;
@@ -273,10 +269,6 @@ export function LeadQuoteSheet({
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const [loadingCode, setLoadingCode] = useState('');
   const [openServiceKeys, setOpenServiceKeys] = useState<string[]>([]);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [rejectNote, setRejectNote] = useState('');
-
-  const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
   useEffect(() => {
     if (!visible) return;
@@ -463,51 +455,10 @@ export function LeadQuoteSheet({
       }
       const out = await sendLeadQuoteToSales(token, leadId);
       onFunnelChange(out.funnel);
+      notifyLeadDealFilesChanged();
       onMessage?.(`Đã nộp báo giá, chờ CEO duyệt. Tổng ${vnd(next.grand_total_vnd)}.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không gửi được báo giá';
-      setLocalError(message);
-      onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onApproveQuote() {
-    setBusy(true);
-    setLocalError('');
-    try {
-      const out = await approveLeadQuote(token, leadId);
-      onFunnelChange(out.funnel);
-      await onLeadReload?.();
-      onMessage?.('Đã duyệt báo giá. Chuyển sang bước Ký hợp đồng.');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không duyệt được báo giá';
-      setLocalError(message);
-      onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onRejectQuote() {
-    if (rejectNote.trim().length < 5) {
-      const message = 'Nhập lý do từ chối, ít nhất 5 ký tự.';
-      setLocalError(message);
-      onError?.(message);
-      return;
-    }
-    setBusy(true);
-    setLocalError('');
-    try {
-      const out = await requestLeadQuoteEdits(token, leadId, rejectNote.trim());
-      onFunnelChange(out.funnel);
-      await onLeadReload?.();
-      setRejectOpen(false);
-      setRejectNote('');
-      onMessage?.('Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không gửi lại được cho AM';
       setLocalError(message);
       onError?.(message);
     } finally {
@@ -602,28 +553,6 @@ export function LeadQuoteSheet({
   const afterPromo = Math.max(0, subtotal - promoVnd);
   const vatVnd = Math.round((afterPromo * vatPercent) / 100);
   const grand = afterPromo + vatVnd;
-
-  async function onDownload() {
-    setBusy(true);
-    setLocalError('');
-    try {
-      if (editable) {
-        const next = await save();
-        if (!next || tickedServiceCodes(next).length < 1) {
-          throw new Error('Chọn ít nhất một hạng mục để xuất file Báo Giá.');
-        }
-      }
-      await downloadLeadQuoteXlsx(token, leadId);
-      notifyLeadDealFilesChanged();
-      onMessage?.('Đã xuất file Báo Giá.');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không xuất được file Báo Giá';
-      setLocalError(message);
-      onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function serviceOpenKey(serviceCode: string): string {
     return serviceCode.trim().toUpperCase();
@@ -968,100 +897,38 @@ export function LeadQuoteSheet({
           !ceoApproved &&
           !submittedForCeo &&
           (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia' || !phase);
-        const canExportQuote = Boolean(sheet) && (!viewerIsSales || canDownload);
         const submitBlockedReason =
           canSubmitQuote && sheet && tickedCodes.length < 1
             ? 'Chọn ít nhất một hạng mục để nộp.'
             : '';
-        if (!editable && !canDownload && !canSubmitQuote && !canExportQuote) return null;
+        const toolbarHidden = submittedForCeo || ceoApproved;
+        if (toolbarHidden) {
+          return submittedForCeo && !ceoApproved ? (
+            <p className="muted quote-sheet__submit-hint">Báo giá đã nộp, đang chờ CEO duyệt.</p>
+          ) : null;
+        }
+        if (!editable && !canSubmitQuote) return null;
         return (
         <>
         <div className="solution-desk__actions">
-          {canSubmitQuote ? (
-            <>
-              {editable ? (
-                <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
-                  Lưu bảng
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-primary"
-                data-testid="quote-send-ceo"
-                disabled={busy || !sheet || tickedCodes.length < 1}
-                onClick={() => void onSend()}
-              >
-                Nộp báo giá cho CEO
-              </button>
-            </>
-          ) : null}
-          {editable && !canSubmitQuote ? (
+          {editable ? (
             <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
               Lưu bảng
             </button>
           ) : null}
-          {canExportQuote ? (
+          {canSubmitQuote ? (
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-primary"
+              data-testid="quote-send-ceo"
               disabled={busy || !sheet || tickedCodes.length < 1}
-              onClick={() => void onDownload()}
+              onClick={() => void onSend()}
             >
-              Xuất file Báo Giá
+              Nộp báo giá cho CEO
             </button>
           ) : null}
-          {submittedForCeo && !ceoApproved && viewerIsCeo ? (
-            <>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onApproveQuote()}>
-                Duyệt
-              </button>
-              {!rejectOpen ? (
-                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setRejectOpen(true)}>
-                  Từ chối, gửi lại AM
-                </button>
-              ) : null}
-            </>
-          ) : null}
         </div>
-        {submittedForCeo && !ceoApproved && viewerIsCeo && rejectOpen ? (
-          <div className="quote-sheet__reject">
-            <label>
-              Lý do từ chối
-              <textarea
-                rows={3}
-                value={rejectNote}
-                onChange={(event) => setRejectNote(event.target.value)}
-                aria-label="Lý do từ chối báo giá"
-                placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
-              />
-            </label>
-            <div className="solution-desk__actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || rejectNote.trim().length < 5}
-                onClick={() => void onRejectQuote()}
-              >
-                Từ chối, gửi lại AM
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => {
-                  setRejectOpen(false);
-                  setRejectNote('');
-                }}
-              >
-                Huỷ
-              </button>
-            </div>
-          </div>
-        ) : null}
         {submitBlockedReason ? <p className="muted quote-sheet__submit-hint">{submitBlockedReason}</p> : null}
-        {submittedForCeo && !ceoApproved ? (
-          <p className="muted quote-sheet__submit-hint">Báo giá đã nộp, đang chờ CEO duyệt.</p>
-        ) : null}
         </>
         );
       })()}

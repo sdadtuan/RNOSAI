@@ -174,6 +174,8 @@ export interface HandoffFlowInput {
    */
   firstContactDone?: boolean;
   quoteSentAt?: string | null;
+  /** AM nộp báo giá cho CEO (`quote_sent_back_at`). Distinct from quote_offered_at. */
+  quoteSentBackAt?: string | null;
   quoteApprovedAt?: string | null;
   customerAgreedAt?: string | null;
   contractCreatedAt?: string | null;
@@ -254,7 +256,8 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     status === 'dam_phan' ||
     status === 'negotiation' ||
     quote === 'sale_review' ||
-    quote === 'ceo_review'
+    quote === 'ceo_review' ||
+    (Boolean(String(input.quoteSentBackAt ?? '').trim()) && !String(input.quoteApprovedAt ?? '').trim())
   ) {
     return 'negotiate';
   }
@@ -351,6 +354,7 @@ export function flowTimesFromFunnel(funnel: {
     handoff?: Record<string, unknown> | null;
     solution_case?: Record<string, unknown> | null;
     quote_case?: Record<string, unknown> | null;
+    presales?: Record<string, unknown> | null;
   } | null;
 } | null | undefined): Pick<
   HandoffFlowInput,
@@ -358,6 +362,7 @@ export function flowTimesFromFunnel(funnel: {
   | 'solutionClaimedAt'
   | 'solutionReleasedAt'
   | 'quoteSentAt'
+  | 'quoteSentBackAt'
   | 'quoteApprovedAt'
   | 'customerAgreedAt'
   | 'contractCreatedAt'
@@ -379,6 +384,11 @@ export function flowTimesFromFunnel(funnel: {
     solutionClaimedAt: firstIso(str(handoff, 'solution_claimed_at'), str(sol, 'claimed_at')),
     solutionReleasedAt: firstIso(str(handoff, 'solution_released_at'), str(sol, 'released_at')),
     quoteSentAt: firstIso(str(handoff, 'quote_offered_at'), str(quote, 'quote_sent_back_at'), str(handoff, 'quote_sent_back_at')),
+    quoteSentBackAt: firstIso(
+      str(quote, 'quote_sent_back_at'),
+      str(handoff, 'quote_sent_back_at'),
+      str(funnel?.presales?.presales, 'quote_sent_back_at'),
+    ),
     quoteApprovedAt: firstIso(str(handoff, 'quote_approved_at'), str(quote, 'quote_approved_at')),
     customerAgreedAt: firstIso(str(handoff, 'solution_approved_at'), str(quote, 'solution_approved_at'), str(quote, 'quote_accepted_at')),
     contractCreatedAt: firstIso(str(handoff, 'contract_created_at')),

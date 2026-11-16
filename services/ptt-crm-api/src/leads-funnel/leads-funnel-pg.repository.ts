@@ -3600,6 +3600,70 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return mapDealFileRow(result.rows[0] as Record<string, unknown>);
   }
 
+  async latestExportDealFile(
+    leadId: number,
+    kind: DealFileKind,
+  ): Promise<(LeadDealFileRow & { storage_path: string }) | null> {
+    await this.ensureDealFilesTable();
+    const result = await this.db.query(
+      `SELECT * FROM crm_lead_deal_files
+        WHERE lead_id = $1 AND kind = $2 AND source = 'export'
+        ORDER BY version_n DESC, id DESC LIMIT 1`,
+      [leadId, kind],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return { ...mapDealFileRow(row), storage_path: String(row.storage_path ?? '') };
+  }
+
+  async saveOrReplaceExportDealFile(input: {
+    leadId: number;
+    kind: DealFileKind;
+    fileName: string;
+    mimeType: string;
+    buffer: Buffer;
+    staffId: number | null;
+    staffName: string;
+    staffEmail: string;
+  }): Promise<LeadDealFileRow> {
+    await this.ensureDealFilesTable();
+    const latest = await this.latestDealFile(input.leadId, input.kind);
+    if (latest && latest.source === 'export') {
+      const storagePath = writeDealFileToDisk({
+        leadId: input.leadId,
+        kind: input.kind,
+        version: latest.version_n,
+        fileName: input.fileName,
+        buffer: input.buffer,
+      });
+      const result = await this.db.query(
+        `UPDATE crm_lead_deal_files SET
+           file_name = $1,
+           mime_type = $2,
+           byte_size = $3,
+           storage_path = $4,
+           uploaded_by_staff_id = $5,
+           uploaded_by_name = $6,
+           uploaded_by_email = $7,
+           created_at = NOW()
+         WHERE id = $8
+         RETURNING *`,
+        [
+          input.fileName,
+          input.mimeType,
+          input.buffer.length,
+          storagePath,
+          input.staffId,
+          input.staffName,
+          input.staffEmail,
+          latest.id,
+        ],
+      );
+      return mapDealFileRow(result.rows[0] as Record<string, unknown>);
+    }
+    return this.saveDealFile({ ...input, source: 'export' });
+  }
+
   readStoredDealFile(storagePath: string): Buffer {
     return readDealFileFromDisk(storagePath);
   }
