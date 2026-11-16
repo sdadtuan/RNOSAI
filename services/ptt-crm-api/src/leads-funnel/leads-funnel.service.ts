@@ -1223,7 +1223,9 @@ export class LeadsFunnelService {
   async sendQuoteToSales(leadId: number, staffId: number | null, staffUser?: StaffJwtPayload) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
     try {
-      await this.pgRepo.sendQuoteToSales(leadId, staffId, await this.actorIsSuperAdmin(staffUser));
+      const asPrivileged =
+        (await this.actorIsSuperAdmin(staffUser)) || isCeoPosition(await this.actorPositionCode(staffUser));
+      await this.pgRepo.sendQuoteToSales(leadId, staffId, asPrivileged);
       await this.notifyCeos(leadId).catch(() => undefined);
     } catch (err) {
       this.funnelError(err);

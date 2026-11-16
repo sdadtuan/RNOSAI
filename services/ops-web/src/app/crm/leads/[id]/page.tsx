@@ -1681,6 +1681,11 @@ export default function CrmLeadDetailPage() {
               phase={quoteCasePhase || 'trien_khai'}
               viewerIsSales={salesViewer}
               viewerIsCeo={isCeoPosition(user) || superAdmin}
+              quoteSentToCeo={
+                Boolean(funnelSnap?.presales?.handoff?.quote_sent_back_at) ||
+                quoteCasePhase === 'ceo_review' ||
+                quoteCasePhase === 'sale_review'
+              }
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
               onError={setError}
@@ -2123,6 +2128,11 @@ export default function CrmLeadDetailPage() {
                   phase={quoteCasePhase || 'bao_gia'}
                   viewerIsSales={salesViewer}
                   viewerIsCeo={isCeoPosition(user) || superAdmin}
+                  quoteSentToCeo={
+                    Boolean(funnelSnap?.presales?.handoff?.quote_sent_back_at) ||
+                    quoteCasePhase === 'ceo_review' ||
+                    quoteCasePhase === 'sale_review'
+                  }
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
                   onError={setError}

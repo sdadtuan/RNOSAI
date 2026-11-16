@@ -238,6 +238,7 @@ export function LeadQuoteSheet({
   phase,
   viewerIsSales = false,
   viewerIsCeo = false,
+  quoteSentToCeo = false,
   onFunnelChange,
   onMessage,
   onError,
@@ -247,6 +248,7 @@ export function LeadQuoteSheet({
   phase: string;
   viewerIsSales?: boolean;
   viewerIsCeo?: boolean;
+  quoteSentToCeo?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
@@ -476,7 +478,8 @@ export function LeadQuoteSheet({
     }
   }
 
-  const submittedForCeo = phase === 'ceo_review' || phase === 'sale_review';
+  const submittedForCeo =
+    quoteSentToCeo || phase === 'ceo_review' || phase === 'sale_review';
   const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
   const visibleGroups = (sheet?.groups ?? []).filter((group) => group.rows.some((row) => row.included));
   const tickedCodes = sheet ? tickedServiceCodes(sheet) : [];
@@ -901,9 +904,8 @@ export function LeadQuoteSheet({
         const canSubmitQuote =
           !viewerIsSales &&
           !ceoApproved &&
-          phase !== 'ceo_review' &&
-          phase !== 'sale_review' &&
-          (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia');
+          !submittedForCeo &&
+          (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia' || !phase);
         const canExportQuote = Boolean(sheet) && (!viewerIsSales || canDownload);
         const submitBlockedReason =
           canSubmitQuote && sheet && tickedCodes.length < 1
@@ -948,6 +950,9 @@ export function LeadQuoteSheet({
           ) : null}
         </div>
         {submitBlockedReason ? <p className="muted quote-sheet__submit-hint">{submitBlockedReason}</p> : null}
+        {submittedForCeo && !ceoApproved ? (
+          <p className="muted quote-sheet__submit-hint">Báo giá đã nộp, đang chờ CEO duyệt.</p>
+        ) : null}
         </>
         );
       })()}

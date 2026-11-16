@@ -3556,11 +3556,17 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       throw new Error('Báo giá đã được Approve.');
     }
     const status = await this.currentLeadStatus(leadId);
-    if (!snap.presales.quote_accepted_at && !isBaoGiaColumnStatus(status)) {
-      throw new Error('Nhận case báo giá trước khi nộp cho CEO.');
+    if (snap.presales.quote_sent_back_at || snap.quote_case?.phase === 'ceo_review' || snap.quote_case?.phase === 'sale_review') {
+      throw new Error('Báo giá đã nộp, đang chờ CEO duyệt.');
     }
-    if (snap.quote_case?.phase !== 'bao_gia') {
-      throw new Error('Báo giá không còn ở bước AM.');
+    const phase = String(snap.quote_case?.phase ?? '');
+    const inQuoteDesk =
+      !phase ||
+      phase === 'bao_gia' ||
+      phase === 'chuyen_bao_gia' ||
+      isBaoGiaColumnStatus(status);
+    if (!inQuoteDesk) {
+      throw new Error('Bảng báo giá chỉ mở ở giai đoạn Báo giá.');
     }
     this.assertQuoteAssignee(snap.presales, staffId, asSuperAdmin);
     await this.assertQuoteSheetReady(snap.presales.id);
