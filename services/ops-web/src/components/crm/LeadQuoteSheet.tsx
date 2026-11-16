@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   fetchDiscoveryOptions,
   fetchIntakeSessions,
@@ -383,17 +383,6 @@ export function LeadQuoteSheet({
     };
   }, [visible, token, leadId, phase, viewerIsSales]);
 
-  const staffGroups = useMemo(() => {
-    const order = ['AE', 'GDKD', 'MKL'];
-    return order
-      .map((code) => ({
-        code,
-        name: sheet?.staff.find((person) => person.position_code === code)?.position_name ?? code,
-        people: sheet?.staff.filter((person) => person.position_code === code) ?? [],
-      }))
-      .filter((group) => group.people.length > 0);
-  }, [sheet]);
-
   if (!visible) return null;
 
   function patchRow(itemCode: string, patch: Partial<LeadQuoteSheetRow>) {
@@ -470,6 +459,8 @@ export function LeadQuoteSheet({
   const submittedForCeo =
     quoteSentToCeo || phase === 'ceo_review' || phase === 'sale_review';
   const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
+  const submittedView = submittedForCeo || ceoApproved;
+  const tableEditable = editable && !submittedView;
   const visibleGroups = (sheet?.groups ?? []).filter((group) => group.rows.some((row) => row.included));
   const tickedCodes = sheet ? tickedServiceCodes(sheet) : [];
   const includedRows =
@@ -577,12 +568,12 @@ export function LeadQuoteSheet({
     if (!groups.length) return null;
     const serviceCode = groups[0].service_code;
     const serviceName = groups[0].service_name;
-    const expanded = Boolean(options?.startExpanded) || isServiceExpanded(serviceCode);
+    const expanded = submittedView ? false : Boolean(options?.startExpanded) || isServiceExpanded(serviceCode);
     const allRows = groups.flatMap((group) => group.rows);
     const serviceIncluded = allRows.filter((row) => row.included).length;
     const serviceTotal = allRows.length;
     const hiddenCount = allRows.filter((row) => !row.included).length;
-    const canToggle = hiddenCount > 0;
+    const canToggle = !submittedView && hiddenCount > 0;
     const visibleGroups = expanded
       ? groups
       : groups.filter((group) => group.rows.some((row) => row.included));
@@ -625,7 +616,6 @@ export function LeadQuoteSheet({
               <col className="quote-sheet__col-check" />
               <col className="quote-sheet__col-task" />
               <col className="quote-sheet__col-subtask" />
-              <col className="quote-sheet__col-staff" />
               <col className="quote-sheet__col-qty" />
               <col className="quote-sheet__col-amount" />
             </colgroup>
@@ -634,7 +624,6 @@ export function LeadQuoteSheet({
                 <th>Tính</th>
                 <th>Việc</th>
                 <th>Việc nhỏ</th>
-                <th>Nhân sự</th>
                 <th>Số lượng</th>
                 <th>Thành tiền</th>
               </tr>
@@ -650,7 +639,7 @@ export function LeadQuoteSheet({
                   <Fragment key={key}>
                     {showPhaseHeadings && phaseName ? (
                       <tr className="quote-sheet__phase">
-                        <td colSpan={6}>
+                        <td colSpan={5}>
                           <div className="quote-sheet__phase-inner">
                             <span className="quote-sheet__phase-name">{phaseName}</span>
                             <span className="quote-sheet__pill" aria-label={`${includedCount} trên ${totalCount} hạng mục`}>
@@ -666,7 +655,7 @@ export function LeadQuoteSheet({
                           <input
                             type="checkbox"
                             checked={row.included}
-                            disabled={!editable || !row.chargeable || busy}
+                            disabled={!tableEditable || !row.chargeable || busy}
                             aria-label={`Tính tiền ${row.task}`}
                             onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
                           />
@@ -676,42 +665,8 @@ export function LeadQuoteSheet({
                           <span className="muted">{quoteRoleLabel(row.role_label)}</span>
                         </td>
                         <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
-                        <td className="quote-sheet__staff">
-                          {editable && row.chargeable ? (
-                            <select
-                              value={row.staff_id ?? ''}
-                              aria-label={`Nhân sự ${row.task}`}
-                              disabled={busy}
-                              onChange={(event) => {
-                                const staffId = Number(event.target.value);
-                                const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
-                                patchRow(row.item_code, {
-                                  staff_id: person?.id ?? null,
-                                  staff_name: person?.name ?? '',
-                                  position_name: person?.position_name ?? '',
-                                  monthly_salary_vnd: person?.monthly_salary_vnd ?? 0,
-                                  hours_per_month: person?.hours_per_month ?? 0,
-                                  hourly_vnd: person?.hourly_vnd ?? 0,
-                                });
-                              }}
-                            >
-                              <option value="">Chọn nhân sự</option>
-                              {staffGroups.map((staffGroup) => (
-                                <optgroup key={staffGroup.code} label={staffGroup.name}>
-                                  {staffGroup.people.map((person) => (
-                                    <option key={person.id} value={person.id}>
-                                      {person.name}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
-                          ) : (
-                            row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
-                          )}
-                        </td>
                         <td className="quote-sheet__qty">
-                          {editable && row.chargeable ? (
+                          {tableEditable && row.chargeable ? (
                             <input
                               type="number"
                               min={0.01}
@@ -772,20 +727,20 @@ export function LeadQuoteSheet({
             ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
             : ceoApproved
               ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
-              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'
+              : 'Tick hạng mục cần tính tiền và chọn số lượng. Thành tiền chỉ cộng các dòng đã tick.'
         }
       />
       <ActionErrorToast message={localError} />
-      {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
+      {!sheet && !localError ? <p className="muted">Đang tải bảng báo giá…</p> : null}
       {!sheet && localError ? <p className="muted">{localError}</p> : null}
-      {editable ? (
+      {tableEditable ? (
         primaryServices.map((service) => (
           <Fragment key={service.code}>{renderServiceTables(service.code)}</Fragment>
         ))
       ) : (
         renderServiceCards(visibleGroups)
       )}
-      {sheet && extraServices.length > 0 ? (
+      {sheet && !submittedView && extraServices.length > 0 ? (
         <div className="quote-sheet__extras">
           <h3 className="quote-sheet__extras-label">Thêm dịch vụ khác</h3>
                     {extraServices.map((service) => {
@@ -829,9 +784,9 @@ export function LeadQuoteSheet({
           })}
         </div>
       ) : null}
-      {sheet && (editable || tickedCodes.length > 0) ? (
+      {sheet && (tableEditable || tickedCodes.length > 0) ? (
         <>
-          {editable ? (
+          {tableEditable ? (
             <div className="quote-sheet__commercial">
               <label>
                 Khuyến mại %
