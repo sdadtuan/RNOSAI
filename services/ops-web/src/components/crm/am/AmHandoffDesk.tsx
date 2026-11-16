@@ -801,15 +801,6 @@ export function AmHandoffDesk({
         </div>
 
         <div className="ahd-col">
-          {showSide ? (
-            <SolutionTopCard
-              activity={solutionActivity}
-              canRetry={canSubmit}
-              onOpenAi={() => setTab('solution')}
-              onRetryAi={() => setAiRetryNonce((n) => n + 1)}
-            />
-          ) : null}
-
           <section className="ahd-panel" data-testid="ahd-panel">
           <div className="ahd-tabs" role="tablist" aria-label="Hồ sơ Sales">
             {(
@@ -951,6 +942,18 @@ export function AmHandoffDesk({
             />
           ) : null}
           </section>
+
+          {/* t242: File Solution card sits below the tabs panel */}
+          {showSide ? (
+            <SolutionTopCard
+              activity={solutionActivity}
+              canRetry={canSubmit}
+              customerName={company}
+              leadCode={leadCode}
+              onOpenAi={() => setTab('solution')}
+              onRetryAi={() => setAiRetryNonce((n) => n + 1)}
+            />
+          ) : null}
 
         </div>
 

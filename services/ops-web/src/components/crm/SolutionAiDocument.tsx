@@ -437,6 +437,38 @@ export function downloadSolutionAiHtmlDocument(input: {
   window.setTimeout(() => URL.revokeObjectURL(url), 4_000);
 }
 
+/** Word-compatible .doc (HTML + Office namespaces, UTF-8 BOM) of the AI Solution draft. */
+export function downloadSolutionAiWordDocument(input: {
+  customer: string;
+  contactName?: string;
+  leadCode?: string;
+  createdAt?: string;
+  subtitle: string;
+  sections: Section[];
+  fileBase: string;
+}): void {
+  const html = buildSolutionHtmlDocument({
+    customer: input.customer,
+    contactName: input.contactName || '',
+    leadCode: input.leadCode || '',
+    createdAt: input.createdAt || '',
+    subtitle: input.subtitle,
+    sections: input.sections,
+  }).replace(
+    '<html lang="vi">',
+    '<html lang="vi" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">',
+  );
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${sanitizeFileName(input.fileBase).replace(/\.html$/i, '')}.doc`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 4_000);
+}
+
 function sanitizeFileName(name: string): string {
   const cleaned = name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
   return cleaned || 'Solution (AI).html';

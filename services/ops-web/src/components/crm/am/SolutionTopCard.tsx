@@ -8,6 +8,21 @@ import {
 } from '@/lib/crm/solution-activity';
 import { formatAttachmentMeta, formatFileSize } from '@/lib/crm/solution-file-display';
 import { formatSolutionAiTime } from '@/lib/crm/solution-ai-draft-display';
+import { downloadSolutionAiWordDocument } from '@/components/crm/SolutionAiDocument';
+
+/** dd-mm-yyyy in Asia/Saigon. */
+function saigonDmy(iso?: string): string {
+  const parsed = iso ? new Date(iso) : new Date();
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Saigon',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('day')}-${get('month')}-${get('year')}`;
+}
 
 function Bar({ percent, testId }: { percent: number; testId: string }) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
@@ -32,11 +47,15 @@ function Bar({ percent, testId }: { percent: number; testId: string }) {
 export function SolutionTopCard({
   activity,
   canRetry,
+  customerName = '',
+  leadCode = '',
   onOpenAi,
   onRetryAi,
 }: {
   activity: SolutionDeskActivity | null;
   canRetry: boolean;
+  customerName?: string;
+  leadCode?: string;
   onOpenAi: () => void;
   onRetryAi: () => void;
 }) {
@@ -127,6 +146,25 @@ export function SolutionTopCard({
           <div className="ahd-sol-actions">
             <button type="button" className="ahd-btn ahd-btn--ghost" data-testid="ahd-solution-top-ai-open" onClick={onOpenAi}>
               Mở / Sửa
+            </button>
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--ghost"
+              data-testid="ahd-solution-top-ai-download"
+              onClick={() => {
+                const draft = aiState.draft;
+                const who = customerName.trim() || leadCode.trim() || 'Lead';
+                downloadSolutionAiWordDocument({
+                  customer: customerName.trim() || who,
+                  leadCode,
+                  createdAt: formatSolutionAiTime(draft.requestedAt),
+                  subtitle: draft.title,
+                  sections: draft.sections,
+                  fileBase: `Solution - ${who} - ${saigonDmy(draft.requestedAt)}`,
+                });
+              }}
+            >
+              Tải về
             </button>
           </div>
         </div>
