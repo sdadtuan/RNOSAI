@@ -1513,7 +1513,6 @@ export default function CrmLeadDetailPage() {
     ['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review', 'hop_dong', 'trien_khai'].includes(
       String(funnelSnap?.presales?.quote_case?.phase ?? ''),
     );
-  const hideLegacyLeadExtras = Boolean(useSalesDesk);
   const flowCurrentKey = lead
     ? resolveHandoffFlow({
         leadStatus: lead.status || status,
@@ -1533,7 +1532,16 @@ export default function CrmLeadDetailPage() {
     !waitingSolutionFeedback &&
     !atQuoteStep &&
     !needsSolutionRevision &&
-    (flowCurrentKey === 'sales_brief' || flowCurrentKey === 'receive_lead');
+    flowCurrentKey === 'sales_brief';
+  // t222: step 1 Tiếp nhận Lead keeps the pre-t178 Sales view (pipeline tabs with calls /
+  // first contact). The Brief form and the hidden legacy blocks apply from step 2 on.
+  const atReceiveLeadStep =
+    !solutionDesk &&
+    !waitingSolutionFeedback &&
+    !atQuoteStep &&
+    !needsSolutionRevision &&
+    flowCurrentKey === 'receive_lead';
+  const hideLegacyLeadExtras = Boolean(useSalesDesk) && !atReceiveLeadStep;
   const atContractStep =
     !solutionDesk &&
     !waitingSolutionFeedback &&
