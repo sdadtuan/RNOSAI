@@ -1537,14 +1537,28 @@ export default function CrmLeadDetailPage() {
         ...flowTimesFromFunnel(funnelSnap),
       }).currentKey
     : '';
-  // Quote desk follows the stepper (Chờ báo giá / Chờ CEO duyệt) and the
-  // Báo giá kanban column, not only quote_case.phase. A lead can sit on
-  // Chờ báo giá from status bao_gia / handoff released while quote_case is
-  // missing, leaving the middle column empty if we key off phase alone.
+  const atImplementStep =
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    (flowCurrentKey === 'trien_khai' ||
+      quoteCasePhase === 'trien_khai' ||
+      quoteStage === 'trien_khai');
+  const atContractStep =
+    !solutionDesk &&
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    !atImplementStep &&
+    (flowCurrentKey === 'sign_contract' ||
+      quoteCasePhase === 'hop_dong' ||
+      Boolean(contractSummary?.hasContract));
+  // Quote desk is only Chờ báo giá / Chờ CEO duyệt (and the Báo giá kanban
+  // column). Ký hợp đồng and Triển Khai have their own middle-column panels.
   const atQuoteStep =
     !waitingSolutionFeedback &&
     !needsSolutionRevision &&
-    (['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review', 'hop_dong', 'trien_khai'].includes(
+    !atImplementStep &&
+    !atContractStep &&
+    (['chuyen_bao_gia', 'bao_gia', 'ceo_review', 'sale_review'].includes(
       String(funnelSnap?.presales?.quote_case?.phase ?? ''),
     ) ||
       flowCurrentKey === 'await_quote' ||
@@ -1566,20 +1580,7 @@ export default function CrmLeadDetailPage() {
     !needsSolutionRevision &&
     flowCurrentKey === 'receive_lead';
   const hideLegacyLeadExtras = Boolean(useSalesDesk) && !atReceiveLeadStep;
-  const atContractStep =
-    !solutionDesk &&
-    !waitingSolutionFeedback &&
-    !needsSolutionRevision &&
-    (flowCurrentKey === 'sign_contract' ||
-      quoteCasePhase === 'hop_dong' ||
-      quoteCasePhase === 'trien_khai' ||
-      Boolean(contractSummary?.hasContract));
-  const atImplementStep =
-    !waitingSolutionFeedback &&
-    !needsSolutionRevision &&
-    (flowCurrentKey === 'trien_khai' ||
-      quoteCasePhase === 'trien_khai' ||
-      quoteStage === 'trien_khai');
+  const hideStepExtras = atQuoteStep || atContractStep || atImplementStep;
   const flowStatusLabel = lead
     ? handoffFlowStatusLabel({
         leadStatus: lead.status || status,
@@ -1700,8 +1701,11 @@ export default function CrmLeadDetailPage() {
               viewerIsCeo={isCeoPosition(user) || superAdmin}
               quoteSentToCeo={
                 quoteSentBackAt ||
+                quoteSubmittedForFiles ||
                 quoteCasePhase === 'ceo_review' ||
-                quoteCasePhase === 'sale_review'
+                quoteCasePhase === 'sale_review' ||
+                quoteCasePhase === 'hop_dong' ||
+                quoteCasePhase === 'trien_khai'
               }
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
@@ -2027,7 +2031,7 @@ export default function CrmLeadDetailPage() {
             </>
           ) : null}
 
-          {!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
+          {!hideLegacyLeadExtras && !waitingSolutionFeedback && !hideStepExtras && stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab && !marketingLeader ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -2049,7 +2053,7 @@ export default function CrmLeadDetailPage() {
             </div>
           ) : null}
 
-          {accessToken && !hideLegacyLeadExtras && !showPipelineTab && !waitingSolutionFeedback && !atQuoteStep ? (
+          {accessToken && !hideLegacyLeadExtras && !showPipelineTab && !waitingSolutionFeedback && !hideStepExtras ? (
             <LeadFrSlaPanel
               token={accessToken}
               leadId={leadId}
@@ -2059,7 +2063,7 @@ export default function CrmLeadDetailPage() {
             />
           ) : null}
 
-          {showSlaSciUnifiedPanel && !hideLegacyLeadExtras && !showPipelineTab && !waitingSolutionFeedback && !atQuoteStep ? (
+          {showSlaSciUnifiedPanel && !hideLegacyLeadExtras && !showPipelineTab && !waitingSolutionFeedback && !hideStepExtras ? (
             <LeadSlaCarePanel
               token={accessToken!}
               leadId={leadId}
@@ -2093,7 +2097,7 @@ export default function CrmLeadDetailPage() {
           >
           <div className="lead-detail-main">
           <div className={hideMainPane ? 'lead-detail-pane--hidden' : ''}>
-            {!atQuoteStep ? <LeadAttributionChips attribution={attribution} /> : null}
+            {!hideStepExtras ? <LeadAttributionChips attribution={attribution} /> : null}
 
             {showB2bFlow ? null : (
               <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
@@ -2105,7 +2109,7 @@ export default function CrmLeadDetailPage() {
             )}
 
 
-            {handoffStatus === 'released' && !atQuoteStep && accessToken && lead ? (
+            {handoffStatus === 'released' && !atQuoteStep && !atContractStep && !atImplementStep && accessToken && lead ? (
               <SolutionCaseDesk
                 filesOnly
                 token={accessToken}
@@ -2117,7 +2121,53 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && quoteSubmittedForFiles && !((showLeadQuoteSheet && atQuoteStep) || atImplementStep) ? (
+            {accessToken && lead && (atContractStep || atImplementStep) ? (
+              <>
+                {funnelSnap?.presales?.quote_case ? (
+                  <QuoteCasePanel
+                    compact
+                    token={accessToken}
+                    leadId={leadId}
+                    funnel={funnelSnap}
+                    viewerIsCeo={isCeoPosition(user) || superAdmin}
+                    viewerIsSuperAdmin={superAdmin}
+                    viewerIsGdkd={isGdkdContractDesk(user)}
+                    viewerIsSales={salesViewer}
+                    onFunnelChange={setFunnelSnap}
+                    onLeadReload={async () => {
+                      const row = await fetchLead(accessToken, leadId);
+                      setLead(row);
+                      setStatus(row.status || 'moi');
+                    }}
+                    onMessage={setMessage}
+                    onError={setError}
+                  />
+                ) : null}
+                {atImplementStep && funnelSnap?.presales?.implementation_handoff ? (
+                  <ImplementationHandoffCard
+                    token={accessToken}
+                    leadId={leadId}
+                    handoff={funnelSnap.presales.implementation_handoff}
+                    user={user}
+                    onFunnelChange={setFunnelSnap}
+                    onMessage={setMessage}
+                    onError={setError}
+                  />
+                ) : null}
+                {atImplementStep ? <LeadDeliveryKpi token={accessToken} leadId={leadId} /> : null}
+                {quoteSubmittedForFiles ? (
+                  <LeadDealFilesCard
+                    token={accessToken}
+                    leadId={leadId}
+                    onMessage={setMessage}
+                    onError={setError}
+                    onFunnelChange={setFunnelSnap}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {accessToken && lead && quoteSubmittedForFiles && !atQuoteStep && !atContractStep && !atImplementStep ? (
               <LeadDealFilesCard
                 token={accessToken}
                 leadId={leadId}
@@ -2127,7 +2177,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && funnelSnap?.presales?.quote_case && !atQuoteStep ? (
+            {accessToken && lead && funnelSnap?.presales?.quote_case && !atQuoteStep && !atContractStep && !atImplementStep ? (
               <QuoteCasePanel
                 token={accessToken}
                 leadId={leadId}
@@ -2147,19 +2197,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && funnelSnap?.presales?.implementation_handoff && (!atQuoteStep || atImplementStep) ? (
-              <ImplementationHandoffCard
-                token={accessToken}
-                leadId={leadId}
-                handoff={funnelSnap.presales.implementation_handoff}
-                user={user}
-                onFunnelChange={setFunnelSnap}
-                onMessage={setMessage}
-                onError={setError}
-              />
-            ) : null}
-
-            {accessToken && lead && ((showLeadQuoteSheet && atQuoteStep) || atImplementStep) ? (
+            {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
               <>
                 <LeadQuoteSheet
                   token={accessToken}
@@ -2169,8 +2207,11 @@ export default function CrmLeadDetailPage() {
                   viewerIsCeo={isCeoPosition(user) || superAdmin}
                   quoteSentToCeo={
                     quoteSentBackAt ||
+                    quoteSubmittedForFiles ||
                     quoteCasePhase === 'ceo_review' ||
-                    quoteCasePhase === 'sale_review'
+                    quoteCasePhase === 'sale_review' ||
+                    quoteCasePhase === 'hop_dong' ||
+                    quoteCasePhase === 'trien_khai'
                   }
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
@@ -2247,10 +2288,6 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {accessToken && lead && (quoteCasePhase === 'trien_khai' || atImplementStep) ? (
-              <LeadDeliveryKpi token={accessToken} leadId={leadId} />
-            ) : null}
-
             {solutionDesk && accessToken && lead && handoffStatus === 'pending' && !salesViewer ? (
               <AmHandoffDesk
                 token={accessToken}
@@ -2286,7 +2323,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {solutionDesk && accessToken && lead && handoffStatus !== 'pending' && !atQuoteStep ? (
+            {solutionDesk && accessToken && lead && handoffStatus !== 'pending' && !hideStepExtras ? (
               <SolutionCaseDesk
                 token={accessToken}
                 lead={lead}
@@ -2326,7 +2363,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-{!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
+{!hideLegacyLeadExtras && !waitingSolutionFeedback && !hideStepExtras && (!solutionDesk || handoffStatus === 'with_solution') && showOverviewMain ? (
               <>
             {showPipelineTab ? (
               <div className="lead-zone sld-main-card">
@@ -2469,7 +2506,7 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && ((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
+            {!hideLegacyLeadExtras && !waitingSolutionFeedback && !hideStepExtras && ((solutionDesk && handoffStatus !== 'pending') || showConsultMain) && accessToken && funnelSnap ? (
               <LeadConsultWorkspace
                 token={accessToken}
                 leadId={leadId}
@@ -2483,7 +2520,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {!hideLegacyLeadExtras && !waitingSolutionFeedback && !atQuoteStep && showHistoryPane && !showPipelineTab ? (
+            {!hideLegacyLeadExtras && !waitingSolutionFeedback && !hideStepExtras && showHistoryPane && !showPipelineTab ? (
               <LeadHistoryTab
                 token={accessToken!}
                 leadId={leadId}
