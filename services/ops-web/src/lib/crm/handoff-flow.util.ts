@@ -228,6 +228,26 @@ function firstIso(...values: Array<string | null | undefined>): string | null {
  * Derive the current step key from stored lead + funnel fields.
  * Does not invent data; later stages win over earlier ones.
  */
+/** When the quote is with the CEO, leftover lead status bao_gia must not keep step 4 current. */
+export function withSubmittedToCeoFlowInput(
+  input: HandoffFlowInput,
+  quoteSentToCeo = false,
+): HandoffFlowInput {
+  const phase = String(input.quotePhase ?? '').trim();
+  const approved =
+    Boolean(String(input.quoteApprovedAt ?? '').trim()) ||
+    phase === 'hop_dong' ||
+    phase === 'trien_khai';
+  const submitted =
+    !approved &&
+    (quoteSentToCeo ||
+      phase === 'ceo_review' ||
+      phase === 'sale_review' ||
+      Boolean(String(input.quoteSentBackAt ?? '').trim()));
+  if (!submitted) return input;
+  return { ...input, quotePhase: input.quotePhase || 'ceo_review' };
+}
+
 export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStepKey {
   const status = norm(input.leadStatus);
   const handoff = norm(input.handoffStatus);

@@ -16,6 +16,7 @@ import {
   formatHandoffStamp,
   splitBriefIdeas,
   visibleHandoffFlowSteps,
+  withSubmittedToCeoFlowInput,
 } from './handoff-flow.util';
 
 describe('handoff-flow.util', () => {
@@ -88,7 +89,23 @@ describe('handoff-flow.util', () => {
     });
     const submittedVisible = visibleHandoffFlowSteps(submitted);
     expect(submittedVisible.currentKey).toBe('negotiate');
+    expect(submittedVisible.steps.find((step) => step.key === 'await_quote')?.state).toBe('done');
+    expect(submittedVisible.steps.find((step) => step.key === 'negotiate')?.state).toBe('current');
+    expect(submittedVisible.steps.find((step) => step.key === 'negotiate')?.isActive).toBe(true);
     expect(submittedVisible.steps.find((step) => step.key === 'negotiate')?.index).toBe(5);
+    const fromSheetSignal = visibleHandoffFlowSteps(
+      resolveHandoffFlow(
+        withSubmittedToCeoFlowInput(
+          { leadStatus: 'bao_gia', handoffStatus: 'released' },
+          true,
+        ),
+      ),
+    );
+    expect(fromSheetSignal.currentKey).toBe('negotiate');
+    expect(fromSheetSignal.steps.find((step) => step.key === 'await_quote')?.state).toBe('done');
+    expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.state).toBe('current');
+    expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.isActive).toBe(true);
+    expect(fromSheetSignal.steps.find((step) => step.key === 'negotiate')?.index).toBe(5);
     expect(
       resolveHandoffFlowStep({
         leadStatus: 'bao_gia',

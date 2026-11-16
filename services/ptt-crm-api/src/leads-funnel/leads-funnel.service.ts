@@ -1751,11 +1751,19 @@ export class LeadsFunnelService {
           ? { can_upload: false, can_download: true }
           : { can_upload: false, can_download: false, blocked_reason: 'Sales tải file báo giá sau khi CEO duyệt.' };
       }
-      const awaiting = this.quoteAwaitingCeo(current);
-      const canUpload = asCeo || (asAssignee && !awaiting && !quoteApproved);
+      const submitted = this.quoteHasBeenSubmitted(current);
+      const canUpload = !submitted && (asCeo || asAssignee);
       let blocked: string | undefined;
-      if (!canUpload && asAssignee && (awaiting || quoteApproved)) {
-        blocked = 'Báo giá đã nộp. Chỉ CEO hoặc Super-Admin được tải lên bản sửa.';
+      if (!canUpload) {
+        const phase = String(current?.quote_case?.phase ?? '');
+        if (submitted) {
+          blocked =
+            quoteApproved || phase === 'hop_dong' || phase === 'trien_khai'
+              ? 'Báo giá đã được CEO duyệt. File báo giá chỉ còn tải về.'
+              : 'Báo giá đang chờ CEO duyệt. File báo giá chỉ còn tải về.';
+        } else if (!asCeo && !asAssignee) {
+          blocked = 'Chỉ AM phụ trách, CEO hoặc Super-Admin được tải lên file báo giá.';
+        }
       }
       return { can_upload: canUpload, can_download: true, blocked_reason: blocked };
     }

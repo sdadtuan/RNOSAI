@@ -239,6 +239,7 @@ export function LeadQuoteSheet({
   viewerIsCeo = false,
   quoteSentToCeo = false,
   onFunnelChange,
+  onSubmittedToCeo,
   onMessage,
   onError,
 }: {
@@ -249,6 +250,7 @@ export function LeadQuoteSheet({
   viewerIsCeo?: boolean;
   quoteSentToCeo?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
+  onSubmittedToCeo?: (submitted: boolean) => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
   onLeadReload?: () => Promise<void> | void;
@@ -383,6 +385,18 @@ export function LeadQuoteSheet({
     };
   }, [visible, token, leadId, phase, viewerIsSales]);
 
+  const submittedForCeo =
+    quoteSentToCeo ||
+    phase === 'ceo_review' ||
+    phase === 'sale_review' ||
+    phase === 'hop_dong' ||
+    phase === 'trien_khai' ||
+    Boolean(sheet?.submitted_for_ceo);
+
+  useEffect(() => {
+    onSubmittedToCeo?.(submittedForCeo && !ceoApproved);
+  }, [submittedForCeo, ceoApproved, onSubmittedToCeo]);
+
   if (!visible) return null;
 
   function patchRow(itemCode: string, patch: Partial<LeadQuoteSheetRow>) {
@@ -456,13 +470,6 @@ export function LeadQuoteSheet({
     }
   }
 
-  const submittedForCeo =
-    quoteSentToCeo ||
-    phase === 'ceo_review' ||
-    phase === 'sale_review' ||
-    phase === 'hop_dong' ||
-    phase === 'trien_khai' ||
-    Boolean(sheet?.submitted_for_ceo);
   const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
   const submittedView = submittedForCeo || ceoApproved;
   const tableEditable = editable && !submittedView;

@@ -28,6 +28,7 @@ import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
+import { SalesDiscoveryReadOnlyPanel } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
 import { LeadContractSubmitCard, LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
@@ -77,7 +78,7 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { setLeadPageNextHint } from '@/lib/crm/lead-page-next-hint';
-import { flowTimesFromFunnel, handoffFlowStatusLabel, resolveHandoffFlow } from '@/lib/crm/handoff-flow.util';
+import { flowTimesFromFunnel, handoffFlowStatusLabel, resolveHandoffFlow, withSubmittedToCeoFlowInput } from '@/lib/crm/handoff-flow.util';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import {
   funnelAssignedAmId,
@@ -243,6 +244,7 @@ export default function CrmLeadDetailPage() {
   const [pipelineStep, setPipelineStep] = useState<PresalesFunnelStepKey>('b2');
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
+  const [sheetAwaitingCeo, setSheetAwaitingCeo] = useState(false);
   const [intakeSummary, setIntakeSummary] = useState<IntakeStepSummary | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
@@ -304,6 +306,9 @@ export default function CrmLeadDetailPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [solutionPreviewOpen]);
+  useEffect(() => {
+    setSheetAwaitingCeo(false);
+  }, [leadId]);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const funnelReqIdRef = useRef(0);
   const funnelAbortRef = useRef<AbortController | null>(null);
@@ -343,7 +348,8 @@ export default function CrmLeadDetailPage() {
     existingProposalHref: quoteHref,
   });
   const quoteSentBackAt = Boolean(
-    funnelSnap?.presales?.handoff?.quote_sent_back_at ||
+    sheetAwaitingCeo ||
+      funnelSnap?.presales?.handoff?.quote_sent_back_at ||
       (funnelSnap?.presales?.presales as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
       (funnelSnap?.presales?.quote_case as { quote_sent_back_at?: string } | undefined)?.quote_sent_back_at ||
       quoteCasePhase === 'ceo_review' ||
@@ -1422,21 +1428,26 @@ export default function CrmLeadDetailPage() {
   );
   const handoffFlowKey = useMemo(() => {
     if (!lead) return null;
-    return resolveHandoffFlow({
-      leadStatus: lead.status || status,
-      leadCreatedAt: lead.created_at,
-      leadReceivedAt: (lead as { received_at?: string | null }).received_at,
-      handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
-      quotePhase: funnelSnap?.presales?.quote_case?.phase,
-      hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
-        contractStatus: contractSummary?.contractStatus ?? null,
-      discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status),
-      discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
-      returnedToSales: funnelSnap?.presales?.handoff?.status === 'returned',
-      firstContactDone: funnelB2Complete(funnelSnap),
-      ...flowTimesFromFunnel(funnelSnap),
-    }).currentKey;
-  }, [lead, status, funnelSnap, contractSummary]);
+    return resolveHandoffFlow(
+      withSubmittedToCeoFlowInput(
+        {
+          leadStatus: lead.status || status,
+          leadCreatedAt: lead.created_at,
+          leadReceivedAt: (lead as { received_at?: string | null }).received_at,
+          handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
+          quotePhase: funnelSnap?.presales?.quote_case?.phase,
+          hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+          contractStatus: contractSummary?.contractStatus ?? null,
+          discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status),
+          discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
+          returnedToSales: funnelSnap?.presales?.handoff?.status === 'returned',
+          firstContactDone: funnelB2Complete(funnelSnap),
+          ...flowTimesFromFunnel(funnelSnap),
+        },
+        quoteSentBackAt,
+      ),
+    ).currentKey;
+  }, [lead, status, funnelSnap, contractSummary, quoteSentBackAt]);
   const ownerKind: LeadOwnerKind = useMemo(
     () => ownerKindFromHandoffStep(handoffFlowKey),
     [handoffFlowKey],
@@ -1528,20 +1539,25 @@ export default function CrmLeadDetailPage() {
   const needsSolutionRevision =
     String(funnelSnap?.presales?.solution_case?.phase ?? '') === 'chinh_sua';
   const flowCurrentKey = lead
-    ? resolveHandoffFlow({
-        leadStatus: lead.status || status,
-        leadCreatedAt: lead.created_at,
-        leadReceivedAt: (lead as { received_at?: string | null }).received_at,
-        handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
-        quotePhase: funnelSnap?.presales?.quote_case?.phase,
-        hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
-        contractStatus: contractSummary?.contractStatus ?? null,
-        discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
-        discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
-        returnedToSales: handoffStatus === 'returned',
-        firstContactDone: funnelB2Complete(funnelSnap),
-        ...flowTimesFromFunnel(funnelSnap),
-      }).currentKey
+    ? resolveHandoffFlow(
+        withSubmittedToCeoFlowInput(
+          {
+            leadStatus: lead.status || status,
+            leadCreatedAt: lead.created_at,
+            leadReceivedAt: (lead as { received_at?: string | null }).received_at,
+            handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
+            quotePhase: funnelSnap?.presales?.quote_case?.phase,
+            hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+            contractStatus: contractSummary?.contractStatus ?? null,
+            discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
+            discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
+            returnedToSales: handoffStatus === 'returned',
+            firstContactDone: funnelB2Complete(funnelSnap),
+            ...flowTimesFromFunnel(funnelSnap),
+          },
+          quoteSentBackAt,
+        ),
+      ).currentKey
     : '';
   const flowTimes = flowTimesFromFunnel(funnelSnap);
   const quoteAlreadyApproved = Boolean(flowTimes.quoteApprovedAt) || quoteCasePhase === 'hop_dong';
@@ -1574,10 +1590,18 @@ export default function CrmLeadDetailPage() {
       flowCurrentKey === 'await_quote' ||
       flowCurrentKey === 'negotiate' ||
       inBaoGiaColumn);
+  const atSolutionsStep =
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    !atImplementStep &&
+    !atContractStep &&
+    !atQuoteStep &&
+    (flowCurrentKey === 'await_solutions' || flowCurrentKey === 'doing_solutions');
   const atSalesBriefStep =
     !solutionDesk &&
     !waitingSolutionFeedback &&
     !atQuoteStep &&
+    !atSolutionsStep &&
     !needsSolutionRevision &&
     flowCurrentKey === 'sales_brief';
   // t222/t233: step 1 Tiếp nhận Lead keeps the call / first-contact view.
@@ -1592,20 +1616,25 @@ export default function CrmLeadDetailPage() {
   const hideLegacyLeadExtras = Boolean(useSalesDesk) && !atReceiveLeadStep;
   const hideStepExtras = atQuoteStep || atContractStep || atImplementStep;
   const flowStatusLabel = lead
-    ? handoffFlowStatusLabel({
-        leadStatus: lead.status || status,
-        leadCreatedAt: lead.created_at,
-        leadReceivedAt: (lead as { received_at?: string | null }).received_at,
-        handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
-        quotePhase: funnelSnap?.presales?.quote_case?.phase,
-        hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
-        contractStatus: contractSummary?.contractStatus ?? null,
-        discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
-        discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
-        returnedToSales: handoffStatus === 'returned',
-        firstContactDone: funnelB2Complete(funnelSnap),
-        ...flowTimesFromFunnel(funnelSnap),
-      })
+    ? handoffFlowStatusLabel(
+        withSubmittedToCeoFlowInput(
+          {
+            leadStatus: lead.status || status,
+            leadCreatedAt: lead.created_at,
+            leadReceivedAt: (lead as { received_at?: string | null }).received_at,
+            handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
+            quotePhase: funnelSnap?.presales?.quote_case?.phase,
+            hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+            contractStatus: contractSummary?.contractStatus ?? null,
+            discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
+            discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
+            returnedToSales: handoffStatus === 'returned',
+            firstContactDone: funnelB2Complete(funnelSnap),
+            ...flowTimesFromFunnel(funnelSnap),
+          },
+          quoteSentBackAt,
+        ),
+      )
     : '';
   const pipelineReadOnly =
     status === 'won' || Boolean(contractSummary?.hasContract);
@@ -1681,6 +1710,7 @@ export default function CrmLeadDetailPage() {
                 funnel={funnelSnap}
                 viewerIsCeo={isCeoPosition(user) || superAdmin}
                 viewerIsSuperAdmin={superAdmin}
+                submittedToCeo={quoteSentBackAt}
                 viewerIsGdkd={isGdkdContractDesk(user)}
                 viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
@@ -1718,6 +1748,7 @@ export default function CrmLeadDetailPage() {
                 quoteCasePhase === 'hop_dong' ||
                 quoteCasePhase === 'trien_khai'
               }
+              onSubmittedToCeo={setSheetAwaitingCeo}
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
               onError={setError}
@@ -1888,6 +1919,7 @@ export default function CrmLeadDetailPage() {
           userId={Number(user?.id) || undefined}
           waitingSolutionFeedback={waitingSolutionFeedback}
           atQuoteStep={atQuoteStep}
+          quoteSentToCeo={quoteSentBackAt}
           hasContract={Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract)}
           contractStatus={contractSummary?.contractStatus ?? null}
           sideTop={null}
@@ -2156,6 +2188,7 @@ export default function CrmLeadDetailPage() {
                     funnel={funnelSnap}
                     viewerIsCeo={isCeoPosition(user) || superAdmin}
                     viewerIsSuperAdmin={superAdmin}
+                    submittedToCeo={quoteSentBackAt}
                     viewerIsGdkd={isGdkdContractDesk(user)}
                     viewerIsSales={salesViewer}
                     onFunnelChange={setFunnelSnap}
@@ -2223,6 +2256,7 @@ export default function CrmLeadDetailPage() {
                 funnel={funnelSnap}
                 viewerIsCeo={isCeoPosition(user) || superAdmin}
                 viewerIsSuperAdmin={superAdmin}
+                submittedToCeo={quoteSentBackAt}
                 viewerIsGdkd={isGdkdContractDesk(user)}
                 viewerIsSales={salesViewer}
                 onFunnelChange={setFunnelSnap}
@@ -2254,6 +2288,7 @@ export default function CrmLeadDetailPage() {
                     quoteCasePhase === 'hop_dong' ||
                     quoteCasePhase === 'trien_khai'
                   }
+                  onSubmittedToCeo={setSheetAwaitingCeo}
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
                   onError={setError}
@@ -2271,6 +2306,7 @@ export default function CrmLeadDetailPage() {
                     funnel={funnelSnap}
                     viewerIsCeo={isCeoPosition(user) || superAdmin}
                     viewerIsSuperAdmin={superAdmin}
+                    submittedToCeo={quoteSentBackAt}
                     viewerIsGdkd={isGdkdContractDesk(user)}
                     viewerIsSales={salesViewer}
                     onFunnelChange={setFunnelSnap}
@@ -2312,6 +2348,7 @@ export default function CrmLeadDetailPage() {
                     funnel={funnelSnap}
                     viewerIsCeo={isCeoPosition(user) || superAdmin}
                     viewerIsSuperAdmin={superAdmin}
+                    submittedToCeo={quoteSentBackAt}
                     viewerIsGdkd={isGdkdContractDesk(user)}
                     viewerIsSales={salesViewer}
                     onFunnelChange={setFunnelSnap}
@@ -2410,6 +2447,20 @@ export default function CrmLeadDetailPage() {
                 onError={setError}
                 userName={user?.display_name || user?.email}
               />
+            ) : null}
+
+            {useSalesDesk && accessToken && lead && atSolutionsStep && !solutionDesk ? (
+              <div className="sld-main-card lead-step-panel">
+                <section className="solution-feedback" aria-label="Chờ Solutions">
+                  <LeadStepHero
+                    title="CHỜ SOLUTIONS"
+                    icon="solution"
+                    titleAs="h3"
+                    subtitle="AM đang làm Solution theo brief Sales đã nộp."
+                  />
+                  <SalesDiscoveryReadOnlyPanel token={accessToken} leadId={leadId} />
+                </section>
+              </div>
             ) : null}
 
             {!solutionDesk && b2bPane === 'consult' && showWorkPane ? (

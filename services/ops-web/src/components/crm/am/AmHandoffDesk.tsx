@@ -12,21 +12,15 @@ import {
   fetchLeadPresalesMarketingPlan,
   returnLeadToSales,
   type IntakeSessionRow,
+  type DiscoveryOptionsPayload,
   type LeadFunnelSnapshot,
   type LeadRow,
 } from '@/lib/api';
-import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import {
   authorityLabel,
-  budgetLabel,
-  channelLabels,
   discoveryIndustryLabel,
-  discoveryServiceChips,
-  groupDiscoveryServiceChips,
-  discoveryServiceLabel,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
-  timelineLabel,
   type DiscoveryOption,
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
@@ -34,12 +28,12 @@ import {
   dash,
   formatHandoffStamp,
   HANDOFF_FLOW_COPY,
-  splitBriefIdeas,
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
 import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
+import { SalesDiscoveryBriefView } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
@@ -151,56 +145,6 @@ function FieldList({ children }: { children: ReactNode }) {
   const items = Children.toArray(children).filter(Boolean);
   if (!items.length) return <EmptyState />;
   return <dl className="ahd-dl">{items}</dl>;
-}
-
-function BriefCard({
-  title,
-  icon,
-  wide,
-  testId,
-  children,
-}: {
-  title: string;
-  icon: string;
-  wide?: boolean;
-  testId?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <section className={`ahd-card${wide ? ' ahd-card--wide' : ''}`} data-testid={testId}>
-      <h3 className="ahd-card__title">
-        <Icon d={icon} />
-        {title}
-      </h3>
-      <div className="ahd-card__body">{children ?? <EmptyState />}</div>
-    </section>
-  );
-}
-
-function Bullets({ text }: { text: string }) {
-  const lines = splitBriefIdeas(text);
-  if (!lines.length) return <EmptyState />;
-  if (lines.length === 1) return <p className="ahd-prose">{lines[0]}</p>;
-  return (
-    <ul className="ahd-bullets">
-      {lines.map((line) => (
-        <li key={line}>{line}</li>
-      ))}
-    </ul>
-  );
-}
-
-function LabeledRows({ rows }: { rows: Array<{ label: string; value: string }> }) {
-  if (!rows.length) return null;
-  return (
-    <ul className="ahd-bullets">
-      {rows.map((row) => (
-        <li key={row.label}>
-          <strong className="ahd-brief-label">{row.label}:</strong> {row.value}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function saigonYmd(iso: string | null | undefined): string {
@@ -347,8 +291,7 @@ export function AmHandoffDesk({
   const [notice, setNotice] = useState('');
   const runLockRef = useRef(false);
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
-  const [serviceOptions, setServiceOptions] = useState<Array<{ slug?: string; value?: string; name?: string; label?: string }>>([]);
-  const [serviceGroups, setServiceGroups] = useState<Array<{ services?: Array<{ slug: string; name: string; children?: Array<{ slug: string; name: string }> }> }>>([]);
+  const [discoveryOptions, setDiscoveryOptions] = useState<DiscoveryOptionsPayload | null>(null);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
 
@@ -408,39 +351,9 @@ export function AmHandoffDesk({
     void fetchDiscoveryOptions(token)
       .then((opts) => {
         if (cancelled || !opts) return;
+        setDiscoveryOptions(opts);
         const industries = (opts.industries ?? []) as DiscoveryOption[];
         if (industries.length) setIndustryOptions(industries);
-        const groups = (opts.service_groups ?? []) as Array<{
-          services?: Array<{ slug?: string; name?: string; label?: string; children?: Array<{ slug?: string; name?: string }> }>;
-          slug?: string;
-          name?: string;
-          label?: string;
-        }>;
-        if (groups.length) {
-          setServiceGroups(
-            groups.map((g) => ({
-              services: (g.services ?? [])
-                .filter((s) => Boolean(s.slug))
-                .map((s) => ({
-                  slug: String(s.slug),
-                  name: String(s.name ?? s.label ?? s.slug),
-                  children: s.children
-                    ?.filter((c) => Boolean(c.slug))
-                    .map((c) => ({ slug: String(c.slug), name: String(c.name ?? c.slug) })),
-                })),
-            })),
-          );
-        }
-        const flat: Array<{ slug?: string; value?: string; name?: string; label?: string }> = [];
-        for (const g of groups) {
-          if (Array.isArray(g.services)) {
-            for (const svc of g.services) {
-              flat.push(svc);
-              if (Array.isArray(svc.children)) flat.push(...svc.children);
-            }
-          } else if (g.slug || g.name) flat.push(g);
-        }
-        if (flat.length) setServiceOptions(flat);
       })
       .catch(() => undefined);
     return () => {
@@ -607,26 +520,6 @@ export function AmHandoffDesk({
       else pushToast(msg, 'success');
     });
   }
-
-  const serviceChips = discoveryServiceChips(view.services ?? [], serviceGroups.length ? serviceGroups : [{ services: serviceOptions.map((row) => ({ slug: String(row.slug || row.value || ''), name: String(row.name || row.label || '') })) }]);
-  const serviceChipGroups = groupDiscoveryServiceChips(serviceChips);
-  const unscopedServiceChips = serviceChipGroups.filter((group) => !group.parent).flatMap((group) => group.items);
-  const scopedServiceGroups = serviceChipGroups.filter((group) => Boolean(group.parent));
-  const currentRows = [
-    view.channels.length
-      ? { label: 'Kênh đang sử dụng', value: channelLabels(view.channels) }
-      : view.channels_text
-        ? { label: 'Kênh đang sử dụng', value: view.channels_text }
-        : null,
-    view.current_budget ? { label: 'Ngân sách hiện tại', value: view.current_budget } : null,
-    view.current_results ? { label: 'Kết quả', value: view.current_results } : null,
-    view.difficulties ? { label: 'Khó khăn', value: view.difficulties } : null,
-  ].filter((row): row is { label: string; value: string } => Boolean(row));
-  const budgetRows = [
-    view.budget_band ? { label: 'Ngân sách Marketing dự kiến', value: budgetLabel(view.budget_band) } : null,
-    view.timeline_band ? { label: 'Thời điểm', value: timelineLabel(view.timeline_band) } : null,
-    view.flagship_product ? { label: 'Sản phẩm chủ lực', value: view.flagship_product } : null,
-  ].filter((row): row is { label: string; value: string } => Boolean(row));
 
   return (
     <div className="ahd" data-testid="am-handoff-desk">
@@ -863,56 +756,7 @@ export function AmHandoffDesk({
 
           {tab === 'brief' ? (
             <div className="ahd-brief-grid" data-testid="ahd-brief">
-              <div className="ahd-brief-col" data-testid="ahd-brief-col-left">
-              <BriefCard title="Mục tiêu Marketing" icon={I.goal} testId="ahd-goal">
-                <Bullets text={view.marketing_goal} />
-              </BriefCard>
-              <BriefCard title="Vấn đề khách hàng đang gặp" icon={I.warn} testId="ahd-problem">
-                <Bullets text={view.biggest_problem} />
-              </BriefCard>
-              <BriefCard title="Khách hàng mục tiêu" icon={I.users} testId="ahd-audience">
-                <Bullets text={view.target_customers} />
-              </BriefCard>
-              <BriefCard title="Ngân sách &amp; Thời gian" icon={I.money} testId="ahd-budget">
-                {budgetRows.length ? <LabeledRows rows={budgetRows} /> : null}
-              </BriefCard>
-              </div>
-              <div className="ahd-brief-col" data-testid="ahd-brief-col-right">
-              <BriefCard title="Hiện trạng Marketing" icon={I.status} testId="ahd-current">
-                {currentRows.length ? <LabeledRows rows={currentRows} /> : null}
-              </BriefCard>
-              <BriefCard title="Dịch vụ quan tâm" icon={I.box} testId="ahd-services">
-                {serviceChips.length ? (
-                  <div className="ahd-service-groups">
-                    {unscopedServiceChips.length ? (
-                      <div className="ahd-chips" data-testid="ahd-service-unscoped">
-                        {unscopedServiceChips.map((chip) => (
-                          <span className="ahd-chip" key={chip.slug} title={chip.title}>
-                            <span className="ahd-chip__name">{chip.title}</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    {scopedServiceGroups.map((group) => (
-                      <div
-                        className="ahd-service-group"
-                        data-testid="ahd-service-scoped"
-                        key={group.parent ?? group.items.map((item) => item.slug).join("-")}
-                      >
-                        <p className="ahd-service-group__title">{group.parent}</p>
-                        <div className="ahd-chips">
-                          {group.items.map((chip) => (
-                            <span className="ahd-chip" key={chip.slug} title={chip.title}>
-                              <span className="ahd-chip__name">{chip.title}</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </BriefCard>
-              </div>
+              <SalesDiscoveryBriefView brief={brief} options={discoveryOptions} />
             </div>
           ) : null}
 

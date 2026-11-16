@@ -83,6 +83,7 @@ export function QuoteCasePanel({
   viewerIsGdkd = false,
   viewerIsSales = false,
   compact = false,
+  submittedToCeo = false,
   onFunnelChange,
   onLeadReload,
   onMessage,
@@ -96,6 +97,7 @@ export function QuoteCasePanel({
   viewerIsGdkd?: boolean;
   viewerIsSales?: boolean;
   compact?: boolean;
+  submittedToCeo?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onLeadReload: () => Promise<void>;
   onMessage?: (message: string) => void;
@@ -208,6 +210,101 @@ export function QuoteCasePanel({
     }, at - Date.now() + 400);
     return () => window.clearTimeout(id);
   }, [timerDue, timerStopped, token, leadId, onFunnelChange]);
+
+  const canCeoDecideEarly = viewerIsCeo || viewerIsSuperAdmin;
+  const quotePhaseNow = quote?.phase ?? '';
+  const quoteAlreadyApproved =
+    quotePhaseNow === 'hop_dong' ||
+    quotePhaseNow === 'trien_khai' ||
+    Boolean((quote as { quote_approved_at?: string } | null | undefined)?.quote_approved_at);
+  const awaitingCeo =
+    !quoteAlreadyApproved &&
+    (submittedToCeo || quotePhaseNow === 'ceo_review' || quotePhaseNow === 'sale_review');
+
+  if (awaitingCeo) {
+    return (
+      <section id="quote-case" className="solution-feedback" aria-label="Duyệt báo giá" data-testid="quote-ceo-review">
+        <h3 className="solution-feedback__title">Duyệt báo giá</h3>
+        <p className="solution-feedback__due">
+          {viewerIsSales && !canCeoDecideEarly
+            ? 'Báo giá đang chờ CEO duyệt. Sales chỉ xem và tải sau khi được duyệt.'
+            : 'Báo giá đã nộp, đang chờ CEO duyệt.'}
+        </p>
+        <ActionErrorToast message={onError ? '' : localError} />
+        {canCeoDecideEarly ? (
+          <>
+            <div className="solution-feedback__actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => approveLeadQuote(token, leadId),
+                    'CEO đã duyệt báo giá. AM lập hợp đồng; Sales chỉ xem và tải.',
+                  )
+                }
+              >
+                Duyệt
+              </button>
+              {!reviseOpen ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => setReviseOpen(true)}
+                >
+                  Trả lại AM
+                </button>
+              ) : null}
+            </div>
+            {reviseOpen ? (
+              <div className="solution-feedback__revise">
+                <label>
+                  Lý do từ chối
+                  <textarea
+                    rows={3}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    aria-label="Lý do trả lại báo giá"
+                    placeholder="Bắt buộc khi trả lại cho AM"
+                  />
+                </label>
+                <div className="solution-feedback__actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || note.trim().length < 5}
+                    onClick={() =>
+                      void run(
+                        () => requestLeadQuoteEdits(token, leadId, note.trim()),
+                        'Đã trả lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.',
+                      )
+                    }
+                  >
+                    Trả lại AM
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setReviseOpen(false);
+                      setNote('');
+                    }}
+                  >
+                    Huỷ
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="muted">Chờ CEO duyệt báo giá rồi mới lập hợp đồng.</p>
+        )}
+      </section>
+    );
+  }
 
   if (!quote) return null;
 
@@ -542,7 +639,7 @@ export function QuoteCasePanel({
                   disabled={busy}
                   onClick={() => setReviseOpen(true)}
                 >
-                  Từ chối, gửi lại AM
+                  Trả lại AM
                 </button>
               ) : null}
             </div>
@@ -570,7 +667,7 @@ export function QuoteCasePanel({
                       )
                     }
                   >
-                    Từ chối, gửi lại AM
+                    Trả lại AM
                   </button>
                   <button
                     type="button"
@@ -812,7 +909,7 @@ export function QuoteCasePanel({
                   disabled={busy}
                   onClick={() => setReviseOpen(true)}
                 >
-                  Từ chối, gửi lại AM
+                  Trả lại AM
                 </button>
               ) : null}
               {reviseOpen ? (
@@ -839,7 +936,7 @@ export function QuoteCasePanel({
                         )
                       }
                     >
-                      Từ chối, gửi lại AM
+                      Trả lại AM
                     </button>
                     <button
                       type="button"

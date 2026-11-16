@@ -8,6 +8,7 @@ import {
   fetchLeadPresalesClientBrief,
   fetchLeadPresalesConsultBrief,
   markLeadSolutionViewed,
+  type DiscoveryOptionsPayload,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -26,11 +27,13 @@ import {
   formatHandoffStamp,
   resolveHandoffFlow,
   flowTimesFromFunnel,
+  withSubmittedToCeoFlowInput,
 } from '@/lib/crm/handoff-flow.util';
 import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { DiscoveryLiveBriefProvider } from '@/components/crm/discovery/discovery-live-brief';
 import { DiscoverySolutionChecklistCard } from '@/components/crm/discovery/DiscoverySolutionChecklistCard';
+import { SalesDiscoveryBriefView } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
@@ -118,14 +121,6 @@ function EmptyState({ text = 'Chưa có dữ liệu.' }: { text?: string }) {
   return <p className="ahd-empty-state">{text}</p>;
 }
 
-function BriefPara({ text }: { text?: string | string[] }) {
-  const value = Array.isArray(text)
-    ? text.map((item) => String(item ?? '').trim()).filter(Boolean).join(', ')
-    : String(text ?? '').trim();
-  if (!value) return null;
-  return <p className="ahd-brief-text">{value}</p>;
-}
-
 type DeskTabKey = 'brief' | 'solution' | 'history' | 'notes';
 
 function FieldList({ children }: { children: ReactNode }) {
@@ -165,6 +160,7 @@ export type SalesLeadDeskProps = {
   sideBottom?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
+  quoteSentToCeo?: boolean;
   hasContract?: boolean;
   contractStatus?: string | null;
   exchangeLines?: LeadHistoryLine[];
@@ -191,6 +187,7 @@ export function SalesLeadDesk({
   sideBottom,
   waitingSolutionFeedback = false,
   atQuoteStep = false,
+  quoteSentToCeo = false,
   hasContract = false,
   contractStatus = null,
   exchangeLines = [],
@@ -201,6 +198,7 @@ export function SalesLeadDesk({
   const [tab, setTab] = useState<DeskTabKey>('solution');
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
+  const [discoveryOptions, setDiscoveryOptions] = useState<DiscoveryOptionsPayload | null>(null);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
   const solutionViewedRef = useRef<number | null>(null);
@@ -270,6 +268,7 @@ export function SalesLeadDesk({
     void fetchDiscoveryOptions(token)
       .then((opts) => {
         if (cancelled || !opts) return;
+        setDiscoveryOptions(opts);
         const industries = (opts.industries ?? []) as DiscoveryOption[];
         if (industries.length) setIndustryOptions(industries);
       })
@@ -291,20 +290,26 @@ export function SalesLeadDesk({
   }, [handoff?.status, token, lead.id]);
   const submitted = session?.status === 'completed' || Boolean(handoff?.handed_off_at) || handoff?.status === 'pending' || handoff?.status === 'with_solution' || handoff?.status === 'released';
   const returned = handoff?.status === 'returned';
-  const flow = resolveHandoffFlow({
-    leadStatus: lead.status,
-    leadCreatedAt: lead.created_at,
-    leadReceivedAt: lead.received_at,
-    handoffStatus: handoff?.status,
-    quotePhase: funnel?.presales?.quote_case?.phase,
-    hasContract: Boolean(hasContract || lead.has_contract),
-    contractStatus,
-    discoverySubmitted: submitted,
-    discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
-    returnedToSales: returned,
-    firstContactDone: funnelB2Complete(funnel),
-    ...flowTimesFromFunnel(funnel),
-  });
+  const flowTimes = flowTimesFromFunnel(funnel);
+  const flow = resolveHandoffFlow(
+    withSubmittedToCeoFlowInput(
+      {
+        leadStatus: lead.status,
+        leadCreatedAt: lead.created_at,
+        leadReceivedAt: lead.received_at,
+        handoffStatus: handoff?.status,
+        quotePhase: funnel?.presales?.quote_case?.phase,
+        hasContract: Boolean(hasContract || lead.has_contract),
+        contractStatus,
+        discoverySubmitted: submitted,
+        discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
+        returnedToSales: returned,
+        firstContactDone: funnelB2Complete(funnel),
+        ...flowTimes,
+      },
+      quoteSentToCeo,
+    ),
+  );
   const salesName = dash((lead as { owner_name?: string }).owner_name || (salesViewer ? userName : ''));
   const assignedAmId = amStaffId ?? funnelAssignedAmId(funnel);
   const amName = dash(
@@ -500,71 +505,7 @@ export function SalesLeadDesk({
               </div>
               {tab === 'brief' ? (
                 <div className="ahd-brief-grid" data-testid="sld-brief">
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Mục tiêu Marketing</h3>
-                    <div className="ahd-card__body">
-                      <BriefPara text={view.marketing_goal} />
-                      {!view.marketing_goal ? <EmptyState /> : null}
-                    </div>
-                  </section>
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Vấn đề khách hàng đang gặp</h3>
-                    <div className="ahd-card__body">
-                      <BriefPara text={view.biggest_problem} />
-                      {!view.biggest_problem ? <EmptyState /> : null}
-                    </div>
-                  </section>
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Khách hàng mục tiêu</h3>
-                    <div className="ahd-card__body">
-                      <BriefPara text={view.target_customers} />
-                      {!view.target_customers ? <EmptyState /> : null}
-                    </div>
-                  </section>
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Ngân sách &amp; Thời gian</h3>
-                    <div className="ahd-card__body">
-                      <BriefPara text={view.budget_band} />
-                      <BriefPara text={view.timeline_band} />
-                      {!view.budget_band && !view.timeline_band ? <EmptyState /> : null}
-                    </div>
-                  </section>
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Hiện trạng Marketing</h3>
-                    <div className="ahd-card__body">
-                      <BriefPara text={view.current_budget} />
-                      <BriefPara text={view.current_results} />
-                      <BriefPara text={view.difficulties} />
-                      <BriefPara text={view.channels_text} />
-                      {!view.current_budget && !view.current_results && !view.difficulties && !view.channels_text ? (
-                        <EmptyState />
-                      ) : null}
-                    </div>
-                  </section>
-                  <section className="ahd-card">
-                    <h3 className="ahd-card__title">Dịch vụ quan tâm</h3>
-                    <div className="ahd-card__body">
-                      {view.services.length ? (
-                        <div className="ahd-chips">
-                          {view.services.map((item) => (
-                            <span className="ahd-chip" key={item}>
-                              <span className="ahd-chip__name">{item}</span>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <EmptyState />
-                      )}
-                    </div>
-                  </section>
-                  {view.call_notes ? (
-                    <section className="ahd-card">
-                      <h3 className="ahd-card__title">Ghi chú cuộc gọi</h3>
-                      <div className="ahd-card__body">
-                        <BriefPara text={view.call_notes} />
-                      </div>
-                    </section>
-                  ) : null}
+                  <SalesDiscoveryBriefView brief={brief} options={discoveryOptions} />
                 </div>
               ) : null}
               {tab === 'solution' ? children : null}
@@ -638,6 +579,7 @@ export function SalesOrLegacyLeadLayout({
   sideBottom,
   waitingSolutionFeedback,
   atQuoteStep,
+  quoteSentToCeo,
   hasContract,
   contractStatus,
   exchangeLines,
@@ -664,6 +606,7 @@ export function SalesOrLegacyLeadLayout({
   sideBottom?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
+  quoteSentToCeo?: boolean;
   hasContract?: boolean;
   contractStatus?: string | null;
   exchangeLines?: LeadHistoryLine[];
@@ -691,6 +634,7 @@ export function SalesOrLegacyLeadLayout({
         sideBottom={sideBottom}
         waitingSolutionFeedback={waitingSolutionFeedback}
         atQuoteStep={atQuoteStep}
+        quoteSentToCeo={quoteSentToCeo}
         hasContract={hasContract}
         contractStatus={contractStatus}
         exchangeLines={exchangeLines}
