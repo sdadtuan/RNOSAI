@@ -264,7 +264,7 @@ export function LeadQuoteSheet({
   const prefilledRef = useRef(false);
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const [loadingCode, setLoadingCode] = useState('');
-  const [openGroupKeys, setOpenGroupKeys] = useState<string[]>([]);
+  const [openServiceKeys, setOpenServiceKeys] = useState<string[]>([]);
   const [serviceCapNote, setServiceCapNote] = useState('');
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
@@ -503,10 +503,12 @@ export function LeadQuoteSheet({
     if (tickedSet.has(key)) return;
     if (openSet.has(key)) {
       setOpenCodes((current) => current.filter((code) => code.trim().toUpperCase() !== key));
+      setOpenServiceKeys((current) => current.filter((code) => code !== key));
       return;
     }
     if (serviceLoaded(serviceCode)) {
       setOpenCodes((current) => (current.some((code) => code.trim().toUpperCase() === key) ? current : [...current, key]));
+      setOpenServiceKeys((current) => (current.includes(key) ? current : [...current, key]));
       return;
     }
     if (!sheet || loadingCode) return;
@@ -516,6 +518,7 @@ export function LeadQuoteSheet({
       const incoming = await fetchLeadQuoteSheet(token, leadId, [key]);
       setSheet((current) => withComputedAmounts(current ? mergeCatalogGroups(current, incoming) : incoming));
       setOpenCodes((current) => (current.some((code) => code.trim().toUpperCase() === key) ? current : [...current, key]));
+      setOpenServiceKeys((current) => (current.includes(key) ? current : [...current, key]));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không tải được dịch vụ';
       setLocalError(message);
@@ -547,152 +550,217 @@ export function LeadQuoteSheet({
     }
   }
 
-  function toggleGroupRows(key: string) {
-    setOpenGroupKeys((current) =>
+  function serviceOpenKey(serviceCode: string): string {
+    return serviceCode.trim().toUpperCase();
+  }
+
+  function isServiceExpanded(serviceCode: string): boolean {
+    return openServiceKeys.includes(serviceOpenKey(serviceCode));
+  }
+
+  function toggleServiceExpand(serviceCode: string) {
+    const key = serviceOpenKey(serviceCode);
+    setOpenServiceKeys((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     );
   }
 
-  function renderGroups(
+  function renderServiceCard(
     groups: NonNullable<LeadQuoteSheet['groups']>,
-    options?: { revealAll?: boolean },
+    options?: { startExpanded?: boolean },
   ) {
-    return groups.map((group) => {
-      const key = groupKey(group);
-      const hiddenCount = group.rows.filter((row) => !row.included).length;
-      const includedCount = group.rows.filter((row) => row.included).length;
-      const totalCount = group.rows.length;
-      const expanded = Boolean(options?.revealAll) || openGroupKeys.includes(key);
-      const visibleRows = expanded ? group.rows : group.rows.filter((row) => row.included);
-      const showMoreLink = hiddenCount > 0 && !options?.revealAll;
-      return (
-        <div key={key} className="quote-sheet__group">
-          <div className="quote-sheet__group-head">
-            <span className="quote-sheet__group-icon" aria-hidden="true">
-              <QuoteGlyph name={groupGlyph(group.service_code)} size={16} />
-            </span>
-            <h3>
-              {group.service_name}
-              {group.phase_name ? ` - ${group.phase_name}` : ''}
-            </h3>
-            <span className="quote-sheet__pill" aria-label={`${includedCount} trên ${totalCount} hạng mục`}>
-              {includedCount}/{totalCount}
-            </span>
-          </div>
-          {visibleRows.length > 0 ? (
-            <table className="quote-sheet__lines">
-              <colgroup>
-                <col className="quote-sheet__col-check" />
-                <col className="quote-sheet__col-task" />
-                <col className="quote-sheet__col-subtask" />
-                <col className="quote-sheet__col-staff" />
-                <col className="quote-sheet__col-qty" />
-                <col className="quote-sheet__col-amount" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Tính</th>
-                  <th>Việc</th>
-                  <th>Việc nhỏ</th>
-                  <th>Nhân sự</th>
-                  <th>Số lượng</th>
-                  <th>Thành tiền</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => (
-                  <tr key={row.item_code} className={row.included ? undefined : 'is-off'}>
-                    <td className="quote-sheet__check">
-                      <input
-                        type="checkbox"
-                        checked={row.included}
-                        disabled={!editable || !row.chargeable || busy}
-                        aria-label={`Tính tiền ${row.task}`}
-                        onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
-                      />
-                    </td>
-                    <td className="quote-sheet__task">
-                      <strong>{row.task}</strong>
-                      <span className="muted">{quoteRoleLabel(row.role_label)}</span>
-                    </td>
-                    <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
-                    <td className="quote-sheet__staff">
-                      {editable && row.chargeable ? (
-                        <select
-                          value={row.staff_id ?? ''}
-                          aria-label={`Nhân sự ${row.task}`}
-                          disabled={busy}
-                          onChange={(event) => {
-                            const staffId = Number(event.target.value);
-                            const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
-                            patchRow(row.item_code, {
-                              staff_id: person?.id ?? null,
-                              staff_name: person?.name ?? '',
-                              position_name: person?.position_name ?? '',
-                              monthly_salary_vnd: person?.monthly_salary_vnd ?? 0,
-                              hours_per_month: person?.hours_per_month ?? 0,
-                              hourly_vnd: person?.hourly_vnd ?? 0,
-                            });
-                          }}
-                        >
-                          <option value="">Chọn nhân sự</option>
-                          {staffGroups.map((staffGroup) => (
-                            <optgroup key={staffGroup.code} label={staffGroup.name}>
-                              {staffGroup.people.map((person) => (
-                                <option key={person.id} value={person.id}>
-                                  {person.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      ) : (
-                        row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
-                      )}
-                    </td>
-                    <td className="quote-sheet__qty">
-                      {editable && row.chargeable ? (
-                        <input
-                          type="number"
-                          min={0.01}
-                          max={9999}
-                          step={1}
-                          value={row.qty}
-                          aria-label={`Số lượng ${row.task}`}
-                          disabled={busy}
-                          onChange={(event) => {
-                            const qty = Math.max(0, Number(event.target.value) || 0);
-                            patchRow(row.item_code, { qty });
-                          }}
-                        />
-                      ) : (
-                        row.qty
-                      )}
-                    </td>
-                    <td className="quote-sheet__amount">{vnd(amountOf(row, sheet?.staff ?? []))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-          {showMoreLink ? (
-            <button
-              type="button"
-              className="quote-sheet__more"
-              aria-expanded={expanded}
-              onClick={() => toggleGroupRows(key)}
-            >
-              <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-              {expanded ? 'Ẩn bớt' : `Xem thêm ${hiddenCount}`}
-            </button>
-          ) : null}
-        </div>
-      );
+    if (!groups.length) return null;
+    const serviceCode = groups[0].service_code;
+    const serviceName = groups[0].service_name;
+    const expanded = Boolean(options?.startExpanded) || isServiceExpanded(serviceCode);
+    const allRows = groups.flatMap((group) => group.rows);
+    const serviceIncluded = allRows.filter((row) => row.included).length;
+    const serviceTotal = allRows.length;
+    const hiddenCount = allRows.filter((row) => !row.included).length;
+    const canToggle = hiddenCount > 0;
+    const visibleGroups = expanded
+      ? groups
+      : groups.filter((group) => group.rows.some((row) => row.included));
+    const showPhaseHeadings = groups.length > 1 || Boolean(groups[0]?.phase_name);
+    const hasTable = visibleGroups.some((group) => {
+      const rows = expanded ? group.rows : group.rows.filter((row) => row.included);
+      return rows.length > 0;
     });
+
+    function toggle() {
+      if (!canToggle) return;
+      toggleServiceExpand(serviceCode);
+    }
+
+    return (
+      <div className="quote-sheet__group quote-sheet__service" key={serviceCode}>
+        <button
+          type="button"
+          className="quote-sheet__group-head"
+          aria-expanded={canToggle ? expanded : undefined}
+          disabled={!canToggle}
+          onClick={toggle}
+        >
+          <span className="quote-sheet__group-icon" aria-hidden="true">
+            <QuoteGlyph name={groupGlyph(serviceCode)} size={16} />
+          </span>
+          <span className="quote-sheet__service-title">{serviceName}</span>
+          <span className="quote-sheet__pill" aria-label={`${serviceIncluded} trên ${serviceTotal} hạng mục`}>
+            {serviceIncluded}/{serviceTotal}
+          </span>
+        </button>
+        {hasTable ? (
+          <table className="quote-sheet__lines">
+            <colgroup>
+              <col className="quote-sheet__col-check" />
+              <col className="quote-sheet__col-task" />
+              <col className="quote-sheet__col-subtask" />
+              <col className="quote-sheet__col-staff" />
+              <col className="quote-sheet__col-qty" />
+              <col className="quote-sheet__col-amount" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Tính</th>
+                <th>Việc</th>
+                <th>Việc nhỏ</th>
+                <th>Nhân sự</th>
+                <th>Số lượng</th>
+                <th>Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleGroups.map((group) => {
+                const key = groupKey(group);
+                const includedCount = group.rows.filter((row) => row.included).length;
+                const totalCount = group.rows.length;
+                const rows = expanded ? group.rows : group.rows.filter((row) => row.included);
+                const phaseName = String(group.phase_name ?? '').trim();
+                return (
+                  <Fragment key={key}>
+                    {showPhaseHeadings && phaseName ? (
+                      <tr className="quote-sheet__phase">
+                        <td colSpan={6}>
+                          <div className="quote-sheet__phase-inner">
+                            <span className="quote-sheet__phase-name">{phaseName}</span>
+                            <span className="quote-sheet__pill" aria-label={`${includedCount} trên ${totalCount} hạng mục`}>
+                              {includedCount}/{totalCount}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {rows.map((row) => (
+                      <tr key={row.item_code} className={row.included ? undefined : 'is-off'}>
+                        <td className="quote-sheet__check">
+                          <input
+                            type="checkbox"
+                            checked={row.included}
+                            disabled={!editable || !row.chargeable || busy}
+                            aria-label={`Tính tiền ${row.task}`}
+                            onChange={(event) => patchRow(row.item_code, { included: event.target.checked })}
+                          />
+                        </td>
+                        <td className="quote-sheet__task">
+                          <strong>{row.task}</strong>
+                          <span className="muted">{quoteRoleLabel(row.role_label)}</span>
+                        </td>
+                        <td className="quote-sheet__subtask">{row.subtask || '—'}</td>
+                        <td className="quote-sheet__staff">
+                          {editable && row.chargeable ? (
+                            <select
+                              value={row.staff_id ?? ''}
+                              aria-label={`Nhân sự ${row.task}`}
+                              disabled={busy}
+                              onChange={(event) => {
+                                const staffId = Number(event.target.value);
+                                const person = (sheet?.staff ?? []).find((item) => item.id === staffId);
+                                patchRow(row.item_code, {
+                                  staff_id: person?.id ?? null,
+                                  staff_name: person?.name ?? '',
+                                  position_name: person?.position_name ?? '',
+                                  monthly_salary_vnd: person?.monthly_salary_vnd ?? 0,
+                                  hours_per_month: person?.hours_per_month ?? 0,
+                                  hourly_vnd: person?.hourly_vnd ?? 0,
+                                });
+                              }}
+                            >
+                              <option value="">Chọn nhân sự</option>
+                              {staffGroups.map((staffGroup) => (
+                                <optgroup key={staffGroup.code} label={staffGroup.name}>
+                                  {staffGroup.people.map((person) => (
+                                    <option key={person.id} value={person.id}>
+                                      {person.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          ) : (
+                            row.staff_name.trim() ? row.staff_name.toLocaleUpperCase('vi-VN') : '—'
+                          )}
+                        </td>
+                        <td className="quote-sheet__qty">
+                          {editable && row.chargeable ? (
+                            <input
+                              type="number"
+                              min={0.01}
+                              max={9999}
+                              step={1}
+                              value={row.qty}
+                              aria-label={`Số lượng ${row.task}`}
+                              disabled={busy}
+                              onChange={(event) => {
+                                const qty = Math.max(0, Number(event.target.value) || 0);
+                                patchRow(row.item_code, { qty });
+                              }}
+                            />
+                          ) : (
+                            row.qty
+                          )}
+                        </td>
+                        <td className="quote-sheet__amount">{vnd(amountOf(row, sheet?.staff ?? []))}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : null}
+        {canToggle ? (
+          <button
+            type="button"
+            className="quote-sheet__more quote-sheet__service-more"
+            aria-expanded={expanded}
+            onClick={toggle}
+          >
+            <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
+            {expanded ? 'Thu gọn' : `${hiddenCount} mục khác`}
+          </button>
+        ) : null}
+      </div>
+    );
   }
 
-  function renderServiceTables(serviceCode: string) {
-    return renderGroups(groupsFor(serviceCode));
+  function renderServiceCards(groups: NonNullable<LeadQuoteSheet['groups']>) {
+    const order: string[] = [];
+    const buckets = new Map<string, NonNullable<LeadQuoteSheet['groups']>>();
+    for (const group of groups) {
+      const key = group.service_code.trim().toUpperCase();
+      const bucket = buckets.get(key);
+      if (bucket) {
+        bucket.push(group);
+      } else {
+        buckets.set(key, [group]);
+        order.push(key);
+      }
+    }
+    return order.map((code) => renderServiceCard(buckets.get(code) ?? []));
+  }
+
+  function renderServiceTables(serviceCode: string, options?: { startExpanded?: boolean }) {
+    return renderServiceCard(groupsFor(serviceCode), options);
   }
 
   return (
@@ -721,7 +789,7 @@ export function LeadQuoteSheet({
           <Fragment key={service.code}>{renderServiceTables(service.code)}</Fragment>
         ))
       ) : (
-        renderGroups(visibleGroups)
+        renderServiceCards(visibleGroups)
       )}
       {sheet && extraServices.length > 0 ? (
         <div className="quote-sheet__extras">
@@ -733,29 +801,30 @@ export function LeadQuoteSheet({
             const loading = loadingCode === key;
             return (
               <div key={service.code} className="quote-sheet__extra">
-                <button
-                  type="button"
-                  className="quote-sheet__extra-head"
-                  aria-expanded={open}
-                  aria-label={`${open ? 'Thu gọn' : 'Mở'} ${service.name}`}
-                  disabled={busy || Boolean(loadingCode)}
-                  onClick={() => void toggleExtraService(service.code)}
-                >
-                  <span className="quote-sheet__extra-name">{service.name}</span>
-                  {loading ? (
-                    <span className="muted">Đang tải…</span>
-                  ) : (
-                    <span className="quote-sheet__pill">{service.item_count} hạng mục</span>
-                  )}
-                  <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-                </button>
                 {open ? (
                   loading ? (
                     <p className="muted">Đang tải…</p>
                   ) : (
-                    renderGroups(groupsFor(service.code), { revealAll: true })
+                    renderServiceTables(service.code)
                   )
-                ) : null}
+                ) : (
+                  <button
+                    type="button"
+                    className="quote-sheet__extra-head"
+                    aria-expanded={false}
+                    aria-label={`Mở ${service.name}`}
+                    disabled={busy || Boolean(loadingCode)}
+                    onClick={() => void toggleExtraService(service.code)}
+                  >
+                    <span className="quote-sheet__extra-name">{service.name}</span>
+                    {loading ? (
+                      <span className="muted">Đang tải…</span>
+                    ) : (
+                      <span className="quote-sheet__pill">{service.item_count} hạng mục</span>
+                    )}
+                    <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
+                  </button>
+                )}
               </div>
             );
           })}
