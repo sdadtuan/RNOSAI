@@ -222,8 +222,11 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
 .ahd-assign-top-wrap .ahd-assign-hint { margin: 0; text-align: right; }
 .ahd-brief-label { font-weight: 700; color: var(--ahd-ink); }
 
-/* Stepper — equal widths and a shared baseline: same index size,
-   reserved label/hint/time rows, underline that does not add height. */
+/* Stepper — each step is a fixed equal-width column.
+   Circle, label, role (hint), and time are stacked and centered under
+   the circle. Each text line is a fixed-height row so empty slots still
+   occupy space and every step shares the same baselines. The active
+   underline is a centered bar under the step, not a full-cell border. */
 .ahd-stepper-wrap {
   width: 100%;
   min-width: 0;
@@ -235,7 +238,7 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
   gap: 0;
   list-style: none;
   margin: 14px 0 16px;
-  padding: 10px 8px 0;
+  padding: 10px 0 0;
   background: #f3efe6;
   border-radius: 12px;
   border: 1px solid #ececee;
@@ -247,7 +250,8 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  border-bottom: 2px solid transparent;
+  padding-bottom: 8px;
+  border-bottom: 0;
 }
 .ahd-step:not(:last-child)::after {
   content: "";
@@ -261,6 +265,19 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
 }
 .ahd-step--done:not(:last-child)::after { background: var(--ahd-lime); }
 .ahd-step--current:not(:last-child)::after { background: #d5d6db; }
+.ahd-step--current::before,
+.ahd-step.is-active::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 2px;
+  background: var(--ahd-btn);
+  border-radius: 1px;
+  z-index: 2;
+}
 .ahd-step__hit {
   display: flex;
   flex-direction: column;
@@ -269,11 +286,11 @@ html.ops-shell-bitrix body:has(.ahd) .ops-page--full {
   gap: 6px;
   background: none;
   border: 0;
-  padding: 0 4px 8px;
+  padding: 0 6px 0;
   width: 100%;
   height: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: inherit;
   font: inherit;
   cursor: default;
@@ -307,25 +324,27 @@ button.ahd-step__hit { cursor: pointer; }
   box-shadow: 0 0 0 4px var(--ahd-step-current);
 }
 .ahd-step__body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  display: grid;
+  grid-template-rows: 2.5em 1.25em 1.25em;
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 0;
   min-width: 0;
   width: 100%;
+  text-align: center;
 }
 .ahd-step__label {
+  display: block;
+  box-sizing: border-box;
   font-size: 12px;
   font-weight: 600;
   color: #5c5d64;
-  line-height: 1.25;
+  line-height: 1.25em;
+  height: 2.5em;
   width: 100%;
   max-width: 100%;
-  min-height: 2.5em;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -333,35 +352,24 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-step--current .ahd-step__label,
 .ahd-step.is-active .ahd-step__label { color: var(--ahd-btn); font-weight: 700; }
 .ahd-step--done .ahd-step__label { color: var(--ahd-primary); }
-.ahd-step__hint {
+.ahd-step__hint,
+.ahd-step__time {
+  display: block;
+  box-sizing: border-box;
   font-size: 10.5px;
-  color: var(--ahd-muted);
-  line-height: 1.25;
+  line-height: 1.25em;
+  height: 1.25em;
   width: 100%;
   max-width: 100%;
-  min-height: 1.25em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
+.ahd-step__hint { color: var(--ahd-muted); }
 .ahd-step--current .ahd-step__hint,
 .ahd-step.is-active .ahd-step__hint { color: var(--ahd-lime); }
-.ahd-step__time {
-  font-size: 10.5px;
-  color: var(--ahd-muted);
-  line-height: 1.25;
-  width: 100%;
-  max-width: 100%;
-  min-height: 1.25em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ahd-step--current,
-.ahd-step.is-active {
-  border-bottom-color: var(--ahd-btn);
-  border-radius: 0;
-}
+.ahd-step__time { color: var(--ahd-muted); }
 
 /* 3-column body: left === right; middle 2-col splits fill this same 1fr. */
 .ahd-body {
@@ -719,7 +727,7 @@ button.ahd-step__hit { cursor: pointer; }
   .ahd-step:nth-child(4)::after { display: none; }
   .ahd-step__label-full { display: none; }
   .ahd-step__label-short { display: inline; }
-  .ahd-step__hint { display: none; }
+  .ahd-step__hint { visibility: hidden; }
 }
 @container ahd (max-width: 640px) {
   .ahd { padding: 8px; }
@@ -743,7 +751,7 @@ button.ahd-step__hit { cursor: pointer; }
   .ahd-step:nth-child(4)::after { display: none; }
   .ahd-step__label-full { display: none; }
   .ahd-step__label-short { display: inline; }
-  .ahd-step__hint { display: none; }
+  .ahd-step__hint { visibility: hidden; }
 }
 @media (max-width: 640px) {
   .ahd { padding: 8px; }
@@ -772,7 +780,7 @@ button.ahd-step__hit { cursor: pointer; }
   }
   .ahd-step__label-full { display: inline; }
   .ahd-step__label-short { display: none; }
-  .ahd-step__hint { display: -webkit-box; }
+  .ahd-step__hint { display: block; visibility: visible; }
   .ahd-tabs {
     flex-wrap: nowrap;
     gap: 2px;

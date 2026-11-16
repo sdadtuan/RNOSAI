@@ -562,3 +562,66 @@
 .sld .ahd-col--main .ahd-sol-top ~ .solution-desk {
   margin-top: 12px;
 }
+
+
+/* t287: first painted card in every column uses the same box (margin-top 0,
+   1px border). Collapse leftover lead-detail / intake / embed shells so they
+   cannot inset the middle column — on step 2 those shells still generated a
+   box and sat the Brief card 8px lower than the side rails. */
+.sld .ahd-body > .ahd-col {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  align-self: start;
+}
+
+.sld .ahd-col--main .lead-detail-layout,
+.sld .ahd-col--main .lead-detail-grid,
+.sld .ahd-col--main .lead-detail-grid--record,
+.sld .ahd-col--main .lead-detail-main,
+.sld .ahd-col--main .lead-detail-main > div:not(.lead-detail-pane--hidden),
+.sld .ahd-col--main #funnel-intake-discovery,
+.sld .ahd-col--main .card-inner,
+.sld .ahd-col--main .card-inner#funnel-intake-discovery,
+.sld .ahd-col--main .sd-embed,
+.sld .ahd-col--main .sd-page,
+.sld .ahd-col--main .sd-page--embed {
+  display: contents !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  gap: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.sld .ahd-col--main .lead-attribution-chips,
+.sld .ahd-col--main [class*="attribution"] {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.sld .ahd-body > .ahd-col > .ahd-card,
+.sld .ahd-col--side > .ahd-card,
+.sld .ahd-col--side-notes > .ahd-card,
+.sld .ahd-col--main .sld-main-card,
+.sld .ahd-col--main .sd-card,
+.sld .ahd-col--main .ahd-panel,
+.sld .ahd-col--main .ahd-sol-top,
+.sld .ahd-col--main .quote-sheet,
+.sld .ahd-col--main #lead-quote-sheet,
+.sld .ahd-col--main .solution-desk {
+  margin-top: 0 !important;
+  border-width: 1px !important;
+  border-style: solid;
+  border-color: #ececee;
+  border-radius: var(--ahd-radius, 12px);
+  box-shadow: var(--ahd-shadow);
+  box-sizing: border-box;
+}
+
+.sld .ahd-col--main .sd-card,
+.sld .sd-embed .sd-card,
+.sld .sd-page--embed .sd-card {
+  padding-top: 14px !important;
+}
