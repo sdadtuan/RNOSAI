@@ -1403,12 +1403,9 @@ export class LeadsFunnelService {
       if (access.isSales && !(await this.actorIsSuperAdmin(staffUser))) {
         throw new ForbiddenException({ error: 'Sales không được sửa hoặc nộp báo giá.' });
       }
-      return await this.pgRepo.saveQuoteSheet(
-        leadId,
-        staffId,
-        body,
-        await this.actorIsSuperAdmin(staffUser),
-      );
+      const asPrivileged =
+        (await this.actorIsSuperAdmin(staffUser)) || isCeoPosition(await this.actorPositionCode(staffUser));
+      return await this.pgRepo.saveQuoteSheet(leadId, staffId, body, asPrivileged);
     } catch (err) {
       this.funnelError(err);
     }

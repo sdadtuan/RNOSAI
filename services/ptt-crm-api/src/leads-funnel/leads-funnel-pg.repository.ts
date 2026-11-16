@@ -3222,6 +3222,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
+  private quoteSheetStillWritable(snap: PresalesSnapshot): boolean {
+    if (snap.presales.quote_approved_at) return false;
+    const phase = String(snap.quote_case?.phase ?? '');
+    if (phase === 'hop_dong' || phase === 'trien_khai') return false;
+    return (
+      !phase ||
+      phase === 'bao_gia' ||
+      phase === 'chuyen_bao_gia' ||
+      phase === 'ceo_review' ||
+      phase === 'sale_review'
+    );
+  }
+
   private async assertBaoGiaSheet(leadId: number, snap: PresalesSnapshot): Promise<void> {
     if (!snap.presales.solution_approved_at && !snap.presales.quote_accepted_at) {
       throw new Error('Sale chưa Approve Solution.');
@@ -3254,7 +3267,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const stored = await this.storedQuoteSheet(snap.presales.id);
     const catalog = await this.loadQuoteCatalog(requestedCodes ?? stored.service_codes);
     return assembleQuoteSheet({
-      editable: snap.quote_case?.phase === 'bao_gia' && !access?.isSales,
+      editable: this.quoteSheetStillWritable(snap) && !access?.isSales,
       services: catalog.services,
       staff: catalog.staff,
       items: catalog.items,
@@ -3273,11 +3286,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   ): Promise<QuoteSheetView> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    if (asSuperAdmin) {
-      if (snap.presales.quote_approved_at) throw new Error('Bảng báo giá đang khóa.');
-    } else {
+    if (!this.quoteSheetStillWritable(snap)) {
+      throw new Error('Bảng báo giá đang khóa.');
+    }
+    if (!asSuperAdmin) {
       await this.assertBaoGiaSheet(leadId, snap);
-      if (snap.quote_case?.phase !== 'bao_gia') throw new Error('Bảng báo giá đang khóa.');
       this.assertQuoteAssignee(snap.presales, staffId);
     }
     const parsed = readStoredQuoteSheet({

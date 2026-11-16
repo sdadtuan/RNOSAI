@@ -539,10 +539,16 @@ export function LeadQuoteSheet({
     setBusy(true);
     setLocalError('');
     try {
+      if (editable) {
+        const next = await save();
+        if (!next || tickedServiceCodes(next).length < 1) {
+          throw new Error('Chọn ít nhất một hạng mục để xuất file Báo Giá.');
+        }
+      }
       await downloadLeadQuoteXlsx(token, leadId);
-      onMessage?.('Đã tải Excel báo giá.');
+      onMessage?.('Đã xuất file Báo Giá.');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không tải được Excel báo giá';
+      const message = err instanceof Error ? err.message : 'Không xuất được file Báo Giá';
       setLocalError(message);
       onError?.(message);
     } finally {
@@ -892,12 +898,15 @@ export function LeadQuoteSheet({
         const canSubmitQuote =
           !viewerIsSales &&
           !ceoApproved &&
+          phase !== 'ceo_review' &&
+          phase !== 'sale_review' &&
           (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia');
+        const canExportQuote = Boolean(sheet) && (!viewerIsSales || canDownload);
         const submitBlockedReason =
           canSubmitQuote && sheet && tickedCodes.length < 1
             ? 'Chọn ít nhất một hạng mục để nộp.'
             : '';
-        if (!editable && !canDownload && !canSubmitQuote) return null;
+        if (!editable && !canDownload && !canSubmitQuote && !canExportQuote) return null;
         return (
         <>
         <div className="solution-desk__actions">
@@ -919,9 +928,19 @@ export function LeadQuoteSheet({
               </button>
             </>
           ) : null}
-          {canDownload ? (
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void onDownload()}>
-              Tải Excel báo giá
+          {editable && !canSubmitQuote ? (
+            <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
+              Lưu bảng
+            </button>
+          ) : null}
+          {canExportQuote ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !sheet || tickedCodes.length < 1}
+              onClick={() => void onDownload()}
+            >
+              Xuất file Báo Giá
             </button>
           ) : null}
         </div>
