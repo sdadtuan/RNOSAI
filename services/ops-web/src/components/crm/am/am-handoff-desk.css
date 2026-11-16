@@ -320,6 +320,9 @@ button.ahd-step__hit { cursor: pointer; }
   min-width: 0;
   width: 100%;
 }
+.ahd-body.ahd-body--no-side {
+  grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr);
+}
 .ahd-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
 .ahd-card {
@@ -425,16 +428,6 @@ button.ahd-step__hit { cursor: pointer; }
   box-sizing: border-box;
   max-width: 100%;
   height: auto;
-}
-.ahd-handoff-note {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff8e8;
-  border: 1px solid #f0d9a6;
-  color: #6a3b00;
-  font-size: 12.5px;
-  line-height: 1.45;
 }
 .ahd-temp--hot { background: var(--ahd-hot-bg); color: var(--ahd-hot); }
 .ahd-temp--warm { background: var(--ahd-warm-bg); color: var(--ahd-warm); }
@@ -601,74 +594,6 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-field span { font-size: 12.5px; font-weight: 600; }
 .ahd-req { color: var(--ahd-danger); margin-left: 2px; }
 
-/* Right: checklist + next action */
-.ahd-check { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.ahd-card__title .ahd-check__progress {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ahd-btn, #17692f);
-}
-.ahd-check__hint {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: #5b6b62;
-  line-height: 1.35;
-}
-.ahd-check li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12.5px;
-  list-style: none;
-}
-.ahd-check__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  padding: 4px 4px;
-  margin: 0;
-  border-radius: 6px;
-  color: inherit;
-  font: inherit;
-  box-shadow: none;
-  cursor: default;
-}
-button.ahd-check__item {
-  cursor: pointer;
-}
-button.ahd-check__item:hover,
-button.ahd-check__item:focus-visible {
-  background: #f3f8f4;
-  outline: 2px solid rgba(23, 105, 47, 0.28);
-}
-.ahd-check__item.is-ok {
-  color: #146c2e;
-  pointer-events: none;
-  cursor: default;
-}
-.ahd-check__mark {
-  width: 16px; height: 16px; border-radius: 999px;
-  display: grid; place-items: center;
-  flex: 0 0 auto; margin-top: 1px;
-  background: var(--ahd-btn, #17692f);
-  border: 0;
-  color: #fff;
-}
-.ahd-check__mark--todo {
-  background: transparent;
-  color: #17692f;
-  border: 0;
-}
-.ahd-check li.is-ok .ahd-check__mark {
-  background: var(--ahd-btn, #17692f);
-  border: 0;
-  color: #fff;
-}
 .lin-notes__why {
   margin: 6px 0 0;
   font-size: 12px;
@@ -680,21 +605,6 @@ button.ahd-check__item:focus-visible {
   cursor: not-allowed;
   filter: grayscale(0.2);
 }
-.ahd-pass {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 12px;
-  margin-left: auto;
-  background: var(--ahd-soft);
-  color: var(--ahd-btn);
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
-  font-weight: 700;
-}
-.ahd-pass-wrap { display: flex; justify-content: flex-end; }
-
 .ahd-error {
   background: #fef2f2;
   color: #991b1b;
@@ -737,6 +647,7 @@ button.ahd-check__item:focus-visible {
    fits two equal cards (wrap chips such as Mức độ rather than overflow). */
 @container ahd (max-width: 1360px) {
   .ahd-body { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px); }
+  .ahd-body.ahd-body--no-side { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr); }
 }
 @container ahd (max-width: 1000px) {
   .ahd-body { grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); }
@@ -770,6 +681,7 @@ button.ahd-check__item:focus-visible {
 /* Viewport fallback when container queries are unavailable. */
 @media (max-width: 1100px) {
   .ahd-body { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px); }
+  .ahd-body.ahd-body--no-side { grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
   .ahd-body { grid-template-columns: 1fr; }
@@ -796,6 +708,9 @@ button.ahd-check__item:focus-visible {
 @media (min-width: 1200px) {
   .ahd-body {
     grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr) var(--ahd-side, 300px);
+  }
+  .ahd-body.ahd-body--no-side {
+    grid-template-columns: var(--ahd-side, 300px) minmax(0, 1fr);
   }
   .ahd-col--side {
     grid-column: auto;

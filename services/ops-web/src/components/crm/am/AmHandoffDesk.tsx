@@ -31,7 +31,6 @@ import {
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
 import {
-  amDeskChecklist,
   dash,
   formatHandoffStamp,
   HANDOFF_FLOW_COPY,
@@ -52,7 +51,6 @@ import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import {
   buildAmDeskBrief,
-  checklistSourceFromMerged,
   hrefForUrl,
   hrefForTel,
   hrefForMailto,
@@ -99,7 +97,6 @@ const I = {
   phone: 'M6.5 3h3l1.5 4-2 1.5a12 12 0 006 6L17 13l4 1.5v3A16 16 0 016.5 3z',
   mail: 'M4 6h16v12H4V6zm0 0l8 7 8-7',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z',
-  check: 'M5 12l5 5L20 7',
   bolt: 'M13 2L4 14h7l-1 8 10-13h-7l0-7z',
   goal: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 8v4l3 2',
   box: 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8',
@@ -108,7 +105,6 @@ const I = {
   users: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
   money: 'M12 1v22M17 5H9.5a3.5 3.5 0 000 7H14a3.5 3.5 0 010 7H6',
   note: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6',
-  list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01',
   clip: 'M21.4 11.4l-8.8 8.8a6 6 0 01-8.5-8.5l8.8-8.8a4 4 0 015.7 5.7L9.7 19.5a2 2 0 01-2.8-2.8l8-8',
 };
 
@@ -514,13 +510,6 @@ export function AmHandoffDesk({
     returnedToSales: handoff?.status === 'returned',
     ...flowTimesFromFunnel(funnel),
   });
-  const checklist = amDeskChecklist(checklistSourceFromMerged(view), {
-    legacyReady:
-      view.isLegacy &&
-      (handoff?.status === 'pending' ||
-        session?.status === 'completed' ||
-        Boolean(handoff?.handed_off_at)),
-  });
   const salesName = dash((lead as { owner_name?: string }).owner_name);
   const assignedAmId = amStaffId ?? funnelAssignedAmId(funnel);
   const amName = dash(
@@ -552,6 +541,7 @@ export function AmHandoffDesk({
   const canAssign = flow.currentKey === 'await_solutions';
   const canSubmit =
     handoff?.status === 'pending' || handoff?.status === 'with_solution';
+  const showSide = canSubmit;
   const hasSolutionArtifact = files.some((file) => String((file as { name?: string }).name ?? '').trim()) || artifactReady;
   const submitDisabledReason = !canSubmit
     ? 'Lead không còn ở bước Chờ Solutions.'
@@ -717,7 +707,7 @@ export function AmHandoffDesk({
       {error ? <p className="ahd-error" role="alert">{error}</p> : null}
       {notice ? <p className="ahd-ok">{notice}</p> : null}
 
-      <div className="ahd-body">
+      <div className={showSide ? 'ahd-body' : 'ahd-body ahd-body--no-side'}>
         <div className="ahd-col">
           <section className="ahd-card" data-testid="ahd-quick">
             <h3 className="ahd-card__title">
@@ -948,45 +938,8 @@ export function AmHandoffDesk({
 
         </div>
 
+        {showSide ? (
         <div className="ahd-col ahd-col--side" data-testid="ahd-col-side">
-          <section className="ahd-card" data-testid="ahd-checklist">
-            <h3 className="ahd-card__title">
-              <Icon d={I.list} />
-              Checklist AM trước khi làm Solution
-            </h3>
-            <ul className="ahd-check">
-              {checklist.items.map((item) => (
-                <li key={item.key} className={item.ok ? 'is-ok' : undefined}>
-                  <span className="ahd-check__mark">
-                    {item.ok ? (
-                      <svg viewBox="0 0 16 16" width="10" height="10">
-                        <path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-            {checklist.allOk ? (
-              <div className="ahd-pass-wrap">
-                <span className="ahd-pass" data-testid="ahd-pass">
-                  <Icon d={I.check} size={13} />
-                  Đạt yêu cầu
-                </span>
-              </div>
-            ) : null}
-            {!checklist.allOk && (handoff?.status === 'pending' || Boolean(handoff?.handed_off_at)) ? (
-              <p className="ahd-handoff-note" data-testid="ahd-handoff-note">
-                Lead đã gửi AM (hồ sơ cũ). Checklist chưa đủ
-                {(!view.marketing_goal || !view.target_customers) ? ' — thiếu mục tiêu' : ''}
-                {(!view.budget_band || !view.timeline_band) ? ' / ngân sách' : ''}.
-                Trạng thái bàn giao: {flow.currentLabel}.
-              </p>
-            ) : null}
-          </section>
-
-          {(handoff?.status === 'pending' || handoff?.status === 'with_solution') ? (
           <section className="ahd-card ahd-card--actions" data-testid="ahd-solution-actions">
             <h3 className="ahd-card__title">
               <Icon d={I.bolt} />
@@ -1014,8 +967,8 @@ export function AmHandoffDesk({
               onSubmitToSales={() => void submitSolutionToSales()}
             />
           </section>
-          ) : null}
         </div>
+        ) : null}
       </div>
 
       {returnOpen ? (
