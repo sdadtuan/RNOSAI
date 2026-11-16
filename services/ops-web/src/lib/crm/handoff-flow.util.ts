@@ -243,6 +243,7 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
   // Leftover lead status dam_phan must not keep the stepper on Chờ CEO duyệt.
   if (
     quote === 'hop_dong' ||
+    Boolean(String(input.quoteApprovedAt ?? '').trim()) ||
     Boolean(input.contractCreatedAt) ||
     contractStatus === 'draft' ||
     contractStatus === 'submitted' ||
@@ -389,10 +390,22 @@ export function flowTimesFromFunnel(funnel: {
       str(handoff, 'quote_sent_back_at'),
       str(funnel?.presales?.presales, 'quote_sent_back_at'),
     ),
-    quoteApprovedAt: firstIso(str(handoff, 'quote_approved_at'), str(quote, 'quote_approved_at')),
+    quoteApprovedAt: firstIso(
+      str(handoff, 'quote_approved_at'),
+      str(quote, 'quote_approved_at'),
+      str(funnel?.presales?.presales, 'quote_approved_at'),
+    ),
     customerAgreedAt: firstIso(str(handoff, 'solution_approved_at'), str(quote, 'solution_approved_at'), str(quote, 'quote_accepted_at')),
-    contractCreatedAt: firstIso(str(handoff, 'contract_created_at')),
-    contractSignedAt: firstIso(str(handoff, 'contract_signed_at')),
+    contractCreatedAt: firstIso(
+      str(handoff, 'contract_created_at'),
+      str(quote, 'contract_created_at'),
+      str(funnel?.presales?.presales, 'contract_created_at'),
+    ),
+    contractSignedAt: firstIso(
+      str(handoff, 'contract_signed_at'),
+      str(quote, 'contract_signed_at'),
+      str(funnel?.presales?.presales, 'contract_signed_at'),
+    ),
   };
 }
 

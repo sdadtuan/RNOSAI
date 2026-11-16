@@ -30,6 +30,7 @@ import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandof
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
 import { LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
@@ -1424,14 +1425,15 @@ export default function CrmLeadDetailPage() {
       leadReceivedAt: (lead as { received_at?: string | null }).received_at,
       handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
       quotePhase: funnelSnap?.presales?.quote_case?.phase,
-      hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
+      hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+        contractStatus: contractSummary?.contractStatus ?? null,
       discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status),
       discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
       returnedToSales: funnelSnap?.presales?.handoff?.status === 'returned',
       firstContactDone: funnelB2Complete(funnelSnap),
       ...flowTimesFromFunnel(funnelSnap),
     }).currentKey;
-  }, [lead, status, funnelSnap]);
+  }, [lead, status, funnelSnap, contractSummary]);
   const ownerKind: LeadOwnerKind = useMemo(
     () => ownerKindFromHandoffStep(handoffFlowKey),
     [handoffFlowKey],
@@ -1529,7 +1531,8 @@ export default function CrmLeadDetailPage() {
         leadReceivedAt: (lead as { received_at?: string | null }).received_at,
         handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
         quotePhase: funnelSnap?.presales?.quote_case?.phase,
-        hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
+        hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+        contractStatus: contractSummary?.contractStatus ?? null,
         discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
         discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
         returnedToSales: handoffStatus === 'returned',
@@ -1537,6 +1540,8 @@ export default function CrmLeadDetailPage() {
         ...flowTimesFromFunnel(funnelSnap),
       }).currentKey
     : '';
+  const flowTimes = flowTimesFromFunnel(funnelSnap);
+  const quoteAlreadyApproved = Boolean(flowTimes.quoteApprovedAt) || quoteCasePhase === 'hop_dong';
   const atImplementStep =
     !waitingSolutionFeedback &&
     !needsSolutionRevision &&
@@ -1550,6 +1555,8 @@ export default function CrmLeadDetailPage() {
     !atImplementStep &&
     (flowCurrentKey === 'sign_contract' ||
       quoteCasePhase === 'hop_dong' ||
+      quoteAlreadyApproved ||
+      Boolean(flowTimes.contractCreatedAt) ||
       Boolean(contractSummary?.hasContract));
   // Quote desk is only Chờ báo giá / Chờ CEO duyệt (and the Báo giá kanban
   // column). Ký hợp đồng and Triển Khai have their own middle-column panels.
@@ -1588,7 +1595,8 @@ export default function CrmLeadDetailPage() {
         leadReceivedAt: (lead as { received_at?: string | null }).received_at,
         handoffStatus: handoffStatus || funnelSnap?.presales?.handoff?.status,
         quotePhase: funnelSnap?.presales?.quote_case?.phase,
-        hasContract: Boolean((lead as { has_contract?: boolean }).has_contract),
+        hasContract: Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract),
+        contractStatus: contractSummary?.contractStatus ?? null,
         discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
         discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
         returnedToSales: handoffStatus === 'returned',
@@ -1875,6 +1883,8 @@ export default function CrmLeadDetailPage() {
           userId={Number(user?.id) || undefined}
           waitingSolutionFeedback={waitingSolutionFeedback}
           atQuoteStep={atQuoteStep}
+          hasContract={Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract)}
+          contractStatus={contractSummary?.contractStatus ?? null}
           sideTop={null}
           exchangeLines={careHistory}
           ownerLines={ownerLines}
@@ -2142,7 +2152,20 @@ export default function CrmLeadDetailPage() {
                     onMessage={setMessage}
                     onError={setError}
                   />
-                ) : null}
+                ) : (
+                  <section className="solution-feedback" aria-label={atImplementStep ? 'Triển Khai' : 'Ký hợp đồng'}>
+                    <LeadStepHero
+                      title={atImplementStep ? 'TRIỂN KHAI' : 'KÝ HỢP ĐỒNG'}
+                      icon="contract"
+                      titleAs="h3"
+                      subtitle={
+                        atImplementStep
+                          ? 'GĐKD đã duyệt hợp đồng. Lead đang ở Triển Khai.'
+                          : 'CEO đã duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt.'
+                      }
+                    />
+                  </section>
+                )}
                 {atImplementStep && funnelSnap?.presales?.implementation_handoff ? (
                   <ImplementationHandoffCard
                     token={accessToken}
@@ -2155,15 +2178,13 @@ export default function CrmLeadDetailPage() {
                   />
                 ) : null}
                 {atImplementStep ? <LeadDeliveryKpi token={accessToken} leadId={leadId} /> : null}
-                {quoteSubmittedForFiles ? (
-                  <LeadDealFilesCard
-                    token={accessToken}
-                    leadId={leadId}
-                    onMessage={setMessage}
-                    onError={setError}
-                    onFunnelChange={setFunnelSnap}
-                  />
-                ) : null}
+                <LeadDealFilesCard
+                  token={accessToken}
+                  leadId={leadId}
+                  onMessage={setMessage}
+                  onError={setError}
+                  onFunnelChange={setFunnelSnap}
+                />
               </>
             ) : null}
 
@@ -2197,8 +2218,9 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
+            {accessToken && lead && atQuoteStep ? (
               <>
+                {showLeadQuoteSheet ? (
                 <LeadQuoteSheet
                   token={accessToken}
                   leadId={leadId}
@@ -2222,6 +2244,39 @@ export default function CrmLeadDetailPage() {
                     setStatus(row.status || 'moi');
                   }}
                 />
+                ) : funnelSnap?.presales?.quote_case ? (
+                  <QuoteCasePanel
+                    compact
+                    token={accessToken}
+                    leadId={leadId}
+                    funnel={funnelSnap}
+                    viewerIsCeo={isCeoPosition(user) || superAdmin}
+                    viewerIsSuperAdmin={superAdmin}
+                    viewerIsGdkd={isGdkdContractDesk(user)}
+                    viewerIsSales={salesViewer}
+                    onFunnelChange={setFunnelSnap}
+                    onLeadReload={async () => {
+                      const row = await fetchLead(accessToken, leadId);
+                      setLead(row);
+                      setStatus(row.status || 'moi');
+                    }}
+                    onMessage={setMessage}
+                    onError={setError}
+                  />
+                ) : (
+                  <section className="solution-feedback" aria-label="Bước hiện tại">
+                    <LeadStepHero
+                      title={flowCurrentKey === 'negotiate' ? 'CHỜ CEO DUYỆT' : 'BÁO GIÁ'}
+                      icon="quote"
+                      titleAs="h3"
+                      subtitle={
+                        flowCurrentKey === 'negotiate'
+                          ? 'Báo giá đã nộp, CEO xem các mục đã tick và duyệt.'
+                          : 'AM lập báo giá trên lead này.'
+                      }
+                    />
+                  </section>
+                )}
                 <LeadDealFilesCard
                   token={accessToken}
                   leadId={leadId}
@@ -2229,7 +2284,7 @@ export default function CrmLeadDetailPage() {
                   onError={setError}
                   onFunnelChange={setFunnelSnap}
                 />
-                {funnelSnap?.presales?.quote_case ? (
+                {showLeadQuoteSheet && funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel
                     compact
                     token={accessToken}

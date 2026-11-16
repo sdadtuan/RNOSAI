@@ -107,9 +107,12 @@ describe('handoff-flow.util', () => {
     expect(resolveHandoffFlowStep({ leadStatus: 'won', hasContract: true })).toBe('sign_contract');
   });
 
-  it('keeps CEO-approved hop_dong on Chờ CEO duyệt until the lead is actually at contract', () => {
-    expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan', quotePhase: 'hop_dong' })).toBe('negotiate');
-    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'hop_dong' })).toBe('negotiate');
+  it('moves leftover dam_phan / bao_gia to Ký hợp đồng once CEO has approved the quote', () => {
+    expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan', quotePhase: 'hop_dong' })).toBe('sign_contract');
+    expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'hop_dong' })).toBe('sign_contract');
+    expect(
+      resolveHandoffFlowStep({ leadStatus: 'dam_phan', quoteApprovedAt: '2026-11-16T07:00:00.000Z' }),
+    ).toBe('sign_contract');
     expect(resolveHandoffFlowStep({ leadStatus: 'chot', quotePhase: 'hop_dong' })).toBe('sign_contract');
     expect(resolveHandoffFlowStep({ leadStatus: 'bao_gia', quotePhase: 'trien_khai' })).toBe('trien_khai');
     expect(resolveHandoffFlowStep({ leadStatus: 'trien_khai', hasContract: true, contractStatus: 'active' })).toBe(

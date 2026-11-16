@@ -164,6 +164,8 @@ export type SalesLeadDeskProps = {
   sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
+  hasContract?: boolean;
+  contractStatus?: string | null;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
@@ -187,6 +189,8 @@ export function SalesLeadDesk({
   sideTop,
   waitingSolutionFeedback = false,
   atQuoteStep = false,
+  hasContract = false,
+  contractStatus = null,
   exchangeLines = [],
   ownerLines = [],
   selectedActivityId = null,
@@ -291,7 +295,8 @@ export function SalesLeadDesk({
     leadReceivedAt: lead.received_at,
     handoffStatus: handoff?.status,
     quotePhase: funnel?.presales?.quote_case?.phase,
-    hasContract: Boolean(lead.has_contract),
+    hasContract: Boolean(hasContract || lead.has_contract),
+    contractStatus,
     discoverySubmitted: submitted,
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: returned,
@@ -629,6 +634,8 @@ export function SalesOrLegacyLeadLayout({
   sideTop,
   waitingSolutionFeedback,
   atQuoteStep,
+  hasContract,
+  contractStatus,
   exchangeLines,
   ownerLines,
   selectedActivityId,
@@ -652,6 +659,8 @@ export function SalesOrLegacyLeadLayout({
   sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
+  hasContract?: boolean;
+  contractStatus?: string | null;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
@@ -676,6 +685,8 @@ export function SalesOrLegacyLeadLayout({
         sideTop={sideTop}
         waitingSolutionFeedback={waitingSolutionFeedback}
         atQuoteStep={atQuoteStep}
+        hasContract={hasContract}
+        contractStatus={contractStatus}
         exchangeLines={exchangeLines}
         ownerLines={ownerLines}
         selectedActivityId={selectedActivityId}
