@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LeadB2OutcomeCard } from '@/components/crm/LeadB2OutcomeCard';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import type { B2OutcomePlan } from '@/lib/crm/lead-b2-outcome';
 import type { LeadFunnelSnapshot } from '@/lib/api';
@@ -52,15 +53,12 @@ export function LeadPipelineB2Panel({
   if (b2Done) {
     return (
       <div className="lead-b2-workspace lead-b2-workspace--done" id="funnel-b2">
-        <header className="lead-b2-workspace__head">
-          <div className="lead-b2-workspace__titles">
-            <h3>Liên hệ lần đầu (B2)</h3>
-            <p className="lead-b2-workspace__sub">
-              B2 đã xong. Ghi cuộc gọi ở bước này đã khóa.
-            </p>
-          </div>
-          <span className="lead-b2-workspace__chip">Đã xong</span>
-        </header>
+        <LeadStepHero
+          title="TIẾP NHẬN LEAD"
+          icon="intake"
+          titleAs="h3"
+          subtitle="B2 đã xong. Ghi cuộc gọi ở bước này đã khóa."
+        />
       </div>
     );
   }
@@ -86,6 +84,12 @@ export function LeadPipelineB2Panel({
 
   return (
     <div className="lead-b2-workspace" id="funnel-b2">
+      <LeadStepHero
+        title="TIẾP NHẬN LEAD"
+        icon="intake"
+        titleAs="h3"
+        subtitle="Gọi khách, ghi phản hồi lần đầu và chốt kết quả B2."
+      />
       {showFr ? (
         <>
           <span className="lead-zone__kicker">Trong bước Liên hệ lần đầu</span>

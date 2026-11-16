@@ -28,6 +28,7 @@ import {
   type SalesDiscoveryBrief,
 } from '@/lib/crm/sales-discovery';
 import './sales-discovery.css';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 
 const STEPS = [
   { id: 1, label: '1. Khách hàng' },
@@ -301,6 +302,13 @@ export function SalesDiscoveryWizard({
   return (
     <div className={`sd-page${embedded ? ' sd-page--embed' : ''}`} data-testid="sales-discovery-wizard">
       <div className="sd-card">
+        {embedded ? (
+          <LeadStepHero
+            title="SALES TƯ VẤN & NHẬP BRIEF"
+            icon="brief"
+            subtitle="Nhập brief sau buổi tư vấn, rồi nộp cho AM."
+          />
+        ) : null}
         <header className={`sd-head${embedded ? ' sd-head--embed' : ''}`}>
           {embedded ? null : (
           <div>

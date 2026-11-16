@@ -1,0 +1,132 @@
+/* Shared lead-step hero: green icon tile, uppercase title, grey subtitle, light green band. */
+.lead-step-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f3fbf6 0%, #ffffff 72%);
+  border-bottom: 1px solid #e4efe8;
+  box-sizing: border-box;
+}
+
+.lead-step-hero__icon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ahd-primary, #17692f);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(23, 105, 47, 0.25);
+}
+
+.lead-step-hero__copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.lead-step-hero__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ahd-primary-700, #125a28);
+}
+
+.lead-step-hero__sub {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #6b6a6f;
+  max-width: 36rem;
+}
+
+.lead-step-hero__sub p {
+  margin: 0;
+}
+
+.lead-step-hero__wave {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 48%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 160% at 92% -10%, rgba(190, 232, 205, 0.85) 0%, rgba(190, 232, 205, 0) 58%),
+    radial-gradient(90% 120% at 100% 110%, rgba(221, 250, 232, 0.95) 0%, rgba(221, 250, 232, 0) 62%),
+    radial-gradient(60% 80% at 70% 40%, rgba(232, 246, 238, 0.7) 0%, transparent 70%);
+}
+
+.lead-step-hero__wave::after {
+  content: "";
+  position: absolute;
+  right: -24px;
+  bottom: -36px;
+  width: 180px;
+  height: 90px;
+  border-radius: 50% 50% 0 0;
+  background: rgba(176, 224, 196, 0.35);
+  transform: rotate(-12deg);
+}
+
+/* Flush to the top of an existing rounded card */
+.quote-sheet--brand > .lead-step-hero,
+.sd-card > .lead-step-hero,
+.lead-b2-workspace > .lead-step-hero,
+.solution-feedback > .lead-step-hero {
+  border-radius: 16px 16px 0 0;
+}
+
+/* Standalone band at the top of the AM middle column — do not wrap the column */
+.ahd-col > .lead-step-hero {
+  border: 1px solid #ececee;
+  border-radius: 16px;
+  margin: 0 0 12px;
+  box-shadow: 0 1px 2px rgba(22, 28, 22, 0.05), 0 6px 16px rgba(22, 28, 22, 0.05);
+}
+
+/* Pull the hero flush to the card edge when the parent has padding. */
+.sd-card > .lead-step-hero {
+  margin: -16px -18px 16px;
+  border-radius: 16px 16px 0 0;
+}
+
+.sd-page--embed .sd-card > .lead-step-hero,
+.sld .sd-card > .lead-step-hero,
+.sld .sd-embed .sd-card > .lead-step-hero,
+.sld .sd-page--embed .sd-card > .lead-step-hero,
+.sld .ahd-col--main .sd-card > .lead-step-hero {
+  margin: -14px -18px 16px;
+  border-radius: var(--ahd-radius, 12px) var(--ahd-radius, 12px) 0 0;
+}
+
+.solution-feedback > .lead-step-hero {
+  margin: -0.9rem -1rem 0.75rem;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid #e4efe8;
+}
+
+/* B2 workspace sits inside sld-main-card (padding 0); keep a tight band. */
+.lead-b2-workspace > .lead-step-hero {
+  margin: -0.15rem -0.1rem 0.35rem;
+  border-radius: var(--ahd-radius, 12px) var(--ahd-radius, 12px) 0 0;
+  border: 1px solid #ececee;
+  border-bottom: 1px solid #e4efe8;
+}
+
+.lead-b2-workspace--done > .lead-step-hero {
+  margin: -0.15rem -0.1rem 0;
+  border-radius: var(--ahd-radius, 12px);
+}

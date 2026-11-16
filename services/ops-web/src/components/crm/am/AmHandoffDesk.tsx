@@ -48,6 +48,7 @@ import { isAiDraftNotice, solutionAiDraftIsReady } from '@/lib/crm/solution-ai-d
 import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { SolutionTopCard } from '@/components/crm/am/SolutionTopCard';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import type { SolutionDeskActivity } from '@/lib/crm/solution-activity';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
@@ -64,7 +65,7 @@ import {
 import { pushToast } from '@/lib/toast';
 import './am-handoff-desk.css';
 
-type TabKey = 'brief' | 'history' | 'solution' | 'notes';
+type TabKey = 'brief' | 'history' | 'notes';
 
 type Attachment = { id: string; name: string; mime?: string; data_url?: string };
 
@@ -335,7 +336,8 @@ export function AmHandoffDesk({
   const [consultPrefill, setConsultPrefill] = useState('');
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
   const revisionNote = String(funnel?.presales?.solution_case?.revision_note ?? '').trim();
-  const [tab, setTab] = useState<TabKey>(revisionNote ? 'solution' : 'brief');
+  const [tab, setTab] = useState<TabKey>('brief');
+  const [solutionDocOpen, setSolutionDocOpen] = useState(false);
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
   const [assignNote, setAssignNote] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
@@ -800,15 +802,20 @@ export function AmHandoffDesk({
         </div>
 
         <div className="ahd-col">
-          {/* t246: File Solution card back on top of the middle column; hides settled rows while the File Solution tab is open */}
+          <LeadStepHero
+            title="CHỜ SOLUTIONS"
+            icon="solution"
+            subtitle="AM làm Solution theo brief Sales đã nộp."
+            testId="ahd-step-hero"
+          />
+          {/* t321: keep the File Solution card; File Solution tab removed. Mo / Sua still opens the editor below. */}
           {showSide ? (
             <SolutionTopCard
               activity={solutionActivity}
               canRetry={canSubmit}
               customerName={company}
               leadCode={leadCode}
-              hideSettled={tab === 'solution'}
-              onOpenAi={() => setTab('solution')}
+              onOpenAi={() => setSolutionDocOpen(true)}
               onRetryAi={() => setAiRetryNonce((n) => n + 1)}
             />
           ) : null}
@@ -818,7 +825,6 @@ export function AmHandoffDesk({
             {(
               [
                 ['brief', 'Sales Brief', I.brief],
-                ['solution', 'File Solution', I.clip],
                 ['history', 'Lịch sử', I.chat],
                 ['notes', 'Ghi chú nội bộ', I.note],
               ] as const
@@ -923,7 +929,7 @@ export function AmHandoffDesk({
             </div>
           ) : null}
 
-          {tab === 'solution' ? (
+          {solutionDocOpen ? (
             <div data-testid="ahd-solution">
               <SolutionCaseDesk
                 key={`solution-list-${solutionTick}`}

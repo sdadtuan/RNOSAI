@@ -13,6 +13,7 @@ import {
   type LeadQuoteSheetStaff,
 } from '@/lib/api';
 import { ActionErrorToast } from '@/components/ui/ActionToast';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import { readIntakeP13Scope } from '@/lib/crm/intake-p13-scope';
 import { suggestQuotePrefillFromDiscovery } from '@/lib/crm/quote-discovery-prefill';
 import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
@@ -763,22 +764,17 @@ export function LeadQuoteSheet({
 
   return (
     <section id="lead-quote-sheet" className="quote-sheet quote-sheet--brand" aria-label="Bảng báo giá">
-      <header className="quote-sheet__head">
-        <span className="quote-sheet__head-icon" aria-hidden="true">
-          <QuoteGlyph name="layers" size={20} />
-        </span>
-        <div className="quote-sheet__head-copy">
-          <h2 className="quote-sheet__title">BẢNG BÁO GIÁ</h2>
-          <p className="muted">
-          {phase === 'ceo_review' || phase === 'sale_review'
+      <LeadStepHero
+        title="BÁO GIÁ"
+        icon="quote"
+        subtitle={
+          phase === 'ceo_review' || phase === 'sale_review'
             ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
             : ceoApproved
               ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
-              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'}
-        </p>
-        </div>
-        <span className="quote-sheet__head-wave" aria-hidden="true" />
-      </header>
+              : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'
+        }
+      />
       <ActionErrorToast message={localError} />
       {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
       {!sheet && localError ? <p className="muted">{localError}</p> : null}

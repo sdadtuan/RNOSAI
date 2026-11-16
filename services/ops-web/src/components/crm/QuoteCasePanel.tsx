@@ -22,6 +22,7 @@ import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { shouldShowQuoteTransferBox } from '@/components/crm/quote-transfer-box.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { formatCompactDueStamp, formatCompactSlaLine } from '@/lib/crm/sla-countdown-label';
+import { LeadStepHero } from '@/components/crm/LeadStepHero';
 
 function when(value: string): string {
   return formatCompactDueStamp(value);
@@ -631,7 +632,12 @@ export function QuoteCasePanel({
       <>
       {approverPending ? null : (
       <section id="lead-contract" className="solution-feedback" aria-label="Lập hợp đồng" data-testid="quote-hop-dong">
-        <h3 className="solution-feedback__title">Lập hợp đồng</h3>
+        <LeadStepHero
+          title="KÝ HỢP ĐỒNG"
+          icon="contract"
+          titleAs="h3"
+          subtitle="AM lập hợp đồng và gửi GĐKD duyệt."
+        />
         <p className="solution-feedback__due" data-testid="quote-hop-dong-copy">
           {viewerIsSales && !viewerIsSuperAdmin
             ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
@@ -705,7 +711,12 @@ export function QuoteCasePanel({
         aria-label="Triển Khai"
         data-testid="quote-trien-khai"
       >
-        <h3 className="solution-feedback__title">Triển Khai</h3>
+        <LeadStepHero
+          title="TRIỂN KHAI"
+          icon="implement"
+          titleAs="h3"
+          subtitle="Bàn giao và theo dõi triển khai sau khi hợp đồng đã ký."
+        />
         <p className="solution-feedback__due" data-testid="quote-trien-khai-copy">
           Giai đoạn hiện tại: {stageLabel}. Người nhận case (MKL): {receiver}. Tiến độ: {taskDone}/{taskTotal} ({percent}%).{' '}
           % đúng hạn: {onTimeScored > 0 ? `${onTimePct}% (${onTimeDone}/${onTimeScored})` : '—'}. Giờ thực: {actualHours} / giờ báo giá: {quoteHours}.{' '}
