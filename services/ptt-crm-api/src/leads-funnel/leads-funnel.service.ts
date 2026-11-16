@@ -1645,7 +1645,7 @@ export class LeadsFunnelService {
   ): boolean {
     if (!snap) return false;
     if (snap.presales.quote_sent_back_at || snap.presales.quote_approved_at) return true;
-    const phase = String(snap.presales.quote_case?.phase ?? '');
+    const phase = String(snap.quote_case?.phase ?? '');
     return phase === 'ceo_review' || phase === 'sale_review' || phase === 'hop_dong' || phase === 'trien_khai';
   }
 
