@@ -5,7 +5,7 @@ import '@rnosai/ui/theme.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'PTT Ops',
+  title: 'PTT CRM',
   description: 'Internal operations console for PTT agency staff',
   applicationName: 'PTT Revenue OS',
   appleWebApp: {
