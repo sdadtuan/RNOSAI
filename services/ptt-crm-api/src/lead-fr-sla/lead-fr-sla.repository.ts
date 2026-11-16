@@ -7,7 +7,7 @@ import { Pool, type PoolClient } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { leadNotLockedSql } from '../leads/lead-lock.util';
 import type { LeadFrSlaSnapshot } from './lead-fr-sla.types';
-import { claimTimeoutExcludedStatusSql } from './lead-claim-timeout-reassign.util';
+import { claimTimeoutExcludedStatusSql, claimTimeoutSalesPositionSql } from './lead-claim-timeout-reassign.util';
 import type { PoolCandidate } from './lead-sla-reassign.util';
 
 
@@ -951,6 +951,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
             AND ps.project_id = $1::uuid
             AND ps.assign_enabled IS TRUE`
       : "";
+    const salesPos = claimTimeoutSalesPositionSql('p');
     const params: unknown[] = projectId ? [projectId] : [];
     const result = await this.db.query(
       `SELECT s.id AS staff_id,
@@ -963,9 +964,11 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
                     ('new','attempting','meet_pending','callback_scheduled')
               ), 0) AS open_attempting
        FROM crm_staff s
+       JOIN crm_positions p ON p.id = s.position_id
        ${projectFilter}
        WHERE s.active IS TRUE
          AND COALESCE(s.can_receive_leads, FALSE) IS TRUE
+         AND ${salesPos}
        ORDER BY s.id ASC`,
       params,
     );

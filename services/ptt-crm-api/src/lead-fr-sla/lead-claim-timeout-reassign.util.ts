@@ -61,8 +61,41 @@ export function isClaimTimeoutWindowOpen(
 }
 
 /**
- * Prefer the project assign pool when it has someone other than the current owner.
- * Otherwise use the global can_receive_leads pool.
+ * Sales IC roles only (AE / Sale / NV kinh doanh). Same roots as the AE team view
+ * (isAePosition: ae, ae-*, ae_*) plus sale/sales for that desk. Not GDKD, MKL,
+ * Super-Admin, AM (ACM/KD-01), Marketing, or any other role — even if
+ * can_receive_leads is true.
+ */
+export const CLAIM_TIMEOUT_SALES_POSITION_ROOTS = ['ae', 'sale', 'sales'] as const;
+
+export function isClaimTimeoutSalesPosition(
+  positionCode: string | null | undefined,
+): boolean {
+  const code = String(positionCode ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  return CLAIM_TIMEOUT_SALES_POSITION_ROOTS.some(
+    (root) =>
+      code === root || code.startsWith(`${root}-`) || code.startsWith(`${root}_`),
+  );
+}
+
+/** SQL predicate on a crm_positions alias. Underscore is escaped in LIKE. */
+export function claimTimeoutSalesPositionSql(alias = 'p'): string {
+  const col = `lower(replace(${alias}.code, ' ', ''))`;
+  const parts = CLAIM_TIMEOUT_SALES_POSITION_ROOTS.flatMap((root) => [
+    `${col} = '${root}'`,
+    `${col} LIKE '${root}-%'`,
+    `${col} LIKE '${root}\\_%' ESCAPE '\\'`,
+  ]);
+  return `(${parts.join(' OR ')})`;
+}
+
+/**
+ * Prefer the project Sales pool when it has someone other than the current owner.
+ * Otherwise use the global Sales pool (AE / sale / sales + can_receive_leads + active).
+ * If neither has an eligible Sale, the caller must skip (do not reassign).
  */
 export function resolveClaimTimeoutPool(
   projectPool: PoolCandidate[],
