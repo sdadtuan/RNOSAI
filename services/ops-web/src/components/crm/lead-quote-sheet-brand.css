@@ -1,0 +1,268 @@
+/* Brand restyle for the lead-page Bảng báo giá sheet. Scoped to .quote-sheet--brand
+   so other pages and unbranded quote-sheet usages stay unchanged. */
+.quote-sheet.quote-sheet--brand {
+  display: grid;
+  gap: 14px;
+  margin-top: 0;
+  padding: 0 0 16px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #ececee;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(22, 28, 22, 0.05), 0 6px 16px rgba(22, 28, 22, 0.05);
+}
+
+.quote-sheet--brand .quote-sheet__head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f3fbf6 0%, #ffffff 72%);
+  border-bottom: 1px solid #e4efe8;
+}
+
+.quote-sheet--brand .quote-sheet__head-icon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ahd-primary, #17692f);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(23, 105, 47, 0.25);
+}
+
+.quote-sheet--brand .quote-sheet__head-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.quote-sheet--brand .quote-sheet__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ahd-primary-700, #125a28);
+}
+
+.quote-sheet--brand .quote-sheet__head p {
+  margin: 0;
+}
+
+.quote-sheet--brand .quote-sheet__head .muted {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #6b6a6f;
+  max-width: 36rem;
+}
+
+.quote-sheet--brand .quote-sheet__head-wave {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 48%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 160% at 92% -10%, rgba(190, 232, 205, 0.85) 0%, rgba(190, 232, 205, 0) 58%),
+    radial-gradient(90% 120% at 100% 110%, rgba(221, 250, 232, 0.95) 0%, rgba(221, 250, 232, 0) 62%),
+    radial-gradient(60% 80% at 70% 40%, rgba(232, 246, 238, 0.7) 0%, transparent 70%);
+}
+
+.quote-sheet--brand .quote-sheet__head-wave::after {
+  content: "";
+  position: absolute;
+  right: -24px;
+  bottom: -36px;
+  width: 180px;
+  height: 90px;
+  border-radius: 50% 50% 0 0;
+  background: rgba(176, 224, 196, 0.35);
+  transform: rotate(-12deg);
+}
+
+.quote-sheet--brand .quote-sheet__group {
+  margin: 0 16px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e6ece8;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(22, 28, 22, 0.05), 0 3px 10px rgba(22, 28, 22, 0.04);
+  overflow: hidden;
+}
+
+.quote-sheet--brand .quote-sheet__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.8rem 0.95rem;
+  background: #fff;
+  border-bottom: 1px solid #eef3ef;
+}
+
+.quote-sheet--brand .quote-sheet__group-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--ahd-soft, #e8f6ee);
+  color: var(--ahd-primary, #17692f);
+}
+
+.quote-sheet--brand .quote-sheet__group-head h3 {
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ahd-primary-700, #125a28);
+  line-height: 1.3;
+}
+
+.quote-sheet--brand .quote-sheet__pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ahd-soft, #e8f6ee);
+  color: var(--ahd-primary, #17692f);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.quote-sheet--brand .quote-sheet__lines th {
+  padding: 0.45rem 0.6rem;
+  background: var(--ahd-soft, #e8f6ee);
+  color: var(--ahd-primary-700, #125a28);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid #d9ece0;
+  vertical-align: middle;
+}
+
+.quote-sheet--brand .quote-sheet__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.65rem 0.95rem 0.8rem;
+  padding: 0.28rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ahd-soft, #e8f6ee);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--ahd-primary, #17692f);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.quote-sheet--brand .quote-sheet__more:hover,
+.quote-sheet--brand .quote-sheet__more:focus-visible {
+  background: var(--ahd-chip, #ddfae8);
+  color: var(--ahd-primary-700, #125a28);
+  outline: none;
+}
+
+.quote-sheet--brand .quote-sheet__more .quote-sheet__chevron {
+  font-size: 0.85rem;
+  color: var(--ahd-primary, #17692f);
+}
+
+.quote-sheet--brand .quote-sheet__extras {
+  margin: 2px 16px 0;
+  padding-top: 0;
+  border-top: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.quote-sheet--brand .quote-sheet__extras-label {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ahd-primary-700, #125a28);
+  line-height: 1.3;
+}
+
+.quote-sheet--brand .quote-sheet__extra {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e6ece8;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(22, 28, 22, 0.05), 0 3px 10px rgba(22, 28, 22, 0.04);
+  overflow: hidden;
+}
+
+.quote-sheet--brand .quote-sheet__extra-head {
+  background: #fff;
+}
+
+.quote-sheet--brand .quote-sheet__extra-head:hover,
+.quote-sheet--brand .quote-sheet__extra-head:focus-visible {
+  background: #f3fbf6;
+}
+
+.quote-sheet--brand .quote-sheet__extra .quote-sheet__group {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #eef3ef;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.quote-sheet--brand .quote-sheet__commercial,
+.quote-sheet--brand .quote-sheet__totals,
+.quote-sheet--brand .solution-desk__actions,
+.quote-sheet--brand .quote-sheet__submit-hint,
+.quote-sheet--brand > .muted,
+.quote-sheet--brand > [class*="Toast"] {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.quote-sheet--brand .quote-sheet__totals {
+  justify-self: end;
+  width: min(20rem, calc(100% - 32px));
+  border: 1px solid #e6ece8;
+  border-radius: 12px;
+  background: #f7fbf8;
+}
+
+.quote-sheet--brand .quote-sheet__grand,
+.quote-sheet--brand .quote-sheet__grand > :first-child,
+.quote-sheet--brand .quote-sheet__grand > :last-child {
+  color: var(--ahd-primary-700, #125a28);
+}
+
+.quote-sheet--brand .solution-desk__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}

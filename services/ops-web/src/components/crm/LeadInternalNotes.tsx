@@ -71,7 +71,12 @@ export function LeadInternalNotes({
 
   return (
     <section className="ahd-card lin-notes" data-testid={sectionTestId}>
-      <h3 className="ahd-card__title">{title}</h3>
+      <h3 className="ahd-card__title">
+        <svg className="lin-notes__icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6" />
+        </svg>
+        {title}
+      </h3>
       <p className="lin-notes__hint muted">Chỉ nhân sự nội bộ (Sales, AM, Marketing, CEO) thấy ghi chú này. Các thành viên đang tham gia lead sẽ được thông báo.</p>
       <div className="ahd-note-form">
         <textarea

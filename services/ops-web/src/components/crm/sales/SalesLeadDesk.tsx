@@ -163,6 +163,7 @@ export type SalesLeadDeskProps = {
   children?: ReactNode;
   sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
+  atQuoteStep?: boolean;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
@@ -185,6 +186,7 @@ export function SalesLeadDesk({
   children,
   sideTop,
   waitingSolutionFeedback = false,
+  atQuoteStep = false,
   exchangeLines = [],
   ownerLines = [],
   selectedActivityId = null,
@@ -319,7 +321,7 @@ export function SalesLeadDesk({
   const site = view.website;
 
   return (
-    <div className="ahd sld" data-testid="sales-lead-desk">
+    <div className={`ahd sld${atQuoteStep ? ' sld--quote' : ''}`} data-testid="sales-lead-desk">
       <nav className="ahd-crumb" aria-label="breadcrumb">
         <Link href="/crm/leads">CRM</Link>
         <span className="ahd-crumb__sep">›</span>
@@ -626,6 +628,7 @@ export function SalesOrLegacyLeadLayout({
   children,
   sideTop,
   waitingSolutionFeedback,
+  atQuoteStep,
   exchangeLines,
   ownerLines,
   selectedActivityId,
@@ -648,6 +651,7 @@ export function SalesOrLegacyLeadLayout({
   children?: ReactNode;
   sideTop?: ReactNode;
   waitingSolutionFeedback?: boolean;
+  atQuoteStep?: boolean;
   exchangeLines?: LeadHistoryLine[];
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
@@ -671,6 +675,7 @@ export function SalesOrLegacyLeadLayout({
         mgmtExtra={mgmtExtra}
         sideTop={sideTop}
         waitingSolutionFeedback={waitingSolutionFeedback}
+        atQuoteStep={atQuoteStep}
         exchangeLines={exchangeLines}
         ownerLines={ownerLines}
         selectedActivityId={selectedActivityId}

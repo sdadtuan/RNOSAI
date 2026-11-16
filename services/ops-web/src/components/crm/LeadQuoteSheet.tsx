@@ -17,9 +17,64 @@ import { ActionErrorToast } from '@/components/ui/ActionToast';
 import { readIntakeP13Scope } from '@/lib/crm/intake-p13-scope';
 import { suggestQuotePrefillFromDiscovery } from '@/lib/crm/quote-discovery-prefill';
 import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
+import './lead-quote-sheet-brand.css';
 import { readDiscoveryBriefFromAnswers } from '@/lib/crm/sales-discovery';
 
 const MAX_QUOTE_SERVICES = 4;
+
+function QuoteGlyph({
+  name,
+  size = 16,
+}: {
+  name: 'layers' | 'rocket' | 'chart';
+  size?: number;
+}) {
+  const common = {
+    viewBox: '0 0 24 24',
+    width: size,
+    height: size,
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  };
+  if (name === 'layers') {
+    return (
+      <svg {...common}>
+        <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+        <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+        <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
+      </svg>
+    );
+  }
+  if (name === 'chart') {
+    return (
+      <svg {...common}>
+        <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+        <path d="M18 17V9" />
+        <path d="M13 17V5" />
+        <path d="M8 17v-3" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    </svg>
+  );
+}
+
+function groupGlyph(serviceCode: string): 'rocket' | 'chart' {
+  const code = serviceCode.trim().toLowerCase();
+  if (/(ads|media|seo|tiktok|facebook|google|perf|analytic|traffic|report)/.test(code)) return 'chart';
+  return 'rocket';
+}
+
 
 function vnd(value: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
@@ -513,6 +568,9 @@ export function LeadQuoteSheet({
       return (
         <div key={key} className="quote-sheet__group">
           <div className="quote-sheet__group-head">
+            <span className="quote-sheet__group-icon" aria-hidden="true">
+              <QuoteGlyph name={groupGlyph(group.service_code)} size={16} />
+            </span>
             <h3>
               {group.service_name}
               {group.phase_name ? ` - ${group.phase_name}` : ''}
@@ -625,8 +683,7 @@ export function LeadQuoteSheet({
               onClick={() => toggleGroupRows(key)}
             >
               <span className="quote-sheet__chevron" aria-hidden="true">▾</span>
-              {expanded ? 'Ẩn bớt' : 'Xem thêm'}
-              <span className="quote-sheet__pill">{hiddenCount}</span>
+              {expanded ? 'Ẩn bớt' : `Xem thêm ${hiddenCount}`}
             </button>
           ) : null}
         </div>
@@ -639,16 +696,22 @@ export function LeadQuoteSheet({
   }
 
   return (
-    <section id="lead-quote-sheet" className="quote-sheet" aria-label="Bảng báo giá">
+    <section id="lead-quote-sheet" className="quote-sheet quote-sheet--brand" aria-label="Bảng báo giá">
       <header className="quote-sheet__head">
-        <p className="solution-desk__kicker">Bảng báo giá</p>
-        <p className="muted">
+        <span className="quote-sheet__head-icon" aria-hidden="true">
+          <QuoteGlyph name="layers" size={20} />
+        </span>
+        <div className="quote-sheet__head-copy">
+          <h2 className="quote-sheet__title">BẢNG BÁO GIÁ</h2>
+          <p className="muted">
           {phase === 'ceo_review' || phase === 'sale_review'
             ? 'Báo giá đã nộp, đang chờ CEO duyệt.'
             : ceoApproved
               ? 'CEO đã duyệt. Sales có thể xem và tải file Excel.'
               : 'Tick hạng mục cần tính tiền, chọn nhân sự và số lượng. Thành tiền chỉ cộng các dòng đã tick.'}
         </p>
+        </div>
+        <span className="quote-sheet__head-wave" aria-hidden="true" />
       </header>
       <ActionErrorToast message={localError} />
       {!sheet && !localError ? <p className="muted">Đang tải catalog và nhân sự…</p> : null}
