@@ -3,15 +3,16 @@
  *
  * Source flag: crm_leads.contact_status = 'invalid_contact' (set by the FR-SLA
  * "Đã xác minh đây là số sai" checkbox, GDKD mark-invalid, and the B2 "Ghi nhận sai số"
- * care report). A locked lead is hidden from everyone except super admin and nobody
- * can mutate / transfer it through the API.
+ * care report). A locked lead is hidden from everyone except Super Admin. Super Admin
+ * can still view and mutate it; everyone else gets 404 on reads and 403 lead_locked
+ * on writes. Auto-reassign jobs skip locked leads.
  */
 export const LEAD_LOCKED_CONTACT_STATUS = 'invalid_contact';
 
 export const LEAD_LOCKED_ERROR = 'lead_locked';
 
 export const LEAD_LOCKED_MESSAGE_VI =
-  'Lead đã khóa (Sai số) — không ai được chỉnh sửa hoặc chuyển lead này.';
+  'Lead đã khóa (Sai số) — chỉ Super Admin được chỉnh sửa hoặc chuyển lead này.';
 
 export const LEAD_LOCKED_NOT_FOUND_MESSAGE_VI = 'Không tìm thấy lead hoặc bạn không có quyền xem.';
 

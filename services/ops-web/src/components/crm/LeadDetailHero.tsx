@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import type { LeadRow } from '@/lib/api';
 import type { LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import { leadStatusLabel, leadStatusTone } from '@/lib/crm/lead-status';
+import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
 
 function leadInitials(name: string | null | undefined): string {
   const parts = (name ?? '')
@@ -82,6 +83,7 @@ export function LeadDetailHero({
             <span className={`lead-status-badge lead-status-badge--${tone}`} data-testid="lead-status-badge">
               {chipLabel}
             </span>
+            {lead.lead_locked ? <LeadLockedBadge /> : null}
             {nbaTitle ? (
               <span className="lead-detail-hero__nba">{nbaTitle}</span>
             ) : null}

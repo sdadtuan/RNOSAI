@@ -23,6 +23,7 @@ import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
 import { formatLeadArrived } from '@/lib/crm/lead-arrived';
 import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import { leadStatusTone } from '@/lib/crm/lead-status';
+import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
 
 interface Props {
   rows: LeadRow[];
@@ -188,6 +189,7 @@ export function CrmLeadsList({
                         <span className={`lead-status-badge lead-status-badge--${leadStatusTone(lead.status)}`}>
                           {situation.status}
                         </span>
+                        {lead.lead_locked ? <LeadLockedBadge compact /> : null}
                         {situation.call ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
                         ) : null}

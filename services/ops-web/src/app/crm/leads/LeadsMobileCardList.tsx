@@ -7,6 +7,7 @@ import { LeadFlowKindTag } from '@/components/crm/LeadFlowKindTag';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
 import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
+import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
 import { formatLeadArrived } from '@/lib/crm/lead-arrived';
@@ -95,6 +96,7 @@ export function LeadsMobileCardList({
                 <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
                 <div className="win-leads-mobile-card__badges">
                   <span className="lead-status-badge lead-status-badge--neutral">{situation.status}</span>
+                  {lead.lead_locked ? <LeadLockedBadge compact /> : null}
                   {situation.call ? (
                     <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
                   ) : null}

@@ -20,6 +20,7 @@ import {
   leadStatusLabel,
   leadStatusTone,
 } from '@/lib/crm/lead-status';
+import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
 import { HANDOFF_FLOW_KANBAN_COLUMNS, bucketLeadsByHandoffFlow, handoffFlowStatusLabel, kanbanColumnIdForLead as handoffKanbanColumnId } from '@/lib/crm/handoff-flow.util';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeadsForColumn } from '@/lib/crm/kanban-column.util';
 import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
@@ -619,6 +620,7 @@ export function LeadKanbanBoard({
                               })
                             : situation.status}
                         </span>
+                        {lead.lead_locked ? <LeadLockedBadge compact /> : null}
                         {situation.call ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
                         ) : null}

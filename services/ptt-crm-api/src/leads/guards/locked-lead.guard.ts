@@ -22,8 +22,8 @@ import {
 
 /**
  * Global guard (APP_GUARD): leads Sales confirmed as "Sai số" are locked.
- * - Any mutation touching a locked lead → 403 lead_locked (everyone, admin included).
- * - Reads → only super admin; others get 404.
+ * - Super Admin: full read + write (same as any other lead).
+ * - Everyone else: reads get 404; mutations get 403 lead_locked.
  * Fails open (logs) when the DB check itself errors.
  */
 @Injectable()
@@ -77,6 +77,7 @@ export class LockedLeadGuard implements CanActivate, OnModuleDestroy {
       return true;
     }
     if (!locked.length) return true;
+    if (await this.isSuperAdmin(req)) return true;
     const method = String(req.method || 'GET').toUpperCase();
     const readOnly = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
     if (!readOnly) {
@@ -86,7 +87,6 @@ export class LockedLeadGuard implements CanActivate, OnModuleDestroy {
         lead_ids: locked,
       });
     }
-    if (await this.isSuperAdmin(req)) return true;
     throw new NotFoundException({
       error: 'lead_not_found',
       message: LEAD_LOCKED_NOT_FOUND_MESSAGE_VI,
