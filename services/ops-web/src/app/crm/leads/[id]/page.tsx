@@ -1689,6 +1689,11 @@ export default function CrmLeadDetailPage() {
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
               onError={setError}
+              onLeadReload={async () => {
+                const row = await fetchLead(accessToken, leadId);
+                setLead(row);
+                setStatus(row.status || 'moi');
+              }}
             />
             <SolutionCaseDesk
               filesOnly
@@ -2136,6 +2141,11 @@ export default function CrmLeadDetailPage() {
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
                   onError={setError}
+                  onLeadReload={async () => {
+                    const row = await fetchLead(accessToken, leadId);
+                    setLead(row);
+                    setStatus(row.status || 'moi');
+                  }}
                 />
                 {funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel

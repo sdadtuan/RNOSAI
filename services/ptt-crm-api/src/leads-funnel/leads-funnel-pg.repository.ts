@@ -139,7 +139,6 @@ import {
   type DeliveryKpiSplit,
 } from './quote-delivery-kpi.util';
 import {
-  QUOTE_SHEET_MAX_SERVICES,
   assembleQuoteSheet,
   hourlyFromPosition,
   implementationPlanFromSheet,
@@ -3138,7 +3137,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       item_count: Number(row.item_count) || 0,
     }));
     const known = new Set(services.map((service) => service.code));
-    const selected = selectedCodes.filter((code) => known.has(code)).slice(0, QUOTE_SHEET_MAX_SERVICES);
+    const selected = selectedCodes.filter((code) => known.has(code));
     const staffResult = await this.db.query(
       `SELECT s.id, s.name, upper(p.code) AS position_code, p.name AS position_name,
               r.monthly_salary_vnd, r.hours_per_month
@@ -3357,21 +3356,50 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return { filename: `bao-gia-${leadId}.docx`, buffer };
   }
 
-  async quoteSheetXlsx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+  async quoteSheetXlsx(
+    leadId: number,
+    estimatedKpis?: import('./lead-quote-xlsx').QuoteCampaignKpiCells | null,
+  ): Promise<{ filename: string; buffer: Buffer }> {
     const view = await this.getQuoteSheet(leadId, null);
     const name = await this.db.query(`SELECT full_name FROM crm_leads WHERE sqlite_lead_id = $1`, [leadId]);
     const label = String(name.rows[0]?.full_name ?? '').trim() || `Lead ${leadId}`;
-    let campaignTargets: ReturnType<typeof parseCampaignKpi>['targets'] | null = null;
-    try {
-      const kpi = await this.db.query(
-        `SELECT campaign_kpi_json FROM crm_service_lifecycle WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
-        [leadId],
-      );
-      if (kpi.rows[0]) {
-        campaignTargets = parseCampaignKpi((kpi.rows[0] as { campaign_kpi_json?: unknown }).campaign_kpi_json).targets;
+    let campaignTargets: import('./lead-quote-xlsx').QuoteCampaignKpiCells | null = estimatedKpis ?? null;
+    if (!campaignTargets) {
+      try {
+        const kpi = await this.db.query(
+          `SELECT campaign_kpi_json FROM crm_service_lifecycle WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
+          [leadId],
+        );
+        if (kpi.rows[0]) {
+          campaignTargets = parseCampaignKpi((kpi.rows[0] as { campaign_kpi_json?: unknown }).campaign_kpi_json).targets;
+        }
+      } catch {
+        campaignTargets = null;
       }
-    } catch {
-      campaignTargets = null;
+    } else {
+      try {
+        const kpi = await this.db.query(
+          `SELECT campaign_kpi_json FROM crm_service_lifecycle WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
+          [leadId],
+        );
+        if (kpi.rows[0]) {
+          const stored = parseCampaignKpi((kpi.rows[0] as { campaign_kpi_json?: unknown }).campaign_kpi_json).targets;
+          campaignTargets = {
+            goal: campaignTargets.goal || stored.goal,
+            ta: campaignTargets.ta,
+            comms_period: campaignTargets.comms_period || stored.comms_period,
+            like_page: campaignTargets.like_page ?? stored.like_page,
+            impression: campaignTargets.impression ?? stored.impression,
+            reach: campaignTargets.reach ?? stored.reach,
+            click: campaignTargets.click ?? stored.click,
+            ctr: campaignTargets.ctr ?? stored.ctr,
+            lead: campaignTargets.lead ?? stored.lead,
+            channels: campaignTargets.channels,
+          };
+        }
+      } catch {
+        /* keep estimated */
+      }
     }
     const buffer = await renderLeadQuoteXlsx(view, label, campaignTargets);
     return { filename: `bao-gia-${leadId}.xlsx`, buffer };

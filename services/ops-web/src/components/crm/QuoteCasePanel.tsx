@@ -564,7 +564,7 @@ export function QuoteCasePanel({
                   )
                 }
               >
-                Duyệt báo giá
+                Duyệt
               </button>
               {!reviseOpen ? (
                 <button
@@ -866,7 +866,7 @@ export function QuoteCasePanel({
                   )
                 }
               >
-                Duyệt báo giá
+                Duyệt
               </button>
               {!reviseOpen ? (
                 <button

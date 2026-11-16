@@ -2,10 +2,12 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  approveLeadQuote,
   downloadLeadQuoteXlsx,
   fetchDiscoveryOptions,
   fetchIntakeSessions,
   fetchLeadQuoteSheet,
+  requestLeadQuoteEdits,
   saveLeadQuoteSheet,
   sendLeadQuoteToSales,
   type LeadFunnelSnapshot,
@@ -19,8 +21,6 @@ import { suggestQuotePrefillFromDiscovery } from '@/lib/crm/quote-discovery-pref
 import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
 import './lead-quote-sheet-brand.css';
 import { readDiscoveryBriefFromAnswers } from '@/lib/crm/sales-discovery';
-
-const MAX_QUOTE_SERVICES = 4;
 
 function QuoteGlyph({
   name,
@@ -242,6 +242,7 @@ export function LeadQuoteSheet({
   onFunnelChange,
   onMessage,
   onError,
+  onLeadReload,
 }: {
   token: string;
   leadId: number;
@@ -252,6 +253,7 @@ export function LeadQuoteSheet({
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
+  onLeadReload?: () => Promise<void> | void;
 }) {
   const ceoApproved = phase === 'hop_dong' || phase === 'trien_khai';
   const visible =
@@ -266,16 +268,19 @@ export function LeadQuoteSheet({
   const [localError, setLocalError] = useState('');
   const selectedRef = useRef<string[] | null>(null);
   const prefilledRef = useRef(false);
+  const sectionLockRef = useRef<{ primary: Set<string>; extra: Set<string> } | null>(null);
   const [openCodes, setOpenCodes] = useState<string[]>([]);
   const [loadingCode, setLoadingCode] = useState('');
   const [openServiceKeys, setOpenServiceKeys] = useState<string[]>([]);
-  const [serviceCapNote, setServiceCapNote] = useState('');
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
 
   const canDownload = ceoApproved || (!viewerIsSales && (phase === 'ceo_review' || phase === 'sale_review'));
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
+    sectionLockRef.current = null;
     setLocalError('');
 
     async function boot() {
@@ -331,7 +336,7 @@ export function LeadQuoteSheet({
           });
           if (firstPass.serviceCodes.length > 0) {
             prefilledRef.current = true;
-            const codes = firstPass.serviceCodes.slice(0, MAX_QUOTE_SERVICES);
+            const codes = firstPass.serviceCodes;
             const loaded = await fetchLeadQuoteSheet(token, leadId, codes);
             if (cancelled) return;
             const mapped = suggestQuotePrefillFromDiscovery({
@@ -412,14 +417,6 @@ export function LeadQuoteSheet({
       groups: nextGroups,
       selected_service_codes: tickedServiceCodes({ ...sheet, groups: nextGroups }),
     };
-    if (nextSheet.selected_service_codes.length > MAX_QUOTE_SERVICES) {
-      const message = 'Chỉ được tính tối đa 4 dịch vụ trên một báo giá.';
-      setServiceCapNote(message);
-      setLocalError(message);
-      onError?.(message);
-      return;
-    }
-    setServiceCapNote('');
     selectedRef.current = nextSheet.selected_service_codes;
     setSheet(nextSheet);
   }
@@ -427,9 +424,6 @@ export function LeadQuoteSheet({
   async function save() {
     if (!sheet) return null;
     const serviceCodes = tickedServiceCodes(sheet);
-    if (serviceCodes.length > MAX_QUOTE_SERVICES) {
-      throw new Error('Chỉ được tính tối đa 4 dịch vụ trên một báo giá.');
-    }
     const next = await saveLeadQuoteSheet(token, leadId, {
       service_codes: serviceCodes,
       lines: linesFromSheet(sheet),
@@ -478,6 +472,48 @@ export function LeadQuoteSheet({
     }
   }
 
+  async function onApproveQuote() {
+    setBusy(true);
+    setLocalError('');
+    try {
+      const out = await approveLeadQuote(token, leadId);
+      onFunnelChange(out.funnel);
+      await onLeadReload?.();
+      onMessage?.('Đã duyệt báo giá. Chuyển sang bước Ký hợp đồng.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không duyệt được báo giá';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRejectQuote() {
+    if (rejectNote.trim().length < 5) {
+      const message = 'Nhập lý do từ chối, ít nhất 5 ký tự.';
+      setLocalError(message);
+      onError?.(message);
+      return;
+    }
+    setBusy(true);
+    setLocalError('');
+    try {
+      const out = await requestLeadQuoteEdits(token, leadId, rejectNote.trim());
+      onFunnelChange(out.funnel);
+      await onLeadReload?.();
+      setRejectOpen(false);
+      setRejectNote('');
+      onMessage?.('Đã từ chối và gửi lại AM kèm lý do. Hạn nộp lại là 2 giờ làm việc.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không gửi lại được cho AM';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const submittedForCeo =
     quoteSentToCeo || phase === 'ceo_review' || phase === 'sale_review';
   const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
@@ -492,8 +528,34 @@ export function LeadQuoteSheet({
   const catalogServices = sheet?.services ?? [];
   const tickedSet = new Set(tickedCodes.map((code) => code.trim().toUpperCase()));
   const openSet = new Set(openCodes.map((code) => code.trim().toUpperCase()));
-  const primaryServices = catalogServices.filter((service) => tickedSet.has(service.code.trim().toUpperCase()));
-  const extraServices = catalogServices.filter((service) => !tickedSet.has(service.code.trim().toUpperCase()));
+  if (sheet && catalogServices.length) {
+    if (!sectionLockRef.current) {
+      const primary = new Set<string>();
+      const extra = new Set<string>();
+      for (const service of catalogServices) {
+        const key = service.code.trim().toUpperCase();
+        if (tickedSet.has(key)) primary.add(key);
+        else extra.add(key);
+      }
+      sectionLockRef.current = { primary, extra };
+    } else {
+      for (const service of catalogServices) {
+        const key = service.code.trim().toUpperCase();
+        if (!sectionLockRef.current.primary.has(key) && !sectionLockRef.current.extra.has(key)) {
+          sectionLockRef.current.extra.add(key);
+        }
+      }
+    }
+  }
+  const lockedPrimary = sectionLockRef.current?.primary;
+  const primaryServices = catalogServices.filter((service) => {
+    const key = service.code.trim().toUpperCase();
+    return lockedPrimary ? lockedPrimary.has(key) : tickedSet.has(key);
+  });
+  const extraServices = catalogServices.filter((service) => {
+    const key = service.code.trim().toUpperCase();
+    return lockedPrimary ? !lockedPrimary.has(key) : !tickedSet.has(key);
+  });
 
   function groupsFor(serviceCode: string) {
     const key = serviceCode.trim().toUpperCase();
@@ -506,7 +568,6 @@ export function LeadQuoteSheet({
 
   async function toggleExtraService(serviceCode: string) {
     const key = serviceCode.trim().toUpperCase();
-    if (tickedSet.has(key)) return;
     if (openSet.has(key)) {
       setOpenCodes((current) => current.filter((code) => code.trim().toUpperCase() !== key));
       setOpenServiceKeys((current) => current.filter((code) => code !== key));
@@ -800,8 +861,7 @@ export function LeadQuoteSheet({
       {sheet && extraServices.length > 0 ? (
         <div className="quote-sheet__extras">
           <h3 className="quote-sheet__extras-label">Thêm dịch vụ khác</h3>
-          {serviceCapNote ? <p className="quote-sheet__cap-note">{serviceCapNote}</p> : null}
-          {extraServices.map((service) => {
+                    {extraServices.map((service) => {
             const key = service.code.trim().toUpperCase();
             const loaded = serviceLoaded(service.code);
             const loading = loadingCode === key;
@@ -948,7 +1008,54 @@ export function LeadQuoteSheet({
               Xuất file Báo Giá
             </button>
           ) : null}
+          {submittedForCeo && !ceoApproved && viewerIsCeo ? (
+            <>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onApproveQuote()}>
+                Duyệt
+              </button>
+              {!rejectOpen ? (
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setRejectOpen(true)}>
+                  Từ chối, gửi lại AM
+                </button>
+              ) : null}
+            </>
+          ) : null}
         </div>
+        {submittedForCeo && !ceoApproved && viewerIsCeo && rejectOpen ? (
+          <div className="quote-sheet__reject">
+            <label>
+              Lý do từ chối
+              <textarea
+                rows={3}
+                value={rejectNote}
+                onChange={(event) => setRejectNote(event.target.value)}
+                aria-label="Lý do từ chối báo giá"
+                placeholder="Bắt buộc khi từ chối, gửi lại cho AM"
+              />
+            </label>
+            <div className="solution-desk__actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy || rejectNote.trim().length < 5}
+                onClick={() => void onRejectQuote()}
+              >
+                Từ chối, gửi lại AM
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => {
+                  setRejectOpen(false);
+                  setRejectNote('');
+                }}
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        ) : null}
         {submitBlockedReason ? <p className="muted quote-sheet__submit-hint">{submitBlockedReason}</p> : null}
         {submittedForCeo && !ceoApproved ? (
           <p className="muted quote-sheet__submit-hint">Báo giá đã nộp, đang chờ CEO duyệt.</p>

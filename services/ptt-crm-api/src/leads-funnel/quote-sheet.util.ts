@@ -51,8 +51,6 @@ export function quoteUnitLabel(unit: string | null | undefined): string {
   return QUOTE_UNIT_VI[raw.toLowerCase()] ?? raw;
 }
 
-export const QUOTE_SHEET_MAX_SERVICES = 4;
-
 export type QuoteSheetStaff = {
   id: number;
   name: string;
@@ -220,7 +218,7 @@ export function parseQuoteServiceCodes(raw: string | undefined | null): string[]
         .filter((part) => /^[A-Z0-9]{2,8}$/.test(part)),
     ),
   ];
-  return codes.slice(0, QUOTE_SHEET_MAX_SERVICES);
+  return codes;
 }
 
 export function readStoredQuoteSheet(raw: unknown): {

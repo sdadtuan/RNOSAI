@@ -96,6 +96,15 @@ import {
 } from './presales-ai-draft-meta.util';
 import { loadSolutionAiContext } from './solution-ai-context.loader';
 import {
+  QUOTE_KPI_AI_TIMEOUT_MS,
+  QUOTE_KPI_SYSTEM_PROMPT,
+  buildQuoteKpiUserPrompt,
+  getCachedQuoteKpis,
+  parseQuoteKpiAiJson,
+  quoteKpiCacheKey,
+  setCachedQuoteKpis,
+} from './quote-estimated-kpi-ai.util';
+import {
   buildSolutionAiDraftCall,
   emptySolutionAiSections,
   mergeSolutionAiIntoStrategy,
@@ -1383,10 +1392,56 @@ export class LeadsFunnelService {
   async quoteSheetXlsx(leadId: number, staffUser?: StaffJwtPayload): Promise<{ filename: string; buffer: Buffer }> {
     try {
       const access = await this.quoteSheetAccess(staffUser);
-      await this.pgRepo.getQuoteSheet(leadId, null, access);
-      return await this.pgRepo.quoteSheetXlsx(leadId);
+      const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
+      const estimated = await this.estimateQuoteExportKpis(leadId, view);
+      return await this.pgRepo.quoteSheetXlsx(leadId, estimated);
     } catch (err) {
       this.funnelError(err);
+    }
+  }
+
+  private async estimateQuoteExportKpis(
+    leadId: number,
+    view: Awaited<ReturnType<LeadsFunnelPgRepository['getQuoteSheet']>>,
+  ) {
+    let briefText = '';
+    let budgetLabel = '';
+    let timelineLabel = '';
+    let callNotes = '';
+    let leadLabel = `Lead ${leadId}`;
+    try {
+      const ctx = await loadSolutionAiContext(this.config.databaseUrl, leadId);
+      briefText = [ctx.discoveryText, ctx.serviceLinesText].filter(Boolean).join('\n');
+      budgetLabel = ctx.budgetLabel || '';
+      timelineLabel = ctx.timelineLabel || '';
+      callNotes = ctx.callNotes || '';
+      leadLabel = ctx.companyName || leadLabel;
+    } catch {
+      /* brief is optional; export still works */
+    }
+    const key = quoteKpiCacheKey(leadId, view, [briefText, budgetLabel, timelineLabel, callNotes].join('\n'));
+    const hit = getCachedQuoteKpis(key);
+    if (hit) return hit;
+    try {
+      const out = await this.llm.completeJson({
+        systemPrompt: QUOTE_KPI_SYSTEM_PROMPT,
+        userContent: buildQuoteKpiUserPrompt({
+          leadLabel,
+          briefText,
+          budgetLabel,
+          timelineLabel,
+          callNotes,
+          view,
+        }),
+        timeoutMs: QUOTE_KPI_AI_TIMEOUT_MS,
+        stubJson: () => ({}),
+      });
+      if (out.stubMode) return null;
+      const parsed = parseQuoteKpiAiJson(out.parsed);
+      if (parsed) setCachedQuoteKpis(key, parsed);
+      return parsed;
+    } catch {
+      return null;
     }
   }
 

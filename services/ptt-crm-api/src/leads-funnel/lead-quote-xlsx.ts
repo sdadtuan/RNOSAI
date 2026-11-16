@@ -133,6 +133,81 @@ type BodyRow =
       zebra: number;
     };
 
+
+function metricList(m: QuoteCampaignKpiMetricCells | null | undefined): Array<number | null> {
+  return [m?.like_page ?? null, m?.impression ?? null, m?.reach ?? null, m?.click ?? null, m?.ctr ?? null, m?.lead ?? null];
+}
+
+function matchChannelKpi(
+  targets: QuoteCampaignKpiCells | null | undefined,
+  channel: string,
+  task: string,
+): QuoteCampaignKpiMetricCells | null {
+  const hay = `${channel} ${task}`.trim().toLowerCase();
+  if (!hay || !targets?.channels?.length) return null;
+  for (const row of targets.channels) {
+    const name = String(row.name ?? '').trim().toLowerCase();
+    if (!name) continue;
+    if (hay.includes(name) || name.includes(hay) || hay.split(/\s+/).some((part) => part && name.includes(part))) {
+      return row;
+    }
+  }
+  return null;
+}
+
+function writeKpiCells(row: ExcelJS.Row, metrics: QuoteCampaignKpiMetricCells) {
+  metricList(metrics).forEach((value, index) => {
+    const cell = row.getCell(9 + index);
+    if (value == null || !Number.isFinite(Number(value))) {
+      cell.value = null;
+      return;
+    }
+    cell.value = Number(value);
+    cell.numFmt = index === 4 ? '0.00%' : '#,##0.####';
+  });
+}
+
+function writeTotalsKpis(
+  sheet: ExcelJS.Worksheet,
+  tongRow: number,
+  amountRows: number[],
+  targets: QuoteCampaignKpiCells | null | undefined,
+) {
+  const first = amountRows[0];
+  const last = amountRows[amountRows.length - 1];
+  const hasSpan = first != null && last != null && last >= first;
+  const hasRowOrTotal = Boolean(targets?.channels?.length) || metricList(targets ?? {}).some((v) => v != null);
+  if (!hasRowOrTotal && !hasSpan) return;
+  const totals: Array<number | { formula: string; result?: number } | null> = [
+    hasSpan ? { formula: `SUM(I${first}:I${last})`, result: targets?.like_page ?? undefined } : (targets?.like_page ?? null),
+    hasSpan ? { formula: `SUM(J${first}:J${last})`, result: targets?.impression ?? undefined } : (targets?.impression ?? null),
+    hasSpan ? { formula: `SUM(K${first}:K${last})`, result: targets?.reach ?? undefined } : (targets?.reach ?? null),
+    hasSpan ? { formula: `SUM(L${first}:L${last})`, result: targets?.click ?? undefined } : (targets?.click ?? null),
+    targets?.ctr ?? null,
+    hasSpan ? { formula: `SUM(N${first}:N${last})`, result: targets?.lead ?? undefined } : (targets?.lead ?? null),
+  ];
+  totals.forEach((value, index) => {
+    const cell = sheet.getRow(tongRow).getCell(9 + index);
+    if (value == null) {
+      cell.value = null;
+      return;
+    }
+    if (typeof value === 'object' && 'formula' in value) {
+      const result = value.result;
+      cell.value =
+        result == null || !Number.isFinite(Number(result))
+          ? { formula: value.formula }
+          : { formula: value.formula, result: Number(result) };
+    } else if (!Number.isFinite(Number(value))) {
+      cell.value = null;
+      return;
+    } else {
+      cell.value = Number(value);
+    }
+    cell.numFmt = index === 4 ? '0.00%' : '#,##0.####';
+  });
+}
+
 function writeTotal(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
@@ -156,15 +231,20 @@ function writeTotal(
   valueCell.numFmt = MONEY;
 }
 
-export type QuoteCampaignKpiCells = {
-  goal?: string | null;
-  comms_period?: string | null;
+export type QuoteCampaignKpiMetricCells = {
   like_page?: number | null;
   impression?: number | null;
   reach?: number | null;
   click?: number | null;
   ctr?: number | null;
   lead?: number | null;
+};
+
+export type QuoteCampaignKpiCells = QuoteCampaignKpiMetricCells & {
+  goal?: string | null;
+  ta?: string | null;
+  comms_period?: string | null;
+  channels?: Array<QuoteCampaignKpiMetricCells & { name: string }>;
 };
 
 export async function renderLeadQuoteXlsx(
@@ -198,13 +278,31 @@ export async function renderLeadQuoteXlsx(
   const included = includedGroups(view);
   const project = [...new Set(included.map((group) => group.channel).filter((name) => name && name !== '—'))].join(' · ');
 
+  const headerRowNumber = BODY_START - 1;
+  const headerRow = sheet.getRow(headerRowNumber);
+  const unitHeaderStyle = snapshotCell(headerRow.getCell(5));
+  const qtyHeaderStyle = snapshotCell(headerRow.getCell(6));
+  const unitHeader = headerRow.getCell(5).value;
+  const qtyHeader = headerRow.getCell(6).value;
+  headerRow.getCell(5).value = qtyHeader;
+  applyStyle(headerRow.getCell(5), qtyHeaderStyle);
+  headerRow.getCell(6).value = unitHeader;
+  applyStyle(headerRow.getCell(6), unitHeaderStyle);
+  const widthE = sheet.getColumn(5).width;
+  const widthF = sheet.getColumn(6).width;
+  if (widthE != null || widthF != null) {
+    sheet.getColumn(5).width = widthF ?? widthE;
+    sheet.getColumn(6).width = widthE ?? widthF;
+  }
+
   const goal = String(campaignTargets?.goal ?? '').trim();
+  const ta = String(campaignTargets?.ta ?? '').trim();
   const comms = String(campaignTargets?.comms_period ?? '').trim();
   sheet.getCell('C5').value = goal || '';
   sheet.getCell('C6').value = project;
   sheet.getCell('C7').value = leadLabel.trim() || 'Khách hàng';
-  sheet.getCell('C8').value = '';
-  sheet.getRow(8).height = 32;
+  sheet.getCell('C8').value = ta || '';
+  sheet.getRow(8).height = ta.length > 80 ? 48 : 32;
   sheet.getCell('C9').value = view.grand_total_vnd;
   sheet.getCell('C9').numFmt = MONEY;
   sheet.getCell('C10').value = comms || '';
@@ -286,10 +384,10 @@ export async function renderLeadQuoteXlsx(
         entry.channel || null,
         entry.task || null,
         entry.subtask || null,
-        entry.unit || null,
         entry.qty,
+        entry.unit || null,
         entry.price,
-        entry.amount != null ? { formula: `F${cursor}*G${cursor}`, result: entry.amount } : null,
+        entry.amount != null ? { formula: `E${cursor}*G${cursor}`, result: entry.amount } : null,
         null,
         null,
         null,
@@ -301,6 +399,8 @@ export async function renderLeadQuoteXlsx(
         applyStyle(row.getCell(col), styles[col - 1]);
         row.getCell(col).value = values[col - 1] ?? null;
       }
+      const rowKpi = matchChannelKpi(campaignTargets, entry.channel, entry.task);
+      if (rowKpi) writeKpiCells(row, rowKpi);
       if (entry.amount != null) amountRows.push(cursor);
     }
     cursor += 1;
@@ -344,23 +444,7 @@ export async function renderLeadQuoteXlsx(
     `H${tongRow}-H${promoRow}+H${vatRow}`,
   );
 
-  const kpiValues: Array<number | null> = [
-    campaignTargets?.like_page ?? null,
-    campaignTargets?.impression ?? null,
-    campaignTargets?.reach ?? null,
-    campaignTargets?.click ?? null,
-    campaignTargets?.ctr ?? null,
-    campaignTargets?.lead ?? null,
-  ];
-  kpiValues.forEach((value, index) => {
-    const cell = sheet.getRow(tongRow).getCell(9 + index);
-    if (value == null || !Number.isFinite(Number(value))) {
-      cell.value = null;
-      return;
-    }
-    cell.value = Number(value);
-    cell.numFmt = '#,##0.####';
-  });
+  writeTotalsKpis(sheet, tongRow, amountRows, campaignTargets);
 
   sheet.getRow(grandRow + 1).height = 24;
   sheet.getRow(grandRow + 2).height = 24;
