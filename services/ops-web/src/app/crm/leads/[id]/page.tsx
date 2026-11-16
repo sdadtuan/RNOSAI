@@ -1680,6 +1680,7 @@ export default function CrmLeadDetailPage() {
               leadId={leadId}
               phase={quoteCasePhase || 'trien_khai'}
               viewerIsSales={salesViewer}
+              viewerIsCeo={isCeoPosition(user) || superAdmin}
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
               onError={setError}
@@ -2121,6 +2122,7 @@ export default function CrmLeadDetailPage() {
                   leadId={leadId}
                   phase={quoteCasePhase || 'bao_gia'}
                   viewerIsSales={salesViewer}
+                  viewerIsCeo={isCeoPosition(user) || superAdmin}
                   onFunnelChange={setFunnelSnap}
                   onMessage={setMessage}
                   onError={setError}

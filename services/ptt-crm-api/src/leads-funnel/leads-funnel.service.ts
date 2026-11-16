@@ -428,13 +428,18 @@ export class LeadsFunnelService {
 
   private async quoteSheetAccess(
     staffUser?: StaffJwtPayload,
-  ): Promise<{ allowUnapproved: boolean; isSales: boolean }> {
-    if (await this.actorIsSuperAdmin(staffUser)) return { allowUnapproved: true, isSales: false };
-    const code = await this.actorPositionCode(staffUser);
-    if (isCeoPosition(code) || isAccountManagerPosition(code) || isMarketingLeaderPosition(code) || isSuperAdminPositionCode(code)) {
-      return { allowUnapproved: true, isSales: false };
+  ): Promise<{ allowUnapproved: boolean; isSales: boolean; asPrivileged: boolean }> {
+    if (await this.actorIsSuperAdmin(staffUser)) {
+      return { allowUnapproved: true, isSales: false, asPrivileged: true };
     }
-    return { allowUnapproved: false, isSales: true };
+    const code = await this.actorPositionCode(staffUser);
+    if (isCeoPosition(code) || isSuperAdminPositionCode(code)) {
+      return { allowUnapproved: true, isSales: false, asPrivileged: true };
+    }
+    if (isAccountManagerPosition(code) || isMarketingLeaderPosition(code)) {
+      return { allowUnapproved: true, isSales: false, asPrivileged: false };
+    }
+    return { allowUnapproved: false, isSales: true, asPrivileged: false };
   }
 
   private async notifyCeos(leadId: number): Promise<void> {

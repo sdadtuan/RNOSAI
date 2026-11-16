@@ -3235,6 +3235,23 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     );
   }
 
+  /** Submitted to CEO (or sale review) and not yet returned to AM via requestQuoteEdits. */
+  private quoteSheetAwaitingCeo(snap: PresalesSnapshot): boolean {
+    if (snap.presales.quote_sent_back_at) return true;
+    const phase = String(snap.quote_case?.phase ?? '');
+    return phase === 'ceo_review' || phase === 'sale_review';
+  }
+
+  private quoteSheetEditableFor(
+    snap: PresalesSnapshot,
+    access?: { isSales?: boolean; asPrivileged?: boolean },
+  ): boolean {
+    if (access?.isSales) return false;
+    if (!this.quoteSheetStillWritable(snap)) return false;
+    if (this.quoteSheetAwaitingCeo(snap)) return Boolean(access?.asPrivileged);
+    return true;
+  }
+
   private async assertBaoGiaSheet(leadId: number, snap: PresalesSnapshot): Promise<void> {
     if (!snap.presales.solution_approved_at && !snap.presales.quote_accepted_at) {
       throw new Error('Sale chưa Approve Solution.');
@@ -3260,14 +3277,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     await this.assertBaoGiaSheet(leadId, snap);
   }
 
-  async getQuoteSheet(leadId: number, requestedCodes: string[] | null, access?: { allowUnapproved?: boolean; isSales?: boolean }): Promise<QuoteSheetView> {
+  async getQuoteSheet(leadId: number, requestedCodes: string[] | null, access?: { allowUnapproved?: boolean; isSales?: boolean; asPrivileged?: boolean }): Promise<QuoteSheetView> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     await this.assertQuoteSheetReadable(leadId, snap, access);
     const stored = await this.storedQuoteSheet(snap.presales.id);
     const catalog = await this.loadQuoteCatalog(requestedCodes ?? stored.service_codes);
     return assembleQuoteSheet({
-      editable: this.quoteSheetStillWritable(snap) && !access?.isSales,
+      editable: this.quoteSheetEditableFor(snap, access),
       services: catalog.services,
       staff: catalog.staff,
       items: catalog.items,
@@ -3287,6 +3304,9 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
     if (!this.quoteSheetStillWritable(snap)) {
+      throw new Error('Bảng báo giá đang khóa.');
+    }
+    if (this.quoteSheetAwaitingCeo(snap) && !asSuperAdmin) {
       throw new Error('Bảng báo giá đang khóa.');
     }
     if (!asSuperAdmin) {

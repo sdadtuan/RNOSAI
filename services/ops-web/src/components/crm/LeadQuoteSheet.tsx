@@ -237,6 +237,7 @@ export function LeadQuoteSheet({
   leadId,
   phase,
   viewerIsSales = false,
+  viewerIsCeo = false,
   onFunnelChange,
   onMessage,
   onError,
@@ -245,6 +246,7 @@ export function LeadQuoteSheet({
   leadId: number;
   phase: string;
   viewerIsSales?: boolean;
+  viewerIsCeo?: boolean;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (message: string) => void;
   onError?: (message: string) => void;
@@ -474,7 +476,8 @@ export function LeadQuoteSheet({
     }
   }
 
-  const editable = Boolean(sheet?.editable) && !viewerIsSales;
+  const submittedForCeo = phase === 'ceo_review' || phase === 'sale_review';
+  const editable = Boolean(sheet?.editable) && !viewerIsSales && (!submittedForCeo || viewerIsCeo);
   const visibleGroups = (sheet?.groups ?? []).filter((group) => group.rows.some((row) => row.included));
   const tickedCodes = sheet ? tickedServiceCodes(sheet) : [];
   const includedRows =
