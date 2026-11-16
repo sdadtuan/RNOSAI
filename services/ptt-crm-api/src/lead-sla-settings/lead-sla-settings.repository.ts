@@ -382,7 +382,7 @@ export class LeadSlaSettingsRepository implements OnModuleDestroy, OnModuleInit 
   /** LOCKED §15.5 / R3: new assign sets fr1_due_at; hold_until stays NULL until first phone log. */
   async applyFr1OnAssign(
     leadId: number,
-    fr1DueAt: Date,
+    fr1DueAt: Date | null,
     _holdUntilIgnored: Date | null,
     settingsVersion: number,
     isHot: boolean,
@@ -404,7 +404,7 @@ export class LeadSlaSettingsRepository implements OnModuleDestroy, OnModuleInit 
            sla_settings_version = $4,
            updated_at = NOW()
        WHERE sqlite_lead_id = $1`,
-      [leadId, fr1DueAt.toISOString(), isHot, settingsVersion],
+      [leadId, fr1DueAt ? fr1DueAt.toISOString() : null, isHot, settingsVersion],
     );
   }
 

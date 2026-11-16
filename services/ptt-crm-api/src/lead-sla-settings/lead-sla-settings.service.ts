@@ -21,7 +21,6 @@ import {
   assertValidLeadSlaSettings,
   previewImpactCopy,
 } from './lead-sla-settings.validate';
-import { computeFr1DueAt } from './lead-sla-working-hours.util';
 
 export type LeadSlaSettingsResponse = {
   tenant_id: string;
@@ -235,12 +234,10 @@ export class LeadSlaSettingsService {
     opts?: { source?: string; tags?: string[] },
   ): Promise<void> {
     const payload = await this.getPublishedPayload();
-    const due = computeFr1DueAt(
-      assignedAt,
-      payload.fr1_hours,
-      payload.working_hours,
-      payload.holidays,
-    );
+    // Doc V5.1 §05: no first-call milestone at assignment. Stage 1 is claim (15') then
+    // contact within team-SLA update_after_claim_hours from the claim (set on Nhận Lead).
+    void assignedAt;
+    const due: Date | null = null;
     const source = String(opts?.source ?? '').toLowerCase();
     const tags = (opts?.tags ?? []).map((t) => String(t).toLowerCase());
     const isHot =

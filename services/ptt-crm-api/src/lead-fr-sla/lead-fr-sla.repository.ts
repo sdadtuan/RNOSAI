@@ -9,6 +9,11 @@ import { leadNotLockedSql } from '../leads/lead-lock.util';
 import type { LeadFrSlaSnapshot } from './lead-fr-sla.types';
 import { claimTimeoutExcludedStatusSql, claimTimeoutSalesPositionSql } from './lead-claim-timeout-reassign.util';
 import type { PoolCandidate } from './lead-sla-reassign.util';
+import {
+  CLAIM_QUEUE_AWAITING_AM,
+  CLAIM_ROUND_EVENTS_DDL,
+  CLAIM_ROUND_LEADS_DDL,
+} from './lead-claim-round.util';
 
 
 export type ClaimTimeoutDueLead = {
@@ -19,6 +24,14 @@ export type ClaimTimeoutDueLead = {
   previous_assignee_ids: unknown;
   reassign_count: number;
   attempts_since_assign: number;
+  claim_round_tried: unknown;
+  claim_round_mode: string;
+};
+
+export type CallbackRetryDueLead = {
+  lead_id: number;
+  owner_id: number;
+  next_call_at: Date;
 };
 
 export type LeadCallAttemptRow = {
@@ -62,7 +75,13 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.ensureSchema();
+    // Round state + history columns must exist before the first request / worker tick.
+    await this.ensureReassignSchema();
+  }
+
+  /** Plain pool query for shared helpers (lead-claim-round.util). */
+  query(sql: string, params: unknown[] = []) {
+    return this.db.query(sql, params);
   }
 
   async claimSalesLead(leadId: number, claimedBy?: number | null): Promise<string> {
@@ -71,6 +90,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
       `UPDATE crm_leads
        SET sales_claimed_at = COALESCE(sales_claimed_at, NOW()),
            sales_claimed_by = COALESCE(sales_claimed_by, $2),
+           claim_queue_state = '',
+           claim_queue_state_at = NULL,
            updated_at = NOW()
        WHERE sqlite_lead_id = $1
        RETURNING sales_claimed_at`,
@@ -132,6 +153,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
           );
           CREATE INDEX IF NOT EXISTS idx_crm_lead_call_attempts_lead
             ON crm_lead_call_attempts (sqlite_lead_id, started_at DESC);
+          ${CLAIM_ROUND_LEADS_DDL}
         `)
         .then(() => undefined);
     }
@@ -149,7 +171,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
               callback_at, meeting_at, meeting_place, info_withheld,
               is_hot, reassign_count, previous_assignee_ids,
               sla_extend_count, sla_settings_version, needs_gdkd_escalate,
-              first_assigned_at, meta_json
+              first_assigned_at, meta_json,
+              claim_queue_state, claim_queue_state_at, claim_round_mode, claim_round_tried
        FROM crm_leads WHERE sqlite_lead_id = $1`,
       [leadId],
     );
@@ -352,6 +375,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
         skipped      INT NOT NULL DEFAULT 0,
         detail_json  JSONB NOT NULL DEFAULT '{}'::jsonb
       );
+      ${CLAIM_ROUND_EVENTS_DDL}
     `);
   }
 
@@ -915,9 +939,12 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
               l.b2b_project_id::text AS b2b_project_id,
               l.previous_assignee_ids,
               COALESCE(l.reassign_count, 0) AS reassign_count,
-              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign,
+              l.claim_round_tried,
+              COALESCE(l.claim_round_mode, '') AS claim_round_mode
        FROM crm_leads l
        WHERE l.sales_claimed_at IS NULL
+         AND COALESCE(l.claim_queue_state, '') = ''
          AND l.first_call_at IS NULL
          AND l.last_call_at IS NULL
          AND l.hold_until IS NULL
@@ -942,6 +969,8 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
       previous_assignee_ids: row.previous_assignee_ids,
       reassign_count: Number(row.reassign_count ?? 0),
       attempts_since_assign: Number(row.attempts_since_assign ?? 0),
+      claim_round_tried: row.claim_round_tried,
+      claim_round_mode: String(row.claim_round_mode ?? ''),
     }));
   }
 
@@ -987,8 +1016,9 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
       fromOwnerId: number;
       toOwnerId: number;
       previousAssigneeIds: number[];
+      roundTried: number[];
     },
-  ): Promise<boolean> {
+  ): Promise<Date | null> {
     const nextPrev = Array.from(
       new Set([...input.previousAssigneeIds.map(Number), input.fromOwnerId].filter((n) => Number.isFinite(n) && n > 0)),
     );
@@ -1005,21 +1035,149 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
          fr1_breached = FALSE,
          assign_strategy = 'claim_timeout',
          assign_reason = 'claim_timeout',
+         claim_round_tried = $5::jsonb,
+         claim_round_mode = 'auto',
+         claim_queue_state = '',
+         claim_queue_state_at = NULL,
          updated_at = NOW()
        WHERE sqlite_lead_id = $1
          AND owner_id = $4
          AND sales_claimed_at IS NULL
          AND first_call_at IS NULL
          AND hold_until IS NULL
-       RETURNING sqlite_lead_id`,
+       RETURNING assigned_at`,
       [
         input.leadId,
         input.toOwnerId,
         JSON.stringify(nextPrev),
         input.fromOwnerId,
+        JSON.stringify(Array.from(new Set([...input.roundTried, input.toOwnerId]))),
       ],
     );
+    const at = result.rows[0]?.assigned_at;
+    if (at == null) return null;
+    return at instanceof Date ? at : new Date(String(at));
+  }
+
+  /** Every Sale in the round missed: CHỜ AM PHÂN LEAD, stop auto-rotation (owner stays the last Sale). */
+  async markAwaitingAmAssign(
+    tx: PoolClient,
+    input: { leadId: number; ownerId: number; roundTried: number[] },
+  ): Promise<boolean> {
+    const result = await tx.query(
+      `UPDATE crm_leads SET
+         claim_queue_state = $3,
+         claim_queue_state_at = NOW(),
+         claim_round_tried = $4::jsonb,
+         updated_at = NOW()
+       WHERE sqlite_lead_id = $1
+         AND owner_id = $2
+         AND sales_claimed_at IS NULL
+         AND COALESCE(claim_queue_state, '') = ''
+       RETURNING sqlite_lead_id`,
+      [input.leadId, input.ownerId, CLAIM_QUEUE_AWAITING_AM, JSON.stringify(input.roundTried)],
+    );
     return result.rows.length > 0;
+  }
+
+  async insertAwaitingAmSystemNote(
+    tx: PoolClient,
+    leadId: number,
+    ownerId: number,
+    triedCount: number,
+    claimMinutes: number,
+  ): Promise<void> {
+    const names = await this.db.query(`SELECT name FROM crm_staff WHERE id = $1`, [ownerId]);
+    const ownerName = String(names.rows[0]?.name || '').trim() || `#${ownerId}`;
+    const minutes = Math.max(1, Math.floor(Number(claimMinutes) || 15));
+    const content =
+      `QUÁ HẠN NHẬN LEAD (${minutes} phút) — ${ownerName} không nhận. ` +
+      `Đã thử hết ${triedCount} Sale trong vòng, chuyển CHỜ AM PHÂN LEAD. Ngừng tự chuyển, chờ AM giao tay.`;
+    await tx.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'note', $2, 'claim_timeout', 'awaiting_am_assign', NOW(), 'system', COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000)],
+    );
+  }
+
+  /** CHỜ GỌI LẠI: no-answer / busy, retry time reached, not reminded for this retry yet. */
+  async listCallbackRetryDue(now: Date, limit = 50): Promise<CallbackRetryDueLead[]> {
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id AS lead_id, l.owner_id, l.next_call_at
+         FROM crm_leads l
+        WHERE l.next_call_at IS NOT NULL
+          AND l.next_call_at <= $1::timestamptz
+          AND l.owner_id IS NOT NULL
+          AND lower(COALESCE(l.last_call_result, '')) IN ('ring_no_answer', 'unreachable')
+          AND (l.callback_reminded_at IS NULL OR l.callback_reminded_at < l.next_call_at)
+          AND COALESCE(l.is_duplicate, FALSE) IS NOT TRUE
+          AND ${leadNotLockedSql("l")}
+          AND lower(trim(COALESCE(l.status, ''))) NOT IN (${claimTimeoutExcludedStatusSql()})
+        ORDER BY l.next_call_at ASC
+        LIMIT $2`,
+      [now.toISOString(), Math.min(Math.max(limit, 1), 200)],
+    );
+    return result.rows.map((row) => ({
+      lead_id: Number(row.lead_id),
+      owner_id: Number(row.owner_id),
+      next_call_at: row.next_call_at instanceof Date ? row.next_call_at : new Date(String(row.next_call_at)),
+    }));
+  }
+
+  async markCallbackReminded(leadId: number, retryHours: number): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE crm_leads SET callback_reminded_at = NOW()
+        WHERE sqlite_lead_id = $1
+          AND (callback_reminded_at IS NULL OR callback_reminded_at < next_call_at)
+        RETURNING sqlite_lead_id`,
+      [leadId],
+    );
+    if (!result.rows.length) return false;
+    const hours = Number.isFinite(Number(retryHours)) && Number(retryHours) > 0 ? Number(retryHours) : 2;
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'note', $2, 'callback_due', 'callback_retry', NOW(), 'system', COALESCE(status, '')
+       FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId, `CHỜ GỌI LẠI — đến giờ gọi lại (mỗi ${hours} giờ).`],
+    );
+    return true;
+  }
+
+  /** No-answer / busy: next retry = call time + team-SLA retry gap (working hours). */
+  async setRetryCallAt(leadId: number, at: Date): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads SET next_call_at = $2, updated_at = NOW() WHERE sqlite_lead_id = $1`,
+      [leadId, at.toISOString()],
+    );
+  }
+
+  /** First-contact deadline starts at the claim (doc: Sales liên hệ trong 1 giờ sau khi nhận). */
+  async setFr1DueFromClaim(leadId: number, due: Date): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads SET fr1_due_at = $2, fr1_breached = FALSE, updated_at = NOW()
+        WHERE sqlite_lead_id = $1 AND first_call_at IS NULL`,
+      [leadId, due.toISOString()],
+    );
+  }
+
+  /** Sales the AM can hand a lead to (configured order). */
+  async listSalesAssignOptions(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT s.id, s.name
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND COALESCE(s.can_receive_leads, FALSE) IS TRUE
+          AND ${claimTimeoutSalesPositionSql('p')}
+        ORDER BY COALESCE(s.sort_order, 0) ASC, s.id ASC`,
+    );
+    return result.rows.map((row) => ({ id: Number(row.id), name: String(row.name || '').trim() || `#${row.id}` }));
   }
 
   async insertClaimTimeoutSystemNote(
@@ -1040,7 +1198,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     const fromName = label.get(fromOwnerId) || `#${fromOwnerId}`;
     const toName = label.get(toOwnerId) || `#${toOwnerId}`;
     const minutes = Math.max(1, Math.floor(Number(claimMinutes) || 15));
-    const content = `Hết hạn nhận lead (${minutes} phút) — đã chuyển từ ${fromName} sang ${toName}.`;
+    const content = `QUÁ HẠN NHẬN LEAD (${minutes} phút) — ${fromName} không nhận, đã chuyển sang ${toName}.`;
     await tx.query(
       `INSERT INTO crm_lead_activities (
          lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log

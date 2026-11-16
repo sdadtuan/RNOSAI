@@ -43,6 +43,7 @@ import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.s
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import { TeamSlaService } from '../team-sla/team-sla.service';
+import { isSalesStaff, isStep1Status, startClaimRound, type ClaimRoundMode } from '../lead-fr-sla/lead-claim-round.util';
 
 @Injectable()
 export class LeadsWriteService {
@@ -69,6 +70,35 @@ export class LeadsWriteService {
 
 
   private readonly notifyLogger = new Logger(LeadsWriteService.name);
+
+  /** Stage-1 claim round: new lead (auto) or hand-assign (manual) to a Sale. Never blocks the write. */
+  private async startSalesClaimRound(input: {
+    leadId: number;
+    ownerId: number;
+    fromOwnerId: number | null;
+    mode: ClaimRoundMode;
+    reason: string;
+    actor?: string;
+  }): Promise<void> {
+    try {
+      const query = (sql: string, params: unknown[] = []) => this.writeRepo.query(sql, params);
+      if (!(await isSalesStaff(query, input.ownerId))) return;
+      const claimMinutes = (await this.teamSla?.saleClaimMinutes().catch(() => 15)) ?? 15;
+      await startClaimRound(query, {
+        leadId: input.leadId,
+        ownerId: input.ownerId,
+        fromOwnerId: input.fromOwnerId,
+        mode: input.mode,
+        reason: input.reason.slice(0, 120),
+        claimMinutes,
+        notes: input.actor ? `by=${input.actor}` : '',
+      });
+    } catch (err) {
+      this.notifyLogger.warn(
+        `claim round start failed lead=${input.leadId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   private async notifyLeadAssigned(staffId: number | null | undefined, leadId: number): Promise<void> {
     const id = Number(staffId);
@@ -176,6 +206,13 @@ export class LeadsWriteService {
           assigned_by: 'auto_assign',
         });
         await this.leadSlaSettings.applyFr1OnNewAssign(lead.id).catch(() => undefined);
+        await this.startSalesClaimRound({
+          leadId: lead.id,
+          ownerId: Number(lead.owner_id),
+          fromOwnerId: null,
+          mode: 'auto',
+          reason: String(enriched.meta?.assign_reason ?? 'initial_assign') || 'initial_assign',
+        });
         // Always notify the owner. B2B fanout may also alert project staff; a missing
         // project-staff membership (or a transient enriched.b2b_project_id) must not
         // swallow the owner's «Lead mới được giao» bell.
@@ -367,6 +404,17 @@ export class LeadsWriteService {
           });
         }
         await this.leadSlaSettings.applyFr1OnNewAssign(leadId).catch(() => undefined);
+        if ((result.assigned || b2bManual) && isStep1Status(existing.status)) {
+          // Hand-assign (AM / Super-Admin): fresh 15' claim; a miss returns to CHỜ AM PHÂN LEAD.
+          await this.startSalesClaimRound({
+            leadId,
+            ownerId: Number(body.owner_id),
+            fromOwnerId: existing.owner_id != null ? Number(existing.owner_id) : null,
+            mode: 'manual',
+            reason: String(body.assign_reason?.trim() || 'manual_assign'),
+            actor: body.assigned_by?.trim() || actor || undefined,
+          });
+        }
         if (result.assigned || b2bManual) {
           await this.notifyLeadAssigned(body.owner_id, leadId);
         }

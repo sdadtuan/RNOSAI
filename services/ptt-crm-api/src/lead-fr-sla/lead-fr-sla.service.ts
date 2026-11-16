@@ -3,7 +3,19 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { addWorkingHours } from '../lead-sla-settings/lead-sla-working-hours.util';
+import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
+import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { TeamSlaService } from '../team-sla/team-sla.service';
+import {
+  CLAIM_QUEUE_AWAITING_AM,
+  CLAIM_QUEUE_AWAITING_AM_LABEL,
+  isSalesStaff,
+  listAccountManagerIds,
+  startClaimRound,
+} from './lead-claim-round.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
@@ -64,7 +76,66 @@ export class LeadFrSlaService {
     private readonly leads: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
     private readonly staffAuth: StaffAuthService,
+    @Optional() private readonly teamSla?: TeamSlaService,
+    @Optional() private readonly notifications?: StaffNotificationsRepository,
   ) {}
+
+  private sqlQuery = (sql: string, params: unknown[] = []) => this.repo.query(sql, params);
+
+  /** Retry gap between phone calls (CHỜ GỌI LẠI). Team-SLA retry_gap_hours, else lead-SLA case_1b. */
+  private async retryGapHours(fallback: number): Promise<number> {
+    const n = this.teamSla ? await this.teamSla.saleRetryGapHours().catch(() => NaN) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  }
+
+  /** AM (ACM / KD-01) or Super-Admin. */
+  async canAmAssign(staffUser?: StaffJwtPayload): Promise<boolean> {
+    if (!staffUser) return false;
+    if (await this.staffAuth.isSuperAdminUser(staffUser).catch(() => false)) return true;
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(staffUser);
+    if (staffId == null) return false;
+    const am = await listAccountManagerIds(this.sqlQuery).catch(() => [] as number[]);
+    return am.includes(staffId);
+  }
+
+  /** CHỜ AM PHÂN LEAD → AM chọn Sales, xác nhận giao; CRM bắt đầu lượt nhận mới. */
+  async amAssignSales(leadId: number, targetStaffId: number, staffUser: StaffJwtPayload | undefined, actor: string) {
+    if (!(await this.canAmAssign(staffUser))) {
+      throw new ForbiddenException({ error: 'Chỉ AM hoặc Super-Admin được giao tay lead.' });
+    }
+    const target = Number(targetStaffId);
+    if (!(await isSalesStaff(this.sqlQuery, target))) {
+      throw new BadRequestException({ error: 'Chỉ giao cho nhân viên Sales.' });
+    }
+    const row = await this.repo.getLeadSlaRow(leadId);
+    if (!row) throw new NotFoundException({ error: 'lead_not_found' });
+    const fromOwner = row.owner_id != null ? Number(row.owner_id) : null;
+    if (fromOwner !== target) {
+      // patchLead logs the assignment, resets the clocks, notifies the Sale and starts the manual round.
+      await this.leadsWrite.patchLead(
+        leadId,
+        { owner_id: target, assign_reason: 'am_manual_assign', assigned_by: actor },
+        actor,
+      );
+    } else {
+      // Same Sale again: fresh claim window, manual round.
+      await this.settings.applyFr1OnNewAssign(leadId).catch(() => undefined);
+      const claimMinutes = (await this.teamSla?.saleClaimMinutes().catch(() => 15)) ?? 15;
+      await startClaimRound(this.sqlQuery, {
+        leadId,
+        ownerId: target,
+        fromOwnerId: fromOwner,
+        mode: 'manual',
+        reason: 'am_manual_assign',
+        claimMinutes,
+        notes: `by=${actor}`,
+      });
+      await this.notifications
+        ?.notifyStaff(target, caseStaffNotify({ kind: 'lead_assigned', leadId, claimMinutes }))
+        .catch(() => undefined);
+    }
+    return this.readSla(leadId, staffUser);
+  }
 
   private async caseConfig(): Promise<LeadFrSlaCaseConfig> {
     const p = await this.settings.getPublishedPayload();
@@ -116,14 +187,29 @@ export class LeadFrSlaService {
         error: 'Chỉ người được giao lead mới nhận được.',
       });
     }
-    await this.repo.claimSalesLead(leadId, staffId);
-    return this.readSla(leadId);
+    const claimedAtIso = await this.repo.claimSalesLead(leadId, staffId);
+    // Doc: sau khi nhận, Sales liên hệ khách trong N giờ (team-SLA update_after_claim_hours).
+    const payloadForClaim = await this.settings.getPublishedPayload();
+    const updateHours = (await this.teamSla?.saleUpdateAfterClaimHours().catch(() => 1)) ?? 1;
+    await this.repo
+      .setFr1DueFromClaim(
+        leadId,
+        addWorkingHours(new Date(claimedAtIso), updateHours, payloadForClaim.working_hours, payloadForClaim.holidays),
+      )
+      .catch(() => undefined);
+    return this.readSla(leadId, staffUser);
   }
 
-  async readSla(leadId: number) {
+  async readSla(leadId: number, staffUser?: StaffJwtPayload) {
     const row = await this.repo.getLeadSlaRow(leadId);
     if (!row) throw new NotFoundException({ error: 'lead_not_found' });
     const payload = await this.settings.getPublishedPayload();
+    const gapHours = await this.retryGapHours(payload.case_1b.min_gap_working_hours);
+    const updateHours = (await this.teamSla?.saleUpdateAfterClaimHours().catch(() => 1)) ?? 1;
+    const claimQueueState = String(row.claim_queue_state ?? '');
+    const awaitingAm = claimQueueState === CLAIM_QUEUE_AWAITING_AM;
+    const canAm = awaitingAm ? await this.canAmAssign(staffUser) : false;
+    const salesOptions = canAm ? await this.repo.listSalesAssignOptions().catch(() => []) : [];
     const snap = this.rowToSnapshot(row);
     const now = Date.now();
     const fr1DueMs = snap.fr1_due_at?.getTime() ?? null;
@@ -137,12 +223,18 @@ export class LeadFrSlaService {
     const phoneGap = evaluateCallGap({
       lastCallAt: lastValidPhone ? new Date(lastValidPhone.started_at) : null,
       now: new Date(),
-      minGapWorkingHours: payload.case_1b.min_gap_working_hours,
+      minGapWorkingHours: gapHours,
     });
     return {
       lead_id: leadId,
       settings_version: payload.settings_version,
-      fr1_hours: payload.fr1_hours,
+      fr1_hours: updateHours,
+      claim_queue_state: claimQueueState,
+      claim_queue_label: awaitingAm ? CLAIM_QUEUE_AWAITING_AM_LABEL : '',
+      claim_queue_state_at: asDate(row.claim_queue_state_at)?.toISOString() ?? null,
+      claim_round_mode: String(row.claim_round_mode ?? ''),
+      can_am_assign: canAm,
+      sales_options: salesOptions,
       fr1_channels: payload.fr1_channels,
       reassign_enabled: payload.feature_flags.lead_sla_reassign_enabled,
       assigned_at: snap.assigned_at.toISOString(),
@@ -169,7 +261,7 @@ export class LeadFrSlaService {
         .includes(String(snap.pipeline_stage || '').toLowerCase()) ||
         !String(snap.pipeline_stage || '').trim(),
       attempts,
-      min_gap_working_hours: payload.case_1b.min_gap_working_hours,
+      min_gap_working_hours: gapHours,
       next_call_allowed_at: phoneGap.nextAllowedAt?.toISOString() ?? null,
       call_gap_blocked: phoneGap.blocked,
       call_gap_message: phoneGap.message,
@@ -212,6 +304,8 @@ export class LeadFrSlaService {
     if (!row) throw new NotFoundException({ error: 'lead_not_found' });
 
     const config = await this.caseConfig();
+    const retryGap = await this.retryGapHours(config.case_1b.min_gap_working_hours);
+    config.case_1b = { ...config.case_1b, min_gap_working_hours: retryGap };
     const before = this.rowToSnapshot(row);
 
     const recentAttempts = await this.repo.listAttempts(leadId, 20);
@@ -319,6 +413,13 @@ export class LeadFrSlaService {
       createdBy: actor,
       at: startedAt,
     });
+
+    if (channel === 'phone' && (result === 'ring_no_answer' || result === 'unreachable')) {
+      // CHỜ GỌI LẠI: gọi lại sau N giờ/lần (team-SLA retry_gap_hours).
+      await this.repo
+        .setRetryCallAt(leadId, addWorkingHours(startedAt, retryGap, config.working_hours, config.holidays))
+        .catch(() => undefined);
+    }
 
     if (result === 'callback_requested') {
       const callbackAt = parseDate(body.callback_at, startedAt);

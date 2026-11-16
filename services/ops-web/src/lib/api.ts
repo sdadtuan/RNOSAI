@@ -63,6 +63,8 @@ export interface LeadRow {
   id: number;
   /** Sales confirmed "Sai số" — locked, only super admin can view. */
   lead_locked?: boolean;
+  /** Stage 1: '' | 'cho_am_phan_lead' (hết vòng Sales, chờ AM giao tay). */
+  claim_queue_state?: string;
   full_name: string;
   phone: string;
   email: string;
@@ -1664,6 +1666,13 @@ export type LeadFrSlaState = {
   assigned_at?: string | null;
   sales_claimed_at?: string | null;
   can_claim?: boolean;
+  /** '' | 'cho_am_phan_lead' */
+  claim_queue_state?: string;
+  claim_queue_label?: string;
+  claim_queue_state_at?: string | null;
+  claim_round_mode?: string;
+  can_am_assign?: boolean;
+  sales_options?: Array<{ id: number; name: string }>;
   fr1_due_at: string | null;
   first_call_at: string | null;
   fr1_breached: boolean;
@@ -1699,6 +1708,18 @@ export async function claimLeadSalesReceipt(
   leadId: number,
 ): Promise<LeadFrSlaState> {
   return crmFetch(token, `/api/crm/leads/${leadId}/sales-claim`, { method: 'POST' });
+}
+
+/** CHỜ AM PHÂN LEAD: AM / Super-Admin giao tay cho một Sale (lượt nhận mới). */
+export async function amAssignLeadSales(
+  token: string,
+  leadId: number,
+  staffId: number,
+): Promise<LeadFrSlaState> {
+  return crmFetch(token, `/api/crm/leads/${leadId}/am-assign`, {
+    method: 'POST',
+    body: JSON.stringify({ staff_id: staffId }),
+  });
 }
 
 export async function logLeadCallAttempt(

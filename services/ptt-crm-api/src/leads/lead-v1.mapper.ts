@@ -187,6 +187,7 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
       fullName: row.full_name,
     }),
     sales_claimed_at: row.sales_claimed_at ? formatLeadTs(row.sales_claimed_at) : null,
+    claim_queue_state: row.claim_queue_state ? String(row.claim_queue_state) : '',
     company_address: String(row.company_address ?? metaString(meta, 'company_address') ?? ''),
     logo_asset_id: row.logo_asset_id ? String(row.logo_asset_id) : metaString(meta, 'logo_asset_id') || null,
     hold_until: row.hold_until ? formatLeadTs(row.hold_until) : null,

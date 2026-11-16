@@ -28,9 +28,21 @@ export function saleMissingInfoHours(doc?: TeamSlaDocument | null): number {
   return positiveNumber(profile.sale.missing_info_hours, DEFAULT_MISSING_INFO_HOURS);
 }
 
+/** Doc V5.1 §05 bước 5: Sales liên hệ khách trong 1 giờ sau khi nhận. */
+export const DEFAULT_UPDATE_AFTER_CLAIM_HOURS = 1;
+/** Doc V5.1 §05 bước 5: không nghe máy / máy bận → CHỜ GỌI LẠI, gọi lại sau 2 giờ/lần. */
+export const DEFAULT_RETRY_GAP_HOURS = 2;
+
 export function saleUpdateAfterClaimHours(doc?: TeamSlaDocument | null): number {
   const profile = teamSlaProfile(doc ?? defaultTeamSlaDocument(), 'sale_service');
-  return positiveNumber(profile.sale.update_after_claim_hours, 2);
+  const n = positiveNumber(profile.sale.update_after_claim_hours, DEFAULT_UPDATE_AFTER_CLAIM_HOURS);
+  return n > 0 ? n : DEFAULT_UPDATE_AFTER_CLAIM_HOURS;
+}
+
+export function saleRetryGapHours(doc?: TeamSlaDocument | null): number {
+  const profile = teamSlaProfile(doc ?? defaultTeamSlaDocument(), 'sale_service');
+  const n = positiveNumber(profile.sale.retry_gap_hours, DEFAULT_RETRY_GAP_HOURS);
+  return n > 0 ? n : DEFAULT_RETRY_GAP_HOURS;
 }
 
 export function formatMinutesVi(minutes: number): string {

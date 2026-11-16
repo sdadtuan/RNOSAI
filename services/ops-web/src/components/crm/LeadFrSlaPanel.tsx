@@ -3,6 +3,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
+  amAssignLeadSales,
   claimLeadSalesReceipt,
   fetchLeadFrSla,
   logLeadCallAttempt,
@@ -177,6 +178,7 @@ export function LeadFrSlaPanel({
   const [claimedAt, setClaimedAt] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [historyKey, setHistoryKey] = useState(0);
+  const [amPick, setAmPick] = useState('');
 
   const reload = useCallback(async () => {
     try {
@@ -316,6 +318,26 @@ export function LeadFrSlaPanel({
   );
   const saleProfile = teamSla?.profiles.find((row) => row.code === 'sale_service');
 
+  const onAmAssign = async () => {
+    const staffId = Number(amPick);
+    if (!Number.isFinite(staffId) || staffId <= 0 || busy) return;
+    setBusy(true);
+    setMsg('');
+    setError('');
+    try {
+      const out = await amAssignLeadSales(token, leadId, staffId);
+      setSla(out);
+      setClaimedAt(out.sales_claimed_at ?? null);
+      setAmPick('');
+      const name = out.sales_options?.find((s) => s.id === staffId)?.name;
+      setMsg(name ? `Đã giao cho ${name}.` : 'Đã giao cho Sales.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Giao lead thất bại');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onClaim = async () => {
     if (!canWrite) return;
     setBusy(true);
@@ -362,6 +384,7 @@ export function LeadFrSlaPanel({
   const showClockBadge = clockClosed;
   const clockBadgeView = { tone: 'ok' as const, text: 'Đã xong' };
   const showClaimButton = leadClock.phase === 'claim' && canWrite && !clockCompleted;
+  const awaitingAm = sla?.claim_queue_state === 'cho_am_phan_lead';
 
   return (
     <section
@@ -393,6 +416,11 @@ export function LeadFrSlaPanel({
           >
             {guideOpen ? 'Ẩn hướng dẫn' : 'Hướng dẫn SLA'}
           </button>
+          {awaitingAm ? (
+            <span className="lead-fr-sla__badge lead-fr-sla__badge--breach" data-testid="lead-claim-awaiting-am">
+              {sla?.claim_queue_label || 'Chờ AM phân lead'}
+            </span>
+          ) : null}
           {showClockBadge ? (
             <span className={`lead-fr-sla__badge lead-fr-sla__badge--${clockBadgeView.tone}`}>{clockBadgeView.text}</span>
           ) : null}
@@ -436,6 +464,22 @@ export function LeadFrSlaPanel({
         </div>
       ) : null}
 
+      {awaitingAm && sla?.can_am_assign ? (
+        <div className="lead-fr-sla__am-assign" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>Hết vòng Sales, không ai nhận. Chọn Sales để giao:</span>
+          <select value={amPick} onChange={(e) => setAmPick(e.target.value)} disabled={busy}>
+            <option value="">— Chọn Sales —</option>
+            {(sla.sales_options ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn btn-primary" disabled={busy || !amPick} onClick={() => void onAmAssign()}>
+            {busy ? 'Đang giao…' : 'Giao Sales'}
+          </button>
+        </div>
+      ) : null}
       {error ? <p className="error">{error}</p> : null}
       {msg ? <p className="ok">{msg}</p> : null}
 

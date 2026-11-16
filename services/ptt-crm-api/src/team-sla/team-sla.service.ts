@@ -4,6 +4,7 @@ import {
   marketingClaimMinutes,
   saleClaimMinutes,
   saleMissingInfoHours,
+  saleRetryGapHours,
   saleUpdateAfterClaimHours,
 } from './team-sla-clocks.util';
 import { defaultTeamSlaDocument, normalizeTeamSlaDocument, type TeamSlaDocument } from './team-sla-profiles';
@@ -79,6 +80,10 @@ export class TeamSlaService {
 
   async saleUpdateAfterClaimHours(): Promise<number> {
     return saleUpdateAfterClaimHours(await this.loadDocument());
+  }
+
+  async saleRetryGapHours(): Promise<number> {
+    return saleRetryGapHours(await this.loadDocument());
   }
 
   async marketingSolutionWorkSettings(): Promise<SolutionWorkDueSettings> {

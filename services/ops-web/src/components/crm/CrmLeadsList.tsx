@@ -190,6 +190,9 @@ export function CrmLeadsList({
                           {situation.status}
                         </span>
                         {lead.lead_locked ? <LeadLockedBadge compact /> : null}
+                        {lead.claim_queue_state === 'cho_am_phan_lead' ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">Chờ AM phân lead</span>
+                        ) : null}
                         {situation.call ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
                         ) : null}

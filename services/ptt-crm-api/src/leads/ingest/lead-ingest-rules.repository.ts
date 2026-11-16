@@ -37,6 +37,11 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
+  /** Plain query for shared helpers (lead-claim-round.util). */
+  query(sql: string, params: unknown[] = []) {
+    return this.db.query(sql, params);
+  }
+
   async listPausedIntakeStaffIds(): Promise<Set<number>> {
     return loadPausedIntakeStaffIds((sql) => this.db.query(sql));
   }

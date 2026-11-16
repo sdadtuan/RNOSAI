@@ -236,10 +236,6 @@ export function CrmNewLeadPageContent({
       );
       return;
     }
-    if (canAssignAnyOwner && !(ownerId && Number.isFinite(Number(ownerId)))) {
-      setError('Chọn Owner (nhân viên được nhận lead)');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -445,13 +441,13 @@ export function CrmNewLeadPageContent({
                   disabled={lockOwnerToSelf}
                   title={
                     lockOwnerToSelf
-                      ? 'Lead B2B tạo tay luôn gán cho bạn'
+                      ? 'Bạn là Sale: lead giữ cho bạn. Không phải Sale: CRM tự giao Sale #1.'
                       : canAssignAnyOwner
-                        ? 'Chọn nhân viên đang bật nhận lead'
+                        ? 'Chọn Sale, hoặc để CRM tự giao Sale #1 theo thứ tự'
                         : undefined
                   }
                 >
-                  {canAssignAnyOwner ? <option value="">— Chọn owner —</option> : null}
+                  {canAssignAnyOwner ? <option value="">— CRM tự giao Sale —</option> : null}
                   {!canAssignAnyOwner ? <option value="">— Chưa gán —</option> : null}
                   {ownerChoices.map((staff) => (
                     <option key={staff.id} value={staff.id}>
@@ -461,9 +457,9 @@ export function CrmNewLeadPageContent({
                   ))}
                 </select>
                 {lockOwnerToSelf ? (
-                  <span className="muted">Tự gán cho bạn khi tạo lead B2B.</span>
+                  <span className="muted">Sale tạo: giữ cho bạn. Người khác tạo: CRM tự giao Sale #1.</span>
                 ) : canAssignAnyOwner ? (
-                  <span className="muted">Admin/CEO: gán cho NV đang bật nhận lead.</span>
+                  <span className="muted">Chọn người không phải Sale thì CRM tự giao Sale #1.</span>
                 ) : null}
               </label>
             </div>

@@ -16,8 +16,8 @@ export class LeadFrSlaController {
 
   @Get(':id/fr-sla')
   @UseGuards(StaffLeadsViewGuard)
-  read(@Param('id') id: string) {
-    return this.service.readSla(Number(id));
+  read(@Param('id') id: string, @Req() req: { staffUser?: StaffJwtPayload }) {
+    return this.service.readSla(Number(id), req.staffUser);
   }
 
   @Post(':id/call-attempts')
@@ -37,5 +37,15 @@ export class LeadFrSlaController {
     @Req() req: { staffUser?: StaffJwtPayload },
   ) {
     return this.service.claimSalesLead(Number(id), req.staffUser);
+  }
+
+  /** CHỜ AM PHÂN LEAD: AM / Super-Admin hand-assigns a Sale (fresh claim window). */
+  @Post(':id/am-assign')
+  amAssign(
+    @Param('id') id: string,
+    @Body() body: { staff_id?: number },
+    @Req() req: { staffUser?: StaffJwtPayload },
+  ) {
+    return this.service.amAssignSales(Number(id), Number(body?.staff_id), req.staffUser, this.actor(req));
   }
 }

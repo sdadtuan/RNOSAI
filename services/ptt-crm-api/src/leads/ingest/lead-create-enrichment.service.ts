@@ -7,6 +7,16 @@ import { LeadAutoAssignService } from './lead-auto-assign.service';
 import { LeadDedupRepository } from './lead-dedup.repository';
 import { normalizeEmail, normalizePhone } from './lead-contact.util';
 import { LeadIngestRulesRepository } from './lead-ingest-rules.repository';
+import {
+  isSalesStaff,
+  listSalesOrder,
+  loadPausedSales,
+  pickFirstSale,
+} from '../../lead-fr-sla/lead-claim-round.util';
+
+/** Round-robin pointer for the first Sale of a new lead (stored in crm_ingest_rules_snapshot). */
+const SALES_FIRST_POOL_KEY = (projectId: string | null) =>
+  projectId ? `sales_first:proj:${projectId}` : 'sales_first:global';
 
 export interface EnrichedCreateLeadBody extends CreateLeadV1Body {
   is_duplicate?: boolean;
@@ -106,7 +116,14 @@ export class LeadCreateEnrichmentService {
     let ownerId = body.owner_id ?? null;
     let assignStrategy = '';
     let b2bFirstAssignMeta: EnrichedCreateLeadBody['b2b_first_assign'];
-    const explicitOwner = ownerId != null && Number(ownerId) > 0;
+    const sqlQuery = (sql: string, params: unknown[] = []) => this.rulesRepo.query(sql, params);
+    // Doc V5.1 §01: CRM auto-gives every new lead to Sales #1. An owner sent by the creator
+    // (Admin / AM / GĐKD creating by hand) is not kept unless that owner is a Sale.
+    let explicitOwner = ownerId != null && Number(ownerId) > 0;
+    if (explicitOwner && !(await isSalesStaff(sqlQuery, Number(ownerId)).catch(() => true))) {
+      meta.assign_override_from = Number(ownerId);
+      explicitOwner = false;
+    }
 
     if (
       !explicitOwner &&
@@ -153,20 +170,28 @@ export class LeadCreateEnrichmentService {
         ? await this.rulesRepo.fetchClientIndustry(clientId)
         : null;
       meta.industry_slug = industrySlug ?? null;
-      const assign = await this.autoAssign.assignOwner({
-        industrySlug,
-        serviceSlug: 'lead-gen',
-      });
-      if (assign) {
-        ownerId = assign.owner_id;
-        assignStrategy = assign.strategy;
-        meta.assign_strategy = assign.strategy;
-        meta.assign_pool_key = assign.pool_key;
+      // Real Sales pool (crm_staff + Sales positions, configured order), not the empty snapshot.
+      const projectKey = String(b2bProjectId ?? '').trim() || null;
+      const pool = await listSalesOrder(sqlQuery, projectKey);
+      const paused = await loadPausedSales(sqlQuery);
+      const snapshot = await this.rulesRepo.fetchSnapshot().catch(() => null);
+      const poolKey = SALES_FIRST_POOL_KEY(pool.source === 'project' ? projectKey : null);
+      const last = snapshot?.assignment_state.find((row) => row.pool_key === poolKey)?.last_staff_id ?? null;
+      const picked = pickFirstSale(pool.order, last, paused);
+      if (picked != null) {
+        ownerId = picked;
+        assignStrategy = 'sales_round_robin';
+        meta.assign_strategy = assignStrategy;
+        meta.assign_reason = 'initial_assign';
+        meta.assign_pool_key = poolKey;
+        meta.assign_pool_source = pool.source;
         meta.auto_assigned_at = new Date().toISOString();
-      } else if (await this.rulesRepo.fetchSnapshot()) {
+        await this.rulesRepo.persistAssignmentState(poolKey, picked).catch(() => undefined);
+      } else {
+        if (meta.assign_override_from != null) ownerId = Number(meta.assign_override_from);
         meta.assign_failed = true;
         meta.assign_failed_at = new Date().toISOString();
-        meta.assign_failed_reason = 'Không tìm được nhân viên phù hợp (assign-scopes / snapshot)';
+        meta.assign_failed_reason = 'Không có Sales đang nhận lead';
       }
     }
 
