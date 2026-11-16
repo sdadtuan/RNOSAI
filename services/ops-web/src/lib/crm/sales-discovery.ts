@@ -148,13 +148,17 @@ export type DiscoveryChecklistKey = Extract<
   | 'marketing_goal'
   | 'target_customers'
   | 'region'
+  | 'channels'
   | 'budget_band'
   | 'timeline_band'
   | 'call_notes'
   | 'temperature'
 >;
 
-/** All * required fields. Also the 14 "trường cốt lõi" checklist. */
+/** All * required fields. Also the "trường cốt lõi" checklist.
+ *  Includes every field AI tạo Solution (`clientBriefMissing`) requires:
+ *  company_name, industry, biggest_problem, marketing_goal, channels.
+ */
 export const DISCOVERY_REQUIRED_FIELDS: Array<{
   key: DiscoveryChecklistKey;
   checklist: string;
@@ -169,6 +173,7 @@ export const DISCOVERY_REQUIRED_FIELDS: Array<{
   { key: 'marketing_goal', checklist: 'Mục tiêu MKT' },
   { key: 'target_customers', checklist: 'KH mục tiêu' },
   { key: 'region', checklist: 'Khu vực' },
+  { key: 'channels', checklist: 'Kênh muốn chạy và cách chốt đơn' },
   { key: 'budget_band', checklist: 'Ngân sách' },
   { key: 'timeline_band', checklist: 'Thời gian bắt đầu' },
   { key: 'call_notes', checklist: 'Ghi chú cuộc gọi' },
@@ -187,6 +192,7 @@ export const DISCOVERY_FIELD_FOCUS: Record<DiscoveryChecklistKey, { step: 1 | 2 
   marketing_goal: { step: 2, testid: 'sd-goal' },
   target_customers: { step: 2, testid: 'sd-audience' },
   region: { step: 2, testid: 'sd-region' },
+  channels: { step: 2, testid: 'sd-channels' },
   budget_band: { step: 3, testid: 'sd-budget' },
   timeline_band: { step: 3, testid: 'sd-timeline' },
   call_notes: { step: 3, testid: 'sd-notes' },

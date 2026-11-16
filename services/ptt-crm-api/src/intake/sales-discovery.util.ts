@@ -135,7 +135,10 @@ export const DISCOVERY_BRIEF_KEY = 'discovery_brief';
 
 export type DiscoveryRequiredKey = keyof SalesDiscoveryBrief;
 
-/** All * required fields. Also the 14 "trường cốt lõi" checklist. */
+/** All * required fields. Also the "trường cốt lõi" checklist.
+ *  Includes every field `clientBriefMissing` (AI tạo Solution) requires:
+ *  company_name, industry/niche, biggest_problem/need, marketing_goal/goal, channels.
+ */
 export const DISCOVERY_REQUIRED_FIELDS: Array<{
   key: DiscoveryRequiredKey;
   checklist: string;
@@ -150,6 +153,7 @@ export const DISCOVERY_REQUIRED_FIELDS: Array<{
   { key: 'marketing_goal', checklist: 'Mục tiêu MKT' },
   { key: 'target_customers', checklist: 'KH mục tiêu' },
   { key: 'region', checklist: 'Khu vực' },
+  { key: 'channels', checklist: 'Kênh muốn chạy và cách chốt đơn' },
   { key: 'budget_band', checklist: 'Ngân sách' },
   { key: 'timeline_band', checklist: 'Thời gian bắt đầu' },
   { key: 'call_notes', checklist: 'Ghi chú cuộc gọi' },

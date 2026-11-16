@@ -39,13 +39,14 @@ function filledBrief() {
 }
 
 describe('sales-discovery.util', () => {
-  it('counts 14 core fields and treats services as required', () => {
+  it('counts core fields including AI Solution channels and treats services as required', () => {
     const empty = discoveryProgress(emptySalesDiscoveryBrief());
-    expect(empty.total).toBe(14);
+    expect(empty.total).toBe(15);
     expect(empty.filled).toBe(0);
     expect(empty.missing).toContain('Dịch vụ quan tâm');
+    expect(empty.missing).toContain('Kênh muốn chạy và cách chốt đơn');
     expect(isDiscoveryComplete(filledBrief())).toBe(true);
-    expect(discoveryProgress(filledBrief()).filled).toBe(14);
+    expect(discoveryProgress(filledBrief()).filled).toBe(15);
   });
 
   it('drops "Chưa triển khai" when another channel is selected', () => {

@@ -870,6 +870,19 @@ export class LeadsFunnelService {
       );
     }
     try {
+      const loaded = await this.loadClientBrief(leadId);
+      const missing = clientBriefMissing(loaded.brief, {
+        company_name: loaded.company_name,
+        niche: loaded.niche,
+        need: loaded.need,
+      });
+      if (missing.length) {
+        throw new BadRequestException({
+          error: 'client_brief_incomplete',
+          message: missing.join('; '),
+          details: missing,
+        });
+      }
       const acceptMinutes = await this.marketingClaimMinutes();
       const handed = await this.pgRepo.handoffToSolution(leadId, staffId, {
         confirm: Boolean(body.confirm),

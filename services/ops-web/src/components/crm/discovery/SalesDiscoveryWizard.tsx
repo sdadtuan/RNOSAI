@@ -582,8 +582,8 @@ export function SalesDiscoveryWizard({
               <div className="sd-section__head">
                 <h2 className="sd-section__title">D. Hiện trạng Marketing</h2>
               </div>
-              <div className="sd-field" style={{ marginBottom: 12 }}>
-                <FieldLabel>Kênh đang dùng</FieldLabel>
+              <div className="sd-field" style={{ marginBottom: 12 }} data-testid="sd-channels">
+                <FieldLabel required>Kênh muốn chạy và cách chốt đơn</FieldLabel>
                 <div className="sd-chips">
                   {channels.map((row) => (
                     <button
@@ -756,7 +756,7 @@ export function SalesDiscoveryWizard({
                 disabled={!complete || submitting}
                 onClick={() => void onSubmit()}
                 data-testid="sd-submit"
-                title={!complete ? 'Điền hết các trường * trước khi Submit' : undefined}
+                title={!complete ? `Thiếu: ${missingFields.map((row) => row.checklist).join(', ')}` : undefined}
               >
                 {submitting ? 'Đang nộp…' : 'Submit to AM'}
               </button>
@@ -797,7 +797,7 @@ export function discoverySummaryLines(brief: SalesDiscoveryBrief, options?: Disc
     { label: 'Mục tiêu Marketing', value: brief.marketing_goal },
     { label: 'KH mục tiêu', value: brief.target_customers },
     { label: 'Khu vực', value: brief.region },
-    { label: 'Kênh đang dùng', value: channelLabels(brief.channels) },
+    { label: 'Kênh muốn chạy và cách chốt đơn', value: channelLabels(brief.channels) },
     { label: 'Ngân sách', value: budgetLabel(brief.budget_band) },
     { label: 'Thời điểm', value: timelineLabel(brief.timeline_band) },
     { label: 'Ghi chú cuộc gọi', value: brief.call_notes },
