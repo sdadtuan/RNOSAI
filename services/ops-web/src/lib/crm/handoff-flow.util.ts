@@ -11,7 +11,8 @@
  *   won / chot / contract → Ký hợp đồng
  *   trien_khai            → Triển Khai
  *   dang_tu_van (no handoff or returned) → Sales tư vấn & nhập Brief
- *   moi / da_lien_he     → Tiếp nhận Lead (until Pre Sale starts)
+ *   moi                  → Tiếp nhận Lead (until first contact / B2 is done)
+ *   da_lien_he / firstContactDone → Sales tư vấn & nhập Brief
  */
 export const HANDOFF_FLOW_STEP_KEYS = [
   'receive_lead',
@@ -166,6 +167,12 @@ export interface HandoffFlowInput {
   discoverySubmittedAt?: string | null;
   /** Return-to-sales (missing info). */
   returnedToSales?: boolean;
+  /**
+   * First contact (B2) is done — `funnelB2Complete` / care_pipeline.all_complete.
+   * This is the same condition that opens the Discovery / Brief form
+   * (`resolveActiveStep` → intake_bant), even if lead status is still `moi`.
+   */
+  firstContactDone?: boolean;
   quoteSentAt?: string | null;
   quoteApprovedAt?: string | null;
   customerAgreedAt?: string | null;
@@ -291,6 +298,10 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     // so the pipeline opens the Discovery panel, not a dead "receive" step.
     return 'sales_brief';
   }
+
+  // Status may stay `moi` after the first call is logged. Once B2 is complete
+  // the Brief form is the active pane, so the stepper/badge must sit on step 2.
+  if (input.firstContactDone) return 'sales_brief';
 
   return 'receive_lead';
 }

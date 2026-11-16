@@ -318,6 +318,63 @@ export function isDiscoveryComplete(brief: SalesDiscoveryBrief): boolean {
   return discoveryMissingFields(brief).length === 0;
 }
 
+/**
+ * Live 5-item Solution readiness checklist. Items 1-4 partition every
+ * DISCOVERY_REQUIRED_FIELDS key (the same list Submit to AM / the step-2
+ * handoff gate uses). Item 5 is green only when the full gate is satisfied.
+ */
+export type DiscoverySolutionChecklistKey = 'company' | 'need' | 'goal' | 'budget' | 'ready';
+
+export type DiscoverySolutionChecklistItem = {
+  key: DiscoverySolutionChecklistKey;
+  label: string;
+  ok: boolean;
+  fields: DiscoveryChecklistKey[];
+};
+
+export const DISCOVERY_SOLUTION_CHECKLIST: Array<{
+  key: DiscoverySolutionChecklistKey;
+  label: string;
+  fields: DiscoveryChecklistKey[];
+}> = [
+  {
+    key: 'company',
+    label: 'Thông tin doanh nghiệp đầy đủ',
+    fields: ['company_name', 'industry', 'flagship_product', 'contact_name', 'phone'],
+  },
+  {
+    key: 'need',
+    label: 'Nhu cầu & vấn đề rõ ràng',
+    fields: ['services', 'biggest_problem'],
+  },
+  {
+    key: 'goal',
+    label: 'Mục tiêu & đối tượng khách hàng',
+    fields: ['marketing_goal', 'target_customers', 'region', 'channels'],
+  },
+  {
+    key: 'budget',
+    label: 'Ngân sách & thời gian triển khai',
+    fields: ['budget_band', 'timeline_band', 'call_notes', 'temperature'],
+  },
+  {
+    key: 'ready',
+    label: 'Đủ điều kiện làm Solution',
+    fields: DISCOVERY_REQUIRED_FIELDS.map((row) => row.key),
+  },
+];
+
+export function discoverySolutionChecklist(brief: SalesDiscoveryBrief): {
+  items: DiscoverySolutionChecklistItem[];
+  allOk: boolean;
+} {
+  const items = DISCOVERY_SOLUTION_CHECKLIST.map((row) => ({
+    ...row,
+    ok: row.fields.every((key) => fieldFilled(brief, key)),
+  }));
+  return { items, allOk: items.every((item) => item.ok) };
+}
+
 export function readDiscoveryBriefFromAnswers(answers: unknown): SalesDiscoveryBrief | null {
   if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return null;
   const raw = (answers as Record<string, unknown>)[DISCOVERY_BRIEF_KEY];

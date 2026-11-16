@@ -1418,6 +1418,7 @@ export default function CrmLeadDetailPage() {
       discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status),
       discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
       returnedToSales: funnelSnap?.presales?.handoff?.status === 'returned',
+      firstContactDone: funnelB2Complete(funnelSnap),
       ...flowTimesFromFunnel(funnelSnap),
     }).currentKey;
   }, [lead, status, funnelSnap]);
@@ -1528,6 +1529,7 @@ export default function CrmLeadDetailPage() {
         discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
         discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
         returnedToSales: handoffStatus === 'returned',
+        firstContactDone: funnelB2Complete(funnelSnap),
         ...flowTimesFromFunnel(funnelSnap),
       }).currentKey
     : '';
@@ -1537,8 +1539,9 @@ export default function CrmLeadDetailPage() {
     !atQuoteStep &&
     !needsSolutionRevision &&
     flowCurrentKey === 'sales_brief';
-  // t222: step 1 Tiếp nhận Lead keeps the pre-t178 Sales view (pipeline tabs with calls /
-  // first contact). The Brief form and the hidden legacy blocks apply from step 2 on.
+  // t222/t233: step 1 Tiếp nhận Lead keeps the call / first-contact view.
+  // Once first contact (B2) is done, resolveHandoffFlow sits on sales_brief and
+  // the Brief form is the active pane — even if stored status is still `moi`.
   const atReceiveLeadStep =
     !solutionDesk &&
     !waitingSolutionFeedback &&
@@ -1565,6 +1568,7 @@ export default function CrmLeadDetailPage() {
         discoverySubmitted: Boolean(funnelSnap?.presales?.handoff?.status || handoffStatus),
         discoverySubmittedAt: funnelSnap?.presales?.handoff?.handed_off_at,
         returnedToSales: handoffStatus === 'returned',
+        firstContactDone: funnelB2Complete(funnelSnap),
         ...flowTimesFromFunnel(funnelSnap),
       })
     : '';

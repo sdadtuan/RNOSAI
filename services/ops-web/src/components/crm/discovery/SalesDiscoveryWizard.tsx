@@ -13,6 +13,7 @@ import {
   discoveryFieldFocus,
   discoveryMissingFields,
   discoveryProgress,
+  discoverySolutionChecklist,
   emptySalesDiscoveryBrief,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
@@ -143,6 +144,7 @@ export function SalesDiscoveryWizard({
   const progress = useMemo(() => discoveryProgress(brief), [brief]);
   const complete = progress.filled === progress.total;
   const missingFields = useMemo(() => discoveryMissingFields(brief), [brief]);
+  const solutionChecklist = useMemo(() => discoverySolutionChecklist(brief), [brief]);
 
   function goToMissingField(key: Parameters<typeof discoveryFieldFocus>[0]) {
     const dest = discoveryFieldFocus(key);
@@ -308,6 +310,34 @@ export function SalesDiscoveryWizard({
             </span>
           </div>
         </header>
+
+        <ul className="sd-sol-check" data-testid="sd-sol-check">
+          {solutionChecklist.items.map((item) => {
+            const jumpKey = missingFields.find((row) => item.fields.includes(row.key))?.key;
+            return (
+              <li key={item.key} className={item.ok ? 'is-ok' : undefined} data-testid={`sd-sol-check-${item.key}`}>
+                <span className="sd-sol-check__mark" aria-hidden="true">
+                  {item.ok ? (
+                    <svg viewBox="0 0 16 16" width="10" height="10">
+                      <path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  ) : null}
+                </span>
+                {item.ok || !jumpKey ? (
+                  <span className="sd-sol-check__label">{item.label}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="sd-sol-check__label sd-sol-check__jump"
+                    onClick={() => goToMissingField(jumpKey)}
+                  >
+                    {item.label}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
 
         <div className="sd-steps" role="tablist">
           {STEPS.map((item) => (
@@ -676,7 +706,7 @@ export function SalesDiscoveryWizard({
             <div className="sd-check" data-testid="sd-checklist">
               <div className="sd-check__head">
                 <h3>Kiểm tra trước khi Submit</h3>
-                <span>{complete ? 'Đủ 14 mục' : `Thiếu ${progress.missing.length} mục`}</span>
+                <span>{complete ? `Đủ ${progress.total} mục` : `Thiếu ${progress.missing.length} mục`}</span>
               </div>
               {complete ? (
                 <p className="sd-check__list is-ok">Đã đủ {progress.total} trường cốt lõi.</p>

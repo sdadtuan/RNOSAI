@@ -1,6 +1,7 @@
 'use client';
 
 import type { LeadFunnelSnapshot } from '@/lib/api';
+import { funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import {
   resolveHandoffFlow,
@@ -48,6 +49,7 @@ export function funnelToHandoffInput(
     returnedToSales: extra?.returnedToSales ?? handoff?.status === 'returned',
     hasContract: extra?.hasContract,
     contractStatus: extra?.contractStatus,
+    firstContactDone: extra?.firstContactDone ?? funnelB2Complete(funnel),
   };
 }
 

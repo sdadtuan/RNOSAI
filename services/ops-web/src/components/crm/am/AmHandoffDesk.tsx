@@ -38,7 +38,7 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
-import { funnelAssignedAmId } from '@/lib/crm/funnel-snapshot.util';
+import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
@@ -508,6 +508,7 @@ export function AmHandoffDesk({
       Boolean(handoff?.handed_off_at),
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: handoff?.status === 'returned',
+    firstContactDone: funnelB2Complete(funnel),
     ...flowTimesFromFunnel(funnel),
   });
   const salesName = dash((lead as { owner_name?: string }).owner_name);

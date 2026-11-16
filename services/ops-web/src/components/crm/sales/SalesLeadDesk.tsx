@@ -26,7 +26,7 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
-import { funnelAssignedAmId } from '@/lib/crm/funnel-snapshot.util';
+import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
@@ -276,6 +276,7 @@ export function SalesLeadDesk({
     discoverySubmitted: submitted,
     discoverySubmittedAt: session?.updated_at ?? handoff?.handed_off_at,
     returnedToSales: returned,
+    firstContactDone: funnelB2Complete(funnel),
     ...flowTimesFromFunnel(funnel),
   });
   const salesName = dash((lead as { owner_name?: string }).owner_name || (salesViewer ? userName : ''));
