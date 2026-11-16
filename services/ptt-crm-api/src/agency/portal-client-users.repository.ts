@@ -16,6 +16,8 @@ function mapRow(row: Record<string, unknown>): PortalClientUserPublic {
     email: String(row.email),
     role: portalClientRole(row.role),
     active: row.active === true || row.active === 't' || row.active === 1,
+    display_name: String(row.display_name ?? '').trim(),
+    phone: String(row.phone ?? '').trim(),
     last_login_at: iso(row.last_login_at),
     created_at: iso(row.created_at) ?? new Date().toISOString(),
     updated_at: iso(row.updated_at) ?? new Date().toISOString(),
@@ -72,7 +74,8 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
 
   async listByClient(clientId: string): Promise<PortalClientUserPublic[]> {
     const result = await this.db.query(
-      `SELECT id, email, role, active, last_login_at, created_at, updated_at
+      `SELECT id, email, role, active, last_login_at, created_at, updated_at,
+              COALESCE(display_name, '') AS display_name, COALESCE(phone, '') AS phone
        FROM portal_client_users
        WHERE client_id = $1::uuid
        ORDER BY active DESC, email ASC`,
@@ -83,7 +86,8 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
 
   async findById(clientId: string, userId: string): Promise<PortalClientUserPublic | null> {
     const result = await this.db.query(
-      `SELECT id, email, role, active, last_login_at, created_at, updated_at
+      `SELECT id, email, role, active, last_login_at, created_at, updated_at,
+              COALESCE(display_name, '') AS display_name, COALESCE(phone, '') AS phone
        FROM portal_client_users
        WHERE id = $1::uuid AND client_id = $2::uuid
        LIMIT 1`,
@@ -104,18 +108,47 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async phoneTaken(clientId: string, phone: string, excludeUserId?: string): Promise<boolean> {
+    const normalized = phone.trim();
+    if (!normalized) return false;
+    const result = excludeUserId
+      ? await this.db.query(
+          `SELECT 1 FROM portal_client_users
+           WHERE client_id = $1::uuid AND phone = $2 AND phone <> '' AND id <> $3::uuid
+           LIMIT 1`,
+          [clientId, normalized, excludeUserId],
+        )
+      : await this.db.query(
+          `SELECT 1 FROM portal_client_users
+           WHERE client_id = $1::uuid AND phone = $2 AND phone <> ''
+           LIMIT 1`,
+          [clientId, normalized],
+        );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async insertUser(params: {
     clientId: string;
     email: string;
     passwordHash: string;
     role: PortalClientRole;
+    displayName?: string;
+    phone?: string;
   }): Promise<PortalClientUserPublic> {
     const normalized = params.email.trim().toLowerCase();
     const result = await this.db.query(
-      `INSERT INTO portal_client_users (client_id, email, password_hash, role, active)
-       VALUES ($1::uuid, $2, $3, $4, TRUE)
-       RETURNING id, email, role, active, last_login_at, created_at, updated_at`,
-      [params.clientId, normalized, params.passwordHash, params.role],
+      `INSERT INTO portal_client_users (client_id, email, password_hash, role, active, display_name, phone)
+       VALUES ($1::uuid, $2, $3, $4, TRUE, $5, $6)
+       RETURNING id, email, role, active, last_login_at, created_at, updated_at,
+                 COALESCE(display_name, '') AS display_name, COALESCE(phone, '') AS phone`,
+      [
+        params.clientId,
+        normalized,
+        params.passwordHash,
+        params.role,
+        (params.displayName ?? '').trim(),
+        (params.phone ?? '').trim(),
+      ],
     );
     return mapRow(result.rows[0] as Record<string, unknown>);
   }
@@ -123,7 +156,13 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
   async updateUser(
     clientId: string,
     userId: string,
-    patch: { role?: PortalClientRole; active?: boolean },
+    patch: {
+      role?: PortalClientRole;
+      active?: boolean;
+      displayName?: string;
+      phone?: string;
+      email?: string;
+    },
   ): Promise<PortalClientUserPublic | null> {
     const sets: string[] = ['updated_at = NOW()'];
     const values: unknown[] = [userId, clientId];
@@ -136,6 +175,18 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
       sets.push(`active = $${idx++}`);
       values.push(patch.active);
     }
+    if (patch.displayName !== undefined) {
+      sets.push(`display_name = $${idx++}`);
+      values.push(patch.displayName);
+    }
+    if (patch.phone !== undefined) {
+      sets.push(`phone = $${idx++}`);
+      values.push(patch.phone);
+    }
+    if (patch.email !== undefined) {
+      sets.push(`email = $${idx++}`);
+      values.push(patch.email);
+    }
     if (sets.length === 1) {
       return this.findById(clientId, userId);
     }
@@ -143,7 +194,8 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
       `UPDATE portal_client_users
        SET ${sets.join(', ')}
        WHERE id = $1::uuid AND client_id = $2::uuid
-       RETURNING id, email, role, active, last_login_at, created_at, updated_at`,
+       RETURNING id, email, role, active, last_login_at, created_at, updated_at,
+                 COALESCE(display_name, '') AS display_name, COALESCE(phone, '') AS phone`,
       values,
     );
     if (!result.rows.length) return null;
@@ -158,5 +210,18 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
       [userId, clientId, passwordHash],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async softDelete(clientId: string, userId: string): Promise<PortalClientUserPublic | null> {
+    const result = await this.db.query(
+      `UPDATE portal_client_users
+       SET active = FALSE, deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1::uuid AND client_id = $2::uuid AND deleted_at IS NULL
+       RETURNING id, email, role, active, last_login_at, created_at, updated_at,
+                 COALESCE(display_name, '') AS display_name, COALESCE(phone, '') AS phone`,
+      [userId, clientId],
+    );
+    if (!result.rows.length) return null;
+    return mapRow(result.rows[0] as Record<string, unknown>);
   }
 }

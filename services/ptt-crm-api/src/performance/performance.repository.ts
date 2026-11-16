@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { PerformanceGroupBy, PerformanceChannel } from './performance.types';
+import { performanceInsightLevelSql, performanceNonEmptyCampaignSql } from './performance.util';
 
 export interface PerformanceDbRow {
   performance_date?: Date | string | null;
@@ -108,6 +109,8 @@ export class PerformanceRepository implements OnModuleDestroy {
           WHERE dp.client_id = $1::uuid
             AND dp.channel = ANY($4::text[])
             AND dp.performance_date BETWEEN $2::date AND $3::date
+            AND ${performanceInsightLevelSql('dp')}
+            AND ${performanceNonEmptyCampaignSql('dp')}
             ${accountClause}
           GROUP BY dp.external_campaign_id
           ORDER BY SUM(dp.spend) DESC, dp.external_campaign_id`,
@@ -156,6 +159,7 @@ export class PerformanceRepository implements OnModuleDestroy {
         WHERE dp.client_id = $1::uuid
           AND dp.channel = ANY($4::text[])
           AND dp.performance_date BETWEEN $2::date AND $3::date
+          AND ${performanceInsightLevelSql('dp')}
           ${accountClause}
         ORDER BY dp.performance_date DESC, dp.external_campaign_name NULLS LAST`,
       [clientId, start, end, channels, ...accountParams],
@@ -180,6 +184,8 @@ export class PerformanceRepository implements OnModuleDestroy {
           COUNT(DISTINCT external_campaign_id)::int AS campaigns_tracked
        FROM daily_performance
        WHERE client_id = $1::uuid AND channel = ANY($2::text[])
+         AND (insight_level = 'campaign' OR insight_level IS NULL)
+         AND COALESCE(external_campaign_id, '') <> ''
        ${accountClause}`,
       [clientId, channels, ...accountParams],
     );

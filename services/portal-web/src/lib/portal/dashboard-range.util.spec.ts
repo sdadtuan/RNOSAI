@@ -6,6 +6,7 @@ import {
   countInRange,
   groupCountByDay,
   fmtDateDmy,
+  receivedDay,
 } from './dashboard-range';
 
 describe('dashboard-range', () => {
@@ -75,5 +76,28 @@ describe('dashboard-range', () => {
     expect(fmtDateDmy('2026-11-11T22:03:00Z')).toBe('11/11/2026');
     expect(fmtDateDmy('')).toBe('—');
     expect(fmtDateDmy(null)).toBe('—');
+  });
+
+  it('receivedDay matches the Lead page date field (last_interaction_at, Asia/Saigon)', () => {
+    // Case created recently, actual lead arrived in October — must not count in November.
+    const octoberLead = {
+      created_at: '2026-11-10T10:00:00+07:00',
+      last_interaction_at: '2026-10-15T09:00:00+07:00',
+    };
+    expect(receivedDay(octoberLead)).toBe('2026-10-15');
+    const month = dashboardRange('month', noonSaigon);
+    expect(countInRange([octoberLead], month.from, month.to, receivedDay)).toBe(0);
+    const week = dashboardRange('7', noonSaigon);
+    expect(countInRange([octoberLead], week.from, week.to, receivedDay)).toBe(0);
+
+    const inWeek = {
+      created_at: '2026-10-01T00:00:00+07:00',
+      last_interaction_at: '2026-11-08T15:00:00+07:00',
+    };
+    expect(countInRange([inWeek], week.from, week.to, receivedDay)).toBe(1);
+    // Fallback when last_interaction_at is missing.
+    expect(receivedDay({ created_at: '2026-11-06T01:00:00+07:00' })).toBe('2026-11-06');
+    // 17:30 UTC on 11/11 is already 12/11 in Saigon.
+    expect(receivedDay({ last_interaction_at: '2026-11-11T17:30:00.000Z' })).toBe('2026-11-12');
   });
 });

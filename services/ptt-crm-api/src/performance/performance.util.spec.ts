@@ -5,6 +5,8 @@ import {
   normalizePerformanceChannel,
   performanceChannelSql,
   resolveDateWindow,
+  performanceInsightLevelSql,
+  performanceNonEmptyCampaignSql,
 } from './performance.util';
 
 describe('performance.util', () => {
@@ -39,5 +41,12 @@ describe('performance.util', () => {
     const { start, end } = resolveDateWindow({ from: '2026-07-20', to: '2026-07-10' });
     expect(formatDateOnly(start)).toBe('2026-07-10');
     expect(formatDateOnly(end)).toBe('2026-07-20');
+  });
+
+  it('performanceInsightLevelSql keeps a single campaign (or legacy null) level', () => {
+    const sql = performanceInsightLevelSql('dp');
+    expect(sql).toContain("dp.insight_level = 'campaign'");
+    expect(sql).toContain('dp.insight_level IS NULL');
+    expect(performanceNonEmptyCampaignSql('dp')).toBe("COALESCE(dp.external_campaign_id, '') <> ''");
   });
 });

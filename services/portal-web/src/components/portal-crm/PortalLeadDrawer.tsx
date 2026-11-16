@@ -13,6 +13,7 @@ import {
   humanizeLeadFieldLabel,
   humanizeLeadFieldValue,
   leadEmail,
+  leadFormLabel,
   leadInteractedAt,
   leadPhone,
   leadPhoneHref,
@@ -53,19 +54,21 @@ function EmptyMark() {
   return <span className="portal-leads__na">—</span>;
 }
 
-export function PortalLeadEmptyPanel({ loading = false }: { loading?: boolean }) {
+export function PortalLeadEmptyPanel({ loading = false, hasLeads = false }: { loading?: boolean; hasLeads?: boolean }) {
+  const title = loading ? 'Đang tải…' : hasLeads ? 'Chọn một lead để xem chi tiết' : 'Chưa có lead';
+  const body = loading
+    ? 'Đang tải chi tiết lead.'
+    : hasLeads
+      ? 'Chọn một lead trong danh sách hoặc Kanban để xem form, ghi chú và thao tác.'
+      : 'Không có lead để hiển thị. Khi có lead trên Page đang gắn, thông tin form và thao tác sẽ hiện ở cột này.';
   return (
     <aside className="portal-lead-panel portal-lead-panel--empty portal-lead-panel--pk" aria-label="Chi tiết lead">
       <header className="portal-drawer__head">
         <p className="portal-drawer__kicker">Chi tiết lead</p>
-        <h3>{loading ? 'Đang tải…' : 'Chưa có lead'}</h3>
+        <h3>{title}</h3>
       </header>
       <div className="portal-drawer__body">
-        <p className="muted">
-          {loading
-            ? 'Đang tải chi tiết lead.'
-            : 'Không có lead để hiển thị. Khi có lead trên Page đang gắn, thông tin form và thao tác sẽ hiện ở cột này.'}
-        </p>
+        <p className="muted">{body}</p>
       </div>
     </aside>
   );
@@ -200,7 +203,7 @@ export function PortalLeadPanel({
           )}
           {email ? <span className="muted">{email}</span> : <EmptyMark />}
         </div>
-        {canManage && staff.length > 0 ? (
+        {role === 'approver' && staff.length > 0 ? (
           <label className="portal-drawer__assign">
             Nhân viên phụ trách
             <select
@@ -208,7 +211,7 @@ export function PortalLeadPanel({
               disabled={busy}
               onChange={(event) => {
                 const user_id = event.target.value;
-                if (user_id) onAct(row.id, 'assign', { user_id });
+                onAct(row.id, 'assign', { user_id });
               }}
             >
               <option value="">Chưa gán</option>
@@ -360,11 +363,11 @@ export function PortalLeadPanel({
             </div>
             <div className="portal-kv">
               <dt>Biểu mẫu</dt>
-              <dd>{leadSource(row) || '—'}</dd>
+              <dd>{leadFormLabel(row) || '—'}</dd>
             </div>
             <div className="portal-kv">
               <dt>Chiến dịch</dt>
-              <dd>{row.campaign_id || '—'}</dd>
+              <dd>{leadSource(row) || row.campaign_id || '—'}</dd>
             </div>
             <div className="portal-kv">
               <dt>Nhóm quảng cáo</dt>
@@ -458,9 +461,22 @@ export function PortalLeadPanel({
                   Nhận lead
                 </button>
               ) : null}
-              {row.status !== 'caring' ? (
+              {row.status !== 'caring' && row.status !== 'purchased' ? (
                 <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAct(row.id, 'care')}>
                   Đang chăm sóc
+                </button>
+              ) : null}
+              {row.status !== 'purchased' ? (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm('Chuyển lead này sang Mua hàng?')) return;
+                    onAct(row.id, 'purchase');
+                  }}
+                >
+                  Mua hàng
                 </button>
               ) : null}
               {!row.customer_id ? (

@@ -1,9 +1,11 @@
-import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { PortalClientPagesRepository } from '../agency/portal-client-pages.repository';
 import { portalCrmCareEnabled } from '../agency/portal-client-pages.util';
 import { metaConfigFromEnv, verifyFacebookSignature } from '../webhooks/meta-webhook.parser';
 import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
+import { PortalCareNotifyService } from './portal-care-notify.service';
 import { parsePortalMetaMessagingPayload } from './portal-meta-webhook.parser';
 import { portalMetaWebhookVerifyToken, verifyMetaHubSubscribe } from './portal-inbox-poller.util';
 
@@ -23,6 +25,8 @@ export class PortalMetaWebhookService {
   constructor(
     private readonly repo: PortalCareRepository,
     private readonly pages: PortalClientPagesRepository,
+    private readonly rebalancer: PortalCareRebalanceService,
+    @Optional() private readonly careNotify?: PortalCareNotifyService,
   ) {}
 
   async handleGet(req: Request): Promise<{ status: number; body: string; contentType: string }> {
@@ -105,6 +109,11 @@ export class PortalMetaWebhookService {
 
     for (const clientId of touchedClients) {
       await this.repo.syncCases(clientId);
+      const inbound = persisted.inboundByClient.get(clientId) ?? [];
+      if (inbound.length) {
+        await this.careNotify?.notifyInboundMessages(clientId, inbound);
+      }
+      await this.rebalancer.rebalance(clientId);
     }
 
     this.log.log(
@@ -132,6 +141,11 @@ export class PortalMetaWebhookService {
     const persisted = await this.persistVerifiedMessages(messages);
     for (const clientId of persisted.clientIds) {
       await this.repo.syncCases(clientId);
+      const inbound = persisted.inboundByClient.get(clientId) ?? [];
+      if (inbound.length) {
+        await this.careNotify?.notifyInboundMessages(clientId, inbound);
+      }
+      await this.rebalancer.rebalance(clientId);
     }
     this.log.log(
       `portal-meta-webhook (via v1) messages=${persisted.messages} clients=${persisted.clients}`,
@@ -141,18 +155,37 @@ export class PortalMetaWebhookService {
 
   private async persistVerifiedMessages(
     messages: Array<{ page_id: string; message: Parameters<PortalCareRepository['upsertPageMessage']>[2] }>,
-  ): Promise<{ messages: number; clients: number; clientIds: string[] }> {
+  ): Promise<{
+    messages: number;
+    clients: number;
+    clientIds: string[];
+    inboundByClient: Map<string, Array<{ page_id: string; sender_name?: string; sender_psid?: string; body?: string }>>;
+  }> {
     const touchedClients = new Set<string>();
+    const inboundByClient = new Map<
+      string,
+      Array<{ page_id: string; sender_name?: string; sender_psid?: string; body?: string }>
+    >();
     let msgCount = 0;
     for (const item of messages) {
       const pageId = item.page_id;
       if (!pageId) continue;
       const binding = await this.pages.findByChannelPage('facebook', pageId);
       if (!binding?.active) continue;
-      await this.repo.upsertPageMessage(binding.client_id, pageId, item.message);
+      const inserted = await this.repo.upsertPageMessage(binding.client_id, pageId, item.message);
       msgCount += 1;
       touchedClients.add(binding.client_id);
+      if (inserted && item.message.direction === 'in') {
+        const list = inboundByClient.get(binding.client_id) ?? [];
+        list.push({
+          page_id: pageId,
+          sender_name: item.message.sender_name,
+          sender_psid: item.message.sender_psid,
+          body: item.message.body,
+        });
+        inboundByClient.set(binding.client_id, list);
+      }
     }
-    return { messages: msgCount, clients: touchedClients.size, clientIds: [...touchedClients] };
+    return { messages: msgCount, clients: touchedClients.size, clientIds: [...touchedClients], inboundByClient };
   }
 }

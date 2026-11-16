@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ChannelQuickLinks } from '@/components/dashboard/ChannelQuickLinks';
-import { DashboardKpiStrip } from '@/components/dashboard/DashboardKpiStrip';
+import { DashboardAdsSummary } from '@/components/dashboard/DashboardAdsSummary';
+import { DashboardConversionCharts } from '@/components/dashboard/DashboardConversionCharts';
 import { PendingApprovalsWidget } from '@/components/PendingApprovalsWidget';
 import { PortalAiReportSummary } from '@/components/PortalAiReportSummary';
 import { MktAiPlanSummaryCard } from '@/components/MktAiPlanSummaryCard';
 import { OpsDvSummaryCard } from '@/components/OpsDvSummaryCard';
 import { ContentMarketingSummaryCard } from '@/components/ContentMarketingSummaryCard';
-import { PortalCrmAdsLeadReport } from '@/components/dashboard/PortalCrmAdsLeadReport';
-import { PerformancePanel } from '@/components/PerformancePanel';
 import { HubPageLayout, SegmentedControl } from '@/components/layout';
 import {
   fetchPortalNotificationSummary,
@@ -23,22 +22,15 @@ import {
 } from '@/lib/api';
 import { usePortalEmailNav } from '@/hooks/usePortalEmailNav';
 import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
+import { PORTAL_ADS_POLL_MS } from '@/lib/portal/ads-live-refresh';
 import {
   DASHBOARD_RANGE_PRESETS,
   dashboardRange,
   countInRange,
   receivedDay,
-  shiftYmd,
   type DashboardRangePreset,
-  LEAD_RECEIVED_LABEL,
-  LEAD_RECEIVED_TIP,
 } from '@/lib/portal/dashboard-range';
-
-function versusYesterday(todayCount: number, yesterdayCount: number): string {
-  const diff = todayCount - yesterdayCount;
-  const sign = diff > 0 ? '+' : '';
-  return `${sign}${diff} so với hôm qua (${yesterdayCount})`;
-}
 
 export function DashboardContent({ token }: { token: string }) {
   const seoEnabled = usePortalSeoNav(token);
@@ -54,6 +46,15 @@ export function DashboardContent({ token }: { token: string }) {
     void fetchPortalSummary(token).then(setCare).catch(() => setCare(null));
     void fetchPortalDesk(token, {}).then(setDesk).catch(() => setDesk(null));
   }, [token]);
+
+  useVisiblePoll(() => {
+    // Read-only desk refresh so conversion ratios stay current. Never pass sync.
+    void fetchPortalDesk(token, {})
+      .then(setDesk)
+      .catch(() => {
+        /* keep previously rendered desk data */
+      });
+  }, PORTAL_ADS_POLL_MS, Boolean(token));
 
   useEffect(() => {
     void fetchPortalNotificationSummary(token)
@@ -73,18 +74,11 @@ export function DashboardContent({ token }: { token: string }) {
 
   const leadsReceived = desk ? countInRange(desk.leads, range.from, range.to, receivedDay) : null;
   const messagesReceived = desk ? countInRange(desk.messages, range.from, range.to, receivedDay) : null;
-  const yesterdayYmd = shiftYmd(range.to, -1);
-  const leadsYesterday = desk
-    ? countInRange(desk.leads, yesterdayYmd, yesterdayYmd, receivedDay)
-    : (care?.leads_yesterday ?? 0);
-  const messagesYesterday = desk
-    ? countInRange(desk.messages, yesterdayYmd, yesterdayYmd, receivedDay)
-    : (care?.messages_yesterday ?? 0);
 
   return (
     <HubPageLayout
       title="Tổng quan"
-      subtitle="Hiệu quả quảng cáo, lead và việc cần duyệt"
+      subtitle="Tỉ lệ chuyển đổi và tóm tắt quảng cáo"
       actions={
         <SegmentedControl
           className="dashboard-range-picker"
@@ -97,46 +91,26 @@ export function DashboardContent({ token }: { token: string }) {
           }))}
         />
       }
-      headerExtra={
-        <>
-          <DashboardKpiStrip token={token} range={range} />
-          <ChannelQuickLinks />
-        </>
-      }
+      headerExtra={<ChannelQuickLinks />}
     >
       <section className="portal-hub-section">
-        <div className="portal-crm__stats">
-          <Link href="/crm/leads" style={{ color: 'inherit', textDecoration: 'none' }}>
-            <article data-testid="dash-leads-received">
-              <h2 title={LEAD_RECEIVED_TIP}>{LEAD_RECEIVED_LABEL}</h2>
-              <strong>
-                {leadsReceived != null ? leadsReceived : preset === 'today' ? (care?.leads_today ?? '—') : '—'}
-              </strong>
-              <p className="muted">
-                {preset === 'today' && (desk || care)
-                  ? versusYesterday(leadsReceived ?? (care?.leads_today ?? 0), leadsYesterday)
-                  : range.label}
-              </p>
-            </article>
-          </Link>
-          <Link href="/crm/messages" style={{ color: 'inherit', textDecoration: 'none' }}>
-            <article data-testid="dash-messages-received">
-              <h2>Tin nhắn</h2>
-              <strong>
-                {messagesReceived != null
-                  ? messagesReceived
-                  : preset === 'today'
-                    ? (care?.messages_today ?? '—')
-                    : '—'}
-              </strong>
-              <p className="muted">
-                {preset === 'today' && (desk || care)
-                  ? versusYesterday(messagesReceived ?? (care?.messages_today ?? 0), messagesYesterday)
-                  : range.label}
-              </p>
-            </article>
-          </Link>
-        </div>
+        <DashboardConversionCharts
+          loading={desk == null}
+          messages={desk?.messages ?? []}
+          leads={desk?.leads ?? []}
+          range={range}
+        />
+      </section>
+
+      <section className="portal-hub-section">
+        <DashboardAdsSummary
+          token={token}
+          range={range}
+          leadsReceived={leadsReceived}
+          messagesReceived={messagesReceived}
+          leads={desk?.leads ?? []}
+          messages={desk?.messages ?? []}
+        />
       </section>
 
       <section className="portal-hub-section">
@@ -169,27 +143,6 @@ export function DashboardContent({ token }: { token: string }) {
       <section className="portal-hub-section"><MktAiPlanSummaryCard token={token} /></section>
       <section className="portal-hub-section"><ContentMarketingSummaryCard token={token} /></section>
       <section className="portal-hub-section"><OpsDvSummaryCard token={token} /></section>
-
-      <section className="portal-hub-section">
-        <PortalCrmAdsLeadReport
-          token={token}
-          embedded
-          range={{ since: range.from, until: range.to }}
-          rangeLabel={range.label}
-          receivedLeads={desk?.leads}
-        />
-      </section>
-
-      <section className="portal-hub-section portal-hub-section--flush">
-        <PerformancePanel
-          token={token}
-          title="Chi tiết theo ngày / chiến dịch"
-          subtitle="Tất cả kênh"
-          embedded
-          range={{ from: range.from, to: range.to }}
-          rangeLabel={range.label}
-        />
-      </section>
     </HubPageLayout>
   );
 }

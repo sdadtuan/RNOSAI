@@ -11,6 +11,7 @@ import {
   isoDateOnly,
   normalizeAdAccountDigits,
   summarizeBreakdownWarnings,
+  computeCtr,
 } from './portal-meta-insights.util';
 import { PortalClientPagesRepository } from './portal-client-pages.repository';
 import { shouldPauseGraph } from '../portal/portal-graph-usage';
@@ -293,7 +294,7 @@ export class PortalMetaInsightsService {
     const leads = rows.reduce((s, r) => s + r.leads_platform, 0);
     const purchases = rows.reduce((s, r) => s + r.conversions, 0);
     const conversionValue = rows.reduce((s, r) => s + r.conversion_value, 0);
-    const ctr = impressions > 0 ? clicks / impressions : null;
+    const ctr = computeCtr(clicks, impressions);
     const cpc = clicks > 0 ? spend / clicks : null;
     const cpm = impressions > 0 ? (spend / impressions) * 1000 : null;
     const cpl = leads > 0 ? spend / leads : null;
@@ -363,7 +364,7 @@ export class PortalMetaInsightsService {
       const leads = Number(row.leads_platform);
       return {
         ...row,
-        ctr: impressions > 0 ? clicks / impressions : null,
+        ctr: computeCtr(clicks, impressions),
         cpc: clicks > 0 ? spend / clicks : null,
         cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
         cpl: leads > 0 ? spend / leads : null,

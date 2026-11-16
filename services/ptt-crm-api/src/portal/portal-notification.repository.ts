@@ -39,6 +39,14 @@ function mapRow(row: Record<string, unknown>): PortalNotificationRow {
   };
 }
 
+
+function visibilityClause(role: string | undefined, userParam: string): string {
+  if (role === 'approver') {
+    return `(portal_user_id IS NULL OR portal_user_id = ${userParam}::uuid)`;
+  }
+  return `(portal_user_id = ${userParam}::uuid OR (portal_user_id IS NULL AND category IN ('campaign_milestone', 'system')))`;
+}
+
 @Injectable()
 export class PortalNotificationRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -74,11 +82,10 @@ export class PortalNotificationRepository implements OnModuleDestroy {
     portalUserId: string;
     unreadOnly: boolean;
     limit: number;
+    role?: string;
   }): Promise<{ rows: PortalNotificationRow[]; unread: number }> {
-    const clauses = [
-      'client_id = $1::uuid',
-      '(portal_user_id IS NULL OR portal_user_id = $2::uuid)',
-    ];
+    const visible = visibilityClause(params.role, '$2');
+    const clauses = ['client_id = $1::uuid', visible];
     const values: unknown[] = [params.clientId, params.portalUserId];
     if (params.unreadOnly) {
       clauses.push('read_at IS NULL');
@@ -94,7 +101,7 @@ export class PortalNotificationRepository implements OnModuleDestroy {
     const unreadResult = await this.db.query(
       `SELECT COUNT(*)::int AS c FROM portal_notification
        WHERE client_id = $1::uuid
-         AND (portal_user_id IS NULL OR portal_user_id = $2::uuid)
+         AND ${visible}
          AND read_at IS NULL`,
       [params.clientId, params.portalUserId],
     );
@@ -102,6 +109,28 @@ export class PortalNotificationRepository implements OnModuleDestroy {
       rows: result.rows.map((row) => mapRow(row as Record<string, unknown>)),
       unread: Number(unreadResult.rows[0]?.c ?? 0),
     };
+  }
+
+  async findUnreadByCase(params: {
+    clientId: string;
+    portalUserId: string;
+    category: string;
+    caseId: string;
+  }): Promise<PortalNotificationRow | null> {
+    const result = await this.db.query(
+      `SELECT id, client_id, portal_user_id, category, title, body, link_url, meta, read_at, created_at
+       FROM portal_notification
+       WHERE client_id = $1::uuid
+         AND portal_user_id = $2::uuid
+         AND category = $3
+         AND read_at IS NULL
+         AND meta->>'case_id' = $4
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [params.clientId, params.portalUserId, params.category, params.caseId],
+    );
+    if (!result.rows.length) return null;
+    return mapRow(result.rows[0] as Record<string, unknown>);
   }
 
   async insert(params: {
@@ -150,12 +179,13 @@ export class PortalNotificationRepository implements OnModuleDestroy {
     return mapRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async markAllRead(params: { clientId: string; portalUserId: string }): Promise<number> {
+  async markAllRead(params: { clientId: string; portalUserId: string; role?: string }): Promise<number> {
+    const visible = visibilityClause(params.role, '$2');
     const result = await this.db.query(
       `UPDATE portal_notification
        SET read_at = NOW()
        WHERE client_id = $1::uuid
-         AND (portal_user_id IS NULL OR portal_user_id = $2::uuid)
+         AND ${visible}
          AND read_at IS NULL`,
       [params.clientId, params.portalUserId],
     );

@@ -1792,6 +1792,9 @@ export interface PortalCareCase {
   adset_id?: string;
   ad_id?: string;
   form_id?: string;
+  form_name?: string;
+  channel?: string;
+  converted_at?: string;
   notes?: string;
   last_read_at?: string;
   last_direction?: string;
@@ -1921,12 +1924,29 @@ export function fetchPortalSummary(token: string): Promise<PortalCrmSummary> {
   return portalCrm(token, '/summary');
 }
 
-export function fetchPortalStaff(token: string): Promise<{ staff: Array<{ id: string; email: string; active: boolean }> }> {
+export type PortalStaffMember = {
+  id: string;
+  email: string;
+  active: boolean;
+  role?: string;
+  display_name?: string;
+  phone?: string;
+};
+
+export function fetchPortalStaff(token: string): Promise<{ staff: PortalStaffMember[] }> {
   return portalCrm(token, '/staff');
 }
 
-export function createPortalStaff(token: string, email: string, password: string): Promise<void> {
-  return portalCrm(token, '/staff', { method: 'POST', body: JSON.stringify({ email, password }) });
+export function createPortalStaff(
+  token: string,
+  emailOrInput: string | { name?: string; email?: string; phone?: string; role?: 'staff' | 'viewer'; password?: string },
+  password?: string,
+): Promise<{ ok: boolean; user: PortalStaffMember; temporary_password?: string }> {
+  const body =
+    typeof emailOrInput === 'string'
+      ? { email: emailOrInput, password }
+      : emailOrInput;
+  return portalCrm(token, '/staff', { method: 'POST', body: JSON.stringify(body) });
 }
 
 export function setPortalStaffActive(token: string, id: string, active: boolean): Promise<void> {
@@ -1937,11 +1957,84 @@ const portalDeskInflight = new Map<string, Promise<PortalDesk>>();
 const portalDeskListeners = new Set<(desk: PortalDesk) => void>();
 
 /** Subscribe to unfiltered desk payloads so sidebar badges stay equal to the visible lists. */
+export function updatePortalStaff(
+  token: string,
+  id: string,
+  body: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    role?: 'staff' | 'viewer';
+    active?: boolean;
+    reset_password?: boolean;
+    password?: string;
+  },
+): Promise<{ ok: boolean; user: PortalStaffMember; temporary_password?: string; released?: number }> {
+  return portalCrm(token, `/staff/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
+export function deletePortalStaff(
+  token: string,
+  id: string,
+): Promise<{ ok: boolean; deleted: boolean; released: number; user: { id: string; email: string } }> {
+  return portalCrm(token, `/staff/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+
 export function subscribePortalDesk(listener: (desk: PortalDesk) => void): () => void {
   portalDeskListeners.add(listener);
   return () => {
     portalDeskListeners.delete(listener);
   };
+}
+
+
+export type PortalLeadFunnelKpis = {
+  total: number;
+  waiting: number;
+  assigned: number;
+  received: number;
+  converted: number;
+  purchased: number;
+  today: number;
+  ratio: number;
+};
+
+export type PortalLeadFunnelRow = {
+  id: string;
+  label: string;
+  total: number;
+  received: number;
+  converted: number;
+  purchased: number;
+  ratio: number;
+};
+
+export type PortalLeadFunnel = {
+  ok: boolean;
+  from: string;
+  to: string;
+  kpis: PortalLeadFunnelKpis;
+  by_page: PortalLeadFunnelRow[];
+  by_channel: PortalLeadFunnelRow[];
+  by_form: PortalLeadFunnelRow[];
+  by_staff: PortalLeadFunnelRow[];
+};
+
+export function fetchPortalLeadsFunnel(
+  token: string,
+  query: { from?: string; to?: string; page_id?: string; channel?: string; form_id?: string; assignee?: string; tag?: string },
+): Promise<PortalLeadFunnel> {
+  const params = new URLSearchParams();
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  if (query.page_id) params.set('page_id', query.page_id);
+  if (query.channel) params.set('channel', query.channel);
+  if (query.form_id) params.set('form_id', query.form_id);
+  if (query.assignee) params.set('assignee', query.assignee);
+  if (query.tag) params.set('tag', query.tag);
+  const qs = params.toString();
+  return portalCrm(token, `/leads/funnel${qs ? `?${qs}` : ''}`);
 }
 
 export function fetchPortalDesk(

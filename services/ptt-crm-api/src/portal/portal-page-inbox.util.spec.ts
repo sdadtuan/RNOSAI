@@ -13,8 +13,7 @@ describe('facebookSendError', () => {
       code: 10,
       error_subcode: 2018278,
     });
-    expect(text).toContain('ngoài cửa sổ 24 giờ');
-    expect(text).toContain('2018278');
+    expect(text).toBe('Quá 24 giờ kể từ tin cuối của khách, Facebook không cho gửi tin thường.');
   });
 
   it('maps recipient who is not an app role user', () => {
@@ -22,7 +21,47 @@ describe('facebookSendError', () => {
       message: 'The user is not admins, developers or testers of the app, and the app is live.',
       code: 10,
     });
-    expect(text).toMatch(/admin\/tester|quyền nâng cao/);
+    expect(text).toBe(
+      'Người nhận chưa có vai trò trong app (quản trị/nhà phát triển/tester). Khi pages_messaging chưa được duyệt quyền nâng cao, chỉ nhắn được cho những người này.',
+    );
+  });
+
+  it('maps code 10 / subcode 2018300 when another app controls the thread', () => {
+    const text = facebookSendError({
+      message: 'Cannot send message because another app is currently controlling this thread.',
+      code: 10,
+      error_subcode: 2018300,
+    });
+    expect(text).toContain('Hộp thư Meta');
+    expect(text).toContain('giữ quyền trả lời');
+  });
+
+  it('maps another-app thread-control text even without a subcode', () => {
+    const text = facebookSendError({
+      message: 'This Person cannot reply because another app controls this conversation',
+      code: 10,
+    });
+    expect(text).toContain('Hộp thư Meta');
+  });
+
+  it('maps code 27 / subcode 2018464 when conversation routing is off', () => {
+    const text = facebookSendError({
+      message: 'thread control not supported until Conversation Routing enabled',
+      code: 27,
+      error_subcode: 2018464,
+    });
+    expect(text).toContain('Định tuyến cuộc trò chuyện');
+    expect(text).toContain('Conversation Routing');
+  });
+
+  it('falls back to a generic message with Facebook codes when code 10 has no permission text', () => {
+    const text = facebookSendError({
+      message: 'Temporary send failure',
+      code: 10,
+      error_subcode: 12345,
+    });
+    expect(text).toBe('Facebook không nhận tin này. (10/12345)');
+    expect(text).not.toContain('quyền nâng cao');
   });
 
   it('maps expired token code 190', () => {

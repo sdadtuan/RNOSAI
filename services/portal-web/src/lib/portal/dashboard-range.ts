@@ -43,9 +43,14 @@ export function dashboardRange(preset: DashboardRangePreset, now = new Date()): 
   return { preset, from: `${year}-${month}-01`, to: today, label: 'Tháng này' };
 }
 
-/** Day a lead/message was received (created), Saigon calendar. */
+/**
+ * Day a lead/message is counted in a dashboard range, Asia/Ho_Chi_Minh.
+ * Uses last_interaction_at first — the same field as the Lead page date filter
+ * (`leadInteractedAt`) — then falls back to created_at. Care-case created_at
+ * can be much later than when the lead actually arrived.
+ */
 export function receivedDay(row: { created_at?: string; last_interaction_at?: string }): string {
-  return saigonDateKey(row.created_at || row.last_interaction_at || '');
+  return saigonDateKey(row.last_interaction_at || row.created_at || '');
 }
 
 export function countInRange<T>(

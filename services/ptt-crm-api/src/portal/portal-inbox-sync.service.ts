@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { MetaBusinessTokenService } from '../agency/meta-business-token.service';
 import { PortalClientPagesService } from '../agency/portal-client-pages.service';
 import { PortalClientPage } from '../agency/portal-client-pages.types';
 import { pullFacebookPage } from './portal-page-inbox.util';
 import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
+import { PortalCareNotifyService } from './portal-care-notify.service';
 import { filterVisiblePages } from './portal-care.util';
 import { isFacebookRateOrThrottleError, KeyedSingleFlight } from './portal-inbox-poller.util';
 import { shouldPauseGraph } from './portal-graph-usage';
@@ -28,6 +30,8 @@ export class PortalInboxSyncService {
     private readonly repo: PortalCareRepository,
     private readonly pages: PortalClientPagesService,
     private readonly meta: MetaBusinessTokenService,
+    private readonly rebalancer: PortalCareRebalanceService,
+    @Optional() private readonly careNotify?: PortalCareNotifyService,
   ) {}
 
   async pullFacebookInbox(
@@ -79,6 +83,7 @@ export class PortalInboxSyncService {
     let error = '';
     let hadNew = false;
     let rateLimited = false;
+    const newInbound: Array<{ page_id: string; sender_name?: string; sender_psid?: string; body?: string }> = [];
     for (const page of pages) {
       const token = tokens.get(page.page_id);
       if (!token) continue;
@@ -95,7 +100,15 @@ export class PortalInboxSyncService {
           await this.repo.upsertPageLead(clientId, page.page_id, lead);
         }
         for (const message of pulled.messages) {
-          await this.repo.upsertPageMessage(clientId, page.page_id, message);
+          const inserted = await this.repo.upsertPageMessage(clientId, page.page_id, message);
+          if (inserted && message.direction === 'in') {
+            newInbound.push({
+              page_id: page.page_id,
+              sender_name: message.sender_name,
+              sender_psid: message.sender_psid,
+              body: message.body,
+            });
+          }
         }
         const graphNote = pulled.leadError || pulled.messageError || '';
         if (graphNote && isFacebookRateOrThrottleError(graphNote)) rateLimited = true;
@@ -111,6 +124,10 @@ export class PortalInboxSyncService {
     }
     if (hadNew) {
       await this.repo.syncCases(clientId);
+      if (newInbound.length) {
+        await this.careNotify?.notifyInboundMessages(clientId, newInbound);
+      }
+      await this.rebalancer.rebalance(clientId);
     }
     if (pages.length > 0 && withToken === 0 && !error) {
       error =

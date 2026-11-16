@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SegmentedControl } from '@/components/layout';
+import { AdsFreshnessBar } from '@/components/portal/AdsFreshnessBar';
 import { PortalAttributionFooter } from '@/components/PortalAttributionFooter';
 import { PerformanceTable } from '@/components/PerformanceTable';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 import {
   fetchPerformance,
   performanceExportUrl,
@@ -11,6 +13,7 @@ import {
   type PerformanceListResponse,
 } from '@/lib/api';
 import { dateRangeEndingYesterday, fmtDate, fmtNumber, fmtPct, fmtVnd } from '@/lib/format';
+import { PORTAL_ADS_POLL_MS, adsLoadMode } from '@/lib/portal/ads-live-refresh';
 import { LEAD_MAPPED_LABEL, LEAD_MAPPED_TIP } from '@/lib/portal/dashboard-range';
 
 type WindowDays = 7 | 30;
@@ -45,16 +48,25 @@ export function PerformancePanel({
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [performance, setPerformance] = useState<PerformanceListResponse | null>(null);
   const [loadingPerf, setLoadingPerf] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState('');
   const [exportBusy, setExportBusy] = useState<'csv' | 'pdf' | null>(null);
+  const performanceRef = useRef(performance);
+  performanceRef.current = performance;
 
   const range = controlledRange ?? dateRangeEndingYesterday(windowDays);
   const activeRangeLabel = rangeLabel ?? (controlledRange ? '' : `T-${windowDays}`);
 
   const loadPerformance = useCallback(
-    async (authToken: string, group: GroupBy) => {
-      setLoadingPerf(true);
-      setError('');
+    async (authToken: string, group: GroupBy, reason: 'poll' | 'user' = 'user') => {
+      const mode = adsLoadMode(performanceRef.current != null, reason);
+      if (mode === 'quiet') {
+        setRefreshing(true);
+      } else {
+        setLoadingPerf(true);
+        setError('');
+      }
       const window = controlledRange ?? dateRangeEndingYesterday(windowDays);
       try {
         const data = await fetchPerformance(authToken, {
@@ -65,11 +77,18 @@ export function PerformancePanel({
           account_id: accountId,
         });
         setPerformance(data);
+        setUpdatedAt(new Date());
+        setError('');
       } catch (err) {
-        setPerformance(null);
-        setError(err instanceof Error ? err.message : 'Không tải được dữ liệu hiệu quả');
+        if (mode === 'full') {
+          setPerformance(null);
+        }
+        if (mode === 'full') {
+          setError(err instanceof Error ? err.message : 'Không tải được dữ liệu hiệu quả');
+        }
       } finally {
         setLoadingPerf(false);
+        setRefreshing(false);
       }
     },
     [channel, accountId, controlledRange, windowDays],
@@ -79,10 +98,19 @@ export function PerformancePanel({
     if (!token) {
       return;
     }
-    void loadPerformance(token, groupBy);
+    void loadPerformance(token, groupBy, 'user');
   }, [token, groupBy, loadPerformance]);
 
+  useVisiblePoll(
+    () => {
+      if (token) void loadPerformance(token, groupBy, 'poll');
+    },
+    PORTAL_ADS_POLL_MS,
+    Boolean(token),
+  );
+
   const summary = performance?.summary;
+  const showSkeleton = loadingPerf && !performance;
 
   async function handleExport(format: 'csv' | 'pdf') {
     setExportBusy(format);
@@ -132,7 +160,10 @@ export function PerformancePanel({
               {fmtDate(performance.date_from)} → {fmtDate(performance.date_to)} ·{' '}
               {summary?.campaigns_tracked ?? 0} chiến dịch
             </p>
+          ) : subtitle ? (
+            <p className="muted performance-panel__meta">{subtitle}</p>
           ) : null}
+          <AdsFreshnessBar updatedAt={updatedAt} refreshing={refreshing} />
         </div>
         <div className="performance-panel__toolbar">
           {controlledRange ? null : (
@@ -159,7 +190,7 @@ export function PerformancePanel({
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              disabled={exportBusy !== null || loadingPerf}
+              disabled={exportBusy !== null || (loadingPerf && !performance)}
               onClick={() => void handleExport('csv')}
             >
               {exportBusy === 'csv' ? 'Đang tải…' : 'Tải CSV'}
@@ -167,7 +198,7 @@ export function PerformancePanel({
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              disabled={exportBusy !== null || loadingPerf}
+              disabled={exportBusy !== null || (loadingPerf && !performance)}
               onClick={() => void handleExport('pdf')}
             >
               {exportBusy === 'pdf' ? 'Đang mở…' : 'Tải PDF'}
@@ -211,11 +242,20 @@ export function PerformancePanel({
             </div>
           ) : null}
         </div>
+      ) : showSkeleton ? (
+        <div className="kpi-tile-grid performance-panel__summary" aria-busy="true">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="kpi-tile kpi-tile--skeleton">
+              <p className="kpi-tile__label">…</p>
+              <p className="kpi-tile__value">—</p>
+            </div>
+          ))}
+        </div>
       ) : null}
 
       {error ? <p className="error">{error}</p> : null}
-      {loadingPerf ? (
-        <p className="muted">Đang tải dữ liệu hiệu quả…</p>
+      {showSkeleton ? (
+        <div className="performance-panel__table-skeleton" aria-hidden="true" />
       ) : performance && performance.rows.length === 0 ? (
         <div className="portal-empty-state">
           <p className="portal-empty-state__title">Chưa có dữ liệu trong khoảng {activeRangeLabel || ('T-' + String(windowDays))}</p>

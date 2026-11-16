@@ -1,14 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
-import type { PortalCareCase, PortalDeskPage } from '@/lib/api';
+import type { PortalCareCase, PortalDeskPage, PortalLeadFunnel } from '@/lib/api';
+import { fetchPortalLeadsFunnel, fetchPortalStaff } from '@/lib/api';
+import './portal-leads-pancake.css';
 import {
   EMPTY_LEAD_FILTERS,
   filterLeadRows,
+  formatLeadFunnelRatio,
   formatLeadPhoneDisplay,
+  groupLeadFunnel,
   LEAD_PAGE_SIZE,
   LEAD_STATUS_ORDER,
   leadEmail,
+  leadFormLabel,
   leadKpis,
   leadInteractedAt,
   leadKanbanDropAction,
@@ -18,8 +23,11 @@ import {
   leadTagColor,
   paginateRows,
   sortLeadsByRecent,
+  uniqueLeadChannels,
+  uniqueLeadForms,
   uniqueLeadSources,
-  uniqueLeadTags,
+  uniqueLeadTagsForFilter,
+  type LeadFunnelGroupRow,
   type LeadTableFilters,
 } from '@/lib/portal/portal-leads-table.util';
 import {
@@ -77,17 +85,38 @@ export function PortalLeadsTable({
   const [filters, setFilters] = useState<LeadTableFilters>(EMPTY_LEAD_FILTERS);
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [view, setView] = useState<'list' | 'kanban' | 'compare'>('list');
   const [notice, setNotice] = useState('');
+  const [funnel, setFunnel] = useState<PortalLeadFunnel | null>(null);
+  const [funnelLoading, setFunnelLoading] = useState(false);
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [panelClosed, setPanelClosed] = useState(false);
   const [overStatus, setOverStatus] = useState('');
   const pageName = useMemo(
     () => new Map(pages.map((item) => [item.page_id, item.page_name || item.page_id])),
     [pages],
   );
-  const kpis = useMemo(() => leadKpis(rows), [rows]);
   const sources = useMemo(() => uniqueLeadSources(rows), [rows]);
-  const tags = useMemo(() => uniqueLeadTags(rows), [rows]);
+  const channels = useMemo(() => uniqueLeadChannels(rows), [rows]);
+  const forms = useMemo(() => uniqueLeadForms(rows), [rows]);
+  const tags = useMemo(() => uniqueLeadTagsForFilter(rows), [rows]);
+  const kpiRows = useMemo(
+    () => filterLeadRows(rows, { ...filters, status: '' }, pageName, { ignoreStatus: true }),
+    [rows, filters, pageName],
+  );
+  const localKpis = useMemo(() => leadKpis(kpiRows), [kpiRows]);
+  const kpis = funnel?.kpis ?? localKpis;
+  const groups = useMemo(() => {
+    if (funnel) {
+      return {
+        by_page: funnel.by_page,
+        by_channel: funnel.by_channel,
+        by_form: funnel.by_form,
+        by_staff: funnel.by_staff,
+      };
+    }
+    return groupLeadFunnel(kpiRows, pageName);
+  }, [funnel, kpiRows, pageName]);
   const assignees = useMemo(() => {
     const byId = new Map(staff.map((item) => [item.id, item] as const));
     for (const row of rows) {
@@ -126,6 +155,64 @@ export function PortalLeadsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId]);
 
+  useEffect(() => {
+    if (!token) {
+      setFunnel(null);
+      return;
+    }
+    let cancelled = false;
+    setFunnelLoading(true);
+    void fetchPortalLeadsFunnel(token, {
+      from: filters.from || undefined,
+      to: filters.to || undefined,
+      page_id: filters.pageId || undefined,
+      channel: filters.channel || undefined,
+      form_id: filters.formId || undefined,
+      assignee: filters.assignee || undefined,
+      tag: filters.tag || undefined,
+    })
+      .then((data) => {
+        if (!cancelled) setFunnel(data);
+      })
+      .catch(() => {
+        if (!cancelled) setFunnel(null);
+      })
+      .finally(() => {
+        if (!cancelled) setFunnelLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, filters.from, filters.to, filters.pageId, filters.channel, filters.formId, filters.assignee, filters.tag]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void fetchPortalStaff(token)
+      .then((data) => {
+        if (cancelled) return;
+        const next: Record<string, string> = {};
+        for (const item of data.staff ?? []) {
+          const name = String(item.display_name || '').trim();
+          if (item.id && name) next[item.id] = name;
+        }
+        setStaffNames(next);
+      })
+      .catch(() => {
+        /* email labels remain */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 2000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+
   function patch(next: Partial<LeadTableFilters>) {
     setFilters((current) => ({ ...current, ...next }));
     setPage(1);
@@ -156,43 +243,55 @@ export function PortalLeadsTable({
       );
       return;
     }
+    if (result.action === 'purchase') {
+      const ok = window.confirm('Chuyển lead này sang Mua hàng?');
+      if (!ok) return;
+    }
     setNotice('');
     onAct(row.id, result.action);
   }
 
   return (
-    <div className={view === 'kanban' ? 'portal-leads portal-leads--split portal-leads--pk portal-leads--kanban-open' : 'portal-leads portal-leads--split portal-leads--pk'}>
-      <div className="portal-leads-pk__main">
-        <div className="kpi-tile-grid portal-leads__kpis" aria-label="KPI lead">
+    <div className={view === 'kanban' ? 'portal-leads portal-leads--split portal-leads--pk portal-leads--kanban-open' : view === 'compare' ? 'portal-leads portal-leads--split portal-leads--pk portal-leads--compare-open' : 'portal-leads portal-leads--split portal-leads--pk'}>
+      <div className="portal-leads-pk__chrome">
+        <div className={"kpi-tile-grid portal-leads__kpis" + (funnelLoading || loading ? ' is-loading' : '')} aria-label="KPI lead">
           <article className="kpi-tile">
             <p className="kpi-tile__label">Tổng</p>
-            <p className="kpi-tile__value">{loading ? '—' : kpis.total}</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : kpis.total}</p>
           </article>
           <article className="kpi-tile">
             <p className="kpi-tile__label">Chờ nhận</p>
-            <p className="kpi-tile__value">{loading ? '—' : kpis.waiting}</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : kpis.waiting}</p>
           </article>
           <article className="kpi-tile">
             <p className="kpi-tile__label">Đã gán</p>
-            <p className="kpi-tile__value">{loading ? '—' : kpis.assigned}</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : kpis.assigned}</p>
           </article>
           <article className="kpi-tile">
             <p className="kpi-tile__label">Đã chuyển khách</p>
-            <p className="kpi-tile__value">{loading ? '—' : kpis.converted}</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : kpis.converted}</p>
           </article>
           <article className="kpi-tile">
             <p className="kpi-tile__label">Hôm nay</p>
-            <p className="kpi-tile__value">{loading ? '—' : kpis.today}</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : kpis.today}</p>
+          </article>
+          <article className="kpi-tile kpi-tile--ratio">
+            <p className="kpi-tile__label">Tỷ lệ chuyển đổi</p>
+            <p className="kpi-tile__value">{loading || funnelLoading ? '—' : formatLeadFunnelRatio(kpis.converted, kpis.total)}</p>
+            <p className="kpi-tile__hint">{loading || funnelLoading ? '' : `${kpis.converted} / ${kpis.total}`}</p>
           </article>
         </div>
 
         <div className="portal-leads-pk__toolbar">
           <div className="portal-leads-pk__views" role="tablist" aria-label="Kiểu xem lead">
-            <button type="button" role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'is-active' : undefined} onClick={() => setView('list')}>
+            <button type="button" role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'is-active' : undefined} onClick={() => { setPanelClosed(false); setView('list'); }}>
               Danh sách
             </button>
             <button type="button" role="tab" aria-selected={view === 'kanban'} className={view === 'kanban' ? 'is-active' : undefined} onClick={() => setView('kanban')}>
               Kanban
+            </button>
+            <button type="button" role="tab" aria-selected={view === 'compare'} className={view === 'compare' ? 'is-active' : undefined} onClick={() => setView('compare')}>
+              So sánh
             </button>
           </div>
         </div>
@@ -223,9 +322,31 @@ export function PortalLeadsTable({
             </select>
           </label>
           <label>
-            Nguồn / Biểu mẫu
+            Kênh
+            <select value={filters.channel} onChange={(event) => patch({ channel: event.target.value })}>
+              <option value="">Tất cả kênh</option>
+              {channels.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Biểu mẫu
+            <select value={filters.formId} onChange={(event) => patch({ formId: event.target.value })}>
+              <option value="">Tất cả biểu mẫu</option>
+              {forms.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Chiến dịch
             <select value={filters.source} onChange={(event) => patch({ source: event.target.value })}>
-              <option value="">Tất cả nguồn</option>
+              <option value="">Tất cả chiến dịch</option>
               {sources.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -284,14 +405,17 @@ export function PortalLeadsTable({
           </button>
         </form>
 
-        {error ? <p className="portal-leads__banner portal-leads__banner--error">{error}</p> : null}
-        {notice ? <p className="portal-leads-pk__notice">{notice}</p> : null}
+        {notice ? <p className="portal-leads-pk__notice" role="status">{notice}</p> : null}
+      </div>
 
-        {view === 'kanban' ? (
+      <div className="portal-leads-pk__body">
+        {view === 'compare' ? (
+          <LeadComparePanels groups={groups} loading={loading || funnelLoading} staffNames={staffNames} />
+        ) : view === 'kanban' ? (
           <div className="portal-kanban" aria-label="Kanban theo trạng thái lead">
             {LEAD_STATUS_ORDER.map((status) => {
               const items = visible.filter((row) => row.status === status);
-              const droppable = status === 'received' || status === 'caring';
+              const droppable = status === 'received' || status === 'caring' || status === 'purchased';
               return (
                 <section
                   key={status}
@@ -411,7 +535,7 @@ export function PortalLeadsTable({
                       const phone = leadPhone(row);
                       const phoneDisplay = formatLeadPhoneDisplay(phone);
                       const email = leadEmail(row);
-                      const form = leadSource(row);
+                      const form = leadFormLabel(row);
                       const pageLabel = pageName.get(row.page_id) || row.page_id;
                       const assignee = row.assignee_email || (row.assignee_user_id ? row.assignee_user_id : 'Chưa gán');
                       return (
@@ -521,25 +645,143 @@ export function PortalLeadsTable({
         )}
       </div>
 
-      {selected ? (
-        <PortalLeadPanel
-          row={selected}
-          pages={pages}
-          staff={staff}
-          role={role}
-          userId={userId}
-          busy={busy}
-          onAct={onAct}
-          token={token}
-          labels={labels}
-          messages={messages}
-          onNotes={onNotes}
-          overlay={view === 'kanban'}
-          onClose={() => { setPanelClosed(true); setOpenId(null); }}
-        />
-      ) : (
-        <PortalLeadEmptyPanel loading={loading} />
-      )}
+      {view !== 'compare' ? (
+        selected ? (
+          <PortalLeadPanel
+            row={selected}
+            pages={pages}
+            staff={staff}
+            role={role}
+            userId={userId}
+            busy={busy}
+            onAct={onAct}
+            token={token}
+            labels={labels}
+            messages={messages}
+            onNotes={onNotes}
+            overlay={view === 'kanban'}
+            onClose={() => { setPanelClosed(true); setOpenId(null); }}
+          />
+        ) : (
+          <PortalLeadEmptyPanel loading={loading} hasLeads={visible.length > 0} />
+        )
+      ) : null}
+      {error ? (
+        <div className="portal-lead-error-popup" role="alert">
+          {error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function relabelStaffRows(rows: LeadFunnelGroupRow[], staffNames: Record<string, string>): LeadFunnelGroupRow[] {
+  return rows.map((row) => {
+    const name = staffNames[row.id];
+    return name ? { ...row, label: name } : row;
+  });
+}
+
+function sortCompareRows(rows: LeadFunnelGroupRow[], key: 'total' | 'ratio', dir: 'asc' | 'desc'): LeadFunnelGroupRow[] {
+  const copy = rows.slice();
+  copy.sort((a, b) => {
+    const av = key === 'ratio' ? a.ratio : a.total;
+    const bv = key === 'ratio' ? b.ratio : b.total;
+    if (av === bv) return (a.label || '').localeCompare(b.label || '', 'vi');
+    return dir === 'desc' ? bv - av : av - bv;
+  });
+  return copy;
+}
+
+function LeadComparePanels({
+  groups,
+  loading,
+  staffNames = {},
+}: {
+  groups: {
+    by_page: LeadFunnelGroupRow[];
+    by_channel: LeadFunnelGroupRow[];
+    by_form: LeadFunnelGroupRow[];
+    by_staff: LeadFunnelGroupRow[];
+  };
+  loading: boolean;
+  staffNames?: Record<string, string>;
+}) {
+  const [sortKey, setSortKey] = useState<'total' | 'ratio'>('total');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  function toggleSort(key: 'total' | 'ratio') {
+    if (sortKey === key) setSortDir((current) => (current === 'desc' ? 'asc' : 'desc'));
+    else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  }
+  const sections: Array<{ title: string; rows: LeadFunnelGroupRow[] }> = [
+    { title: 'Theo Page', rows: groups.by_page },
+    { title: 'Theo Kênh', rows: groups.by_channel },
+    { title: 'Theo Biểu mẫu', rows: groups.by_form },
+    { title: 'Theo Nhân viên', rows: relabelStaffRows(groups.by_staff, staffNames) },
+  ];
+  return (
+    <div className="portal-leads-compare-grid" aria-label="So sánh phễu lead">
+      {sections.map((section) => (
+        <section key={section.title} className="portal-leads-compare">
+          <h3>{section.title}</h3>
+          {loading ? (
+            <p className="portal-leads-compare__empty">Đang tải số liệu…</p>
+          ) : section.rows.length === 0 ? (
+            <p className="portal-leads-compare__empty">Không có lead trong khoảng lọc.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Nhóm</th>
+                  <th className="num">
+                    <button
+                      type="button"
+                      className="portal-leads-compare__sort"
+                      aria-sort={sortKey === 'total' ? (sortDir === 'desc' ? 'descending' : 'ascending') : 'none'}
+                      onClick={() => toggleSort('total')}
+                    >
+                      Tổng
+                    </button>
+                  </th>
+                  <th className="num">Đã nhận</th>
+                  <th className="num">Đã chuyển khách</th>
+                  <th className="num">Mua hàng</th>
+                  <th className="num">
+                    <button
+                      type="button"
+                      className="portal-leads-compare__sort"
+                      aria-sort={sortKey === 'ratio' ? (sortDir === 'desc' ? 'descending' : 'ascending') : 'none'}
+                      onClick={() => toggleSort('ratio')}
+                    >
+                      Tỷ lệ
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortCompareRows(section.rows, sortKey, sortDir).map((row) => (
+                  <tr key={section.title + row.id}>
+                    <td>{row.label || '—'}</td>
+                    <td className="num">{row.total}</td>
+                    <td className="num">{row.received}</td>
+                    <td className="num">{row.converted}</td>
+                    <td className="num">{row.purchased}</td>
+                    <td className="num portal-leads-compare__ratio">
+                      <span className="portal-leads-compare__ratio-val">{formatLeadFunnelRatio(row.converted, row.total)}</span>
+                      <span className="portal-leads-compare__bar" aria-hidden="true">
+                        <span style={{ width: `${Math.max(0, Math.min(100, (row.ratio || 0) * 100))}%` }} />
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      ))}
     </div>
   );
 }

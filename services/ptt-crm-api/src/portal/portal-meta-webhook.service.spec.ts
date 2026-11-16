@@ -25,6 +25,7 @@ describe('PortalMetaWebhookService', () => {
   const keys = ['PTT_PORTAL_CRM_CARE', 'CRM_FACEBOOK_APP_SECRET', 'FACEBOOK_APP_SECRET', 'PTT_META_WEBHOOK_VERIFY_TOKEN'];
   let pages: { ensure: jest.Mock; findByChannelPage: jest.Mock };
   let repo: Record<string, jest.Mock>;
+  let rebalancer: { rebalance: jest.Mock };
   let service: PortalMetaWebhookService;
 
   beforeEach(() => {
@@ -45,7 +46,8 @@ describe('PortalMetaWebhookService', () => {
       enqueueWebhookJob: jest.fn().mockResolvedValue(true),
       syncCases: jest.fn().mockResolvedValue(undefined),
     };
-    service = new PortalMetaWebhookService(repo as never, pages as never);
+    rebalancer = { rebalance: jest.fn().mockResolvedValue(undefined) };
+    service = new PortalMetaWebhookService(repo as never, pages as never, rebalancer as never);
   });
 
   afterEach(() => {
@@ -117,6 +119,7 @@ describe('PortalMetaWebhookService', () => {
       expect.objectContaining({ jobType: 'leadgen', idempotencyKey: `leadgen:${PAGE_ID}:lead-1` }),
     );
     expect(repo.syncCases).toHaveBeenCalledWith(CLIENT_ID);
+    expect(rebalancer.rebalance).toHaveBeenCalledWith(CLIENT_ID);
     expect(pages.findByChannelPage).toHaveBeenCalledWith('facebook', PAGE_ID);
   });
   it('ingestMessagingFromVerifiedPayload persists messages and postbacks but does not enqueue leadgen', async () => {
@@ -150,6 +153,7 @@ describe('PortalMetaWebhookService', () => {
     expect(repo.enqueueWebhookJob).not.toHaveBeenCalled();
     expect(repo.upsertPageComment).not.toHaveBeenCalled();
     expect(repo.syncCases).toHaveBeenCalledWith(CLIENT_ID);
+    expect(rebalancer.rebalance).toHaveBeenCalledWith(CLIENT_ID);
     expect(repo.upsertPageMessage.mock.calls[0][2].body).toContain('local webhook test');
     expect(repo.upsertPageMessage.mock.calls[0][2].direction).toBe('in');
   });

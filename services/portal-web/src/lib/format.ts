@@ -27,11 +27,24 @@ export function fmtDate(value: string | null | undefined): string {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeZone: 'UTC' }).format(d);
 }
 
-export function fmtPct(value: number | null | undefined): string {
+export function fmtPct(value: number | null | undefined, fractionDigits?: number): string {
   if (value == null || Number.isNaN(value)) {
     return '—';
   }
-  return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
+  if (fractionDigits == null) {
+    return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
+  }
+  const digits = Math.max(0, Math.min(8, Math.trunc(fractionDigits)));
+  return `${value.toLocaleString('vi-VN', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}%`;
+}
+
+/** CTR as a percentage (clicks / impressions * 100). */
+export function ctrPercent(clicks: number, impressions: number): number | null {
+  if (!(impressions > 0)) return null;
+  return (clicks / impressions) * 100;
 }
 
 export function fmtDeltaVnd(value: number | null | undefined): string {

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
 
-const SQL_FILES = ['00_portal_crm_local.sql', '02_portal_inbox_pancake.sql', '03_portal_inbox_comments.sql', '04_portal_pos.sql'];
+const SQL_FILES = ['00_portal_crm_local.sql', '02_portal_inbox_pancake.sql', '03_portal_inbox_comments.sql', '04_portal_pos.sql', '05_portal_care_assignment.sql', '06_portal_staff_profile.sql', '07_portal_staff_deleted.sql', '08_portal_lead_funnel.sql'];
 
 let ensurePromise: Promise<void> | null = null;
 let applied = false;

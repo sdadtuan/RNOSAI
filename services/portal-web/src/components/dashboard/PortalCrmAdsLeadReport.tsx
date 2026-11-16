@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchPortalCrmPages,
   fetchPortalMetaAdInsights,
@@ -9,7 +9,10 @@ import {
   type PortalCrmPage,
   type PortalMetaAdInsightsResponse,
 } from '@/lib/api';
-import { fmtDate, fmtNumber, fmtPct, fmtVnd } from '@/lib/format';
+import { AdsFreshnessBar } from '@/components/portal/AdsFreshnessBar';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
+import { ctrPercent, fmtDate, fmtNumber, fmtPct, fmtVnd } from '@/lib/format';
+import { PORTAL_ADS_POLL_MS, adsLoadMode } from '@/lib/portal/ads-live-refresh';
 import {
   receivedDay,
   countInRange,
@@ -105,8 +108,12 @@ export function PortalCrmAdsLeadReport({
   const [localAccountId, setLocalAccountId] = useState('');
   const [insights, setInsights] = useState<PortalMetaAdInsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
+  const insightsRef = useRef(insights);
+  insightsRef.current = insights;
   const [rangePreset, setRangePreset] = useState<RangePreset>(30);
   const [customSince, setCustomSince] = useState(() => rangeEndingToday(30).since);
   const [customUntil, setCustomUntil] = useState(() => rangeEndingToday(30).until);
@@ -162,36 +169,60 @@ export function PortalCrmAdsLeadReport({
     };
   }, [token, controlledAccounts]);
 
-  const loadInsights = useCallback(async () => {
+  const loadInsights = useCallback(async (reason: 'poll' | 'user' = 'user') => {
     if (!accountId || accountId === ALL_ACCOUNTS_VALUE || adAccounts.length === 0) {
-      setInsights(null);
-      setLoading(false);
+      if (reason !== 'poll') {
+        setInsights(null);
+        setLoading(false);
+      }
+      setRefreshing(false);
       return;
     }
     if (customRangeInvalid) {
       setRangeValidationError(customRangeInvalid);
-      setInsights(null);
-      setLoading(false);
+      if (reason !== 'poll') {
+        setInsights(null);
+        setLoading(false);
+      }
+      setRefreshing(false);
       return;
     }
     setRangeValidationError('');
-    setLoading(true);
-    setError('');
+    const mode = adsLoadMode(insightsRef.current != null, reason);
+    if (mode === 'quiet') {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await fetchPortalMetaAdInsights(token, accountId, range);
       setInsights(data);
+      setUpdatedAt(new Date());
+      setError('');
     } catch (err) {
-      setInsights(null);
-      setError(err instanceof Error ? err.message : 'Không tải được báo cáo Meta');
+      if (mode === 'full') {
+        setInsights(null);
+        setError(err instanceof Error ? err.message : 'Không tải được báo cáo Meta');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token, accountId, adAccounts.length, range, customRangeInvalid]);
 
   useEffect(() => {
     if (!accountsReady) return;
-    void loadInsights();
+    void loadInsights('user');
   }, [accountsReady, loadInsights]);
+
+  useVisiblePoll(
+    () => {
+      if (accountsReady) void loadInsights('poll');
+    },
+    PORTAL_ADS_POLL_MS,
+    accountsReady && Boolean(token),
+  );
 
   useEffect(() => {
     if (!accountsReady) return;
@@ -252,6 +283,7 @@ export function PortalCrmAdsLeadReport({
 
   const portalLeadTotal = receivedTotal;
   const kpi = insights?.kpi;
+  const kpiCtr = kpi ? ctrPercent(kpi.clicks, kpi.impressions) : null;
   const syncMeta = insights?.sync;
 
   const rootClass = embedded
@@ -280,6 +312,7 @@ export function PortalCrmAdsLeadReport({
           <p className="muted performance-panel__meta">
             Chi tiêu, lead và hiệu quả theo ngày và theo chiến dịch.
           </p>
+          <AdsFreshnessBar updatedAt={updatedAt} refreshing={refreshing} />
         </div>
         <div className="portal-crm-ads-lead-report__toolbar">
           {showAccountPicker ? (
@@ -388,7 +421,7 @@ export function PortalCrmAdsLeadReport({
       ) : null}
       {rangeValidationError ? <p className="error">{rangeValidationError}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-      {loading && !insights && !error ? <p className="muted">Đang tải báo cáo…</p> : null}
+      {loading && !insights && !error ? <div className="performance-panel__table-skeleton" aria-busy="true" /> : null}
       {showEmpty ? <p className="muted">Chưa gán tài khoản quảng cáo — liên hệ PTT để gán.</p> : null}
 
       {insights && kpi ? (
@@ -416,10 +449,10 @@ export function PortalCrmAdsLeadReport({
               <strong>{fmtNumber(kpi.clicks)}</strong>
                 {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
             </div>
-            {kpi.ctr != null ? (
+            {kpiCtr != null ? (
               <div className="portal-crm-ads-lead-report__kpi">
                 <span className="muted" title="Tỷ lệ nhấp — số nhấp chia cho số lần hiển thị">CTR</span>
-                <strong>{fmtPct(kpi.ctr)}</strong>
+                <strong>{fmtPct(kpiCtr, 2)}</strong>
                 {rangeLabel ? <span className="muted kpi-tile__hint">{rangeLabel}</span> : null}
               </div>
             ) : null}
@@ -582,6 +615,7 @@ export function PortalCrmAdsLeadReport({
                   {(tableRows as Array<Record<string, unknown>>).map((row) => {
                     const id = String(row.id ?? '');
                     const leadsPortal = leadsByCampaign.get(id) ?? 0;
+                    const rowCtr = ctrPercent(Number(row.clicks ?? 0), Number(row.impressions ?? 0));
                     return (
                       <tr key={id}>
                         <td>{String(row.name ?? '—')}</td>
@@ -589,7 +623,7 @@ export function PortalCrmAdsLeadReport({
                         <td>{fmtVnd(Number(row.spend ?? 0))}</td>
                         <td>{fmtNumber(Number(row.impressions ?? 0))}</td>
                         <td>{fmtNumber(Number(row.clicks ?? 0))}</td>
-                        <td>{row.ctr != null ? fmtPct(Number(row.ctr)) : '—'}</td>
+                        <td>{rowCtr != null ? fmtPct(rowCtr, 2) : '—'}</td>
                         <td>{fmtNumber(Number(row.leads_platform ?? 0))}</td>
                         <td>{tableTab === 'campaign' ? fmtNumber(leadsPortal) : '—'}</td>
                         <td>{row.cpl != null ? fmtVnd(Number(row.cpl)) : '—'}</td>

@@ -53,6 +53,38 @@ describe('PortalNotificationService', () => {
     return new PortalNotificationService(repo, webhook, config, pushSender);
   }
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.tableReady.mockResolvedValue(true);
+    repo.listForUser.mockResolvedValue({ rows: [], unread: 0 });
+    repo.listActivePortalUsers.mockResolvedValue([
+      { id: 'user-1', email: 'approver@test.local', role: 'approver' },
+    ]);
+    repo.insert.mockResolvedValue({
+      id: 'notif-1',
+      client_id: '550e8400-e29b-41d4-a716-446655440000',
+      portal_user_id: 'user-1',
+      category: 'creative_pending',
+      title: 'Test',
+      body: 'Body',
+      link_url: '/creatives',
+      meta: {},
+      read: false,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    });
+    repo.countPendingCreatives.mockResolvedValue(2);
+    webhook.send.mockResolvedValue({ ok: true });
+    pushSender.sendToUsers.mockResolvedValue({
+      ok: true,
+      configured: true,
+      sent: 1,
+      failed: 0,
+      removed_stale: 0,
+      errors: [],
+    });
+  });
+
   it('emitCreativePending inserts for approvers', async () => {
     const svc = makeService();
     const result = await svc.emitCreativePending({
@@ -96,5 +128,71 @@ describe('PortalNotificationService', () => {
     });
     expect(out.table_ready).toBe(false);
     expect(out.rows).toEqual([]);
+  });
+
+
+  it('emitToUser inserts for one user and sends a web push', async () => {
+    repo.tableReady.mockResolvedValue(true);
+    repo.insert.mockResolvedValue({
+      id: 'notif-care',
+      client_id: '550e8400-e29b-41d4-a716-446655440000',
+      portal_user_id: 'staff-1',
+      category: 'care_assigned',
+      title: 'Bạn được phân công: Lan',
+      body: 'Tin nhắn “Lan” đã được gán cho bạn.',
+      link_url: '/crm/messages?case=c1',
+      meta: { case_id: 'c1' },
+      read: false,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    });
+    const svc = makeService();
+    const result = await svc.emitToUser({
+      clientId: '550e8400-e29b-41d4-a716-446655440000',
+      portalUserId: 'staff-1',
+      category: 'care_assigned',
+      title: 'Bạn được phân công: Lan',
+      body: 'Tin nhắn “Lan” đã được gán cho bạn.',
+      linkUrl: '/crm/messages?case=c1',
+      meta: { case_id: 'c1' },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.ids).toEqual(['notif-care']);
+    expect(repo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ portalUserId: 'staff-1', category: 'care_assigned' }),
+    );
+    expect(repo.listActivePortalUsers).not.toHaveBeenCalled();
+    expect(pushSender.sendToUsers).toHaveBeenCalledWith(
+      expect.objectContaining({ portalUserIds: ['staff-1'] }),
+    );
+  });
+
+  it('emitToUser is a no-op when portalUserId is empty', async () => {
+    const svc = makeService();
+    const result = await svc.emitToUser({
+      clientId: '550e8400-e29b-41d4-a716-446655440000',
+      portalUserId: '  ',
+      category: 'care_assigned',
+      title: 'x',
+    });
+    expect(result.ok).toBe(true);
+    expect(result.ids).toEqual([]);
+  });
+
+  it('list passes the caller role so staff do not receive other users’ rows', async () => {
+    repo.tableReady.mockResolvedValue(true);
+    repo.listForUser.mockResolvedValue({ rows: [], unread: 0 });
+    const svc = makeService();
+    await svc.list({
+      sub: 'staff-1',
+      email: 's@test.local',
+      client_id: '550e8400-e29b-41d4-a716-446655440000',
+      role: 'staff',
+      iat: 0,
+      exp: 9999999999,
+    });
+    expect(repo.listForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ portalUserId: 'staff-1', role: 'staff' }),
+    );
   });
 });

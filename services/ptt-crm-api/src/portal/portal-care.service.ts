@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { join } from 'path';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AgencyRepository } from '../agency/agency.repository';
 import { MetaBusinessTokenService } from '../agency/meta-business-token.service';
 import { PortalClientPagesService } from '../agency/portal-client-pages.service';
@@ -11,6 +11,9 @@ import { normalizeProductSpec } from './portal-product.util';
 import { pullFacebookPage, sendFacebookText } from './portal-page-inbox.util';
 import { PortalJwtPayload } from './portal-jwt.util';
 import { PortalCareRepository, psidFromMessageThreadKey } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
+import { PortalCareNotifyService } from './portal-care-notify.service';
+import { parsePortalStaffInput, parsePortalStaffPatch } from './portal-staff.util';
 import {
   careDueAt,
   careListFilterForUser,
@@ -18,13 +21,12 @@ import {
   extractContacts,
   filterCasesForPortalList,
   filterVisiblePages,
-  nextAssignee,
   receiveDueAt,
-  shouldHopCare,
-  shouldHopReceive,
   staffCanViewCareCase,
   visibleAdsChannels,
 } from './portal-care.util';
+
+import { channelLabel, sanitizeFunnelFilter, type LeadFunnelFilter } from './portal-lead-funnel.util';
 import {
   isFacebookRateOrThrottleError,
   KeyedSingleFlight,
@@ -69,6 +71,8 @@ export class PortalCareService {
     private readonly users: PortalClientUsersService,
     private readonly meta: MetaBusinessTokenService,
     private readonly inboxSync: PortalInboxSyncService,
+    private readonly rebalancer: PortalCareRebalanceService,
+    @Optional() private readonly careNotify?: PortalCareNotifyService,
   ) {}
 
   async channels(user: PortalJwtPayload) {
@@ -89,7 +93,7 @@ export class PortalCareService {
     const inbound = messages.filter((row) => row.direction !== 'out' && row.sender_name);
     if (inbound.length) {
       await this.repo.syncCases(user.client_id);
-      await this.rebalance(user.client_id);
+      await this.rebalancer.rebalance(user.client_id);
     }
     const touched = messages.filter((row) => row.sender_name || row.sender_psid);
     const cases = touched.length
@@ -252,6 +256,7 @@ export class PortalCareService {
       email,
     });
     await this.repo.syncCases(user.client_id);
+    await this.rebalancer.rebalance(user.client_id);
     return { ok: true, lead };
   }
 
@@ -312,17 +317,40 @@ export class PortalCareService {
   async receive(user: PortalJwtPayload, caseId: string) {
     const row = await this.requireActor(user, caseId);
     if (row.status !== 'waiting_receive') throw new BadRequestException({ error: 'not_waiting' });
-    await this.repo.markReceived(row.id);
-    return { ok: true };
+    const assignTo = row.assignee_user_id ? undefined : user.sub;
+    await this.repo.markReceived(row.id, assignTo);
+    if (assignTo) {
+      await this.careNotify?.notifyAssignment({
+        clientId: user.client_id,
+        caseId: row.id,
+        assigneeId: assignTo,
+        previousAssigneeId: null,
+        reason: 'manual',
+        title: row.title,
+        kind: row.kind,
+      });
+    }
+    return { ok: true, assigned: Boolean(assignTo) };
   }
 
   async assign(user: PortalJwtPayload, caseId: string, userId: string) {
-    this.requireManager(user);
+    this.requireApprover(user);
     const targetId = userId.trim();
     const row = await this.requireCase(user, caseId);
     if (row.status === 'purchased') throw new BadRequestException({ error: 'already_purchased' });
+    const previous = row.assignee_user_id ?? null;
     if (!targetId) {
       await this.repo.unassign(row.id);
+      await this.careNotify?.notifyAssignment({
+        clientId: user.client_id,
+        caseId: row.id,
+        assigneeId: null,
+        previousAssigneeId: previous,
+        reason: 'unassign',
+        title: row.title,
+        kind: row.kind,
+      });
+      await this.rebalancer.rebalance(user.client_id);
       return { ok: true, unassigned: true };
     }
     const target = await this.repo.findActiveClientUser(user.client_id, targetId);
@@ -330,6 +358,15 @@ export class PortalCareService {
     const now = new Date();
     const receiveDue = row.status === 'waiting_receive' ? receiveDueAt(now) : null;
     await this.repo.assignManual(row.id, targetId, receiveDue);
+    await this.careNotify?.notifyAssignment({
+      clientId: user.client_id,
+      caseId: row.id,
+      assigneeId: targetId,
+      previousAssigneeId: previous,
+      reason: 'manual',
+      title: row.title,
+      kind: row.kind,
+    });
     return { ok: true };
   }
 
@@ -342,8 +379,13 @@ export class PortalCareService {
 
   async purchase(user: PortalJwtPayload, caseId: string) {
     const row = await this.requireActor(user, caseId);
+    if (row.status === 'purchased') throw new BadRequestException({ error: 'already_purchased' });
     await this.repo.markPurchased(row.id);
-    return { ok: true };
+    let customerId = row.customer_id;
+    if (!customerId) {
+      customerId = await this.repo.confirmCustomer(row);
+    }
+    return { ok: true, customer_id: customerId || null };
   }
 
   async stickLabel(user: PortalJwtPayload, caseId: string, name: string, color = '') {
@@ -404,6 +446,7 @@ export class PortalCareService {
     const draft = { ...row.order, phone, address, closed: true };
     await this.repo.saveOrder(row.id, draft);
     const customerId = phone ? await this.repo.confirmCustomer({ ...row, order: draft }) : '';
+    await this.repo.markPurchased(row.id);
     return { ok: true, customer_id: customerId };
   }
 
@@ -437,7 +480,7 @@ export class PortalCareService {
 
   private async deliverToCustomer(
     clientId: string,
-    row: { page_id: string; thread_key: string; title: string },
+    row: { id: string; page_id: string; thread_key: string; title: string },
     body: string,
   ): Promise<void> {
     const psid = await this.customerPsid(clientId, row);
@@ -447,6 +490,7 @@ export class PortalCareService {
     const sent = await sendFacebookText(row.page_id, token, psid, body);
     if (!sent.ok) throw new BadRequestException({ error: sent.error });
     await this.repo.insertOutbound(clientId, row.page_id, row.title, body, sent.id, psid);
+    await this.repo.extendSla(row.id, receiveDueAt(new Date()), careDueAt(new Date()));
   }
 
   private async customerPsid(clientId: string, row: { page_id: string; thread_key: string; title: string }): Promise<string> {
@@ -462,6 +506,7 @@ export class PortalCareService {
         await this.repo.upsertPageMessage(clientId, row.page_id, message);
       }
       await this.repo.syncCases(clientId);
+      await this.rebalancer.rebalance(clientId);
     } catch {
       return '';
     }
@@ -576,16 +621,33 @@ export class PortalCareService {
     return { ok: true, labels };
   }
 
-  async addStaff(user: PortalJwtPayload, email: string, password: string) {
+  async addStaff(
+    user: PortalJwtPayload,
+    body: { email?: string; password?: string; name?: string; phone?: string; role?: string },
+  ) {
     this.requireApprover(user);
     await this.repo.ensure();
+    const parsed = parsePortalStaffInput(body);
     const created = await this.users.create(user.client_id, {
-      email,
-      password,
-      role: 'staff',
+      email: parsed.email,
+      password: parsed.password,
+      role: parsed.role,
+      display_name: parsed.name,
+      phone: parsed.phone,
       send_email: false,
     });
-    return { ok: true, user: { id: created.user.id, email: created.user.email, role: created.user.role } };
+    return {
+      ok: true,
+      user: {
+        id: created.user.id,
+        email: created.user.email,
+        role: created.user.role,
+        display_name: created.user.display_name ?? parsed.name,
+        phone: created.user.phone ?? parsed.phone,
+        active: created.user.active,
+      },
+      ...(created.temporary_password ? { temporary_password: created.temporary_password } : {}),
+    };
   }
 
   async listManagedStaff(user: PortalJwtPayload) {
@@ -620,6 +682,7 @@ export class PortalCareService {
     const cursors = pulled.hasMore ? pulled.cursors : { conv_after: '', form_after: '' };
     await this.repo.saveInboxCursors(user.client_id, pageId, cursors);
     await this.repo.syncCases(user.client_id);
+    await this.rebalancer.rebalance(user.client_id);
     this.inboxAt.delete(user.client_id);
     return {
       ok: true,
@@ -640,7 +703,117 @@ export class PortalCareService {
     const staff = await this.repo.listManagedStaff(user.client_id);
     if (!staff.some((row) => row.id === userId)) throw new NotFoundException({ error: 'staff_not_found' });
     const updated = await this.users.update(user.client_id, userId, { active });
+    if (!active) {
+      await this.repo.releaseOpenCasesForUser(user.client_id, userId);
+      await this.rebalancer.rebalance(user.client_id);
+    }
     return { ok: true, user: { id: updated.id, email: updated.email, active: updated.active } };
+  }
+
+
+
+  async updateStaff(
+    user: PortalJwtPayload,
+    userId: string,
+    body: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+      active?: boolean;
+      reset_password?: boolean;
+      password?: string;
+    },
+  ) {
+    this.requireApprover(user);
+    if (userId === user.sub) {
+      throw new BadRequestException({
+        error: 'cannot_change_self',
+        message: 'Không thể sửa hoặc xóa chính bạn.',
+      });
+    }
+    await this.repo.ensure();
+    const staff = await this.repo.listManagedStaff(user.client_id);
+    const target = staff.find((row) => row.id === userId);
+    if (!target) throw new NotFoundException({ error: 'staff_not_found' });
+
+    const parsed = parsePortalStaffPatch(body);
+    const wantsActive = typeof body.active === 'boolean';
+    const wantsProfile =
+      parsed.name !== undefined ||
+      parsed.email !== undefined ||
+      parsed.phone !== undefined ||
+      parsed.role !== undefined;
+    const wantsReset = parsed.reset_password;
+
+    if (!wantsActive && !wantsProfile && !wantsReset) {
+      throw new BadRequestException({ error: 'no_updates' });
+    }
+
+    let released = 0;
+    if (wantsProfile || wantsActive) {
+      await this.users.update(user.client_id, userId, {
+        ...(parsed.name !== undefined ? { display_name: parsed.name } : {}),
+        ...(parsed.email !== undefined ? { email: parsed.email } : {}),
+        ...(parsed.phone !== undefined ? { phone: parsed.phone } : {}),
+        ...(parsed.role !== undefined ? { role: parsed.role } : {}),
+        ...(wantsActive ? { active: body.active } : {}),
+      });
+      if (wantsActive && body.active === false) {
+        released = await this.repo.releaseOpenCasesForUser(user.client_id, userId);
+        await this.rebalancer.rebalance(user.client_id);
+      }
+    }
+
+    let temporaryPassword: string | undefined;
+    if (wantsReset) {
+      const reset = await this.users.resetPassword(user.client_id, userId, {
+        ...(parsed.password ? { password: parsed.password } : {}),
+        send_email: false,
+      });
+      temporaryPassword = reset.temporary_password;
+    }
+
+    const fresh = (await this.repo.listManagedStaff(user.client_id)).find((row) => row.id === userId);
+    return {
+      ok: true,
+      user: fresh ?? {
+        id: userId,
+        email: parsed.email ?? target.email,
+        role: parsed.role ?? target.role,
+        display_name: parsed.name ?? target.display_name,
+        phone: parsed.phone ?? target.phone,
+        active: wantsActive ? Boolean(body.active) : target.active,
+      },
+      ...(temporaryPassword ? { temporary_password: temporaryPassword } : {}),
+      ...(released ? { released } : {}),
+    };
+  }
+
+  /** Safe removal: release open cases to the auto-assign queue, then soft-delete (keep history). */
+  async removeStaff(user: PortalJwtPayload, userId: string) {
+    this.requireApprover(user);
+    if (userId === user.sub) {
+      throw new BadRequestException({
+        error: 'cannot_change_self',
+        message: 'Không thể sửa hoặc xóa chính bạn.',
+      });
+    }
+    await this.repo.ensure();
+    const staff = await this.repo.listManagedStaff(user.client_id);
+    const target = staff.find((row) => row.id === userId);
+    if (!target) throw new NotFoundException({ error: 'staff_not_found' });
+
+    await this.users.update(user.client_id, userId, { active: false });
+    const released = await this.repo.releaseOpenCasesForUser(user.client_id, userId);
+    await this.users.softDelete(user.client_id, userId);
+    await this.rebalancer.rebalance(user.client_id);
+    return {
+      ok: true,
+      deleted: true,
+      released,
+      user: { id: target.id, email: target.email },
+    };
   }
 
 
@@ -791,6 +964,7 @@ export class PortalCareService {
       email,
     });
     await this.repo.syncCases(user.client_id);
+    await this.rebalancer.rebalance(user.client_id);
     return { ok: true, lead };
   }
 
@@ -813,6 +987,34 @@ export class PortalCareService {
       range: days === 7 ? '7d' : 'today',
       range_start: start.toISOString(),
       by_page: report.by_page.map((row) => ({ ...row, page_name: pageLabel(row.page_id) })),
+      by_staff: report.by_staff,
+    };
+  }
+
+
+  async leadFunnel(user: PortalJwtPayload, query: LeadFunnelFilter) {
+    await this.repo.ensure();
+    const filter = sanitizeFunnelFilter(query);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const report = await this.repo.leadFunnel(user.client_id, filter, {
+      ...careListFilterForUser(user),
+      today,
+    });
+    const allPages = await this.pages.listForPortal(user.client_id);
+    const names = new Map(allPages.map((page) => [page.page_id, String(page.page_name || '').trim()]));
+    const pageLabel = (pageId: string) => {
+      const name = (names.get(pageId) || '').trim();
+      if (name && name !== pageId) return name;
+      return pageId || 'Page';
+    };
+    return {
+      ok: true,
+      from: filter.from || '',
+      to: filter.to || '',
+      kpis: report.kpis,
+      by_page: report.by_page.map((row) => ({ ...row, label: pageLabel(row.id) || row.label })),
+      by_channel: report.by_channel.map((row) => ({ ...row, label: channelLabel(row.id) || row.label })),
+      by_form: report.by_form,
       by_staff: report.by_staff,
     };
   }
@@ -846,7 +1048,7 @@ export class PortalCareService {
     await this.pages.ensureStore();
     await this.repo.ensure();
     await this.repo.syncCases(clientId);
-    await this.rebalance(clientId);
+    await this.rebalancer.rebalance(clientId);
   }
 
   private async ingestFacebook(clientId: string): Promise<void> {
@@ -857,7 +1059,7 @@ export class PortalCareService {
       if (shouldPauseGraph()) return;
       if (shouldReuseFreshSync(this.inboxAt.get(clientId), Date.now(), ttl)) return;
       await this.pullFacebookInbox(clientId, { fromUserDesk: true });
-      await this.rebalance(clientId);
+      await this.rebalancer.rebalance(clientId);
       this.inboxAt.set(clientId, Date.now());
     });
   }
@@ -870,38 +1072,6 @@ export class PortalCareService {
     const stat = await this.inboxSync.pullFacebookInbox(clientId, opts);
     this.inboxStat.set(clientId, stat);
     return stat;
-  }
-
-  private async rebalance(clientId: string): Promise<void> {
-    let staff = (await this.repo.listStaff(clientId)).map((row) => row.id);
-    if (!staff.length) {
-      staff = (await this.repo.listApprovers(clientId)).map((row) => row.id);
-    }
-    const loads = await this.repo.openLoads(clientId);
-    const now = new Date();
-    for (const row of await this.repo.listHopRows(clientId)) {
-      const receiveHop = shouldHopReceive(row.status, row.receive_due_at, now);
-      const careHop = shouldHopCare(row.status, row.care_due_at, now);
-      if (!receiveHop && !careHop) continue;
-      const next = nextAssignee(staff, loads, row.assignee_user_id);
-      if (!next) continue;
-      if (receiveHop) await this.repo.assignReceive(row.id, next, receiveDueAt(now));
-      else await this.repo.assignCare(row.id, next, careDueAt(now));
-      if (row.assignee_user_id) loads[row.assignee_user_id] = Math.max(0, (loads[row.assignee_user_id] ?? 1) - 1);
-      loads[next] = (loads[next] ?? 0) + 1;
-    }
-    for (const id of await this.repo.listUnassigned(clientId)) {
-      const next = nextAssignee(staff, loads, null);
-      if (!next) break;
-      await this.repo.assignReceive(id, next, receiveDueAt(now));
-      loads[next] = (loads[next] ?? 0) + 1;
-    }
-    for (const id of await this.repo.listUnassignedCare(clientId)) {
-      const next = nextAssignee(staff, loads, null);
-      if (!next) break;
-      await this.repo.assignCare(id, next, careDueAt(now));
-      loads[next] = (loads[next] ?? 0) + 1;
-    }
   }
 
   private async requireCase(user: PortalJwtPayload, caseId: string) {

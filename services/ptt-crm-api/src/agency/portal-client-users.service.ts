@@ -67,14 +67,23 @@ export class PortalClientUsersService {
     if (await this.repo.emailTaken(email)) {
       throw new ConflictException({ error: 'email_already_registered', email });
     }
+    const displayName = String(body.display_name ?? '').trim().slice(0, 120);
+    const phone = String(body.phone ?? '').trim();
+    if (phone && (await this.repo.phoneTaken(clientId, phone))) {
+      throw new ConflictException({ error: 'phone_already_registered', phone });
+    }
 
     const passwordHash = hashPortalPassword(plainPassword);
     let user: PortalClientUserPublic;
     try {
-      user = await this.repo.insertUser({ clientId, email, passwordHash, role });
+      user = await this.repo.insertUser({ clientId, email, passwordHash, role, displayName, phone });
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === '23505') {
+        const msg = String((err as { constraint?: string; message?: string })?.constraint ?? (err as { message?: string })?.message ?? '');
+        if (msg.includes('phone')) {
+          throw new ConflictException({ error: 'phone_already_registered', phone });
+        }
         throw new ConflictException({ error: 'email_already_registered', email });
       }
       throw err;
@@ -103,19 +112,80 @@ export class PortalClientUsersService {
       throw new ServiceUnavailableException({ ok: false, error: 'portal_users_table_not_ready' });
     }
 
-    if (body.role === undefined && body.active === undefined) {
+    const hasRole = body.role !== undefined;
+    const hasActive = body.active !== undefined;
+    const hasName = body.display_name !== undefined;
+    const hasPhone = body.phone !== undefined;
+    const hasEmail = body.email !== undefined;
+    if (!hasRole && !hasActive && !hasName && !hasPhone && !hasEmail) {
       throw new BadRequestException({ error: 'no_updates' });
     }
 
-    const patch: { role?: PortalClientRole; active?: boolean } = {};
-    if (body.role !== undefined) {
+    const patch: {
+      role?: PortalClientRole;
+      active?: boolean;
+      displayName?: string;
+      phone?: string;
+      email?: string;
+    } = {};
+    if (hasRole) {
       patch.role = this.normalizeRole(body.role);
     }
-    if (body.active !== undefined) {
+    if (hasActive) {
       patch.active = Boolean(body.active);
     }
+    if (hasName) {
+      patch.displayName = String(body.display_name ?? '').trim().slice(0, 120);
+    }
+    if (hasPhone) {
+      const phone = String(body.phone ?? '').trim();
+      if (phone && (await this.repo.phoneTaken(clientId, phone, userId))) {
+        throw new ConflictException({ error: 'phone_already_registered', phone });
+      }
+      patch.phone = phone;
+    }
+    if (hasEmail) {
+      const email = String(body.email ?? '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        throw new BadRequestException({ error: 'invalid_email' });
+      }
+      if (await this.repo.emailTaken(email, userId)) {
+        throw new ConflictException({ error: 'email_already_registered', email });
+      }
+      patch.email = email;
+    }
 
-    const updated = await this.repo.updateUser(clientId, userId, patch);
+    let updated: PortalClientUserPublic | null;
+    try {
+      updated = await this.repo.updateUser(clientId, userId, patch);
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === '23505') {
+        const msg = String((err as { constraint?: string; message?: string })?.constraint ?? (err as { message?: string })?.message ?? '');
+        if (msg.includes('phone')) {
+          throw new ConflictException({ error: 'phone_already_registered' });
+        }
+        throw new ConflictException({ error: 'email_already_registered' });
+      }
+      throw err;
+    }
+    if (!updated) {
+      throw new NotFoundException({ error: 'portal_user_not_found' });
+    }
+    return updated;
+  }
+
+  /** Soft-delete a portal user: deactivate and stamp deleted_at. Row is kept for history. */
+  async softDelete(clientId: string, userId: string): Promise<PortalClientUserPublic> {
+    await this.ensureWritable(clientId);
+    if (!(await this.repo.tableReady())) {
+      throw new ServiceUnavailableException({ ok: false, error: 'portal_users_table_not_ready' });
+    }
+    const existing = await this.repo.findById(clientId, userId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'portal_user_not_found' });
+    }
+    const updated = await this.repo.softDelete(clientId, userId);
     if (!updated) {
       throw new NotFoundException({ error: 'portal_user_not_found' });
     }
@@ -177,6 +247,10 @@ export class PortalClientUsersService {
       role,
       password,
     });
+  }
+
+  async phoneTaken(clientId: string, phone: string): Promise<boolean> {
+    return this.repo.phoneTaken(clientId, phone);
   }
 
   private async assertClientExists(clientId: string): Promise<void> {

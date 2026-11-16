@@ -10,7 +10,11 @@ import {
   leadPhone,
   paginateRows,
   uniqueLeadTags,
+  uniqueLeadTagsForFilter,
   sortLeadsByRecent,
+  leadKanbanDropAction,
+  STANDARD_LEAD_TAGS,
+  groupLeadFunnel,
   type LeadTableRow,
 } from './portal-leads-table.util';
 
@@ -36,22 +40,26 @@ describe('portal leads table', () => {
       row({ id: '2', status: 'caring', assignee_user_id: 's2', customer_id: 'c1', created_at: '2026-11-10T03:00:00.000Z' }),
       row({ id: '3', status: 'waiting_receive', assignee_user_id: null, created_at: '2026-11-11T04:00:00.000Z' }),
     ];
-    expect(leadKpis(rows, new Date('2026-11-11T10:00:00+07:00'))).toEqual({
+    const kpis = leadKpis(rows, new Date('2026-11-11T10:00:00+07:00'));
+    expect(kpis).toEqual({
       total: 3,
       waiting: 2,
       assigned: 2,
+      received: 1,
       converted: 1,
-      today: 0,
+      purchased: 0,
+      today: 2,
+      ratio: 1 / 3,
     });
   });
 
-  it('does not treat backfill created_at as today', () => {
+  it('does not treat last_interaction yesterday as today even when created_at was backfilled', () => {
     const rows = [
       row({ id: 'backfill', created_at: '2026-11-11T10:30:18.699Z', last_interaction_at: '2026-11-10T08:11:27.000Z' }),
       row({ id: 'unknown', created_at: '2026-11-11T10:30:18.699Z' }),
       row({ id: 'real', created_at: '2026-11-11T10:30:18.699Z', last_interaction_at: '2026-11-11T03:00:00.000Z' }),
     ];
-    expect(leadKpis(rows, new Date('2026-11-11T10:00:00+07:00')).today).toBe(1);
+    expect(leadKpis(rows, new Date('2026-11-11T10:00:00+07:00')).today).toBe(2);
   });
 
   it('filters by page, status, assignee, search and date', () => {
@@ -134,4 +142,30 @@ describe('portal leads table', () => {
     expect(realLead.labels).toEqual([]);
   });
 
+
+  it('filters by channel and form, and ignores status when building KPI samples', () => {
+    const rows = [
+      row({ id: '1', channel: 'facebook', form_id: 'f1', form_name: 'Form tư vấn', status: 'waiting_receive', last_interaction_at: '2026-11-11T03:00:00.000Z' }),
+      row({ id: '2', channel: 'zalo', form_id: 'f2', form_name: 'Form báo giá', status: 'purchased', customer_id: 'c2', last_interaction_at: '2026-11-11T03:00:00.000Z' }),
+    ];
+    expect(filterLeadRows(rows, { ...EMPTY_LEAD_FILTERS, channel: 'zalo' }, pages).map((item) => item.id)).toEqual(['2']);
+    expect(filterLeadRows(rows, { ...EMPTY_LEAD_FILTERS, formId: 'f1' }, pages).map((item) => item.id)).toEqual(['1']);
+    expect(filterLeadRows(rows, { ...EMPTY_LEAD_FILTERS, status: 'purchased' }, pages, { ignoreStatus: true }).map((item) => item.id)).toEqual(['1', '2']);
+  });
+
+  it('always includes standard tags in the filter list', () => {
+    expect(uniqueLeadTagsForFilter([row({ id: '1', labels: ['meta'] })])).toEqual([...STANDARD_LEAD_TAGS, 'meta']);
+    const grouped = groupLeadFunnel([
+      row({ id: '1', channel: 'zalo', form_id: 'f1', form_name: 'Form tư vấn', customer_id: 'c', status: 'purchased' }),
+    ], pages);
+    expect(grouped.by_channel[0].label).toBe('Zalo');
+    expect(grouped.by_form[0].converted).toBe(1);
+  });
+
+  it('excludes leads with no usable date once a range is set, and allows kanban drop into Mua hàng', () => {
+    const undated = row({ id: 'x', created_at: '', last_interaction_at: '' });
+    expect(filterLeadRows([undated], { ...EMPTY_LEAD_FILTERS, from: '2026-11-01' }, pages)).toEqual([]);
+    expect(leadKanbanDropAction('caring', 'purchased')).toEqual({ ok: true, action: 'purchase' });
+    expect(leadKanbanDropAction('purchased', 'caring').ok).toBe(false);
+  });
 });

@@ -3,7 +3,10 @@ export type PortalNotificationCategory =
   | 'email_pending'
   | 'seo_pending'
   | 'campaign_milestone'
-  | 'system';
+  | 'system'
+  | 'care_assigned'
+  | 'care_message'
+  | 'care_reassigned';
 
 export interface PortalNotificationRow {
   id: string;

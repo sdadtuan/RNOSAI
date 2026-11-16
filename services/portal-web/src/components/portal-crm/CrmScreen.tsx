@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import {
   PortalProductRow,
@@ -93,22 +93,27 @@ function PortalInboxBanner({ lines }: { lines: string[] }) {
 export function CrmScreen({
   view,
   initialCustomerSource,
+  header,
 }: {
   view: CrmView;
   initialCustomerSource?: CustomerSourceFilter;
+  header?: ReactNode;
 }) {
   const title =
     view === 'leads' ? 'Lead' : view === 'messages' ? 'Tin nhắn' : 'Khách hàng';
   return (
     <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: title }]}>
       {({ token, user }) => (
-        <CrmBody
-          token={token}
-          role={user.role}
-          userId={user.id}
-          view={view}
-          initialCustomerSource={initialCustomerSource}
-        />
+        <>
+          {header}
+          <CrmBody
+            token={token}
+            role={user.role}
+            userId={user.id}
+            view={view}
+            initialCustomerSource={initialCustomerSource}
+          />
+        </>
       )}
     </PortalPageShell>
   );
@@ -575,7 +580,7 @@ function CaseList({
             </div>
             {mine && row.status !== 'purchased' ? (
               <span className="portal-crm__actions">
-                {role !== 'staff' && staff.length > 0 ? (
+                {role === 'approver' && staff.length > 0 ? (
                   <label className="portal-crm__assign">
                     <span className="sr-only">Gán cho</span>
                     <select
@@ -584,10 +589,10 @@ function CaseList({
                       aria-label="Gán cho"
                       onChange={(event) => {
                         const user_id = event.target.value;
-                        if (user_id) onAct(row.id, 'assign', { user_id });
+                        onAct(row.id, 'assign', { user_id });
                       }}
                     >
-                      <option value="">Gán cho…</option>
+                      <option value="">Chưa gán</option>
                       {staff.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.email}

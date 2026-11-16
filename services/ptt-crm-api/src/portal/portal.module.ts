@@ -29,6 +29,8 @@ import { PortalCrmController } from './portal-crm.controller';
 import { PortalMetaInsightsController } from './portal-meta-insights.controller';
 import { PortalProductMediaController } from './portal-product-media.controller';
 import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
+import { PortalCareNotifyService } from './portal-care-notify.service';
 import { PortalCareService } from './portal-care.service';
 import { PortalInboxPollerService } from './portal-inbox-poller.service';
 import { PortalInboxSyncService } from './portal-inbox-sync.service';
@@ -74,6 +76,8 @@ import { PortalPosRepository } from './pos/portal-pos.repository';
     PortalNativePushSenderService,
     PortalMobileService,
     PortalCareRepository,
+    PortalCareRebalanceService,
+    PortalCareNotifyService,
     PortalInboxSyncService,
     PortalCareService,
     PortalInboxPollerService,
@@ -87,6 +91,7 @@ import { PortalPosRepository } from './pos/portal-pos.repository';
     PortalSettingsService,
     PortalCreativeNotifyService,
     PortalNotificationService,
+    PortalCareNotifyService,
     PortalNotifyWebhookService,
     PortalCredentialsNotifyService,
     CampaignMilestoneNotifyService,

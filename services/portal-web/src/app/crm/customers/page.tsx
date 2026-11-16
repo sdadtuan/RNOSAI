@@ -6,6 +6,19 @@ import { PortalPageShell } from '@/components/PortalPageShell';
 import { CrmScreen, type CustomerSourceFilter } from '@/components/portal-crm/CrmScreen';
 import { PortalPosCustomers } from '@/components/portal-pos/PortalPosCustomers';
 
+function CustomerTabs({ tab, onTab }: { tab: 'pos' | 'care'; onTab: (next: 'pos' | 'care') => void }) {
+  return (
+    <div className="pos-tabs">
+      <button type="button" className={`pos-tab${tab === 'pos' ? ' is-on' : ''}`} onClick={() => onTab('pos')}>
+        Khách bán hàng
+      </button>
+      <button type="button" className={`pos-tab${tab === 'care' ? ' is-on' : ''}`} onClick={() => onTab('care')}>
+        Chăm sóc
+      </button>
+    </div>
+  );
+}
+
 function CustomersInner() {
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -16,15 +29,11 @@ function CustomersInner() {
 
   if (tab === 'care') {
     return (
-      <div>
-        <div className="pos" style={{ padding: '0.5rem 1rem 0' }}>
-          <div className="pos-tabs">
-            <button type="button" className="pos-tab" onClick={() => setTab('pos')}>Khách bán hàng</button>
-            <button type="button" className="pos-tab is-on">Chăm sóc</button>
-          </div>
-        </div>
-        <CrmScreen view="customers" initialCustomerSource={initialSource} />
-      </div>
+      <CrmScreen
+        view="customers"
+        initialCustomerSource={initialSource}
+        header={<CustomerTabs tab={tab} onTab={setTab} />}
+      />
     );
   }
 
@@ -32,10 +41,7 @@ function CustomersInner() {
     <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: 'Khách hàng' }]}>
       {({ token, user }) => (
         <>
-          <div className="pos-tabs">
-            <button type="button" className="pos-tab is-on">Khách bán hàng</button>
-            <button type="button" className="pos-tab" onClick={() => setTab('care')}>Chăm sóc</button>
-          </div>
+          <CustomerTabs tab={tab} onTab={setTab} />
           <PortalPosCustomers token={token} canManage={user.role !== 'staff'} initialPhone={posPhone} />
         </>
       )}

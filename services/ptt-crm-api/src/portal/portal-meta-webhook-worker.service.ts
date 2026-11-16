@@ -4,6 +4,7 @@ import { MetaBusinessTokenService } from '../agency/meta-business-token.service'
 import { fetchFacebookLeadFromGraph, metaConfigFromEnv } from '../webhooks/meta-webhook.parser';
 import { isPortalWorkerProcess } from './portal-inbox-poller.util';
 import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
 import { graphLeadRowToPulled } from './portal-meta-webhook.parser';
 
 /** Heavy leadgen Graph fetch — portal-worker process only. */
@@ -15,6 +16,7 @@ export class PortalMetaWebhookWorkerService {
   constructor(
     private readonly repo: PortalCareRepository,
     private readonly meta: MetaBusinessTokenService,
+    private readonly rebalancer: PortalCareRebalanceService,
   ) {}
 
   @Interval(4000)
@@ -68,5 +70,6 @@ export class PortalMetaWebhookWorkerService {
     const pulled = graphLeadRowToPulled(leadgenId, row);
     await this.repo.upsertPageLead(clientId, pageId, pulled);
     await this.repo.syncCases(clientId);
+    await this.rebalancer.rebalance(clientId);
   }
 }

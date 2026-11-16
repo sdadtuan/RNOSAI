@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   deletePortalQuickReply,
   fetchPortalQuickReplies,
@@ -77,7 +78,7 @@ export function PortalInboxQuickReplies({
         </svg>
         <span>Mẫu</span>
       </button>
-      {open ? (
+      {open ? createPortal(
         <div
           className="tram-inbox__modal-back"
           role="presentation"
@@ -237,7 +238,8 @@ export function PortalInboxQuickReplies({
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

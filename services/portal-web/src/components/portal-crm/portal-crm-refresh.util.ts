@@ -29,12 +29,13 @@ export function mergeCareCases(prev: PortalCareCase[], incoming: PortalCareCase[
   return order.map((id) => byId.get(id)).filter((row): row is PortalCareCase => Boolean(row));
 }
 
-export function mergeDeskMessages(prev: PortalDesk, next: PortalDesk): PortalDesk {
+/** Desk poll: take the server lists as truth, dropping rows the server no longer returns. Live pushes still use mergeCareCases. */
+export function mergeDeskMessages(_prev: PortalDesk, next: PortalDesk): PortalDesk {
   return {
     ...next,
-    messages: mergeCareCases(prev.messages, next.messages),
-    leads: mergeCareCases(prev.leads, next.leads),
-    customers: mergeCareCases(prev.customers, next.customers),
+    messages: next.messages,
+    leads: next.leads,
+    customers: next.customers,
   };
 }
 

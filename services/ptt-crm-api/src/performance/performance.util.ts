@@ -92,3 +92,20 @@ export function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
+
+/**
+ * Restrict daily_performance aggregates to a single insight level.
+ * The table stores account, campaign, adset and ad rows for the same day;
+ * summing all four multiplies spend (and other metrics) by about 4.
+ * Campaign-level matches per-campaign grouping; null covers Google/Zalo
+ * and legacy rows that never had a level.
+ */
+export function performanceInsightLevelSql(alias = 'dp'): string {
+  return `(${alias}.insight_level = 'campaign' OR ${alias}.insight_level IS NULL)`;
+}
+
+/** Drop account-level leftovers (empty campaign id/name) from campaign grouping. */
+export function performanceNonEmptyCampaignSql(alias = 'dp'): string {
+  return `COALESCE(${alias}.external_campaign_id, '') <> ''`;
+}
+

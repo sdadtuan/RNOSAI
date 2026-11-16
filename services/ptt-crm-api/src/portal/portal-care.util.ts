@@ -67,6 +67,16 @@ export function shouldHopCare(status: string, dueAt: Date | null, now: Date): bo
   return status === 'caring' && dueAt != null && dueAt.getTime() <= now.getTime();
 }
 
+/** Pinned manual assignments are not hopped by the 15-min / 24h SLA while the assignee is still active. */
+export function shouldSkipHop(
+  row: { assigned_manually?: boolean; assignee_user_id: string | null },
+  activeStaff: Set<string>,
+): boolean {
+  if (!row.assigned_manually) return false;
+  if (!row.assignee_user_id) return false;
+  return activeStaff.has(row.assignee_user_id);
+}
+
 export type PortalCareListFilter = {
   pageId?: string;
   day?: string;

@@ -10,6 +10,8 @@ export interface PortalClientUserPublic {
   email: string;
   role: PortalClientRole;
   active: boolean;
+  display_name: string;
+  phone: string;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
@@ -26,6 +28,8 @@ export interface CreatePortalClientUserBody {
   email: string;
   password?: string;
   role?: PortalClientRole;
+  display_name?: string;
+  phone?: string;
   /** Default true — gửi email template thông tin đăng nhập khi PTT_PORTAL_EMAIL_NOTIFY=1 */
   send_email?: boolean;
 }
@@ -47,6 +51,10 @@ export interface CreatePortalClientUserResponse {
 export interface UpdatePortalClientUserBody {
   role?: PortalClientRole;
   active?: boolean;
+  display_name?: string;
+  phone?: string;
+  /** Optional login-email change; uniqueness is checked excluding this user. */
+  email?: string;
 }
 
 export interface ResetPortalClientUserPasswordBody {

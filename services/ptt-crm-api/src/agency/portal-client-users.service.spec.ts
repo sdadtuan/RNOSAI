@@ -12,10 +12,12 @@ describe('PortalClientUsersService', () => {
     clientExists: jest.fn(),
     listByClient: jest.fn(),
     emailTaken: jest.fn(),
+    phoneTaken: jest.fn(),
     insertUser: jest.fn(),
     findById: jest.fn(),
     updateUser: jest.fn(),
     updatePassword: jest.fn(),
+    softDelete: jest.fn(),
     getClientSummary: jest.fn(),
   };
   const tenantLock = {
@@ -130,5 +132,50 @@ describe('PortalClientUsersService', () => {
     const out = await service.resetPassword('client-1', 'u1', { send_email: true });
     expect(out.ok).toBe(true);
     expect(credentialsNotify.sendCredentialsEmail).toHaveBeenCalled();
+  });
+
+  it('update can change display name, phone and email, excluding self from uniqueness', async () => {
+    repo.phoneTaken.mockResolvedValue(false);
+    repo.emailTaken.mockResolvedValue(false);
+    repo.updateUser.mockResolvedValue({
+      id: 'u1',
+      email: 'new@test.local',
+      role: 'staff',
+      active: true,
+      display_name: 'Mai',
+      phone: '0902223333',
+      last_login_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    const out = await service.update('client-1', 'u1', {
+      display_name: 'Mai',
+      phone: '0902223333',
+      email: 'new@test.local',
+    });
+    expect(out.email).toBe('new@test.local');
+    expect(repo.emailTaken).toHaveBeenCalledWith('new@test.local', 'u1');
+    expect(repo.phoneTaken).toHaveBeenCalledWith('client-1', '0902223333', 'u1');
+    expect(repo.updateUser).toHaveBeenCalledWith(
+      'client-1',
+      'u1',
+      expect.objectContaining({ displayName: 'Mai', phone: '0902223333', email: 'new@test.local' }),
+    );
+  });
+
+  it('update rejects a duplicate email belonging to another user', async () => {
+    repo.emailTaken.mockResolvedValue(true);
+    await expect(service.update('client-1', 'u1', { email: 'taken@test.local' })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(repo.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('softDelete stamps the user when found', async () => {
+    repo.findById.mockResolvedValue({ id: 'u1', email: 'client@test.local', role: 'staff', active: true });
+    repo.softDelete.mockResolvedValue({ id: 'u1', email: 'client@test.local', role: 'staff', active: false });
+    const out = await service.softDelete('client-1', 'u1');
+    expect(out.active).toBe(false);
+    expect(repo.softDelete).toHaveBeenCalledWith('client-1', 'u1');
   });
 });

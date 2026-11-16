@@ -218,20 +218,45 @@ export function facebookSendError(error?: GraphFacebookSendError): string {
   const message = String(error?.message ?? '');
   const code = Number(error?.code ?? 0);
   const sub = Number(error?.error_subcode ?? 0);
-  if (sub === 2018278 || /outside of allowed window/i.test(message)) {
-    return 'Facebook không chuyển tin vì khách chưa nhắn trong 24 giờ (mã 10/2018278 — ngoài cửa sổ 24 giờ).';
+  const codeLabel = `${code || 'err'}${sub ? '/' + sub : ''}`;
+
+  if (
+    sub === 2018300 ||
+    /another app.*(control|own)|controls? this (thread|conversation)|thread is (currently )?controlled|ứng dụng khác.*(kiểm soát|giữ quyền|điều khiển)/i.test(
+      message,
+    )
+  ) {
+    return 'Cuộc trò chuyện này đang được Hộp thư Meta (Business Suite/app Trang) giữ quyền trả lời. Không mở/trả lời cuộc này trong Business Suite, hoặc đợi hết 24 giờ rồi thử lại.';
   }
-  if (/not admins, developers or testers|app is live|permission is reviewed/i.test(message)) {
-    return 'Người nhận không phải admin/tester của app, hoặc pages_messaging chưa được duyệt quyền nâng cao nên Facebook từ chối gửi tin.';
+
+  if (code === 27 || sub === 2018464 || /thread control not supported|conversation routing (enabled|disabled)?/i.test(message)) {
+    return 'Chưa bật Định tuyến cuộc trò chuyện (Conversation Routing) trên Page, nên không giành được quyền trả lời. Vào Business Suite → Cài đặt → Tích hợp → Định tuyến cuộc trò chuyện để bật và chọn app nhận tin mặc định.';
   }
+
+  if (sub === 2018278 || /outside of allowed window|24[- ]hour window|cửa sổ 24 giờ/i.test(message)) {
+    return 'Quá 24 giờ kể từ tin cuối của khách, Facebook không cho gửi tin thường.';
+  }
+
+  if (
+    /not admins, developers or testers|cannot message users who are not admins|users who are not (admins|developers|testers)|không phải (admin|tester|quản trị|nhà phát triển)/i.test(
+      message,
+    )
+  ) {
+    return 'Người nhận chưa có vai trò trong app (quản trị/nhà phát triển/tester). Khi pages_messaging chưa được duyệt quyền nâng cao, chỉ nhắn được cho những người này.';
+  }
+
   if (code === 190 || /session has expired|expired.*token|invalid oauth|invalid access token/i.test(message)) {
     return 'Token của Page đã hết hạn hoặc bị thu hồi (mã 190). Cần lưu lại token Business Manager.';
   }
-  if (code === 10 || code === 200 || /pages_messaging|permission|not authorized|does not have permission|capability to make this api call/i.test(message)) {
+
+  const permissionLike =
+    /pages_messaging|permission|not authorized|does not have permission|capability to make this api call/i.test(message);
+  if ((code === 10 || code === 200) && permissionLike) {
     return 'pages_messaging chưa được duyệt quyền nâng cao, nên Facebook từ chối gửi tin (kể cả khi token đã có quyền chuẩn).';
   }
-  if (message) {
-    return `Facebook không nhận tin này. (${code || 'err'}${sub ? '/' + sub : ''})`;
+
+  if (message || code || sub) {
+    return `Facebook không nhận tin này. (${codeLabel})`;
   }
   return 'Facebook không nhận tin này.';
 }

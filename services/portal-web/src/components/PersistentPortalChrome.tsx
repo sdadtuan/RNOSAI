@@ -97,9 +97,12 @@ function AuthenticatedPortalChrome({ children }: { children: ReactNode }) {
     if (!token) return;
     void fetchPendingCreativeCount(token).then(setPendingCount).catch(() => setPendingCount(0));
     void refreshBranding();
-    void fetchPortalNotificationSummary(token)
-      .then(setNotificationSummary)
-      .catch(() => setNotificationSummary(null));
+    const loadNotifications = () =>
+      fetchPortalNotificationSummary(token)
+        .then(setNotificationSummary)
+        .catch(() => setNotificationSummary(null));
+    void loadNotifications();
+    const notifTimer = window.setInterval(() => void loadNotifications(), 15_000);
     void fetchPortalAdsChannels(token)
       .then((out) => setAdsChannelIds((out.channels ?? []).map((item) => item.id)))
       .catch(() => setAdsChannelIds([]));
@@ -123,6 +126,7 @@ function AuthenticatedPortalChrome({ children }: { children: ReactNode }) {
     }
     return () => {
       unsubDesk();
+      window.clearInterval(notifTimer);
     };
   }, [token, seoEnabled, refreshBranding]);
 

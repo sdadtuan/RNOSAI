@@ -25,8 +25,10 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     void fetchPortalSettings(token)
       .then((data) => {
         setSettings(data);
@@ -36,7 +38,8 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
         setAmName(data.am_contact_name ?? '');
         setAmEmail(data.am_contact_email ?? '');
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Không tải settings'));
+      .catch((err) => setError(err instanceof Error ? err.message : 'Không tải settings'))
+      .finally(() => setLoading(false));
   }, [token]);
 
   const previewAccent = normalizeAccentColor(accentColor) ?? PTT_DEFAULT_ACCENT;
@@ -72,7 +75,9 @@ export function BrandingSettingsForm({ token, canEdit, onUpdated }: BrandingSett
       title="Thương hiệu & liên hệ AM"
       description="Logo, tên hiển thị và màu accent áp dụng trên sidebar và nút CTA."
     >
-      {!settings?.table_ready ? (
+      {loading ? (
+        <p className="muted">Đang tải thương hiệu…</p>
+      ) : !settings?.table_ready ? (
         <p className="portal-callout portal-callout--warn">
           Chưa thể lưu thương hiệu lúc này. Vui lòng liên hệ AM PTT để được hỗ trợ.
         </p>

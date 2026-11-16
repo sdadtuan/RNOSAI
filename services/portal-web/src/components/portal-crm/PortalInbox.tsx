@@ -360,6 +360,13 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
   }, [desk, query, pageId, tag, staffId, quick, info, pageName]);
 
   useEffect(() => {
+    if (!selectedId) return;
+    if (threads.length === 0 || !threads.some((row) => row.id === selectedId)) {
+      setSelectedId('');
+    }
+  }, [threads, selectedId]);
+
+  useEffect(() => {
     if (didSelect) return;
     if (threads.length) {
       setSelectedId(threads[0].id);
@@ -1044,7 +1051,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
             {collide ? <p className="tram-inbox__collision">{collide}</p> : null}
             <div className="tram-inbox__side-pane" hidden={sideTab !== 'khach'}>
 
-            {desk?.me.role !== 'staff' && (desk?.staff.length ?? 0) > 0 && detail.case.status !== 'purchased' ? (
+            {desk?.me.role === 'approver' && (desk?.staff.length ?? 0) > 0 && detail.case.status !== 'purchased' ? (
               <div>
                 <p className="tram-inbox__kicker">Nhân viên phụ trách</p>
                 <label className="tram-inbox__assign-pick">

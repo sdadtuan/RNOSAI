@@ -47,6 +47,22 @@ export class PortalCrmController {
     return this.care.desk(user, { channel, page_id: pageId, day, label, include_inactive: includeInactive, sync });
   }
 
+  @Get('leads/funnel')
+  leadFunnel(
+    @PortalUser() user: PortalJwtPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page_id') pageId?: string,
+    @Query('channel') channel?: string,
+    @Query('form_id') formId?: string,
+    @Query('assignee') assignee?: string,
+    @Query('tag') tag?: string,
+  ) {
+    this.assertEnabled();
+    return this.care.leadFunnel(user, { from, to, pageId, channel, formId, assignee, tag });
+  }
+
+
   @Get('cases/:id')
   caseDetail(@PortalUser() user: PortalJwtPayload, @Param('id') id: string) {
     this.assertEnabled();
@@ -173,15 +189,42 @@ export class PortalCrmController {
   }
 
   @Post('staff')
-  addStaff(@PortalUser() user: PortalJwtPayload, @Body() body: { email?: string; password?: string }) {
+  addStaff(
+    @PortalUser() user: PortalJwtPayload,
+    @Body() body: { email?: string; password?: string; name?: string; phone?: string; role?: string },
+  ) {
     this.assertEnabled();
-    return this.care.addStaff(user, String(body?.email ?? ''), String(body?.password ?? ''));
+    return this.care.addStaff(user, body ?? {});
   }
 
   @Patch('staff/:id')
-  setStaffActive(@PortalUser() user: PortalJwtPayload, @Param('id') id: string, @Body() body: { active?: boolean }) {
+  updateStaff(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      email?: string;
+      password?: string;
+      name?: string;
+      phone?: string;
+      role?: string;
+      active?: boolean;
+      reset_password?: boolean;
+    },
+  ) {
     this.assertEnabled();
-    return this.care.setStaffActive(user, id, body?.active !== false);
+    const payload = body ?? {};
+    const keys = Object.keys(payload).filter((key) => payload[key as keyof typeof payload] !== undefined);
+    if (keys.length === 1 && keys[0] === 'active' && typeof payload.active === 'boolean') {
+      return this.care.setStaffActive(user, id, payload.active);
+    }
+    return this.care.updateStaff(user, id, payload);
+  }
+
+  @Delete('staff/:id')
+  removeStaff(@PortalUser() user: PortalJwtPayload, @Param('id') id: string) {
+    this.assertEnabled();
+    return this.care.removeStaff(user, id);
   }
 
   @Get('pages')

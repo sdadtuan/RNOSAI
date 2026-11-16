@@ -36,6 +36,12 @@ function categoryLabel(category: string): string {
       return 'SEO';
     case 'campaign_milestone':
       return 'Milestone';
+    case 'care_assigned':
+      return 'Phân công';
+    case 'care_message':
+      return 'Tin nhắn';
+    case 'care_reassigned':
+      return 'Chuyển việc';
     default:
       return 'Hệ thống';
   }

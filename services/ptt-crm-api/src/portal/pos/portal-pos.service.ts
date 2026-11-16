@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PortalJwtPayload } from '../portal-jwt.util';
 import { PortalPosRepository, type OrderInput, type ProductInput } from './portal-pos.repository';
+import { PortalCareRepository } from '../portal-care.repository';
 import { isOrderStatus, mapCarrierStatus } from './portal-pos-status.util';
 import type { CarrierId, OrderStatus } from './portal-pos.types';
 import { CARRIERS } from './portal-pos.types';
@@ -19,7 +20,7 @@ import { normalizeVnPhone } from './portal-pos-pricing.util';
 export class PortalPosService {
   private readonly log = new Logger(PortalPosService.name);
 
-  constructor(private readonly repo: PortalPosRepository) {}
+  constructor(private readonly repo: PortalPosRepository, private readonly careRepo: PortalCareRepository) {}
 
   private requireManager(user: PortalJwtPayload): void {
     if (user.role === 'staff') throw new ForbiddenException({ error: 'approver_only' });
@@ -146,6 +147,10 @@ export class PortalPosService {
           throw err;
         }
       }
+      const caseId = String(body.case_id || order?.case_id || '').trim();
+      if (caseId) {
+        await this.markLeadPurchasedFromOrder(user.client_id, caseId);
+      }
       return { order };
     } catch (err) {
       if (err instanceof StockError) throw new BadRequestException({ error: 'insufficient_stock' });
@@ -232,6 +237,18 @@ export class PortalPosService {
       ...body, carrier: carrier || (existing?.carrier as CarrierId) || 'ghn',
     });
     return { account };
+  }
+
+
+  private async markLeadPurchasedFromOrder(clientId: string, caseId: string): Promise<void> {
+    const row = await this.careRepo.findCase(clientId, caseId);
+    if (!row) return;
+    if (row.status !== 'purchased') {
+      await this.careRepo.markPurchased(row.id);
+    }
+    if (!row.customer_id) {
+      await this.careRepo.confirmCustomer(row);
+    }
   }
 
   private async resolveAccount(user: PortalJwtPayload, accountId?: string, carrier?: string): Promise<CarrierAccount> {

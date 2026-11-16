@@ -5,6 +5,15 @@ import { AppConfigService } from '../config/app-config.service';
 import { ensurePortalCrmLocalSchema } from './portal-crm-local-ddl.util';
 import { parseProductSpec, type ProductSpec } from './portal-product.util';
 import { appendAssigneeWhere, deriveInboxFlags, type PortalCareListFilter } from './portal-care.util';
+import {
+  breakdownRow,
+  channelLabel,
+  kpisFromCounts,
+  sanitizeFunnelFilter,
+  type LeadFunnelBreakdownRow,
+  type LeadFunnelFilter,
+  type LeadFunnelKpis,
+} from './portal-lead-funnel.util';
 
 export type CareCaseRow = {
   id: string;
@@ -34,6 +43,8 @@ export type CareCaseRow = {
   adset_id: string;
   ad_id: string;
   form_id: string;
+  form_name: string;
+  converted_at: string;
   notes: string;
   last_read_at: string;
   last_direction: string;
@@ -43,6 +54,8 @@ export type CareCaseRow = {
   last_viewed_by: string | null;
   last_viewed_at: string;
   last_viewed_email: string;
+  held: boolean;
+  assigned_manually: boolean;
 };
 
 export type OrderDraft = {
@@ -107,6 +120,8 @@ function mapCase(row: Record<string, unknown>): CareCaseRow {
     adset_id: String(row.adset_id ?? ''),
     ad_id: String(row.ad_id_lead ?? row.ad_id ?? ''),
     form_id: String(row.form_id ?? ''),
+    form_name: String(row.form_name ?? ''),
+    converted_at: iso(row.converted_at),
     notes: String(row.notes ?? ''),
     last_read_at: iso(row.last_read_at),
     last_direction: String(row.last_direction ?? ''),
@@ -122,6 +137,8 @@ function mapCase(row: Record<string, unknown>): CareCaseRow {
     last_viewed_by: row.last_viewed_by ? String(row.last_viewed_by) : null,
     last_viewed_at: iso(row.last_viewed_at),
     last_viewed_email: String(row.last_viewed_email ?? ''),
+    held: row.held === true || row.held === 't' || row.held === 1,
+    assigned_manually: row.assigned_manually === true || row.assigned_manually === 't' || row.assigned_manually === 1,
   };
 }
 
@@ -199,6 +216,25 @@ export class PortalCareRepository implements OnModuleDestroy {
     await ensurePortalCrmLocalSchema(this.db, this.log, PortalCareRepository.name);
   }
 
+  /**
+   * Session-level advisory lock on a dedicated connection so the API process
+   * and the portal-worker process cannot rebalance the same client at once.
+   * Lock class 872314 is reserved for portal care rebalance.
+   */
+  async withClientLock<T>(clientId: string, fn: () => Promise<T>): Promise<T> {
+    const conn = await this.db.connect();
+    try {
+      await conn.query('SELECT pg_advisory_lock(872314, hashtext($1::text))', [clientId]);
+      try {
+        return await fn();
+      } finally {
+        await conn.query('SELECT pg_advisory_unlock(872314, hashtext($1::text))', [clientId]);
+      }
+    } finally {
+      conn.release();
+    }
+  }
+
   async upsertPageLead(
     clientId: string,
     pageId: string,
@@ -212,13 +248,14 @@ export class PortalCareRepository implements OnModuleDestroy {
       ad_id?: string;
       adset_id?: string;
       form_id?: string;
+      form_name?: string;
       answers?: Array<{ name: string; value: string }>;
       created_at: string;
     },
   ): Promise<void> {
     await this.db.query(
-      `INSERT INTO portal_page_leads (client_id, page_id, external_lead_id, full_name, phone, email, campaign_name, campaign_id, ad_id, adset_id, form_id, field_data, created_at)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $11, $12, COALESCE($13::jsonb, '[]'::jsonb), COALESCE($10::timestamptz, NOW()))
+      `INSERT INTO portal_page_leads (client_id, page_id, external_lead_id, full_name, phone, email, campaign_name, campaign_id, ad_id, adset_id, form_id, form_name, field_data, created_at)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $11, $12, $14, COALESCE($13::jsonb, '[]'::jsonb), COALESCE($10::timestamptz, NOW()))
        ON CONFLICT (page_id, external_lead_id) WHERE external_lead_id <> '' DO UPDATE SET
          full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), portal_page_leads.full_name),
          phone = COALESCE(NULLIF(EXCLUDED.phone, ''), portal_page_leads.phone),
@@ -228,6 +265,7 @@ export class PortalCareRepository implements OnModuleDestroy {
          ad_id = COALESCE(NULLIF(EXCLUDED.ad_id, ''), portal_page_leads.ad_id),
          adset_id = COALESCE(NULLIF(EXCLUDED.adset_id, ''), portal_page_leads.adset_id),
          form_id = COALESCE(NULLIF(EXCLUDED.form_id, ''), portal_page_leads.form_id),
+         form_name = COALESCE(NULLIF(EXCLUDED.form_name, ''), portal_page_leads.form_name),
          field_data = CASE
            WHEN EXCLUDED.field_data IS NULL OR EXCLUDED.field_data = '[]'::jsonb THEN portal_page_leads.field_data
            ELSE EXCLUDED.field_data
@@ -247,6 +285,7 @@ export class PortalCareRepository implements OnModuleDestroy {
         String(input.adset_id ?? '').slice(0, 64),
         String(input.form_id ?? '').slice(0, 64),
         JSON.stringify(input.answers ?? []),
+        String(input.form_name ?? '').trim().slice(0, 200),
       ],
     );
     await this.touchCustomerByContact(clientId, pageId, input.phone, input.email);
@@ -317,10 +356,10 @@ export class PortalCareRepository implements OnModuleDestroy {
       direction: 'in' | 'out';
       attachments?: Array<{ type: string; url: string; mime_type: string; name: string }>;
     },
-  ): Promise<void> {
+  ): Promise<boolean> {
     const psid = String(input.sender_psid ?? '').slice(0, 64);
     const attachments = JSON.stringify(input.attachments ?? []);
-    await this.db.query(
+    const result = await this.db.query(
       `INSERT INTO portal_page_messages (client_id, page_id, external_message_id, sender_name, sender_psid, body, received_at, direction, attachments)
        VALUES ($1::uuid, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW()), $8, COALESCE($9::jsonb, '[]'::jsonb))
        ON CONFLICT (page_id, external_message_id) WHERE external_message_id <> ''
@@ -339,13 +378,16 @@ export class PortalCareRepository implements OnModuleDestroy {
            WHEN (portal_page_messages.body IN ('', '[sticker]', '[ảnh/sticker]')) AND EXCLUDED.body <> ''
              THEN EXCLUDED.body
            ELSE portal_page_messages.body
-         END`,
+         END
+       RETURNING (xmax = 0) AS inserted`,
       [clientId, pageId, input.external_id, input.sender_name, psid, input.body, input.received_at || null, input.direction, attachments],
     );
     await this.touchCustomerInteraction(clientId, pageId, {
       psid,
       senderName: input.direction !== 'out' ? input.sender_name : '',
     });
+    const inserted = result.rows[0]?.inserted;
+    return inserted === true || inserted === 't' || inserted === 1;
   }
 
   async latestSenderPsid(clientId: string, pageId: string, psid: string, senderName: string): Promise<string> {
@@ -624,7 +666,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async findActiveClientUser(clientId: string, userId: string): Promise<{ id: string; email: string } | null> {
     const result = await this.db.query(
       `SELECT id::text, email FROM portal_client_users
-       WHERE client_id = $1::uuid AND id = $2::uuid AND active IS TRUE
+       WHERE client_id = $1::uuid AND id = $2::uuid AND active IS TRUE AND role = 'staff'
        LIMIT 1`,
       [clientId, userId],
     );
@@ -637,6 +679,8 @@ export class PortalCareRepository implements OnModuleDestroy {
       `UPDATE portal_care_cases
        SET assignee_user_id = $2::uuid,
            assigned_at = NOW(),
+           assigned_manually = TRUE,
+           held = FALSE,
            receive_due_at = CASE WHEN status = 'waiting_receive' THEN $3::timestamptz ELSE receive_due_at END,
            updated_at = NOW()
        WHERE id = $1::uuid AND status <> 'purchased'`,
@@ -644,10 +688,20 @@ export class PortalCareRepository implements OnModuleDestroy {
     );
   }
 
-  async listManagedStaff(clientId: string): Promise<Array<{ id: string; email: string; active: boolean }>> {
+  async listManagedStaff(clientId: string): Promise<Array<{
+    id: string;
+    email: string;
+    active: boolean;
+    role: string;
+    display_name: string;
+    phone: string;
+  }>> {
     const result = await this.db.query(
-      `SELECT id::text, email, active FROM portal_client_users
-       WHERE client_id = $1::uuid AND role = 'staff'
+      `SELECT id::text, email, active, role,
+              COALESCE(display_name, '') AS display_name,
+              COALESCE(phone, '') AS phone
+       FROM portal_client_users
+       WHERE client_id = $1::uuid AND role IN ('staff', 'viewer') AND deleted_at IS NULL
        ORDER BY active DESC, email ASC`,
       [clientId],
     );
@@ -655,6 +709,9 @@ export class PortalCareRepository implements OnModuleDestroy {
       id: String(row.id),
       email: String(row.email),
       active: row.active === true || row.active === 't' || row.active === 1,
+      role: String(row.role ?? 'staff'),
+      display_name: String(row.display_name ?? ''),
+      phone: String(row.phone ?? ''),
     }));
   }
 
@@ -677,11 +734,14 @@ export class PortalCareRepository implements OnModuleDestroy {
     status: string;
     receive_due_at: Date | null;
     care_due_at: Date | null;
+    assigned_manually: boolean;
   }>> {
     const result = await this.db.query(
-      `SELECT id::text, assignee_user_id::text, status, receive_due_at, care_due_at
+      `SELECT id::text, assignee_user_id::text, status, receive_due_at, care_due_at, assigned_manually
        FROM portal_care_cases
-       WHERE client_id = $1::uuid AND status IN ('waiting_receive', 'caring')`,
+       WHERE client_id = $1::uuid
+         AND status IN ('waiting_receive', 'caring')
+         AND held IS NOT TRUE`,
       [clientId],
     );
     return result.rows.map((row) => ({
@@ -690,13 +750,14 @@ export class PortalCareRepository implements OnModuleDestroy {
       status: String(row.status),
       receive_due_at: row.receive_due_at ? new Date(row.receive_due_at) : null,
       care_due_at: row.care_due_at ? new Date(row.care_due_at) : null,
+      assigned_manually: row.assigned_manually === true || row.assigned_manually === 't' || row.assigned_manually === 1,
     }));
   }
 
   async listUnassignedCare(clientId: string): Promise<string[]> {
     const result = await this.db.query(
       `SELECT id::text FROM portal_care_cases
-       WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'caring'
+       WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'caring' AND held IS NOT TRUE
        ORDER BY created_at ASC`,
       [clientId],
     );
@@ -706,30 +767,37 @@ export class PortalCareRepository implements OnModuleDestroy {
   async listUnassigned(clientId: string): Promise<string[]> {
     const result = await this.db.query(
       `SELECT id::text FROM portal_care_cases
-       WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'waiting_receive'
+       WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'waiting_receive' AND held IS NOT TRUE
        ORDER BY created_at ASC`,
       [clientId],
     );
     return result.rows.map((row) => String(row.id));
   }
 
-  async assignReceive(id: string, userId: string, due: Date): Promise<void> {
-    await this.db.query(
+  async assignReceive(id: string, userId: string, due: Date, expectedAssignee: string | null = null): Promise<boolean> {
+    const result = await this.db.query(
       `UPDATE portal_care_cases
        SET assignee_user_id = $2::uuid, assigned_at = NOW(), receive_due_at = $3,
-           received_at = NULL, updated_at = NOW()
-       WHERE id = $1::uuid AND status = 'waiting_receive'`,
-      [id, userId, due.toISOString()],
+           received_at = NULL, held = FALSE, assigned_manually = FALSE, updated_at = NOW()
+       WHERE id = $1::uuid AND status = 'waiting_receive' AND held IS NOT TRUE
+         AND (($4::uuid IS NULL AND assignee_user_id IS NULL)
+           OR ($4::uuid IS NOT NULL AND assignee_user_id = $4::uuid))`,
+      [id, userId, due.toISOString(), expectedAssignee],
     );
+    return (result.rowCount ?? 0) > 0;
   }
 
-  async assignCare(id: string, userId: string, due: Date): Promise<void> {
-    await this.db.query(
+  async assignCare(id: string, userId: string, due: Date, expectedAssignee: string | null = null): Promise<boolean> {
+    const result = await this.db.query(
       `UPDATE portal_care_cases
-       SET assignee_user_id = $2::uuid, assigned_at = NOW(), care_due_at = $3, updated_at = NOW()
-       WHERE id = $1::uuid AND status = 'caring'`,
-      [id, userId, due.toISOString()],
+       SET assignee_user_id = $2::uuid, assigned_at = NOW(), care_due_at = $3,
+           held = FALSE, assigned_manually = FALSE, updated_at = NOW()
+       WHERE id = $1::uuid AND status = 'caring' AND held IS NOT TRUE
+         AND (($4::uuid IS NULL AND assignee_user_id IS NULL)
+           OR ($4::uuid IS NOT NULL AND assignee_user_id = $4::uuid))`,
+      [id, userId, due.toISOString(), expectedAssignee],
     );
+    return (result.rowCount ?? 0) > 0;
   }
 
   async findCase(clientId: string, id: string): Promise<CareCaseRow | null> {
@@ -772,12 +840,22 @@ export class PortalCareRepository implements OnModuleDestroy {
     return result.rows.map((row) => mapCase(row as Record<string, unknown>));
   }
 
-  async markReceived(id: string): Promise<void> {
+  async markReceived(id: string, assigneeUserId?: string): Promise<void> {
     await this.db.query(
       `UPDATE portal_care_cases
-       SET status = 'received', received_at = NOW(), updated_at = NOW()
+       SET status = 'received',
+           received_at = NOW(),
+           assignee_user_id = CASE
+             WHEN assignee_user_id IS NULL AND $2::uuid IS NOT NULL THEN $2::uuid
+             ELSE assignee_user_id
+           END,
+           assigned_at = CASE
+             WHEN assignee_user_id IS NULL AND $2::uuid IS NOT NULL THEN NOW()
+             ELSE assigned_at
+           END,
+           updated_at = NOW()
        WHERE id = $1::uuid AND status = 'waiting_receive'`,
-      [id],
+      [id, assigneeUserId || null],
     );
   }
 
@@ -797,7 +875,11 @@ export class PortalCareRepository implements OnModuleDestroy {
   async markPurchased(id: string): Promise<void> {
     await this.db.query(
       `UPDATE portal_care_cases
-       SET status = 'purchased', care_due_at = NULL, receive_due_at = NULL, updated_at = NOW()
+       SET status = 'purchased',
+           care_due_at = NULL,
+           receive_due_at = NULL,
+           converted_at = COALESCE(converted_at, NOW()),
+           updated_at = NOW()
        WHERE id = $1::uuid AND status <> 'purchased'`,
       [id],
     );
@@ -823,11 +905,72 @@ export class PortalCareRepository implements OnModuleDestroy {
   }
 
   async unassign(id: string): Promise<void> {
+    // waiting_receive / caring: hold in the queue so rebalance does not immediately reassign.
+    // received: put back on the auto-assign queue (waiting_receive, held=false) so the case is not invisible.
     await this.db.query(
       `UPDATE portal_care_cases
-       SET assignee_user_id = NULL, assigned_at = NULL, receive_due_at = NULL, updated_at = NOW()
+       SET assignee_user_id = NULL,
+           assigned_at = NULL,
+           assigned_manually = FALSE,
+           receive_due_at = NULL,
+           held = CASE WHEN status = 'received' THEN FALSE ELSE TRUE END,
+           received_at = CASE WHEN status = 'received' THEN NULL ELSE received_at END,
+           status = CASE WHEN status = 'received' THEN 'waiting_receive' ELSE status END,
+           updated_at = NOW()
        WHERE id = $1::uuid AND status <> 'purchased'`,
       [id],
+    );
+  }
+
+  /** Clear a disabled staff member's open cases and put received ones back on the auto-assign queue. */
+  async releaseOpenCasesForUser(clientId: string, userId: string): Promise<number> {
+    const result = await this.db.query(
+      `UPDATE portal_care_cases
+       SET assignee_user_id = NULL,
+           assigned_at = NULL,
+           assigned_manually = FALSE,
+           held = FALSE,
+           receive_due_at = NULL,
+           received_at = CASE WHEN status = 'received' THEN NULL ELSE received_at END,
+           status = CASE WHEN status = 'received' THEN 'waiting_receive' ELSE status END,
+           updated_at = NOW()
+       WHERE client_id = $1::uuid AND assignee_user_id = $2::uuid AND status <> 'purchased'`,
+      [clientId, userId],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  /** Safety net: release cases whose assignee is no longer in the active staff/approver pool. */
+  async releaseCasesWithInactiveAssignees(clientId: string, activeIds: string[]): Promise<number> {
+    if (!activeIds.length) return 0;
+    const result = await this.db.query(
+      `UPDATE portal_care_cases
+       SET assignee_user_id = NULL,
+           assigned_at = NULL,
+           assigned_manually = FALSE,
+           held = FALSE,
+           receive_due_at = NULL,
+           received_at = CASE WHEN status = 'received' THEN NULL ELSE received_at END,
+           status = CASE WHEN status = 'received' THEN 'waiting_receive' ELSE status END,
+           updated_at = NOW()
+       WHERE client_id = $1::uuid
+         AND status <> 'purchased'
+         AND assignee_user_id IS NOT NULL
+         AND NOT (assignee_user_id = ANY($2::uuid[]))`,
+      [clientId, activeIds],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  /** Extend the 15-min receive SLA or 24h care SLA after a staff reply. */
+  async extendSla(id: string, receiveDue: Date, careDue: Date): Promise<void> {
+    await this.db.query(
+      `UPDATE portal_care_cases
+       SET receive_due_at = CASE WHEN status = 'waiting_receive' THEN $2::timestamptz ELSE receive_due_at END,
+           care_due_at = CASE WHEN status = 'caring' THEN $3::timestamptz ELSE care_due_at END,
+           updated_at = NOW()
+       WHERE id = $1::uuid AND status IN ('waiting_receive', 'caring')`,
+      [id, receiveDue.toISOString(), careDue.toISOString()],
     );
   }
 
@@ -1416,10 +1559,14 @@ export class PortalCareRepository implements OnModuleDestroy {
       }
     }
     if (customerId) {
-      await this.db.query(`UPDATE portal_care_cases SET customer_id = $2::uuid, updated_at = NOW() WHERE id = $1::uuid`, [
-        row.id,
-        customerId,
-      ]);
+      await this.db.query(
+        `UPDATE portal_care_cases
+         SET customer_id = $2::uuid,
+             converted_at = COALESCE(converted_at, NOW()),
+             updated_at = NOW()
+         WHERE id = $1::uuid`,
+        [row.id, customerId],
+      );
     }
     return customerId;
   }
@@ -1679,10 +1826,11 @@ export class PortalCareRepository implements OnModuleDestroy {
     const match = this.messageMatchSql('m');
     return `SELECT c.id, c.page_id, c.channel, c.kind, c.thread_key, c.title,
                    c.assignee_user_id, COALESCE(u.email, '') AS assignee_email, c.status, c.labels, c.customer_id,
-                   c.assigned_at, c.receive_due_at, c.received_at, c.care_started_at, c.care_due_at, c.created_at, c.order_draft,
+                   c.assigned_at, c.receive_due_at, c.received_at, c.care_started_at, c.care_due_at, c.created_at, c.converted_at, c.order_draft,
                    c.notes, c.last_read_at,
                    c.last_viewed_by, c.last_viewed_at, COALESCE(v.email, '') AS last_viewed_email,
-                   COALESCE(last_msg.received_at, l.created_at) AS last_interaction_at,
+                   c.held, c.assigned_manually,
+                   COALESCE(last_msg.received_at, l.created_at, c.created_at) AS last_interaction_at,
                    last_msg.body AS snippet,
                    COALESCE(last_msg.direction, '') AS last_direction,
                    last_in.received_at AS last_inbound_at,
@@ -1692,7 +1840,8 @@ export class PortalCareRepository implements OnModuleDestroy {
                    COALESCE(l.campaign_id, '') AS campaign_id,
                    COALESCE(l.adset_id, '') AS adset_id,
                    COALESCE(l.ad_id, '') AS ad_id_lead,
-                   COALESCE(l.form_id, '') AS form_id
+                   COALESCE(l.form_id, '') AS form_id,
+                   COALESCE(NULLIF(l.form_name, ''), '') AS form_name
             FROM portal_care_cases c
             LEFT JOIN portal_client_users u ON u.id = c.assignee_user_id
             LEFT JOIN portal_client_users v ON v.id = c.last_viewed_by
@@ -1716,6 +1865,140 @@ export class PortalCareRepository implements OnModuleDestroy {
               ORDER BY m.received_at DESC
               LIMIT 1
             ) last_in ON TRUE`;
+  }
+
+
+  async leadFunnel(
+    clientId: string,
+    rawFilter: LeadFunnelFilter,
+    options: { assigneeUserId?: string; today: string },
+  ): Promise<{
+    kpis: LeadFunnelKpis;
+    by_page: LeadFunnelBreakdownRow[];
+    by_channel: LeadFunnelBreakdownRow[];
+    by_form: LeadFunnelBreakdownRow[];
+    by_staff: LeadFunnelBreakdownRow[];
+  }> {
+    const filter = sanitizeFunnelFilter(rawFilter);
+    const values: unknown[] = [clientId];
+    const where = [`c.client_id = $1::uuid`, `c.kind = 'lead'`];
+    if (options.assigneeUserId) {
+      values.push(options.assigneeUserId);
+      where.push(`c.assignee_user_id = $${values.length}::uuid`);
+    }
+    if (filter.pageId) {
+      values.push(filter.pageId);
+      where.push(`c.page_id = $${values.length}`);
+    }
+    if (filter.channel) {
+      values.push(filter.channel);
+      where.push(`c.channel = $${values.length}`);
+    }
+    if (filter.formId) {
+      values.push(filter.formId);
+      where.push(`COALESCE(l.form_id, '') = $${values.length}`);
+    }
+    if (filter.assignee === 'unassigned') {
+      where.push(`c.assignee_user_id IS NULL`);
+    } else if (filter.assignee) {
+      values.push(filter.assignee);
+      where.push(`c.assignee_user_id = $${values.length}::uuid`);
+    }
+    if (filter.tag) {
+      values.push(filter.tag);
+      where.push(`$${values.length} = ANY (c.labels)`);
+    }
+    const occurred = `COALESCE(l.created_at, c.created_at)`;
+    const occurredDay = `(${occurred} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date`;
+    if (filter.from) {
+      values.push(filter.from);
+      where.push(`${occurredDay} >= $${values.length}::date`);
+    }
+    if (filter.to) {
+      values.push(filter.to);
+      where.push(`${occurredDay} <= $${values.length}::date`);
+    }
+    const filterValues = values.slice();
+    const kpiValues = [...filterValues, options.today];
+    const todayIdx = kpiValues.length;
+    const cte = `FROM portal_care_cases c
+            LEFT JOIN portal_page_leads l
+              ON c.kind = 'lead'
+             AND l.client_id = c.client_id
+             AND c.thread_key = 'lead:' || l.id::text
+            LEFT JOIN portal_client_users u ON u.id = c.assignee_user_id
+            WHERE ${where.join(' AND ')}`;
+    const kpiSql = `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE c.status = 'waiting_receive')::int AS waiting,
+              COUNT(*) FILTER (WHERE c.assignee_user_id IS NOT NULL)::int AS assigned,
+              COUNT(*) FILTER (WHERE c.status IN ('received', 'caring', 'purchased'))::int AS received,
+              COUNT(*) FILTER (WHERE c.customer_id IS NOT NULL)::int AS converted,
+              COUNT(*) FILTER (WHERE c.status = 'purchased')::int AS purchased,
+              COUNT(*) FILTER (WHERE ${occurredDay} = $${todayIdx}::date)::int AS today
+            ${cte}`;
+    const kpiRes = await this.db.query(kpiSql, kpiValues);
+    const k = kpiRes.rows[0] as Record<string, unknown> | undefined;
+    const kpis = kpisFromCounts({
+      total: Number(k?.total ?? 0),
+      waiting: Number(k?.waiting ?? 0),
+      assigned: Number(k?.assigned ?? 0),
+      received: Number(k?.received ?? 0),
+      converted: Number(k?.converted ?? 0),
+      purchased: Number(k?.purchased ?? 0),
+      today: Number(k?.today ?? 0),
+    });
+    const mapBreakdown = (
+      rows: Array<Record<string, unknown>>,
+      idKey: string,
+      labelKey: string,
+      fallback: (id: string) => string,
+    ): LeadFunnelBreakdownRow[] =>
+      rows.map((row) => {
+        const id = String(row[idKey] ?? '');
+        const label = String(row[labelKey] ?? '').trim() || fallback(id);
+        return breakdownRow(id, label, {
+          total: Number(row.total ?? 0),
+          received: Number(row.received ?? 0),
+          converted: Number(row.converted ?? 0),
+          purchased: Number(row.purchased ?? 0),
+        });
+      });
+    const dimSql = (idExpr: string, labelExpr: string, groupExpr: string) =>
+      `SELECT ${idExpr} AS id, ${labelExpr} AS label,
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE c.status IN ('received', 'caring', 'purchased'))::int AS received,
+              COUNT(*) FILTER (WHERE c.customer_id IS NOT NULL)::int AS converted,
+              COUNT(*) FILTER (WHERE c.status = 'purchased')::int AS purchased
+       ${cte}
+       GROUP BY ${groupExpr}
+       ORDER BY COUNT(*) DESC, 2 ASC`;
+    const [pageRes, chRes, formRes, staffRes] = await Promise.all([
+      this.db.query(dimSql(`c.page_id`, `c.page_id`, `c.page_id`), filterValues),
+      this.db.query(dimSql(`c.channel`, `c.channel`, `c.channel`), filterValues),
+      this.db.query(
+        dimSql(
+          `COALESCE(l.form_id, '')`,
+          `COALESCE(NULLIF(l.form_name, ''), NULLIF(l.form_id, ''), 'Không có biểu mẫu')`,
+          `COALESCE(l.form_id, ''), COALESCE(NULLIF(l.form_name, ''), NULLIF(l.form_id, ''), 'Không có biểu mẫu')`,
+        ),
+        filterValues,
+      ),
+      this.db.query(
+        dimSql(
+          `COALESCE(c.assignee_user_id::text, 'unassigned')`,
+          `COALESCE(NULLIF(u.email, ''), 'Chưa gán')`,
+          `COALESCE(c.assignee_user_id::text, 'unassigned'), COALESCE(NULLIF(u.email, ''), 'Chưa gán')`,
+        ),
+        filterValues,
+      ),
+    ]);
+    return {
+      kpis,
+      by_page: mapBreakdown(pageRes.rows as Array<Record<string, unknown>>, 'id', 'label', (id) => id || 'Page'),
+      by_channel: mapBreakdown(chRes.rows as Array<Record<string, unknown>>, 'id', 'label', (id) => channelLabel(id)),
+      by_form: mapBreakdown(formRes.rows as Array<Record<string, unknown>>, 'id', 'label', (id) => id || 'Không có biểu mẫu'),
+      by_staff: mapBreakdown(staffRes.rows as Array<Record<string, unknown>>, 'id', 'label', (id) => (id === 'unassigned' ? 'Chưa gán' : id)),
+    };
   }
 
   private customerCaseSelect(): string {

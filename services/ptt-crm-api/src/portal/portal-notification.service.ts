@@ -54,6 +54,7 @@ export class PortalNotificationService {
       portalUserId: user.sub,
       unreadOnly: Boolean(params?.unreadOnly),
       limit: Math.min(100, Math.max(1, Number(params?.limit) || 50)),
+      role: user.role,
     });
     return {
       ok: true,
@@ -77,6 +78,7 @@ export class PortalNotificationService {
         portalUserId: user.sub,
         unreadOnly: false,
         limit: 1,
+        role: user.role,
       }),
       this.repo.countPendingCreatives(clientId),
     ]);
@@ -125,6 +127,7 @@ export class PortalNotificationService {
     const updated = await this.repo.markAllRead({
       clientId,
       portalUserId: user.sub,
+      role: user.role,
     });
     return { ok: true, updated };
   }
@@ -215,7 +218,79 @@ export class PortalNotificationService {
     return { ok: true, ids };
   }
 
-  async emitCreativePending(creative: CreativeRow): Promise<{ ok: boolean; ids: string[] }> {
+  /**
+   * Targeted notification for a single portal user. Used for care assignment
+   * and incoming-message alerts, including from the portal-worker process.
+   * Does not broadcast to other users in the tenant.
+   */
+  async emitToUser(input: {
+    clientId: string;
+    portalUserId: string;
+    category: string;
+    title: string;
+    body?: string | null;
+    linkUrl?: string | null;
+    meta?: Record<string, unknown>;
+  }): Promise<{ ok: boolean; ids: string[]; error?: string }> {
+    const portalUserId = String(input.portalUserId ?? '').trim();
+    if (!portalUserId) {
+      return { ok: true, ids: [] };
+    }
+    if (!this.clientNotifyEnabled()) {
+      return { ok: true, ids: [] };
+    }
+    const ready = await this.repo.tableReady();
+    if (!ready) {
+      this.logger.warn('portal_notification table not ready — skip emitToUser');
+      return { ok: false, ids: [], error: 'portal_notification_table_not_ready' };
+    }
+
+    const row = await this.repo.insert({
+      clientId: input.clientId,
+      portalUserId,
+      category: input.category,
+      title: input.title,
+      body: input.body,
+      linkUrl: input.linkUrl,
+      meta: input.meta,
+    });
+    const ids = row ? [row.id] : [];
+
+    await this.webhook.send({
+      source: 'portal_client_notification',
+      client_id: input.clientId,
+      category: input.category,
+      title: input.title,
+      body: input.body ?? null,
+      link_url: input.linkUrl ?? null,
+      meta: input.meta ?? {},
+      notification_ids: ids,
+    });
+
+    const push = await this.pushSender.sendToUsers({
+      clientId: input.clientId,
+      portalUserIds: [portalUserId],
+      title: input.title,
+      body: input.body ?? '',
+      url: input.linkUrl ?? '/notifications',
+      data: {
+        category: input.category,
+        notification_ids: ids,
+        ...(input.meta ?? {}),
+      },
+    });
+    if (push.failed > 0 && push.sent === 0) {
+      this.logger.warn(
+        'portal push delivery partial failure: sent=%s failed=%s errors=%s',
+        push.sent,
+        push.failed,
+        push.errors.join('; '),
+      );
+    }
+    return { ok: true, ids };
+  }
+
+    async emitCreativePending(creative: CreativeRow): Promise<{ ok: boolean; ids: string[] }> {
     const channel = creative.channel ?? 'meta';
     const link = '/creatives';
     const title = `Creative chờ duyệt: ${creative.title} (v${creative.version})`;

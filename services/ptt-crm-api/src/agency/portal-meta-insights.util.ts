@@ -221,6 +221,13 @@ export function normalizeGraphInsightRow(row: Record<string, unknown>, level: In
   };
 }
 
+
+/** CTR as a percentage (clicks / impressions * 100). Null when there are no impressions. */
+export function computeCtr(clicks: number, impressions: number): number | null {
+  if (!(impressions > 0)) return null;
+  return (clicks / impressions) * 100;
+}
+
 export function formatGraphError(body: { error?: Record<string, unknown> } | null | undefined): string {
   const err = body?.error;
   if (!err || typeof err !== 'object') return 'graph_error';

@@ -7,6 +7,7 @@ import {
   normalizeGraphInsightRow,
   parseLeadsFromActions,
   resolveSyncLastError,
+  computeCtr,
 } from './portal-meta-insights.util';
 
 describe('portal-meta-insights.util', () => {
@@ -68,5 +69,15 @@ describe('portal-meta-insights.util', () => {
     expect(s).toContain('oops');
     expect(s).toContain('code=100');
     expect(s).toContain('fbtrace_id=abc');
+  });
+
+  it('computeCtr is clicks/impressions as a percentage', () => {
+    expect(computeCtr(14, 610)).toBeCloseTo(2.295081967, 8);
+    expect(computeCtr(12, 453)).toBeCloseTo((12 / 453) * 100, 8);
+    expect(computeCtr(2, 157)).toBeCloseTo((2 / 157) * 100, 8);
+    expect(computeCtr(8, 691)).toBeCloseTo((8 / 691) * 100, 8);
+    expect(computeCtr(5, 0)).toBeNull();
+    expect(computeCtr(0, 0)).toBeNull();
+    expect(computeCtr(0, 100)).toBe(0);
   });
 });

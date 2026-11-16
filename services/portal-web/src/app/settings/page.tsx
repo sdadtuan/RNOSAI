@@ -32,7 +32,9 @@ export default function SettingsPage() {
             onUpdated={() => void refreshBranding()}
           />
           <ChangePasswordForm token={token} email={user.email} />
-          <ClientStaffSettings token={token} canManage={user.role === 'approver' || user.role === 'admin'} />
+          {user.role !== 'staff' ? (
+            <ClientStaffSettings token={token} canManage={user.role === 'approver'} />
+          ) : null}
         </>
       )}
     </SettingsPortalShell>

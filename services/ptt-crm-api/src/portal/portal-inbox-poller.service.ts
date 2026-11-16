@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { portalCrmCareEnabled } from '../agency/portal-client-pages.util';
 import { PortalCareRepository } from './portal-care.repository';
+import { PortalCareRebalanceService } from './portal-care-rebalance.service';
 import { PortalInboxSyncService } from './portal-inbox-sync.service';
 import {
   InboxPollOverlapLock,
@@ -22,6 +23,7 @@ export class PortalInboxPollerService implements OnModuleInit {
   constructor(
     private readonly repo: PortalCareRepository,
     private readonly inboxSync: PortalInboxSyncService,
+    private readonly rebalancer: PortalCareRebalanceService,
   ) {}
 
   onModuleInit(): void {
@@ -69,6 +71,7 @@ export class PortalInboxPollerService implements OnModuleInit {
       if (stat.rateLimited) hitRateLimit = true;
       if (stat.hadNew) {
         await this.repo.syncCases(clientId);
+        await this.rebalancer.rebalance(clientId);
       }
       this.log.log(
         `portal-inbox-poller client=${clientId} pageNames=${(pageNamesByClient.get(clientId) ?? []).join(',')} pages=${stat.pages} withToken=${stat.withToken} leads=${stat.leads} messages=${stat.messages}${stat.error ? ' error=1' : ''}`,
