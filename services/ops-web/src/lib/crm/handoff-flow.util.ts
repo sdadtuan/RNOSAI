@@ -713,6 +713,5 @@ export const HANDOFF_FLOW_COPY = {
   assignedToMarketing: 'Đã giao case Solutions.',
   returnedToSales: 'Đã trả về Sales. Lead quay lại Pre Sale (Sales tư vấn & nhập Brief).',
   releasedToQuote: 'Đã nộp Solution cho Sales. Lead chuyển sang bước Sales lấy phản hồi khách.',
-  confirmRelease: 'Nộp Solution cho Sales và chuyển lead sang bước Sales lấy phản hồi khách?',
   confirmReturn: 'Trả về Sales? Lead sẽ quay lại bước Sales tư vấn & nhập Brief để bổ sung thông tin.',
 } as const;

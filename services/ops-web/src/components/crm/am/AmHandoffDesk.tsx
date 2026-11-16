@@ -578,7 +578,6 @@ export function AmHandoffDesk({
       setError(reason);
       return;
     }
-    if (!window.confirm(HANDOFF_FLOW_COPY.confirmRelease)) return;
     await run(async () => {
       const out = await releaseLeadToSales(token, lead.id);
       onFunnelChange(out.funnel);
