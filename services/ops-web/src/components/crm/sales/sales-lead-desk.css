@@ -265,3 +265,51 @@
     flex-direction: column;
   }
 }
+
+
+/* t249: pin the top edges of the three desk columns to the same offset.
+   The middle pane still wraps the Brief (and other step bodies) in leftover
+   lead-detail / intake / embed shells whose padding or margin sat the first
+   card a few pixels lower than the left Thông tin nhanh Lead card and the
+   right-rail checklist. */
+.sld .ahd-body > .ahd-col {
+  align-self: start;
+  margin-top: 0;
+  padding-top: 0;
+}
+.sld .ahd-body > .ahd-col > :first-child {
+  margin-top: 0;
+}
+.sld .ahd-col--main > .lead-detail-grid,
+.sld .ahd-col--main .lead-detail-grid,
+.sld .ahd-col--main .lead-detail-grid--record,
+.sld .ahd-col--main .lead-detail-main,
+.sld .ahd-col--main .lead-detail-main > div,
+.sld .ahd-col--main .card-inner,
+.sld .ahd-col--main #funnel-intake-discovery,
+.sld .ahd-col--main .sd-embed,
+.sld .ahd-col--main .sd-page,
+.sld .ahd-col--main .sd-page--embed,
+.sld .ahd-col--main .lead-funnel-panel,
+.sld .ahd-col--main .lead-pipeline-tab,
+.sld .ahd-col--main .lead-b2-workflow,
+.sld .ahd-col--main .lead-b2-workspace,
+.sld .ahd-col--main .lead-workspace-bar,
+.sld .ahd-col--main .lead-workspace-stage,
+.sld .ahd-col--main .lead-spa-flow-banner,
+.sld .ahd-col--main .lead-attribution-chips {
+  margin-top: 0;
+  padding-top: 0;
+}
+.sld .ahd-col--main .lead-funnel-panel,
+.sld .ahd-col--main .lead-spa-flow-banner {
+  margin-top: 0 !important;
+}
+.sld .ahd-col > .ahd-card,
+.sld .ahd-col--side > .ahd-card,
+.sld .ahd-col--main .sd-card,
+.sld .ahd-col--main > .ahd-card,
+.sld .ahd-col--main > .ahd-panel,
+.sld .ahd-col--main .ahd-sol-top {
+  margin-top: 0;
+}
