@@ -557,6 +557,10 @@
 .sld .ahd-col--main .quote-sheet ~ .quote-sheet,
 .sld .ahd-col--main .quote-sheet ~ .solution-feedback,
 .sld .ahd-col--main #lead-quote-sheet ~ .solution-feedback,
+.sld .ahd-col--main .quote-sheet ~ .page-card,
+.sld .ahd-col--main .page-card ~ .quote-sheet,
+.sld .ahd-col--main .page-card ~ .solution-feedback,
+.sld .ahd-col--main .solution-feedback ~ .page-card,
 .sld .ahd-col--main .quote-sheet ~ #quote-case,
 .sld .ahd-col--main .solution-desk ~ .solution-desk,
 .sld .ahd-col--main .ahd-sol-top ~ .solution-desk {
@@ -581,7 +585,6 @@
 .sld .ahd-col--main .lead-detail-main,
 .sld .ahd-col--main .lead-detail-main > div:not(.lead-detail-pane--hidden),
 .sld .ahd-col--main #funnel-intake-discovery,
-.sld .ahd-col--main .card-inner,
 .sld .ahd-col--main .card-inner#funnel-intake-discovery,
 .sld .ahd-col--main .sd-embed,
 .sld .ahd-col--main .sd-page,
@@ -593,6 +596,13 @@
   gap: 0 !important;
   box-shadow: none !important;
   background: transparent !important;
+}
+
+/* t295: never collapse a node that carries visible step content.
+   t287 targeted bare .card-inner, which is also the box for
+   LeadDeliveryKpi people and any other mid-column card-inner. */
+.sld .ahd-col--main .card-inner:not(#funnel-intake-discovery) {
+  display: block;
 }
 
 .sld .ahd-col--main .lead-attribution-chips,
@@ -610,6 +620,10 @@
 .sld .ahd-col--main .ahd-sol-top,
 .sld .ahd-col--main .quote-sheet,
 .sld .ahd-col--main #lead-quote-sheet,
+.sld .ahd-col--main #lead-trien-khai,
+.sld .ahd-col--main #lead-contract,
+.sld .ahd-col--main .solution-feedback,
+.sld .ahd-col--main .page-card,
 .sld .ahd-col--main .solution-desk {
   margin-top: 0 !important;
   border-width: 1px !important;
