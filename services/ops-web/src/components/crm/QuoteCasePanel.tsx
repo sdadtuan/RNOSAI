@@ -753,7 +753,7 @@ export function QuoteCasePanel({
           soon={quote.timer_warning}
         />
       )}
-      {quote.phase === 'sale_approve_solution' && solution?.phase === 'cho_phan_hoi' ? (
+      {(quote.phase as string) === 'sale_approve_solution' && solution?.phase === 'cho_phan_hoi' ? (
         <QuoteDeadline
           label={solution.timer_label}
           dueAt={solution.timer_due_at}
@@ -799,7 +799,7 @@ export function QuoteCasePanel({
         </p>
       ) : null}
       <div className="solution-desk__actions">
-        {quote.phase === 'sale_approve_solution' && !customerAgreed ? (
+        {(quote.phase as string) === 'sale_approve_solution' && !customerAgreed ? (
           <>
             <button
               type="button"

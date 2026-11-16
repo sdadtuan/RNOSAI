@@ -9,6 +9,7 @@ export const HANDOFF_STEP_CLOCK_KEYS: Record<HandoffFlowStepKey, string[]> = {
   await_quote: ['quote_accept', 'quote_finish', 'ceo_approve', 'customer_response'],
   negotiate: ['negotiate'],
   sign_contract: ['contract'],
+  trien_khai: [],
 };
 
 export type HandoffSlaViewLike = {

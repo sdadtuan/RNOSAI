@@ -639,7 +639,7 @@ export function SolutionCaseDesk({
       title: aiDraft.title,
       sections: Object.fromEntries(aiDraft.sections.map((row) => [row.key, row.body])),
     });
-    await patchLeadPresalesMarketingPlan(token, lead.id, { strategy_framework: framework });
+    await patchLeadPresalesMarketingPlan(token, lead.id, { strategy_framework: framework as Record<string, string> });
     await load();
   }
 
