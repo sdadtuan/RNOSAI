@@ -1,0 +1,86 @@
+/* Restored from the AmHandoffDesk checklist card (pre-729e1046), used on the Sales step-2 rail. */
+.ahd-check { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ahd-card__title .ahd-check__progress {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ahd-btn, #17692f);
+}
+.ahd-check__hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #5b6b62;
+  line-height: 1.35;
+}
+.ahd-check li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  list-style: none;
+  color: #6b7280;
+}
+.ahd-check li.is-ok {
+  color: #146c2e;
+}
+.ahd-check__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 4px 4px;
+  margin: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  cursor: default;
+}
+button.ahd-check__item {
+  cursor: pointer;
+}
+button.ahd-check__item:hover,
+button.ahd-check__item:focus-visible {
+  background: #f3f8f4;
+  outline: 2px solid rgba(23, 105, 47, 0.28);
+}
+.ahd-check__item.is-ok {
+  color: #146c2e;
+  pointer-events: none;
+  cursor: default;
+}
+.ahd-check__mark {
+  width: 16px; height: 16px; border-radius: 999px;
+  display: grid; place-items: center;
+  flex: 0 0 auto; margin-top: 1px;
+  background: var(--ahd-btn, #17692f);
+  border: 0;
+  color: #fff;
+}
+.ahd-check__mark--todo {
+  background: transparent;
+  color: #17692f;
+  border: 1.5px solid #c5cdc8;
+}
+.ahd-check li.is-ok .ahd-check__mark {
+  background: var(--ahd-btn, #17692f);
+  border: 0;
+  color: #fff;
+}
+.ahd-pass {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  margin-left: auto;
+  background: var(--ahd-soft);
+  color: var(--ahd-btn);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ahd-pass-wrap { display: flex; justify-content: flex-end; }

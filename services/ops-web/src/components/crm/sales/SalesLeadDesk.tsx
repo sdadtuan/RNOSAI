@@ -28,6 +28,8 @@ import {
 } from '@/lib/crm/handoff-flow.util';
 import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
+import { DiscoveryLiveBriefProvider } from '@/components/crm/discovery/discovery-live-brief';
+import { DiscoverySolutionChecklistCard } from '@/components/crm/discovery/DiscoverySolutionChecklistCard';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
@@ -356,6 +358,7 @@ export function SalesLeadDesk({
       <HandoffFlowStepper view={flow} />
       <HandoffSlaCountdown clock={pickHandoffSlaClockForStep(funnel?.presales?.handoff_sla, flow.currentKey)} />
 
+      <DiscoveryLiveBriefProvider>
       <div className={`ahd-body${waitingSolutionFeedback ? '' : ' ahd-body--notes-only'}`} data-side="notes">
         <div className="ahd-col">
           <section className="ahd-card" data-testid="sld-quick">
@@ -570,6 +573,9 @@ export function SalesLeadDesk({
 
 
         <div className="ahd-col ahd-col--side ahd-col--side-notes" data-testid="sld-side" data-side="notes">
+          {flow.currentKey === 'sales_brief' && !waitingSolutionFeedback ? (
+            <DiscoverySolutionChecklistCard fallbackBrief={brief} />
+          ) : null}
           {sideTop}
           <LeadInternalNotes
             token={token}
@@ -582,6 +588,7 @@ export function SalesLeadDesk({
           />
         </div>
       </div>
+      </DiscoveryLiveBriefProvider>
     </div>
   );
 }

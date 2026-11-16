@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDiscoveryLiveBrief } from '@/components/crm/discovery/discovery-live-brief';
 import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/api';
 import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
   reopenIntakeSession } from '@/lib/api';
@@ -13,7 +14,6 @@ import {
   discoveryFieldFocus,
   discoveryMissingFields,
   discoveryProgress,
-  discoverySolutionChecklist,
   emptySalesDiscoveryBrief,
   isDiscoveryComplete,
   normalizeSalesDiscoveryBrief,
@@ -144,7 +144,7 @@ export function SalesDiscoveryWizard({
   const progress = useMemo(() => discoveryProgress(brief), [brief]);
   const complete = progress.filled === progress.total;
   const missingFields = useMemo(() => discoveryMissingFields(brief), [brief]);
-  const solutionChecklist = useMemo(() => discoverySolutionChecklist(brief), [brief]);
+  const liveBrief = useDiscoveryLiveBrief();
 
   function goToMissingField(key: Parameters<typeof discoveryFieldFocus>[0]) {
     const dest = discoveryFieldFocus(key);
@@ -163,6 +163,17 @@ export function SalesDiscoveryWizard({
       window.setTimeout(() => flashEl.classList.remove('sd-field--flash'), 1600);
     }, 80);
   }
+
+  useEffect(() => {
+    if (!liveBrief) return;
+    liveBrief.setLiveBrief(brief);
+  }, [brief, liveBrief?.setLiveBrief]);
+
+  useEffect(() => {
+    if (!liveBrief) return;
+    return () => liveBrief.setLiveBrief(null);
+  }, [liveBrief?.setLiveBrief]);
+
   const industries = options?.industries ?? [];
   const jobTitles = options?.job_titles ?? [];
   const budgets = options?.budgets ?? [];
@@ -310,34 +321,6 @@ export function SalesDiscoveryWizard({
             </span>
           </div>
         </header>
-
-        <ul className="sd-sol-check" data-testid="sd-sol-check">
-          {solutionChecklist.items.map((item) => {
-            const jumpKey = missingFields.find((row) => item.fields.includes(row.key))?.key;
-            return (
-              <li key={item.key} className={item.ok ? 'is-ok' : undefined} data-testid={`sd-sol-check-${item.key}`}>
-                <span className="sd-sol-check__mark" aria-hidden="true">
-                  {item.ok ? (
-                    <svg viewBox="0 0 16 16" width="10" height="10">
-                      <path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  ) : null}
-                </span>
-                {item.ok || !jumpKey ? (
-                  <span className="sd-sol-check__label">{item.label}</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="sd-sol-check__label sd-sol-check__jump"
-                    onClick={() => goToMissingField(jumpKey)}
-                  >
-                    {item.label}
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
 
         <div className="sd-steps" role="tablist">
           {STEPS.map((item) => (
