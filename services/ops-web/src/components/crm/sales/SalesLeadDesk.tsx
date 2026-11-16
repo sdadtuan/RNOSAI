@@ -467,7 +467,7 @@ export function SalesLeadDesk({
 
         <div className="ahd-col ahd-col--main">
           {waitingSolutionFeedback ? (
-            <>
+            <div className="ahd-panel sld-main-card">
               <div className="ahd-tabs" role="tablist" aria-label="Hồ sơ Sales">
                 {(
                   [
@@ -582,7 +582,7 @@ export function SalesLeadDesk({
                   inputTestId="sld-tab-internal-input"
                 />
               ) : null}
-            </>
+            </div>
           ) : (
             children
           )}

@@ -71,10 +71,10 @@ function StepInner({
           <span className="ahd-step__label-full">{step.label}</span>
           <span className="ahd-step__label-short">{step.shortLabel || step.label}</span>
         </span>
-        {step.hint ? <span className="ahd-step__hint">{step.hint}</span> : null}
-        {step.state === 'done' && step.at ? (
-          <span className="ahd-step__time">{formatHandoffStamp(step.at)}</span>
-        ) : null}
+        <span className="ahd-step__hint">{step.hint || ''}</span>
+        <span className="ahd-step__time">
+          {step.state === 'done' && step.at ? formatHandoffStamp(step.at) : ''}
+        </span>
       </span>
     </>
   );

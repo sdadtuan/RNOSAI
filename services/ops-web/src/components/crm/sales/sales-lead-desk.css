@@ -439,3 +439,126 @@
   background: var(--ahd-primary-700, #125a28);
   border-color: var(--ahd-primary-700, #125a28);
 }
+
+
+/* t281: flush the three desk columns on one line, equal gutters, and a
+   single middle card (no nested frame). Leftover lead-detail wrappers were
+   still flex items of .ahd-col--main, so the 12px column gap sat the first
+   middle card lower than the side rails; the B2 tab/panel chrome then drew
+   a second card inside sld-main-card. Applies to steps 1-7. */
+.sld .ahd-body,
+.sld .ahd-body.ahd-body--notes-only {
+  align-items: start;
+  column-gap: var(--ahd-body-gap, 14px);
+}
+
+.sld .ahd-col--main {
+  gap: 0;
+}
+
+.sld .sld-main-card,
+.sld .sld-main-card.ahd-panel {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  background: var(--ahd-card, #fff);
+  border: 1px solid #ececee;
+  border-radius: var(--ahd-radius, 12px);
+  box-shadow: var(--ahd-shadow);
+}
+
+.sld .sld-main-card.ahd-panel > .ahd-tabs {
+  margin: 0;
+  padding: 4px 8px 0;
+  width: 100%;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sld .sld-main-card.ahd-panel > .ahd-brief-grid,
+.sld .sld-main-card.ahd-panel > [data-testid="sld-brief"] {
+  padding: 14px;
+}
+
+.sld .sld-main-card .lead-pipeline-tab,
+.sld .sld-main-card .lead-pipeline-tab__head {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 0;
+}
+
+.sld .sld-main-card .lead-pipeline-tab__head:not(:has(*)) {
+  display: none;
+}
+
+.sld .sld-main-card .lead-b2-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.sld .sld-main-card .lead-b2-tabs {
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.sld .sld-main-card .lead-b2-workspace__panel {
+  margin: 0;
+  padding: 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sld .sld-main-card .lead-pipeline-sla {
+  margin: 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+
+.sld .ahd-col--main .sd-card,
+.sld .ahd-col--main .ahd-sol-top,
+.sld .ahd-col--main .quote-sheet,
+.sld .ahd-col--main #lead-quote-sheet,
+.sld .ahd-col--main .ahd-panel:not(.sld-main-card) {
+  margin-top: 0;
+  border-radius: var(--ahd-radius, 12px);
+  box-shadow: var(--ahd-shadow);
+}
+
+/* Space between successive visible middle-column cards, without a leading gap. */
+.sld .ahd-col--main .sld-main-card ~ .sld-main-card,
+.sld .ahd-col--main .sld-main-card ~ .sd-card,
+.sld .ahd-col--main .sld-main-card ~ .ahd-panel,
+.sld .ahd-col--main .sld-main-card ~ .ahd-sol-top,
+.sld .ahd-col--main .sld-main-card ~ .quote-sheet,
+.sld .ahd-col--main .sld-main-card ~ #lead-quote-sheet,
+.sld .ahd-col--main .sd-card ~ .sd-card,
+.sld .ahd-col--main .sd-card ~ .sld-main-card,
+.sld .ahd-col--main .sd-card ~ .ahd-panel,
+.sld .ahd-col--main .ahd-sol-top ~ .ahd-panel,
+.sld .ahd-col--main .ahd-sol-top ~ .sld-main-card,
+.sld .ahd-col--main .ahd-panel ~ .ahd-panel,
+.sld .ahd-col--main .ahd-panel ~ .sld-main-card,
+.sld .ahd-col--main .quote-sheet ~ .quote-sheet,
+.sld .ahd-col--main .quote-sheet ~ .solution-feedback,
+.sld .ahd-col--main #lead-quote-sheet ~ .solution-feedback,
+.sld .ahd-col--main .quote-sheet ~ #quote-case,
+.sld .ahd-col--main .solution-desk ~ .solution-desk,
+.sld .ahd-col--main .ahd-sol-top ~ .solution-desk {
+  margin-top: 12px;
+}
