@@ -23,6 +23,13 @@ export interface PresalesPromoteSource {
   skipSqlitePresalesUpdate?: boolean;
 }
 
+function toIsoTs(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 function asJsonb(val: unknown, fallback: string): string {
   if (val == null) return fallback;
   if (typeof val === 'string') {
@@ -460,7 +467,7 @@ export class ContractPromotePgUtil {
           asJsonb(src.form_data, '{}'),
           String(src.ai_output ?? ''),
           Boolean(src.is_done),
-          src.done_at ? String(src.done_at) : null,
+          toIsoTs(src.done_at),
           src.done_by != null ? Number(src.done_by) : null,
           String(src.notes ?? ''),
           Boolean(src.is_custom),

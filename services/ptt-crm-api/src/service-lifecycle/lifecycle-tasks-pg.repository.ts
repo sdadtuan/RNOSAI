@@ -17,6 +17,13 @@ import {
   type WorkStatus,
 } from './delivery-ops.util';
 
+function toIsoTs(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 export interface SvcTaskRow {
   id: number;
   lifecycle_id: number;
@@ -97,7 +104,7 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
       ai_prompt_key: String(row.ai_prompt_key ?? ''),
       ai_output: String(row.ai_output ?? ''),
       is_done: row.is_done === true || row.is_done === 1,
-      done_at: row.done_at ? String(row.done_at) : '',
+      done_at: toIsoTs(row.done_at) ?? '',
       done_by: row.done_by != null ? Number(row.done_by) : null,
       notes: String(row.notes ?? ''),
       is_custom: row.is_custom === true || row.is_custom === 1,
@@ -192,7 +199,7 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
     if (!existing) return null;
     const ts = catalogTs();
     let isDone = existing.is_done;
-    let doneAt: string | null = existing.done_at || null;
+    let doneAt: string | null = toIsoTs(existing.done_at);
     if (patch.is_done != null) {
       isDone = patch.is_done;
       doneAt = patch.is_done ? ts : null;
