@@ -27236,6 +27236,35 @@ html.rs-mobile-chrome .crm-leads-signal {
   background: #fff3d6;
   color: #8a5a00;
 }
+.solution-ai-doc__header--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.solution-ai-doc__head-main {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.solution-ai-doc__header--compact .solution-ai-doc__title {
+  font-size: 1rem;
+}
+.solution-ai-doc__time {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: #5b6570;
+}
+.solution-ai-doc__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.solution-ai-doc__actions .btn {
+  white-space: nowrap;
+}
 .solution-ai-doc__file {
   display: flex;
   flex-wrap: wrap;

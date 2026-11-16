@@ -874,6 +874,33 @@ button.ahd-step__hit { cursor: pointer; }
 .ahd-sol-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .ahd-sol-actions .ahd-btn { text-decoration: none; }
 
+/* t246: File Solution tab content sits directly in the white panel (no card-in-card) */
+.ahd-panel [data-testid="ahd-solution"] .solution-desk {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.ahd-panel [data-testid="ahd-solution"] .solution-ai-doc {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.ahd-panel [data-testid="ahd-solution"] .solution-file-list + .solution-ai-doc {
+  margin-top: 6px;
+}
+.ahd-panel [data-testid="ahd-solution"] .solution-file-list {
+  margin: 0 0 6px;
+}
+.ahd-panel [data-testid="ahd-solution"] .solution-ai-doc__header {
+  padding: 0 0 10px;
+}
+.ahd-panel [data-testid="ahd-solution"] .solution-ai-doc__sections {
+  padding: 0;
+}
+
 /* t178: highlighted edit-request card on the Solution revision step */
 .ahd-revision {
   background: #fff8e8;

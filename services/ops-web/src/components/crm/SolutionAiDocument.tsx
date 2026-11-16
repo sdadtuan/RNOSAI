@@ -60,7 +60,11 @@ export function SolutionAiDraftBody({
 
   const customer = (companyName || contactName || '').trim() || 'Khách hàng';
   const when = formatSolutionAiTime(createdAt);
-  const fileTitle = `Solution - ${customer} (AI).`;
+  const titleText = String(title ?? '').trim();
+  const displayTitle =
+    titleText && !/^bản nháp solution$/i.test(titleText) && !['solution', 'file solution'].includes(titleText.toLowerCase())
+      ? titleText
+      : `Solution - ${customer}`;
   const isPending = pending;
   const showEdit = canEdit && !isPending && editing;
   const pendingLabel = /đang chờ/i.test(badge) ? badge : SOLUTION_AI_PENDING_LABEL;
@@ -119,54 +123,19 @@ export function SolutionAiDraftBody({
 
   return (
     <article className="solution-ai-doc" data-testid="solution-desk-ai-result">
-      <header className="solution-ai-doc__header">
-        <p className="solution-ai-doc__kicker">Tài liệu đề xuất</p>
-        <div className="solution-ai-doc__title-row">
-          <h3 className="solution-ai-doc__title">File Solution</h3>
-          <span className={`solution-ai-doc__badge${isPending ? ' solution-ai-doc__badge--pending' : ''}`}>
-            {badgeLabel}
-          </span>
-        </div>
-        {title && !/^bản nháp solution$/i.test(title.trim()) && !['solution', 'file solution'].includes(title.trim().toLowerCase()) ? (
-          <p className="solution-ai-doc__subtitle">{title}</p>
-        ) : null}
-        <ul className="solution-ai-doc__meta">
-          {customer ? <li>{customer}</li> : null}
-          {contactName && contactName !== customer ? <li>{contactName}</li> : null}
-          {leadCode ? <li>#{leadCode}</li> : null}
-          {when ? <li>{when}</li> : null}
-        </ul>
-        <div className="solution-ai-doc__file" aria-label={fileTitle}>
-          <span className="solution-ai-doc__file-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M7 3.5h7.2L19 8.4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5a1.5 1.5 0 0 1 1.5-1.5Z"
-                stroke="#17692f"
-                strokeWidth="1.4"
-                fill="#eef6f1"
-              />
-              <path d="M14 3.7V8h4.3" stroke="#17692f" strokeWidth="1.4" />
-              <path d="M9 12h6M9 15.5h6M9 19h4" stroke="#17692f" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-          </span>
-          <div className="solution-ai-doc__file-copy">
-            <div className="solution-ai-doc__file-name">{fileTitle}</div>
-            <div className="solution-ai-doc__file-meta">{when ? when : 'Tài liệu HTML đã định dạng'}</div>
+      <header className="solution-ai-doc__header solution-ai-doc__header--compact">
+        <div className="solution-ai-doc__head-main">
+          <div className="solution-ai-doc__title-row">
+            <h3 className="solution-ai-doc__title">{displayTitle}</h3>
+            <span className={`solution-ai-doc__badge${isPending ? ' solution-ai-doc__badge--pending' : ''}`}>
+              {badgeLabel}
+            </span>
           </div>
-          {!isPending ? (
-            <div className="solution-ai-doc__file-actions">
-              <button type="button" className="btn btn-sm btn-secondary" onClick={openPreview}>
-                Xem
-              </button>
-              <button type="button" className="btn btn-sm btn-secondary" onClick={downloadDocument}>
-                Tải
-              </button>
-            </div>
-          ) : null}
+          {when ? <p className="solution-ai-doc__time">{when}</p> : null}
         </div>
-        {canEdit && !isPending ? (
-          <div className="solution-ai-doc__toolbar">
-            {canEdit && !isPending && !editing ? (
+        {!isPending ? (
+          <div className="solution-ai-doc__actions">
+            {canEdit && !editing ? (
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
@@ -191,6 +160,12 @@ export function SolutionAiDraftBody({
                 </button>
               </>
             ) : null}
+            <button type="button" className="btn btn-sm btn-secondary" onClick={openPreview}>
+              Xem
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={downloadDocument}>
+              Tải
+            </button>
           </div>
         ) : null}
       </header>

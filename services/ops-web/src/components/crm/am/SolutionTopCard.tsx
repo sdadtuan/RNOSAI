@@ -49,6 +49,7 @@ export function SolutionTopCard({
   canRetry,
   customerName = '',
   leadCode = '',
+  hideSettled = false,
   onOpenAi,
   onRetryAi,
 }: {
@@ -56,6 +57,8 @@ export function SolutionTopCard({
   canRetry: boolean;
   customerName?: string;
   leadCode?: string;
+  /** File Solution tab is open: only show live progress (AI ĐANG TẠO / LỖI, upload %), not the settled rows. */
+  hideSettled?: boolean;
   onOpenAi: () => void;
   onRetryAi: () => void;
 }) {
@@ -80,6 +83,7 @@ export function SolutionTopCard({
       : 30 + Math.round((Math.max(0, Math.min(100, upload.percent ?? 0)) * 70) / 100);
 
   const empty = aiState.kind === 'none' && files.length === 0 && !uploading;
+  if (hideSettled && !uploading && aiState.kind !== 'running' && aiState.kind !== 'failed') return null;
 
   return (
     <section className="ahd-card ahd-sol-top" data-testid="ahd-solution-top" aria-label="File Solution">
@@ -130,7 +134,7 @@ export function SolutionTopCard({
         </div>
       ) : null}
 
-      {aiState.kind === 'done' ? (
+      {aiState.kind === 'done' && !hideSettled ? (
         <div className="ahd-sol-row ahd-sol-row--ai" data-testid="ahd-solution-top-ai-done">
           <span className="ahd-sol-icon" aria-hidden>AI</span>
           <div className="ahd-sol-main">
@@ -186,7 +190,7 @@ export function SolutionTopCard({
         </div>
       ) : null}
 
-      {files.map((file) => (
+      {(hideSettled ? [] : files).map((file) => (
         <div className="ahd-sol-row" key={file.id} data-testid="ahd-solution-top-file">
           <span className="ahd-sol-icon" aria-hidden>FILE</span>
           <div className="ahd-sol-main">
