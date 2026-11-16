@@ -639,3 +639,35 @@
 .sld .sd-page--embed .sd-card {
   padding-top: 14px !important;
 }
+
+/* t340: files card lives inside the same white step card as the hero
+   (Ký hợp đồng, Chờ CEO duyệt, Triển Khai). Flatten inner card chrome. */
+.sld .lead-step-panel > .solution-feedback,
+.sld .lead-step-panel > #lead-contract,
+.sld .lead-step-panel > #lead-trien-khai,
+.sld .lead-step-panel > #quote-case,
+.sld .lead-step-panel > .quote-sheet,
+.sld .lead-step-panel > #lead-quote-sheet,
+.sld .lead-step-panel > .lead-deal-files {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+
+.sld .lead-step-panel > .lead-deal-files {
+  padding: 0.35rem 1.1rem 1.1rem;
+  border-top: 1px solid #e4efe8 !important;
+}
+
+.sld .ahd-col--side-notes > .lead-contract-submit-card {
+  margin-top: 0;
+}
+
+.sld .lead-contract-submit-card .btn-primary,
+.sld .lead-contract-submit-card .btn {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+

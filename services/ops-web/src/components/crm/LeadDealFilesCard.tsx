@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  createLeadContract,
+  ensureLeadContractFile,
   downloadLeadDealFile,
+  fetchLeadContractReadiness,
   fetchLeadDealFiles,
+  submitLeadContract,
   uploadLeadDealFile,
   type LeadDealFileKind,
   type LeadDealFileRow,
@@ -13,6 +17,7 @@ import {
 import './lead-deal-files.css';
 
 const FILES_CHANGED = 'lead-deal-files-changed';
+export const LEAD_CONTRACT_CHANGED_EVENT = 'lead-contract-changed';
 
 function formatDealTime(iso: string): string {
   const date = new Date(iso);
@@ -41,6 +46,12 @@ export function notifyLeadDealFilesChanged() {
   }
 }
 
+export function notifyLeadContractChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(LEAD_CONTRACT_CHANGED_EVENT));
+  }
+}
+
 export function LeadDealFilesCard({
   token,
   leadId,
@@ -57,6 +68,7 @@ export function LeadDealFilesCard({
   const [data, setData] = useState<LeadDealFilesResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
   const quoteInputRef = useRef<HTMLInputElement | null>(null);
   const contractInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -64,6 +76,12 @@ export function LeadDealFilesCard({
     const next = await fetchLeadDealFiles(token, leadId);
     setData(next);
     return next;
+  }, [token, leadId]);
+
+  const reloadContract = useCallback(async () => {
+    const ready = await fetchLeadContractReadiness(token, leadId);
+    setContractInfo(ready.contract ? { id: ready.contract.id, status: ready.contract.status } : null);
+    return ready;
   }, [token, leadId]);
 
   useEffect(() => {
@@ -79,15 +97,61 @@ export function LeadDealFilesCard({
         setLocalError(message);
         onError?.(message);
       });
+    void fetchLeadContractReadiness(token, leadId)
+      .then((ready) => {
+        if (cancelled) return;
+        setContractInfo(ready.contract ? { id: ready.contract.id, status: ready.contract.status } : null);
+      })
+      .catch(() => undefined);
     function onChanged() {
       void reload().catch(() => undefined);
     }
+    function onContractChanged() {
+      void reloadContract().catch(() => undefined);
+    }
     window.addEventListener(FILES_CHANGED, onChanged);
+    window.addEventListener(LEAD_CONTRACT_CHANGED_EVENT, onContractChanged);
     return () => {
       cancelled = true;
       window.removeEventListener(FILES_CHANGED, onChanged);
+      window.removeEventListener(LEAD_CONTRACT_CHANGED_EVENT, onContractChanged);
     };
-  }, [token, leadId, onError, reload]);
+  }, [token, leadId, onError, reload, reloadContract]);
+
+  async function ensureContractRecord(): Promise<{ id: number; status: string }> {
+    if (contractInfo) return contractInfo;
+    try {
+      const row = await createLeadContract(token, leadId, {});
+      const next = { id: row.id, status: row.status };
+      setContractInfo(next);
+      return next;
+    } catch {
+      const ready = await reloadContract();
+      if (ready.contract) {
+        return { id: ready.contract.id, status: ready.contract.status };
+      }
+      throw new Error('Tạo hợp đồng thất bại');
+    }
+  }
+
+  async function onCreateContractFile() {
+    setBusy(true);
+    setLocalError('');
+    try {
+      await ensureContractRecord();
+      const files = await ensureLeadContractFile(token, leadId);
+      setData(files);
+      notifyLeadDealFilesChanged();
+      notifyLeadContractChanged();
+      onMessage?.('Đã tạo file hợp đồng.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Tạo hợp đồng thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onDownload(file: LeadDealFileRow) {
     setBusy(true);
@@ -133,6 +197,8 @@ export function LeadDealFilesCard({
     const current = bucket?.current ?? null;
     const older = (bucket?.versions ?? []).filter((row) => row.id !== current?.id);
     const inputRef = kind === 'quote' ? quoteInputRef : contractInputRef;
+    const showCreateContract = kind === 'contract' && !current && Boolean(bucket?.can_upload);
+    const showUpload = Boolean(bucket?.can_upload) && (kind !== 'contract' || Boolean(current));
     return (
       <div className="lead-deal-files__col">
         <h3>{title}</h3>
@@ -160,7 +226,18 @@ export function LeadDealFilesCard({
           </p>
         )}
         <div className="lead-deal-files__actions">
-          {bucket?.can_upload ? (
+          {showCreateContract ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="quote-tao-hop-dong"
+              disabled={busy}
+              onClick={() => void onCreateContractFile()}
+            >
+              Tạo hợp đồng
+            </button>
+          ) : null}
+          {showUpload ? (
             <>
               <input
                 ref={inputRef}
@@ -201,12 +278,127 @@ export function LeadDealFilesCard({
       {localError ? <p className="muted">{localError}</p> : null}
       <div className="lead-deal-files__grid">
         {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Tải lên bản sửa nếu cần.' : 'Đang tải file báo giá…')}
-        {renderColumn(
-          'contract',
-          'File hợp đồng',
-          'Chưa có file hợp đồng. Tải file hợp đồng sau khi CEO duyệt báo giá, hoặc tải lên bản đã sửa.',
-        )}
+        {renderColumn('contract', 'File hợp đồng', 'Chưa có file hợp đồng.')}
       </div>
     </section>
   );
 }
+
+export function LeadContractSubmitCard({
+  token,
+  leadId,
+  onMessage,
+  onError,
+}: {
+  token: string;
+  leadId: number;
+  onMessage?: (message: string) => void;
+  onError?: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [contractInfo, setContractInfo] = useState<{ id: number; status: string } | null>(null);
+  const [approvalPending, setApprovalPending] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  const reload = useCallback(async () => {
+    const [files, ready] = await Promise.all([
+      fetchLeadDealFiles(token, leadId),
+      fetchLeadContractReadiness(token, leadId).catch(() => null),
+    ]);
+    const current = files.contract?.current ?? null;
+    const info = ready?.contract ? { id: ready.contract.id, status: ready.contract.status } : null;
+    const pending = ready?.approval?.status === 'pending';
+    setContractInfo(info);
+    setApprovalPending(pending);
+    setCanSubmit(Boolean(files.contract?.can_upload));
+    setVisible(Boolean(current) && Boolean(files.contract?.can_upload));
+    return { current, info, pending };
+  }, [token, leadId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void reload()
+      .then(() => {
+        if (cancelled) return;
+      })
+      .catch(() => undefined);
+    function onChanged() {
+      void reload().catch(() => undefined);
+    }
+    window.addEventListener(FILES_CHANGED, onChanged);
+    window.addEventListener(LEAD_CONTRACT_CHANGED_EVENT, onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(FILES_CHANGED, onChanged);
+      window.removeEventListener(LEAD_CONTRACT_CHANGED_EVENT, onChanged);
+    };
+  }, [reload]);
+
+  async function onSubmitContract() {
+    setBusy(true);
+    setLocalError('');
+    try {
+      let info = contractInfo;
+      if (!info) {
+        try {
+          const row = await createLeadContract(token, leadId, {});
+          info = { id: row.id, status: row.status };
+          setContractInfo(info);
+        } catch {
+          const ready = await fetchLeadContractReadiness(token, leadId);
+          if (!ready.contract) throw new Error('Chưa có hợp đồng để gửi duyệt');
+          info = { id: ready.contract.id, status: ready.contract.status };
+          setContractInfo(info);
+          setApprovalPending(ready.approval?.status === 'pending');
+        }
+      }
+      if (approvalPending || (info.status && info.status !== 'draft')) {
+        setApprovalPending(true);
+        onMessage?.('Đã gửi GĐKD duyệt — chờ phê duyệt.');
+        notifyLeadContractChanged();
+        return;
+      }
+      await submitLeadContract(token, leadId, info.id, {});
+      setApprovalPending(true);
+      setContractInfo({ ...info, status: 'submitted' });
+      notifyLeadContractChanged();
+      onMessage?.('Đã gửi GĐKD duyệt — chờ phê duyệt.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gửi GĐKD duyệt thất bại';
+      setLocalError(message);
+      onError?.(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!visible) return null;
+
+  return (
+    <section className="ahd-card lead-contract-submit-card" data-testid="lead-contract-submit-card">
+      <h3 className="ahd-card__title">Gửi GĐKD duyệt</h3>
+      {approvalPending ? (
+        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+          Đã gửi GĐKD duyệt — chờ phê duyệt.
+        </p>
+      ) : (
+        <>
+          {localError ? <p className="muted">{localError}</p> : null}
+          <button
+            type="button"
+            className="btn btn-primary"
+            id="lead-contract-submit"
+            data-testid="quote-gui-gdkd-duyet"
+            disabled={busy || !canSubmit}
+            onClick={() => void onSubmitContract()}
+          >
+            Gửi GĐKD duyệt
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+

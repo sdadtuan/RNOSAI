@@ -7,12 +7,10 @@ import {
   approveContractApproval,
   approveLeadQuote,
   approveLeadSolution,
-  createLeadContract,
   downloadLeadContractDocx,
   fetchLeadContractReadiness,
   fetchLeadFunnel,
   rejectContractApproval,
-  submitLeadContract,
   requestLeadQuoteEdits,
   requestLeadSolutionEdits,
   transferLeadQuoteCase,
@@ -23,6 +21,7 @@ import { shouldShowQuoteTransferBox } from '@/components/crm/quote-transfer-box.
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { formatCompactDueStamp, formatCompactSlaLine } from '@/lib/crm/sla-countdown-label';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
+import { LEAD_CONTRACT_CHANGED_EVENT } from '@/components/crm/LeadDealFilesCard';
 
 function when(value: string): string {
   return formatCompactDueStamp(value);
@@ -173,14 +172,19 @@ export function QuoteCasePanel({
   useEffect(() => {
     if (quotePhase !== 'hop_dong' && quotePhase !== 'trien_khai') return undefined;
     let cancelled = false;
-    void fetchLeadContractReadiness(token, leadId)
-      .then((data) => {
-        if (cancelled) return;
-        void applyContractReadiness(data);
-      })
-      .catch(() => undefined);
+    function load() {
+      void fetchLeadContractReadiness(token, leadId)
+        .then((data) => {
+          if (cancelled) return;
+          void applyContractReadiness(data);
+        })
+        .catch(() => undefined);
+    }
+    load();
+    window.addEventListener(LEAD_CONTRACT_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
+      window.removeEventListener(LEAD_CONTRACT_CHANGED_EVENT, load);
     };
   }, [quotePhase, token, leadId]);
 
@@ -229,43 +233,7 @@ export function QuoteCasePanel({
     }
   }
 
-  const canWriteContract = !viewerIsSales || viewerIsSuperAdmin;
   const canApproveContract = viewerIsSuperAdmin || viewerIsGdkd;
-
-  async function onCreateContract() {
-    setBusy(true);
-    setLocalError('');
-    try {
-      const row = await createLeadContract(token, leadId, {});
-      setContractInfo({ id: row.id, status: row.status });
-      onMessage?.('Đã tạo HĐ draft');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Tạo HĐ thất bại';
-      setLocalError(message);
-      onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onSubmitContract() {
-    if (!contractInfo) return;
-    setBusy(true);
-    setLocalError('');
-    try {
-      const row = await submitLeadContract(token, leadId, contractInfo.id, {});
-      setApprovalPending(true);
-      setApprovalId(row.id);
-      setContractInfo({ ...contractInfo, status: 'submitted' });
-      onMessage?.('Đã gửi GDKD duyệt — chờ phê duyệt');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Gửi GDKD duyệt thất bại';
-      setLocalError(message);
-      onError?.(message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function onApproveContract() {
     if (!approvalId) return;
@@ -643,50 +611,8 @@ export function QuoteCasePanel({
             ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
             : 'CEO đã duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt. Sales chỉ xem và tải.'}
         </p>
-        {approvalPending ? <p className="muted">Đã gửi GDKD duyệt — chờ phê duyệt.</p> : null}
+        {approvalPending ? <p className="muted">Đã gửi GĐKD duyệt — chờ phê duyệt.</p> : null}
         <ActionErrorToast message={onError ? '' : localError} />
-        <div className="solution-feedback__actions">
-          {canWriteContract && !contractInfo ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              data-testid="quote-lap-hop-dong"
-              disabled={busy}
-              onClick={() => void onCreateContract()}
-            >
-              Lập hợp đồng
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              setLocalError('');
-              void downloadLeadContractDocx(token, leadId)
-                .catch((err: unknown) => {
-                  const message = err instanceof Error ? err.message : 'Không tải được file hợp đồng';
-                  setLocalError(message);
-                  onError?.(message);
-                })
-                .finally(() => setBusy(false));
-            }}
-          >
-            Tải file hợp đồng
-          </button>
-          {canWriteContract && contractInfo && !approvalPending && contractInfo.status === 'draft' ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              id="lead-contract-submit"
-              disabled={busy}
-              onClick={() => void onSubmitContract()}
-            >
-              Gửi GDKD duyệt
-            </button>
-          ) : null}
-        </div>
       </section>
       )}
       {contractApproveCard}
@@ -948,47 +874,7 @@ export function QuoteCasePanel({
                 ? 'CEO đã duyệt báo giá. AM phụ trách (người lập báo giá) sẽ lập hợp đồng và gửi GĐKD duyệt. Sales có thể xem và tải file.'
                 : 'CEO đã duyệt báo giá. AM lập hợp đồng và gửi GĐKD duyệt. Sales chỉ xem và tải.'}
             </p>
-            {approvalPending ? <p className="muted">Đã gửi GDKD duyệt — chờ phê duyệt.</p> : null}
-            {canWriteContract && !contractInfo ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                data-testid="quote-lap-hop-dong"
-                disabled={busy}
-                onClick={() => void onCreateContract()}
-              >
-                Lập hợp đồng
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                setLocalError('');
-                void downloadLeadContractDocx(token, leadId)
-                  .catch((err: unknown) => {
-                    const message = err instanceof Error ? err.message : 'Không tải được file hợp đồng';
-                    setLocalError(message);
-                    onError?.(message);
-                  })
-                  .finally(() => setBusy(false));
-              }}
-            >
-              Tải file hợp đồng
-            </button>
-            {canWriteContract && contractInfo && !approvalPending && contractInfo.status === 'draft' ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                id="lead-contract-submit"
-                disabled={busy}
-                onClick={() => void onSubmitContract()}
-              >
-                Gửi GDKD duyệt
-              </button>
-            ) : null}
+            {approvalPending ? <p className="muted">Đã gửi GĐKD duyệt — chờ phê duyệt.</p> : null}
           </>
           )
         ) : null}

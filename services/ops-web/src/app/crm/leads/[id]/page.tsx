@@ -28,7 +28,7 @@ import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
-import { LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
+import { LeadContractSubmitCard, LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
@@ -1886,6 +1886,16 @@ export default function CrmLeadDetailPage() {
           hasContract={Boolean(contractSummary?.hasContract || (lead as { has_contract?: boolean }).has_contract)}
           contractStatus={contractSummary?.contractStatus ?? null}
           sideTop={null}
+          sideBottom={
+            accessToken && atContractStep ? (
+              <LeadContractSubmitCard
+                token={accessToken}
+                leadId={leadId}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null
+          }
           exchangeLines={careHistory}
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
@@ -2132,7 +2142,7 @@ export default function CrmLeadDetailPage() {
             ) : null}
 
             {accessToken && lead && (atContractStep || atImplementStep) ? (
-              <>
+              <div className="sld-main-card lead-step-panel">
                 {funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel
                     compact
@@ -2185,7 +2195,7 @@ export default function CrmLeadDetailPage() {
                   onError={setError}
                   onFunnelChange={setFunnelSnap}
                 />
-              </>
+              </div>
             ) : null}
 
             {accessToken && lead && quoteSubmittedForFiles && !atQuoteStep && !atContractStep && !atImplementStep ? (
@@ -2220,6 +2230,7 @@ export default function CrmLeadDetailPage() {
 
             {accessToken && lead && atQuoteStep ? (
               <>
+              <div className="sld-main-card lead-step-panel">
                 {showLeadQuoteSheet ? (
                 <LeadQuoteSheet
                   token={accessToken}
@@ -2304,6 +2315,7 @@ export default function CrmLeadDetailPage() {
                     onError={setError}
                   />
                 ) : null}
+              </div>
                 {solutionPreviewOpen ? (
                   <div
                     className="ahd-modal-back"

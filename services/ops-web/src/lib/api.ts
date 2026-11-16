@@ -2928,6 +2928,14 @@ export async function downloadLeadDealFile(
   URL.revokeObjectURL(url);
 }
 
+export async function ensureLeadContractFile(token: string, leadId: number) {
+  return leadFunnelMutate<LeadDealFilesResponse>(
+    token,
+    `/api/v1/leads/${leadId}/presales/deal-files/contract/export`,
+    { method: 'POST' },
+  );
+}
+
 export async function uploadLeadDealFile(
   token: string,
   leadId: number,

@@ -162,6 +162,7 @@ export type SalesLeadDeskProps = {
   mgmtExtra?: ReactNode;
   children?: ReactNode;
   sideTop?: ReactNode;
+  sideBottom?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
   hasContract?: boolean;
@@ -187,6 +188,7 @@ export function SalesLeadDesk({
   mgmtExtra,
   children,
   sideTop,
+  sideBottom,
   waitingSolutionFeedback = false,
   atQuoteStep = false,
   hasContract = false,
@@ -608,6 +610,7 @@ export function SalesLeadDesk({
             sectionTestId="sld-notes"
             inputTestId="sld-internal-input"
           />
+          {sideBottom}
         </div>
       </div>
       </DiscoveryLiveBriefProvider>
@@ -632,6 +635,7 @@ export function SalesOrLegacyLeadLayout({
   mgmtExtra,
   children,
   sideTop,
+  sideBottom,
   waitingSolutionFeedback,
   atQuoteStep,
   hasContract,
@@ -657,6 +661,7 @@ export function SalesOrLegacyLeadLayout({
   mgmtExtra?: ReactNode;
   children?: ReactNode;
   sideTop?: ReactNode;
+  sideBottom?: ReactNode;
   waitingSolutionFeedback?: boolean;
   atQuoteStep?: boolean;
   hasContract?: boolean;
@@ -683,6 +688,7 @@ export function SalesOrLegacyLeadLayout({
         userId={userId}
         mgmtExtra={mgmtExtra}
         sideTop={sideTop}
+        sideBottom={sideBottom}
         waitingSolutionFeedback={waitingSolutionFeedback}
         atQuoteStep={atQuoteStep}
         hasContract={hasContract}
