@@ -15,8 +15,12 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Request, Response } from 'express';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
@@ -54,6 +58,7 @@ import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-proj
 import { maskPartialPii } from '../staff-permissions/field-level.serializer';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
+import { DEAL_FILE_MAX_BYTES, type DealFileKind } from './lead-deal-files.util';
 import { AppConfigService } from '../config/app-config.service';
 import { B2bLeadScopeService, type B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 
@@ -618,9 +623,9 @@ export class LeadsFunnelController {
 
   @Get(':id/presales/contract-docx')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  async quoteContractDocx(@Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+  async quoteContractDocx(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }): Promise<StreamableFile> {
     try {
-      const out = await this.funnel.quoteContractDocx(id);
+      const out = await this.funnel.quoteContractDocx(id, req.staffUser);
       return new StreamableFile(out.buffer, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         disposition: `attachment; filename="${out.filename}"`,
@@ -636,6 +641,61 @@ export class LeadsFunnelController {
   async getDeliveryKpi(@Param('id', ParseIntPipe) id: number) {
     try {
       return await this.funnel.getDeliveryKpi(id);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/deal-files')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async listDealFiles(@Param('id', ParseIntPipe) id: number, @Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    try {
+      return await this.funnel.listDealFiles(id, req.staffUser);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Get(':id/presales/deal-files/:fileId/download')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async downloadDealFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ): Promise<StreamableFile> {
+    try {
+      const out = await this.funnel.downloadDealFile(id, fileId, req.staffUser);
+      return new StreamableFile(out.buffer, {
+        type: out.mime || 'application/octet-stream',
+        disposition: `attachment; filename="${out.filename}"`,
+        length: out.buffer.length,
+      });
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/deal-files/:kind')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: DEAL_FILE_MAX_BYTES },
+    }),
+  )
+  async uploadDealFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('kind') kindParam: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      const kind = String(kindParam ?? '').trim().toLowerCase();
+      if (kind !== 'quote' && kind !== 'contract') {
+        throw new HttpException({ error: 'Loại file không hợp lệ.' }, HttpStatus.BAD_REQUEST);
+      }
+      return await this.funnel.uploadDealFile(id, kind as DealFileKind, file, await this.userId(req), req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }

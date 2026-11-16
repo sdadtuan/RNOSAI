@@ -2868,6 +2868,82 @@ export async function downloadLeadContractDocx(token: string, leadId: number): P
   URL.revokeObjectURL(url);
 }
 
+export type LeadDealFileKind = 'quote' | 'contract';
+
+export interface LeadDealFileRow {
+  id: number;
+  lead_id: number;
+  kind: LeadDealFileKind;
+  version_n: number;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  source: 'export' | 'upload';
+  uploaded_by_staff_id: number | null;
+  uploaded_by_name: string;
+  uploaded_by_email: string;
+  created_at: string;
+}
+
+export interface LeadDealFileBucket {
+  current: LeadDealFileRow | null;
+  versions: LeadDealFileRow[];
+  can_upload: boolean;
+  can_download: boolean;
+  blocked_reason?: string;
+}
+
+export interface LeadDealFilesResponse {
+  quote: LeadDealFileBucket;
+  contract: LeadDealFileBucket;
+}
+
+export async function fetchLeadDealFiles(token: string, leadId: number) {
+  return leadFunnelMutate<LeadDealFilesResponse>(token, `/api/v1/leads/${leadId}/presales/deal-files`, {
+    method: 'GET',
+  });
+}
+
+export async function downloadLeadDealFile(
+  token: string,
+  leadId: number,
+  fileId: number,
+  fallbackName: string,
+  mimeType?: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/deal-files/${fileId}/download`, {
+    headers: { ...authHeaders(token) },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string | string[] }>(res);
+    throw new ApiError(nestApiErrorMessage(body) ?? 'Không tải được file', res.status);
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: mimeType || res.headers.get('Content-Type') || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function uploadLeadDealFile(
+  token: string,
+  leadId: number,
+  kind: LeadDealFileKind,
+  file: File,
+) {
+  const form = new FormData();
+  form.append('file', file);
+  return postMultipart<{
+    file: LeadDealFileRow;
+    contract_reopened: boolean;
+    files: LeadDealFilesResponse;
+    funnel: LeadFunnelSnapshot;
+  }>(token, `/api/v1/leads/${leadId}/presales/deal-files/${kind}`, form);
+}
+
 export async function returnLeadToSales(
   token: string,
   leadId: number,

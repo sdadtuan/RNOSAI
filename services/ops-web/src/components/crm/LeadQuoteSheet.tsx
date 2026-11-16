@@ -20,6 +20,7 @@ import { readIntakeP13Scope } from '@/lib/crm/intake-p13-scope';
 import { suggestQuotePrefillFromDiscovery } from '@/lib/crm/quote-discovery-prefill';
 import { quoteRoleLabel } from '@/lib/crm/quote-unit-label';
 import './lead-quote-sheet-brand.css';
+import { notifyLeadDealFilesChanged } from './LeadDealFilesCard';
 import { readDiscoveryBriefFromAnswers } from '@/lib/crm/sales-discovery';
 
 function QuoteGlyph({
@@ -613,6 +614,7 @@ export function LeadQuoteSheet({
         }
       }
       await downloadLeadQuoteXlsx(token, leadId);
+      notifyLeadDealFilesChanged();
       onMessage?.('Đã xuất file Báo Giá.');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không xuất được file Báo Giá';

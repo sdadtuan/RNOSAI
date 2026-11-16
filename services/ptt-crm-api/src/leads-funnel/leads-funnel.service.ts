@@ -96,6 +96,14 @@ import {
 } from './presales-ai-draft-meta.util';
 import { loadSolutionAiContext } from './solution-ai-context.loader';
 import {
+  CONTRACT_DOCX_MIME,
+  DEAL_FILE_MAX_BYTES,
+  detectDealUpload,
+  QUOTE_XLSX_MIME,
+  safeDealFileName,
+  type DealFileKind,
+} from './lead-deal-files.util';
+import {
   QUOTE_KPI_AI_TIMEOUT_MS,
   QUOTE_KPI_SYSTEM_PROMPT,
   buildQuoteKpiUserPrompt,
@@ -1392,9 +1400,12 @@ export class LeadsFunnelService {
   async quoteSheetXlsx(leadId: number, staffUser?: StaffJwtPayload): Promise<{ filename: string; buffer: Buffer }> {
     try {
       const access = await this.quoteSheetAccess(staffUser);
+      await this.assertCanDownloadDealFile(leadId, 'quote', access, staffUser);
       const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
       const estimated = await this.estimateQuoteExportKpis(leadId, view);
-      return await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+      const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+      await this.persistGeneratedDealFile(leadId, 'quote', out.filename, QUOTE_XLSX_MIME, out.buffer, staffUser);
+      return out;
     } catch (err) {
       this.funnelError(err);
     }
@@ -1445,11 +1456,228 @@ export class LeadsFunnelService {
     }
   }
 
-  async quoteContractDocx(leadId: number): Promise<{ filename: string; buffer: Buffer }> {
+  async quoteContractDocx(leadId: number, staffUser?: StaffJwtPayload): Promise<{ filename: string; buffer: Buffer }> {
     try {
-      return await this.pgRepo.quoteContractDocx(leadId);
+      const access = await this.quoteSheetAccess(staffUser);
+      await this.assertCanDownloadDealFile(leadId, 'contract', access, staffUser);
+      const stored = await this.pgRepo.latestDealFile(leadId, 'contract');
+      if (stored?.storage_path) {
+        return {
+          filename: stored.file_name || `hop-dong-${leadId}.docx`,
+          buffer: this.pgRepo.readStoredDealFile(stored.storage_path),
+        };
+      }
+      const out = await this.pgRepo.quoteContractDocx(leadId);
+      await this.persistGeneratedDealFile(leadId, 'contract', out.filename, CONTRACT_DOCX_MIME, out.buffer, staffUser);
+      return out;
     } catch (err) {
       this.funnelError(err);
+    }
+  }
+
+  async listDealFiles(leadId: number, staffUser?: StaffJwtPayload) {
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+      const files = await this.pgRepo.listDealFiles(leadId);
+      const quotePerm = await this.dealFilePermissions(leadId, 'quote', access, staffUser, snap);
+      const contractPerm = await this.dealFilePermissions(leadId, 'contract', access, staffUser, snap);
+      const quoteVersions = quotePerm.can_download ? files.filter((row) => row.kind === 'quote') : [];
+      const contractVersions = contractPerm.can_download ? files.filter((row) => row.kind === 'contract') : [];
+      return {
+        quote: {
+          current: quoteVersions[0] ?? null,
+          versions: quoteVersions,
+          can_upload: quotePerm.can_upload,
+          can_download: quotePerm.can_download,
+          blocked_reason: quotePerm.blocked_reason,
+        },
+        contract: {
+          current: contractVersions[0] ?? null,
+          versions: contractVersions,
+          can_upload: contractPerm.can_upload,
+          can_download: contractPerm.can_download,
+          blocked_reason: contractPerm.blocked_reason,
+        },
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async downloadDealFile(leadId: number, fileId: number, staffUser?: StaffJwtPayload) {
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      const row = await this.pgRepo.getDealFile(leadId, fileId);
+      if (!row) throw new BadRequestException({ error: 'Không tìm thấy file.' });
+      await this.assertCanDownloadDealFile(leadId, row.kind, access, staffUser);
+      return {
+        filename: row.file_name,
+        mime: row.mime_type,
+        buffer: this.pgRepo.readStoredDealFile(row.storage_path),
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async uploadDealFile(
+    leadId: number,
+    kind: DealFileKind,
+    file: { originalname?: string; mimetype?: string; size?: number; buffer?: Buffer } | undefined,
+    staffId: number | null,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!file?.buffer || !file.buffer.length) {
+      throw new BadRequestException({ error: 'Chưa chọn file để tải lên.' });
+    }
+    if ((file.size ?? file.buffer.length) > DEAL_FILE_MAX_BYTES) {
+      throw new BadRequestException({ error: 'File vượt quá 20MB.' });
+    }
+    const detected = detectDealUpload(kind, String(file.originalname ?? ''), String(file.mimetype ?? ''));
+    if (!detected) {
+      throw new BadRequestException({
+        error: kind === 'quote' ? 'Chỉ nhận file báo giá .xlsx hoặc .pdf.' : 'Chỉ nhận file hợp đồng .docx hoặc .pdf.',
+      });
+    }
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+      const perm = await this.dealFilePermissions(leadId, kind, access, staffUser, snap);
+      if (!perm.can_upload) {
+        throw new ForbiddenException({ error: perm.blocked_reason || 'Bạn không được tải lên file này.' });
+      }
+      const label = await this.pgRepo.staffLabelById(staffId);
+      const email = String(staffUser?.email ?? label.email).trim();
+      const fileName = safeDealFileName(file.originalname || `${kind === 'quote' ? 'bao-gia' : 'hop-dong'}-${leadId}.${detected.ext}`);
+      const saved = await this.pgRepo.saveDealFile({
+        leadId,
+        kind,
+        fileName,
+        mimeType: detected.mime,
+        buffer: file.buffer,
+        source: 'upload',
+        staffId,
+        staffName: label.name || email,
+        staffEmail: email,
+      });
+      let contractReopened = false;
+      if (kind === 'contract') {
+        contractReopened = await this.pgRepo.reopenApprovedContractForFileEdit(leadId, staffId);
+      }
+      return {
+        file: saved,
+        contract_reopened: contractReopened,
+        files: await this.listDealFiles(leadId, staffUser),
+        funnel: await this.getFunnel(leadId),
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  private async persistGeneratedDealFile(
+    leadId: number,
+    kind: DealFileKind,
+    fileName: string,
+    mimeType: string,
+    buffer: Buffer,
+    staffUser?: StaffJwtPayload,
+  ): Promise<void> {
+    try {
+      const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+      const label = await this.pgRepo.staffLabelById(staffId);
+      const email = String(staffUser?.email ?? label.email).trim();
+      await this.pgRepo.saveDealFile({
+        leadId,
+        kind,
+        fileName,
+        mimeType,
+        buffer,
+        source: 'export',
+        staffId,
+        staffName: label.name || email,
+        staffEmail: email,
+      });
+    } catch (err) {
+      console.warn(`[deal-files] persist ${kind} export failed: ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  private quoteAwaitingCeo(snap: Awaited<ReturnType<LeadsFunnelPgRepository['getPresalesSnapshot']>>): boolean {
+    if (!snap) return false;
+    if (snap.presales.quote_approved_at) return false;
+    return Boolean(snap.presales.quote_sent_back_at);
+  }
+
+  private isQuoteAssignee(snap: Awaited<ReturnType<LeadsFunnelPgRepository['getPresalesSnapshot']>>, staffId: number | null): boolean {
+    const actorId = Number(staffId ?? 0);
+    if (!snap || !(actorId > 0)) return false;
+    const owners = [
+      snap.presales.quote_assignee_staff_id,
+      snap.presales.solution_owner_staff_id,
+      snap.presales.last_solution_owner_staff_id,
+    ]
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    return owners.includes(actorId);
+  }
+
+  private async dealFilePermissions(
+    leadId: number,
+    kind: DealFileKind,
+    access: { isSales: boolean; asPrivileged: boolean },
+    staffUser?: StaffJwtPayload,
+    snap?: Awaited<ReturnType<LeadsFunnelPgRepository['getPresalesSnapshot']>>,
+  ): Promise<{ can_upload: boolean; can_download: boolean; blocked_reason?: string }> {
+    const current = snap ?? (await this.pgRepo.getPresalesSnapshot(leadId));
+    const asSuper = await this.actorIsSuperAdmin(staffUser);
+    const asCeo = asSuper || access.asPrivileged || isCeoPosition(await this.actorPositionCode(staffUser));
+    const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+    const asAssignee = this.isQuoteAssignee(current, staffId);
+    const quoteApproved = Boolean(current?.presales.quote_approved_at);
+    const contractReady = quoteApproved || Boolean(current?.presales.contract_created_at);
+    if (kind === 'quote') {
+      if (access.isSales && !asSuper && !asCeo) {
+        return quoteApproved
+          ? { can_upload: false, can_download: true }
+          : { can_upload: false, can_download: false, blocked_reason: 'Sales tải file báo giá sau khi CEO duyệt.' };
+      }
+      const awaiting = this.quoteAwaitingCeo(current);
+      const canUpload = asCeo || (asAssignee && !awaiting && !quoteApproved);
+      let blocked: string | undefined;
+      if (!canUpload && asAssignee && (awaiting || quoteApproved)) {
+        blocked = 'Báo giá đã nộp. Chỉ CEO hoặc Super-Admin được tải lên bản sửa.';
+      }
+      return { can_upload: canUpload, can_download: true, blocked_reason: blocked };
+    }
+    if (!contractReady) {
+      return {
+        can_upload: false,
+        can_download: false,
+        blocked_reason: 'Hợp đồng mở sau khi CEO duyệt báo giá.',
+      };
+    }
+    if (access.isSales && !asSuper && !asCeo) {
+      return { can_upload: false, can_download: true };
+    }
+    const canUpload = asCeo || asAssignee;
+    return {
+      can_upload: canUpload,
+      can_download: true,
+      blocked_reason: canUpload ? undefined : 'Chỉ AM phụ trách, CEO hoặc Super-Admin được tải lên file hợp đồng.',
+    };
+  }
+
+  private async assertCanDownloadDealFile(
+    leadId: number,
+    kind: DealFileKind,
+    access: { isSales: boolean; asPrivileged: boolean },
+    staffUser?: StaffJwtPayload,
+  ): Promise<void> {
+    const perm = await this.dealFilePermissions(leadId, kind, access, staffUser);
+    if (!perm.can_download) {
+      throw new ForbiddenException({ error: perm.blocked_reason || 'Bạn không được tải file này.' });
     }
   }
 

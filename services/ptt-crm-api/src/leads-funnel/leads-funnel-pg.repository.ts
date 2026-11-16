@@ -128,6 +128,16 @@ import {
   grandfatheredMarketingLeaderOwner,
 } from './presales-solution-desk.util';
 import { renderLeadContractDocx, renderLeadQuoteDocx } from './lead-quote-docx';
+import {
+  LEAD_DEAL_FILES_DDL,
+  LEAD_DEAL_FILES_INDEX_DDL,
+  mapDealFileRow,
+  readDealFileFromDisk,
+  writeDealFileToDisk,
+  type DealFileKind,
+  type DealFileSource,
+  type LeadDealFileRow,
+} from './lead-deal-files.util';
 import { formatPttContractNo } from './ptt-contract-template';
 import { renderLeadQuoteXlsx } from './lead-quote-xlsx';
 import { parseCampaignKpi } from '../service-lifecycle/campaign-kpi.util';
@@ -3488,6 +3498,178 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     });
     return { filename: `hop-dong-${leadId}.docx`, buffer };
   }
+
+  private dealFilesReady: Promise<void> | null = null;
+
+  private async ensureDealFilesTable(): Promise<void> {
+    if (!this.dealFilesReady) {
+      this.dealFilesReady = (async () => {
+        await this.db.query(LEAD_DEAL_FILES_DDL);
+        await this.db.query(LEAD_DEAL_FILES_INDEX_DDL);
+      })().catch((err) => {
+        this.dealFilesReady = null;
+        throw err;
+      });
+    }
+    await this.dealFilesReady;
+  }
+
+  async listDealFiles(leadId: number, kind?: DealFileKind): Promise<LeadDealFileRow[]> {
+    await this.ensureDealFilesTable();
+    const result = kind
+      ? await this.db.query(
+          `SELECT * FROM crm_lead_deal_files WHERE lead_id = $1 AND kind = $2 ORDER BY version_n DESC, id DESC`,
+          [leadId, kind],
+        )
+      : await this.db.query(
+          `SELECT * FROM crm_lead_deal_files WHERE lead_id = $1 ORDER BY kind ASC, version_n DESC, id DESC`,
+          [leadId],
+        );
+    return result.rows.map((row) => mapDealFileRow(row as Record<string, unknown>));
+  }
+
+  async latestDealFile(
+    leadId: number,
+    kind: DealFileKind,
+  ): Promise<(LeadDealFileRow & { storage_path: string }) | null> {
+    await this.ensureDealFilesTable();
+    const result = await this.db.query(
+      `SELECT * FROM crm_lead_deal_files WHERE lead_id = $1 AND kind = $2 ORDER BY version_n DESC, id DESC LIMIT 1`,
+      [leadId, kind],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return { ...mapDealFileRow(row), storage_path: String(row.storage_path ?? '') };
+  }
+
+  async getDealFile(
+    leadId: number,
+    fileId: number,
+  ): Promise<(LeadDealFileRow & { storage_path: string }) | null> {
+    await this.ensureDealFilesTable();
+    const result = await this.db.query(
+      `SELECT * FROM crm_lead_deal_files WHERE id = $1 AND lead_id = $2 LIMIT 1`,
+      [fileId, leadId],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return { ...mapDealFileRow(row), storage_path: String(row.storage_path ?? '') };
+  }
+
+  async saveDealFile(input: {
+    leadId: number;
+    kind: DealFileKind;
+    fileName: string;
+    mimeType: string;
+    buffer: Buffer;
+    source: DealFileSource;
+    staffId: number | null;
+    staffName: string;
+    staffEmail: string;
+  }): Promise<LeadDealFileRow> {
+    await this.ensureDealFilesTable();
+    const latest = await this.latestDealFile(input.leadId, input.kind);
+    const version = (latest?.version_n ?? 0) + 1;
+    const storagePath = writeDealFileToDisk({
+      leadId: input.leadId,
+      kind: input.kind,
+      version,
+      fileName: input.fileName,
+      buffer: input.buffer,
+    });
+    const result = await this.db.query(
+      `INSERT INTO crm_lead_deal_files (
+         lead_id, kind, version_n, file_name, mime_type, byte_size, storage_path, source,
+         uploaded_by_staff_id, uploaded_by_name, uploaded_by_email, created_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+       RETURNING *`,
+      [
+        input.leadId,
+        input.kind,
+        version,
+        input.fileName,
+        input.mimeType,
+        input.buffer.length,
+        storagePath,
+        input.source,
+        input.staffId,
+        input.staffName,
+        input.staffEmail,
+      ],
+    );
+    return mapDealFileRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  readStoredDealFile(storagePath: string): Buffer {
+    return readDealFileFromDisk(storagePath);
+  }
+
+  async staffLabelById(staffId: number | null): Promise<{ name: string; email: string }> {
+    if (!staffId || staffId < 1) return { name: '', email: '' };
+    const result = await this.db.query(
+      `SELECT name, email FROM crm_staff WHERE id = $1 LIMIT 1`,
+      [staffId],
+    );
+    const row = result.rows[0] as { name?: string; email?: string } | undefined;
+    return { name: String(row?.name ?? '').trim(), email: String(row?.email ?? '').trim() };
+  }
+
+  async reopenApprovedContractForFileEdit(leadId: number, staffId: number | null): Promise<boolean> {
+    const contract = await this.db.query(
+      `SELECT id, status FROM crm_contracts WHERE lead_id = $1 ORDER BY id DESC LIMIT 1`,
+      [leadId],
+    );
+    const row = contract.rows[0] as { id?: number; status?: string } | undefined;
+    if (!row?.id) return false;
+    const status = String(row.status ?? '').trim().toLowerCase();
+    const approval = await this.db.query(
+      `SELECT status FROM crm_contract_approvals WHERE contract_id = $1 ORDER BY id DESC LIMIT 1`,
+      [row.id],
+    );
+    const approvalStatus = String((approval.rows[0] as { status?: string } | undefined)?.status ?? '').trim().toLowerCase();
+    const snap = await this.getPresalesSnapshot(leadId);
+    const alreadyApproved =
+      status === 'active' || approvalStatus === 'approved' || Boolean(snap?.presales.contract_signed_at);
+    if (!alreadyApproved) return false;
+    await this.db.query(
+      `UPDATE crm_contracts SET status = 'draft', updated_at = NOW() WHERE id = $1`,
+      [row.id],
+    );
+    if (snap) {
+      await this.db.query(
+        `UPDATE crm_lead_presales
+            SET contract_signed_at = NULL,
+                updated_at = NOW()
+          WHERE id = $1`,
+        [snap.presales.id],
+      );
+    }
+    await this.db.query(
+      `UPDATE crm_leads
+          SET status = 'dam_phan', updated_at = NOW()
+        WHERE sqlite_lead_id = $1
+          AND lower(COALESCE(status, '')) IN ('trien_khai', 'implementation')`,
+      [leadId],
+    );
+    const leadStatus = await this.currentLeadStatus(leadId);
+    await this.noteLeadStep(
+      leadId,
+      staffId ?? 0,
+      leadStatus,
+      'Đã tải lên file hợp đồng mới. Hợp đồng đã duyệt được đưa lại vòng duyệt (GĐKD).',
+    );
+    try {
+      await this.db.query(
+        `INSERT INTO crm_contract_events (contract_id, event_type, actor, payload_json, created_at)
+         VALUES ($1, 'file_replaced_reopen', $2, $3::jsonb, NOW())`,
+        [row.id, staffId ? `staff:${staffId}` : 'staff', JSON.stringify({ lead_id: leadId })],
+      );
+    } catch {
+      /* events table is optional history */
+    }
+    return true;
+  }
+
 
   private quoteFinishDueAt(from = new Date()): Date {
     return addBusinessHours(from, QUOTE_FINISH_HOURS);

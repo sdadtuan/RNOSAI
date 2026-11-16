@@ -28,6 +28,7 @@ import { SalesOrLegacyLeadLayout } from '@/components/crm/sales/SalesLeadDesk';
 import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
+import { LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
@@ -1563,6 +1564,12 @@ export default function CrmLeadDetailPage() {
       quoteCasePhase === 'hop_dong' ||
       quoteCasePhase === 'trien_khai' ||
       Boolean(contractSummary?.hasContract));
+  const atImplementStep =
+    !waitingSolutionFeedback &&
+    !needsSolutionRevision &&
+    (flowCurrentKey === 'trien_khai' ||
+      quoteCasePhase === 'trien_khai' ||
+      quoteStage === 'trien_khai');
   const flowStatusLabel = lead
     ? handoffFlowStatusLabel({
         leadStatus: lead.status || status,
@@ -1694,6 +1701,13 @@ export default function CrmLeadDetailPage() {
                 setLead(row);
                 setStatus(row.status || 'moi');
               }}
+            />
+            <LeadDealFilesCard
+              token={accessToken}
+              leadId={leadId}
+              onMessage={setMessage}
+              onError={setError}
+              onFunnelChange={setFunnelSnap}
             />
             <SolutionCaseDesk
               filesOnly
@@ -2113,7 +2127,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && funnelSnap?.presales?.implementation_handoff && !atQuoteStep ? (
+            {accessToken && lead && funnelSnap?.presales?.implementation_handoff && (!atQuoteStep || atImplementStep) ? (
               <ImplementationHandoffCard
                 token={accessToken}
                 leadId={leadId}
@@ -2125,7 +2139,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && lead && showLeadQuoteSheet && atQuoteStep ? (
+            {accessToken && lead && ((showLeadQuoteSheet && atQuoteStep) || atImplementStep) ? (
               <>
                 <LeadQuoteSheet
                   token={accessToken}
@@ -2146,6 +2160,13 @@ export default function CrmLeadDetailPage() {
                     setLead(row);
                     setStatus(row.status || 'moi');
                   }}
+                />
+                <LeadDealFilesCard
+                  token={accessToken}
+                  leadId={leadId}
+                  onMessage={setMessage}
+                  onError={setError}
+                  onFunnelChange={setFunnelSnap}
                 />
                 {funnelSnap?.presales?.quote_case ? (
                   <QuoteCasePanel
@@ -2206,7 +2227,7 @@ export default function CrmLeadDetailPage() {
               </>
             ) : null}
 
-            {accessToken && lead && quoteCasePhase === 'trien_khai' ? (
+            {accessToken && lead && (quoteCasePhase === 'trien_khai' || atImplementStep) ? (
               <LeadDeliveryKpi token={accessToken} leadId={leadId} />
             ) : null}
 
