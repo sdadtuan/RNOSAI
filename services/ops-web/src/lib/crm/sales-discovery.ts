@@ -596,7 +596,7 @@ export function parseWebsiteBundle(websites: string): { website: string; fanpage
   return { website, fanpage, tiktok };
 }
 
-export function discoveryIndustryLabel(value: string, options?: DiscoveryOption[]): string {
+export function discoveryIndustryLabel(value: string | null | undefined, options?: DiscoveryOption[]): string {
   const raw = asString(value);
   if (!raw) return '';
   if (options?.length) {

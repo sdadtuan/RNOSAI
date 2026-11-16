@@ -1747,14 +1747,7 @@ export default function CrmLeadDetailPage() {
               phase={quoteCasePhase || 'trien_khai'}
               viewerIsSales={salesViewer}
               viewerIsCeo={isCeoPosition(user) || superAdmin}
-              quoteSentToCeo={
-                quoteSentBackAt ||
-                quoteSubmittedForFiles ||
-                quoteCasePhase === 'ceo_review' ||
-                quoteCasePhase === 'sale_review' ||
-                quoteCasePhase === 'hop_dong' ||
-                quoteCasePhase === 'trien_khai'
-              }
+              quoteSentToCeo={Boolean(quoteSubmittedForFiles)}
               onSubmittedToCeo={setSheetAwaitingCeo}
               onFunnelChange={setFunnelSnap}
               onMessage={setMessage}
