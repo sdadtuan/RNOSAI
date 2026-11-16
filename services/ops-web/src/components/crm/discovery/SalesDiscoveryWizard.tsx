@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDiscoveryLiveBrief } from '@/components/crm/discovery/discovery-live-brief';
 import type { DiscoveryOptionsPayload, IntakeSessionRow, LeadRow } from '@/lib/api';
 import { saveDiscoveryBrief, saveDiscoveryService, submitDiscoveryBrief,
@@ -164,15 +164,17 @@ export function SalesDiscoveryWizard({
     }, 80);
   }
 
-  useEffect(() => {
-    if (!liveBrief) return;
-    liveBrief.setLiveBrief(brief);
-  }, [brief, liveBrief?.setLiveBrief]);
+  const setLiveBrief = liveBrief?.setLiveBrief;
+
+  useLayoutEffect(() => {
+    if (!setLiveBrief) return;
+    setLiveBrief(brief);
+  }, [brief, setLiveBrief]);
 
   useEffect(() => {
-    if (!liveBrief) return;
-    return () => liveBrief.setLiveBrief(null);
-  }, [liveBrief?.setLiveBrief]);
+    if (!setLiveBrief) return;
+    return () => setLiveBrief(null);
+  }, [setLiveBrief]);
 
   const industries = options?.industries ?? [];
   const jobTitles = options?.job_titles ?? [];

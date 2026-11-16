@@ -329,6 +329,8 @@ export type DiscoverySolutionChecklistItem = {
   key: DiscoverySolutionChecklistKey;
   label: string;
   ok: boolean;
+  filled: number;
+  total: number;
   fields: DiscoveryChecklistKey[];
 };
 
@@ -367,12 +369,21 @@ export const DISCOVERY_SOLUTION_CHECKLIST: Array<{
 export function discoverySolutionChecklist(brief: SalesDiscoveryBrief): {
   items: DiscoverySolutionChecklistItem[];
   allOk: boolean;
+  filled: number;
+  total: number;
 } {
-  const items = DISCOVERY_SOLUTION_CHECKLIST.map((row) => ({
-    ...row,
-    ok: row.fields.every((key) => fieldFilled(brief, key)),
-  }));
-  return { items, allOk: items.every((item) => item.ok) };
+  const items = DISCOVERY_SOLUTION_CHECKLIST.map((row) => {
+    const filled = row.fields.filter((key) => fieldFilled(brief, key)).length;
+    const total = row.fields.length;
+    return { ...row, filled, total, ok: total > 0 && filled === total };
+  });
+  const progress = discoveryProgress(brief);
+  return {
+    items,
+    allOk: items.every((item) => item.ok),
+    filled: progress.filled,
+    total: progress.total,
+  };
 }
 
 export function readDiscoveryBriefFromAnswers(answers: unknown): SalesDiscoveryBrief | null {

@@ -16,6 +16,7 @@ import {
   authorityLabel,
   discoveryIndustryLabel,
   temperatureLabel,
+  prefillSalesDiscovery,
   readDiscoveryBriefFromAnswers,
   type DiscoveryOption,
   type SalesDiscoveryBrief,
@@ -199,6 +200,20 @@ export function SalesLeadDesk({
   const brief: SalesDiscoveryBrief | null = useMemo(
     () => readDiscoveryBriefFromAnswers(session?.answers_json) ?? null,
     [session],
+  );
+
+  const checklistFallback = useMemo(
+    () =>
+      prefillSalesDiscovery({
+        company_name: lead.company_name,
+        full_name: lead.full_name,
+        phone: lead.phone,
+        email: lead.email,
+        need: (lead as { need?: string | null }).need,
+        industry: (lead as { industry?: string }).industry,
+        session,
+      }),
+    [lead, session],
   );
 
   const view = useMemo(
@@ -574,7 +589,7 @@ export function SalesLeadDesk({
 
         <div className="ahd-col ahd-col--side ahd-col--side-notes" data-testid="sld-side" data-side="notes">
           {flow.currentKey === 'sales_brief' && !waitingSolutionFeedback ? (
-            <DiscoverySolutionChecklistCard fallbackBrief={brief} />
+            <DiscoverySolutionChecklistCard fallbackBrief={checklistFallback} />
           ) : null}
           {sideTop}
           <LeadInternalNotes

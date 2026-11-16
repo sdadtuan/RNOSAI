@@ -23,6 +23,18 @@
 .ahd-check li.is-ok {
   color: #146c2e;
 }
+.ahd-check li.is-partial {
+  color: #2d6a45;
+}
+.ahd-check__count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ahd-btn, #17692f);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .ahd-check__item {
   display: flex;
   align-items: flex-start;
@@ -64,6 +76,11 @@ button.ahd-check__item:focus-visible {
   background: transparent;
   color: #17692f;
   border: 1.5px solid #c5cdc8;
+}
+.ahd-check__mark--partial {
+  background: linear-gradient(180deg, #8fbf9c 0 50%, #e4f4ea 50% 100%);
+  border: 1.5px solid #17692f;
+  color: #146c2e;
 }
 .ahd-check li.is-ok .ahd-check__mark {
   background: var(--ahd-btn, #17692f);

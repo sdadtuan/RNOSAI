@@ -45,8 +45,10 @@ export function DiscoverySolutionChecklistCard({ fallbackBrief }: { fallbackBrie
       <ul className="ahd-check">
         {checklist.items.map((item) => {
           const jumpKey = missingFields.find((row) => item.fields.includes(row.key))?.key;
+          const partial = !item.ok && item.filled > 0;
+          const markClass = item.ok ? '' : partial ? ' ahd-check__mark--partial' : ' ahd-check__mark--todo';
           const mark = (
-            <span className={`ahd-check__mark${item.ok ? '' : ' ahd-check__mark--todo'}`} aria-hidden="true">
+            <span className={`ahd-check__mark${markClass}`} aria-hidden="true">
               {item.ok ? (
                 <svg viewBox="0 0 16 16" width="10" height="10">
                   <path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -54,17 +56,21 @@ export function DiscoverySolutionChecklistCard({ fallbackBrief }: { fallbackBrie
               ) : null}
             </span>
           );
+          const count = partial ? <span className="ahd-check__count">{item.filled}/{item.total}</span> : null;
+          const liClass = item.ok ? 'is-ok' : partial ? 'is-partial' : undefined;
           return (
-            <li key={item.key} className={item.ok ? 'is-ok' : undefined}>
+            <li key={item.key} className={liClass}>
               {item.ok || !jumpKey ? (
                 <>
                   {mark}
                   {item.label}
+                  {count}
                 </>
               ) : (
                 <button type="button" className="ahd-check__item" onClick={() => jumpToField(jumpKey)}>
                   {mark}
                   {item.label}
+                  {count}
                 </button>
               )}
             </li>
