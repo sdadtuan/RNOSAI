@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { leadNotLockedSql } from '../leads/lead-lock.util';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { buildHandoffSlaView, inferHandoffSlaStep, resolveHandoffSlaRecipientIds, slaNotifyCopy, type HandoffSlaClock } from './handoff-sla.util';
 import { currentSolutionWorkSettings } from './team-sla-solution-settings';
@@ -215,6 +216,7 @@ export class HandoffSlaAlertService {
         FROM crm_lead_presales ps
         JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        WHERE ps.id > $1
+         AND ${leadNotLockedSql('l')}
          AND ps.contract_signed_at IS NULL
          AND lower(COALESCE(l.status, '')) <> ALL($2::text[])
          AND (
@@ -428,6 +430,15 @@ export class HandoffSlaAlertService {
       title: copy.title,
       body: copy.body,
       link_href: `/crm/leads/${leadId}`,
+      // A new row per (clock, state). Opening the bell marks it read; the next
+      // threshold (warning → breach, or a reset due_at) inserts another unread row.
+      meta_json: {
+        lead_id: leadId,
+        action: 'open_lead',
+        sla_clock: clock.key,
+        sla_state: clock.state,
+        sla_due_at: clock.due_at,
+      },
     };
     let delivered = 0;
     for (const staffId of staffIds) {

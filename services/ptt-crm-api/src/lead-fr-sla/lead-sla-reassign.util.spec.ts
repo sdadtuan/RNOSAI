@@ -66,6 +66,20 @@ describe('P10.b reassign eligibility T2–T8', () => {
     expect(d).toEqual({ action: 'nudge', reason: 'insufficient_attempts_1b' });
   });
 
+  it('hidden_lead is skipped and never reassigned', () => {
+    const d = evaluateReassignDecision(
+      base({
+        last_call_result: 'hidden_lead',
+        contact_status: 'hidden_lead',
+        hold_reason: 'hidden_lead',
+        hold_profile: 'hidden',
+      }),
+      cfg(),
+      now,
+    );
+    expect(d).toEqual({ action: 'skip', reason: 'hidden_lead' });
+  });
+
   it('T5: wrong_number confirm → invalid path, never reassign', () => {
     const d = evaluateReassignDecision(
       base({

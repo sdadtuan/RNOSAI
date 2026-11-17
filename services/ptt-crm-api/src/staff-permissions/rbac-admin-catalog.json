@@ -2417,6 +2417,15 @@
       "kind": "ui_button"
     },
     {
+      "id": "crm_leads__btn_hide_lead",
+      "label": "Ẩn Lead",
+      "parent_section": "crm_leads",
+      "requires_action": "edit",
+      "page": "/crm/leads",
+      "description": "Ẩn lead khỏi danh sách và hàng đợi (khóa như Sai số, lý do riêng).",
+      "kind": "ui_button"
+    },
+    {
       "id": "crm_board_customers__btn_create",
       "label": "＋ Thêm khách hàng",
       "parent_section": "crm_board_customers",

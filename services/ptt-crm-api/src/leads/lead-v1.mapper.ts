@@ -202,6 +202,8 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     quote_approved: Boolean(row.quote_approved),
     quote_case_open: Boolean(row.quote_case_open),
     lead_locked: Boolean(row.lead_locked),
+    lead_lock_kind:
+      row.lead_lock_kind === 'hidden' || row.lead_lock_kind === 'wrong_number' ? row.lead_lock_kind : '',
   };
 }
 

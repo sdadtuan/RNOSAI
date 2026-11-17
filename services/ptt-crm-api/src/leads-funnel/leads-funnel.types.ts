@@ -275,6 +275,8 @@ export interface SolutionQueueRow {
   owner_name: string;
   /** solution = đang handoff Solution; am_rework = AM trả lại AE chỉnh bước trước. */
   queue_kind?: 'solution' | 'am_rework';
+  solution_accept_due_at?: string;
+  solution_due_at?: string;
 }
 
 export interface PresalesSnapshot {

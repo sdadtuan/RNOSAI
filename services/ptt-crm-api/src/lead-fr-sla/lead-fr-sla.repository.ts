@@ -264,6 +264,48 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     return this.mapAttempt(result.rows[0] as Record<string, unknown>);
   }
 
+  async hideLead(leadId: number, closedReason: string): Promise<void> {
+    await this.ensureSchema();
+    await this.db.query(
+      `UPDATE crm_leads SET
+         contact_status = 'hidden_lead',
+         last_call_result = 'hidden_lead',
+         hold_until = NULL,
+         hold_reason = 'hidden_lead',
+         hold_profile = 'hidden',
+         contact_closed_reason = LEFT($2, 240),
+         needs_gdkd_escalate = FALSE,
+         updated_at = NOW()
+       WHERE sqlite_lead_id = $1`,
+      [leadId, closedReason || 'staff_hidden_lead'],
+    );
+  }
+
+  async recordStaffNote(input: {
+    leadId: number;
+    staffId: number | null;
+    content: string;
+    result: string;
+    createdBy: string;
+  }): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, user_id, activity_type, content, result, next_action,
+         created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, $2, 'note', $3, $4, '', NOW(), $5, COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [
+        input.leadId,
+        input.staffId,
+        input.content.slice(0, 8000),
+        input.result.slice(0, 80),
+        input.createdBy.slice(0, 120),
+      ],
+    );
+  }
+
   async recordLeadCallActivity(input: {
     leadId: number;
     staffId: number | null;
@@ -677,7 +719,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
          AND l.fr1_due_at <= NOW()
          AND l.owner_id IS NOT NULL
          AND lower(COALESCE(l.contact_status, '')) NOT IN
-           ('redistribute_queue','nurture','disqualified','unreachable_closed','invalid_contact','meeting_booked')
+           ('redistribute_queue','nurture','disqualified','unreachable_closed','invalid_contact','hidden_lead','meeting_booked')
          AND (
            COALESCE(l.status, '') = ''
            OR lower(l.status) = ANY($1::text[])
@@ -702,7 +744,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
          AND l.hold_until <= $1::timestamptz
          AND l.owner_id IS NOT NULL
          AND lower(COALESCE(l.contact_status, '')) NOT IN
-           ('redistribute_queue','nurture','disqualified','unreachable_closed','invalid_contact','meeting_booked')
+           ('redistribute_queue','nurture','disqualified','unreachable_closed','invalid_contact','hidden_lead','meeting_booked')
          AND (
            COALESCE(l.status, '') = ''
            OR lower(l.status) = ANY($2::text[])

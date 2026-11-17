@@ -421,6 +421,7 @@ const CALL_RESULT_VI: Record<string, string> = {
   ring_no_answer: 'Không nghe máy',
   unreachable: 'Máy bận',
   wrong_number: 'Sai số',
+  hidden_lead: 'Ẩn lead',
   connected_meet_pending: 'Đã nói chuyện — chờ gặp mặt (1a)',
   connected_qualified: 'Đã nói chuyện — đủ thông tin',
   callback_requested: 'Hẹn gọi lại',
@@ -439,7 +440,7 @@ const SALE_PROCESS_RE =
   /Discovery|tư vấn Sale|Sales tư vấn|nộp bản tư vấn|ghi chú chăm sóc|Nhắc sắp hết giờ gọi|Nhắc trưởng nhóm|lead quá hạn chưa được chăm|bước Sales|Sales bước/i;
 
 const LEAD_EVENT_RE =
-  /Submit to AM|Nộp lên AM|Giao cho AM|AM nhận|Nhận case|bàn giao AM|Chuyển từ |Giao ban đầu|Trạng thái\s*:/i;
+  /Submit to AM|Nộp lên AM|Giao cho AM|AM nhận|Nhận case|bàn giao AM|Chuyển từ |Giao ban đầu|Trạng thái\s*:|Ẩn lead/i;
 
 export function presentCallHistoryLine(row: LeadCallAttemptInput): LeadHistoryLine {
   const when = formatHistoryClock(row.started_at);

@@ -8,21 +8,8 @@ import {
 } from '@/lib/crm/solution-activity';
 import { formatAttachmentMeta, formatFileSize } from '@/lib/crm/solution-file-display';
 import { formatSolutionAiTime } from '@/lib/crm/solution-ai-draft-display';
-import { downloadSolutionAiPptxDocument } from '@/lib/crm/solution-ai-pptx';
-
-/** dd-mm-yyyy in Asia/Saigon. */
-function saigonDmy(iso?: string): string {
-  const parsed = iso ? new Date(iso) : new Date();
-  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Saigon',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  return `${get('day')}-${get('month')}-${get('year')}`;
-}
+import { openOrDownloadSolutionFile } from '@/lib/crm/solution-file-actions';
+import type { SolutionAttachment } from '@/lib/crm/solution-file-display';
 
 function Bar({ percent, testId }: { percent: number; testId: string }) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
@@ -52,6 +39,11 @@ export function SolutionTopCard({
   hideSettled = false,
   onOpenAi,
   onRetryAi,
+  token = '',
+  leadId = 0,
+  onDeleteFile,
+  onSaveSections,
+  onExportProposal,
 }: {
   activity: SolutionDeskActivity | null;
   canRetry: boolean;
@@ -61,8 +53,16 @@ export function SolutionTopCard({
   hideSettled?: boolean;
   onOpenAi: () => void;
   onRetryAi: () => void;
+  token?: string;
+  leadId?: number;
+  onDeleteFile?: (file: SolutionAttachment) => void;
+  onSaveSections?: (sections: Array<{ key: string; label: string; body: string }>) => Promise<void>;
+  onExportProposal?: () => Promise<void> | void;
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSections, setEditorSections] = useState<Array<{ key: string; label: string; body: string }>>([]);
+  const [editorBusy, setEditorBusy] = useState(false);
   const aiState = resolveSolutionAiCardState(activity, now);
   const running = aiState.kind === 'running';
   useEffect(() => {
@@ -135,6 +135,7 @@ export function SolutionTopCard({
       ) : null}
 
       {aiState.kind === 'done' && !hideSettled ? (
+        <>
         <div className="ahd-sol-row ahd-sol-row--ai" data-testid="ahd-solution-top-ai-done">
           <span className="ahd-sol-icon" aria-hidden>AI</span>
           <div className="ahd-sol-main">
@@ -146,32 +147,83 @@ export function SolutionTopCard({
               {aiState.draft.badge}
               {aiState.draft.requestedAt ? ` · ${formatSolutionAiTime(aiState.draft.requestedAt)}` : ''}
             </div>
+            {aiState.draft.warnings?.length ? (
+              <p className="ahd-sol-meta ahd-sol-meta--error" data-testid="ahd-solution-top-ai-warning">
+                Thiếu dữ liệu, bản nháp vẫn được tạo với phần đánh dấu: {aiState.draft.warnings.join(', ')}.
+              </p>
+            ) : null}
           </div>
           <div className="ahd-sol-actions">
-            <button type="button" className="ahd-btn ahd-btn--ghost" data-testid="ahd-solution-top-ai-open" onClick={onOpenAi}>
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--ghost"
+              data-testid="ahd-solution-top-ai-open"
+              onClick={() => {
+                onOpenAi();
+                setEditorSections(aiState.draft.sections.map((row) => ({ ...row })));
+                setEditorOpen(true);
+              }}
+            >
               Mở / Sửa
             </button>
             <button
               type="button"
-              className="ahd-btn ahd-btn--ghost"
+              className="ahd-btn ahd-btn--primary"
               data-testid="ahd-solution-top-ai-download"
-              onClick={() => {
-                const draft = aiState.draft;
-                const who = customerName.trim() || leadCode.trim() || 'Lead';
-                void downloadSolutionAiPptxDocument({
-                  customer: customerName.trim() || who,
-                  leadCode,
-                  createdAt: formatSolutionAiTime(draft.requestedAt),
-                  subtitle: draft.title,
-                  sections: draft.sections,
-                  fileBase: `Solution - ${who} - ${saigonDmy(draft.requestedAt)}`,
-                });
-              }}
+              onClick={() => void onExportProposal?.()}
             >
-              Tải về
+              Tải
             </button>
           </div>
         </div>
+        {editorOpen ? (
+          <div className="ahd-sol-editor" data-testid="ahd-solution-top-ai-editor">
+            {editorSections.map((section) => (
+              <label key={section.key} className="ahd-sol-editor__field">
+                <span>{section.label}</span>
+                <textarea
+                  rows={5}
+                  value={section.body}
+                  disabled={editorBusy}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEditorSections((current) =>
+                      current.map((row) => (row.key === section.key ? { ...row, body: value } : row)),
+                    );
+                  }}
+                />
+              </label>
+            ))}
+            <div className="ahd-sol-editor__actions">
+              <button
+                type="button"
+                className="ahd-btn ahd-btn--primary"
+                disabled={editorBusy}
+                onClick={() => {
+                  if (!onSaveSections) {
+                    setEditorOpen(false);
+                    return;
+                  }
+                  setEditorBusy(true);
+                  void onSaveSections(editorSections)
+                    .then(() => setEditorOpen(false))
+                    .finally(() => setEditorBusy(false));
+                }}
+              >
+                Lưu
+              </button>
+              <button
+                type="button"
+                className="ahd-btn ahd-btn--ghost"
+                disabled={editorBusy}
+                onClick={() => setEditorOpen(false)}
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        ) : null}
+        </>
       ) : null}
 
       {uploading ? (
@@ -198,12 +250,31 @@ export function SolutionTopCard({
             <div className="ahd-sol-meta">{formatAttachmentMeta(file)}</div>
           </div>
           <div className="ahd-sol-actions">
-            <a className="ahd-btn ahd-btn--ghost" href={file.data_url} target="_blank" rel="noopener noreferrer">
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--ghost"
+              onClick={() => void openOrDownloadSolutionFile(token, leadId, file, 'open')}
+            >
               Mở
-            </a>
-            <a className="ahd-btn ahd-btn--ghost" href={file.data_url} download={file.name}>
+            </button>
+            <button
+              type="button"
+              className="ahd-btn ahd-btn--ghost"
+              onClick={() => void openOrDownloadSolutionFile(token, leadId, file, 'download')}
+            >
               Tải về
-            </a>
+            </button>
+            {onDeleteFile ? (
+              <button
+                type="button"
+                className="ahd-btn ahd-btn--ghost"
+                onClick={() => {
+                  if (window.confirm(`Xóa file "${file.name}"?`)) onDeleteFile(file);
+                }}
+              >
+                Xóa
+              </button>
+            ) : null}
           </div>
         </div>
       ))}

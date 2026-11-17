@@ -1,7 +1,9 @@
 export interface LeadV1 {
   id: number;
-  /** Sales confirmed "Sai số" — lead locked, visible to super admin only. */
+  /** Sai số or Ẩn lead — locked, visible to super admin only. */
   lead_locked?: boolean;
+  /** 'hidden' | 'wrong_number' | '' */
+  lead_lock_kind?: 'hidden' | 'wrong_number' | '';
   full_name: string;
   phone: string;
   email: string;
@@ -98,6 +100,7 @@ export interface LeadRow {
 export interface PgLeadRow {
   sqlite_lead_id: number | string;
   lead_locked?: boolean | null;
+  lead_lock_kind?: string | null;
   full_name: string | null;
   phone: string | null;
   email: string | null;

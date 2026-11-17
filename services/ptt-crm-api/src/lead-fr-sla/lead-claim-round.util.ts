@@ -231,6 +231,11 @@ export async function startClaimRound(
   return { assignedAt, claimDueAt };
 }
 
+/** AM (ACM / KD-01) does not press Nhận lead. Super Admin still can. */
+export function amCannotClaimSalesLead(isAccountManager: boolean, isSuperAdmin: boolean): boolean {
+  return isAccountManager && !isSuperAdmin;
+}
+
 /** Step-1 statuses only: owner changes after Tư vấn are not a claim round. */
 export function isStep1Status(status: string | null | undefined): boolean {
   const s = String(status ?? '').trim().toLowerCase();

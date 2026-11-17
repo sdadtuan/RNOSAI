@@ -1,6 +1,6 @@
 {
   "version": "rbac-catalog-r1-s1",
-  "section_count": 106,
+  "section_count": 107,
   "sections": [
     "ai_admin",
     "ai_analytics",
@@ -52,6 +52,7 @@
     "crm_leads__btn_export_pdf",
     "crm_leads__btn_export_xlsx",
     "crm_leads__btn_fb_sync",
+    "crm_leads__btn_hide_lead",
     "crm_leads__btn_import",
     "crm_leads__btn_merge",
     "crm_leads__btn_rescore",
@@ -194,6 +195,7 @@
       "crm_leads__btn_export_pdf",
       "crm_leads__btn_export_xlsx",
       "crm_leads__btn_fb_sync",
+      "crm_leads__btn_hide_lead",
       "crm_leads__btn_import",
       "crm_leads__btn_merge",
       "crm_leads__btn_rescore",

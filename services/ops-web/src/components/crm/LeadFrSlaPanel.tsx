@@ -83,12 +83,14 @@ const HOLD_REASON_VI: Record<string, string> = {
   hot_lead: 'Lead nóng',
   redistribute: 'Chờ phân bổ lại',
   wrong_number: 'Sai số',
+  hidden_lead: 'Ẩn lead',
   manual_extend: 'Gia hạn thủ công',
 };
 
-const RESULT_VI: Record<string, string> = Object.fromEntries(
-  CALL_RESULTS.map((r) => [r.value, r.label]),
-);
+const RESULT_VI: Record<string, string> = {
+  ...Object.fromEntries(CALL_RESULTS.map((r) => [r.value, r.label])),
+  hidden_lead: 'Ẩn lead',
+};
 
 function fmtRemain(ms: number | null | undefined): string {
   if (ms == null) return '—';
@@ -150,10 +152,13 @@ export function LeadFrSlaPanel({
   status = null,
   b2Done = false,
   onClaimed,
+  allowClaim = true,
 }: {
   token: string;
   leadId: number;
   canWrite?: boolean;
+  /** AM does not claim Sales leads. */
+  allowClaim?: boolean;
   /** embedded = nằm trong bước B2, bỏ khung/tiêu đề trùng. */
   variant?: 'full' | 'embedded';
   /** CRM status. Receive-SLA controls hide once this is Tư vấn or later. */
@@ -383,7 +388,7 @@ export function LeadFrSlaPanel({
       : null;
   const showClockBadge = clockClosed;
   const clockBadgeView = { tone: 'ok' as const, text: 'Đã xong' };
-  const showClaimButton = leadClock.phase === 'claim' && canWrite && !clockCompleted;
+  const showClaimButton = allowClaim && leadClock.phase === 'claim' && canWrite && !clockCompleted;
   const awaitingAm = sla?.claim_queue_state === 'cho_am_phan_lead';
 
   return (

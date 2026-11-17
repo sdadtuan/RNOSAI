@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { pgRowToV1 } from './lead-v1.mapper';
-import { leadLockedSql, leadNotLockedSql } from './lead-lock.util';
+import { leadLockKindSql, leadLockedSql, leadNotLockedSql } from './lead-lock.util';
 import {
   buildB2bListScopeClause,
   buildLeadFlowKindListFilter,
@@ -176,6 +176,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ${SOLUTION_HANDOFF_SQL},
               ${STAGE_RECORD_SQL},
               ${leadLockedSql('l')} AS lead_locked,
+              ${leadLockKindSql('l')} AS lead_lock_kind,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -271,6 +272,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ${SOLUTION_HANDOFF_SQL},
               ${STAGE_RECORD_SQL},
               ${leadLockedSql('l')} AS lead_locked,
+              ${leadLockKindSql('l')} AS lead_lock_kind,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -311,6 +313,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id, l.sales_claimed_at, l.claim_queue_state,
               ${leadLockedSql('l')} AS lead_locked,
+              ${leadLockKindSql('l')} AS lead_lock_kind,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, '') AS first_assigned_at
        FROM crm_leads l

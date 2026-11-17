@@ -48,6 +48,7 @@ import { isAiDraftNotice, solutionAiDraftIsReady } from '@/lib/crm/solution-ai-d
 import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { SolutionTopCard } from '@/components/crm/am/SolutionTopCard';
+import { deleteSolutionStoredFile, exportSolutionProposalFiles, openOrDownloadSolutionFile, saveSolutionAiSectionBodies } from '@/lib/crm/solution-file-actions';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import type { SolutionDeskActivity } from '@/lib/crm/solution-activity';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
@@ -193,13 +194,14 @@ function Bullets({ text }: { text: string }) {
 function LabeledRows({ rows }: { rows: Array<{ label: string; value: string }> }) {
   if (!rows.length) return null;
   return (
-    <ul className="ahd-bullets">
+    <dl className="ahd-kv">
       {rows.map((row) => (
-        <li key={row.label}>
-          <strong className="ahd-brief-label">{row.label}:</strong> {row.value}
-        </li>
+        <div key={row.label} className="ahd-kv__row">
+          <dt>{row.label}</dt>
+          <dd>{row.value}</dd>
+        </div>
       ))}
-    </ul>
+    </dl>
   );
 }
 
@@ -297,6 +299,7 @@ export function AmHandoffDesk({
   selectedActivityId = null,
   onSelectActivity,
   mgmtExtra,
+  headerExtra,
 }: {
   token: string;
   lead: LeadRow;
@@ -326,6 +329,7 @@ export function AmHandoffDesk({
   selectedActivityId?: number | null;
   onSelectActivity?: (id: number | null) => void;
   mgmtExtra?: ReactNode;
+  headerExtra?: ReactNode;
 }) {
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [solutionTick, setSolutionTick] = useState(0);
@@ -738,6 +742,7 @@ export function AmHandoffDesk({
             <Icon d={I.chat} size={14} />
             Trao đổi nội bộ
           </button>
+          {headerExtra}
           {canAssign ? null : (
             <span className="ahd-btn ahd-btn--ghost" data-testid="ahd-assigned-badge">{flow.currentLabel}</span>
           )}
@@ -852,8 +857,31 @@ export function AmHandoffDesk({
               canRetry={canSubmit}
               customerName={company}
               leadCode={leadCode}
+              token={token}
+              leadId={lead.id}
               onOpenAi={() => setSolutionDocOpen(true)}
               onRetryAi={() => setAiRetryNonce((n) => n + 1)}
+              onDeleteFile={(file) => {
+                void deleteSolutionStoredFile(token, lead.id, file.id).then(() => setSolutionTick((n) => n + 1));
+              }}
+              onSaveSections={async (sections) => {
+                await saveSolutionAiSectionBodies(token, lead.id, sections, solutionActivity?.aiDraft?.title);
+                setSolutionTick((n) => n + 1);
+              }}
+              onExportProposal={async () => {
+                const out = await exportSolutionProposalFiles(token, lead.id);
+                for (const file of out.files) {
+                  await openOrDownloadSolutionFile(token, lead.id, {
+                    id: file.id,
+                    name: file.name,
+                    mime: file.mime,
+                    data_url: '',
+                  }, 'download');
+                }
+                if (out.warning) onError?.(out.warning);
+                else onMessage?.('Đã tạo file Solution PDF.');
+                setSolutionTick((n) => n + 1);
+              }}
             />
           ) : null}
 

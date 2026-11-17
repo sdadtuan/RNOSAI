@@ -5,6 +5,7 @@ import type {
   CreateStaffNotificationInput,
   StaffNotificationRow,
 } from './staff-notifications.types';
+import { isGdkdPositionCode } from './gdkd-notify.util';
 
 @Injectable()
 export class StaffNotificationsRepository implements OnModuleDestroy {
@@ -13,6 +14,8 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
   private seq = 1;
   private pgReady: boolean | null = null;
   private readonly logger = new Logger(StaffNotificationsRepository.name);
+  /** Collapse identical inserts in one burst (GDKD fan-out to the same CEO). */
+  private readonly burstSeen = new Map<string, number>();
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -142,6 +145,33 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
   }
 
   async create(input: CreateStaffNotificationInput): Promise<StaffNotificationRow> {
+    const redirected = await this.gdkdRedirectUserIds(input.user_id);
+    if (redirected) {
+      if (!redirected.length) {
+        this.logger.warn(
+          `GDKD notification not stored (no CEO recipient) kind=${input.kind} title=${String(input.title ?? '').slice(0, 80)}`,
+        );
+        return {
+          id: '0',
+          kind: String(input.kind ?? 'info'),
+          title: String(input.title ?? ''),
+          body: String(input.body ?? ''),
+          link_href: input.link_href ?? null,
+          read: true,
+          created_at: new Date().toISOString(),
+          meta_json: input.meta_json ?? null,
+        };
+      }
+      let last: StaffNotificationRow | null = null;
+      for (const userId of redirected) {
+        last = await this.insertNotification({ ...input, user_id: userId });
+      }
+      return last as StaffNotificationRow;
+    }
+    return this.insertNotification(input);
+  }
+
+  private async insertNotification(input: CreateStaffNotificationInput): Promise<StaffNotificationRow> {
     const kind = String(input.kind ?? 'info').trim() || 'info';
     const title = String(input.title ?? '').trim();
     const body = String(input.body ?? '').trim();
@@ -152,6 +182,20 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
     if (!pgOk) {
       await new Promise((r) => setTimeout(r, 80));
       pgOk = await this.ensurePgReady();
+    }
+    const burstKey = `${input.user_id}|${kind}|${title}|${body}|${link ?? ''}`;
+    if (this.seenBurst(burstKey)) {
+      if (pgOk) {
+        const existing = await this.db.query(
+          `SELECT id::text, kind, title, body, link_href, read_at, created_at::text, meta_json
+             FROM staff_notifications
+            WHERE user_id = $1::uuid AND kind = $2 AND title = $3 AND body = $4
+            ORDER BY id DESC
+            LIMIT 1`,
+          [input.user_id, kind, title, body],
+        );
+        if (existing.rows[0]) return this.mapRow(existing.rows[0] as Record<string, unknown>);
+      }
     }
     if (pgOk) {
       const result = await this.db.query(
@@ -180,6 +224,86 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
     };
     this.memory.unshift(row);
     return row;
+  }
+
+  private seenBurst(key: string): boolean {
+    const now = Date.now();
+    for (const [seenKey, at] of this.burstSeen) {
+      if (now - at > 15_000) this.burstSeen.delete(seenKey);
+    }
+    if (this.burstSeen.has(key)) return true;
+    this.burstSeen.set(key, now);
+    return false;
+  }
+
+  /** Null when the recipient is not GDKD. Otherwise the CEO user ids who should receive it. */
+  private async gdkdRedirectUserIds(userId: string): Promise<string[] | null> {
+    const code = await this.positionCodeForUser(userId);
+    if (!isGdkdPositionCode(code)) return null;
+    return this.ceoNotificationUserIds();
+  }
+
+  private async positionCodeForUser(userId: string): Promise<string | null> {
+    if (!(await this.ensurePgReady())) return null;
+    const stub = /^00000000-0000-4000-8000-(\d{12})$/.exec(userId);
+    if (stub) {
+      const result = await this.db.query(
+        `SELECT p.code
+           FROM crm_staff s
+           JOIN crm_positions p ON p.id = s.position_id
+          WHERE s.id = $1
+          LIMIT 1`,
+        [Number(stub[1])],
+      );
+      return result.rows[0]?.code ? String(result.rows[0].code) : null;
+    }
+    const result = await this.db.query(
+      `SELECT p.code
+         FROM staff_users u
+         JOIN crm_positions p ON p.id = u.position_id
+        WHERE u.id = $1::uuid
+        LIMIT 1`,
+      [userId],
+    );
+    if (result.rows[0]?.code) return String(result.rows[0].code);
+    const viaStaff = await this.db.query(
+      `SELECT p.code
+         FROM staff_users u
+         JOIN crm_staff s ON lower(trim(s.email)) = lower(trim(u.email))
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE u.id = $1::uuid
+        LIMIT 1`,
+      [userId],
+    );
+    return viaStaff.rows[0]?.code ? String(viaStaff.rows[0].code) : null;
+  }
+
+  private async ceoNotificationUserIds(): Promise<string[]> {
+    if (!(await this.ensurePgReady())) return [];
+    const result = await this.db.query(
+      `SELECT s.id AS staff_id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) = 'ceo'`,
+    );
+    const ids: string[] = [];
+    for (const row of result.rows) {
+      const userId = await this.resolveUserId(Number(row.staff_id));
+      if (userId) ids.push(userId);
+    }
+    const direct = await this.db.query(
+      `SELECT u.id::text AS user_id
+         FROM staff_users u
+         JOIN crm_positions p ON p.id = u.position_id
+        WHERE u.active IS TRUE
+          AND lower(replace(p.code, ' ', '')) = 'ceo'`,
+    );
+    for (const row of direct.rows) {
+      const userId = String(row.user_id ?? '').trim();
+      if (userId) ids.push(userId);
+    }
+    return [...new Set(ids)];
   }
 
   async createMany(inputs: CreateStaffNotificationInput[]): Promise<number> {
@@ -260,7 +384,7 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
       const result = await this.db.query(
         `UPDATE staff_notifications
          SET read_at = COALESCE(read_at, NOW())
-         WHERE id = $1 AND user_id = $2::uuid
+         WHERE id = $1::bigint AND user_id = $2::uuid
          RETURNING id::text, kind, title, body, link_href, read_at, created_at::text, meta_json`,
         [id, userId],
       );
@@ -274,5 +398,26 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
     row.read = true;
     const { user_id: _uid, ...out } = row;
     return out;
+  }
+
+  async markAllRead(userIdRaw: string): Promise<number> {
+    const userId = (await this.resolveUserId(userIdRaw)) ?? userIdRaw;
+    if (await this.ensurePgReady()) {
+      const result = await this.db.query(
+        `UPDATE staff_notifications
+            SET read_at = COALESCE(read_at, NOW())
+          WHERE user_id = $1::uuid AND read_at IS NULL`,
+        [userId],
+      );
+      return result.rowCount ?? 0;
+    }
+    let count = 0;
+    for (const row of this.memory) {
+      if (row.user_id === userId && !row.read) {
+        row.read = true;
+        count += 1;
+      }
+    }
+    return count;
   }
 }

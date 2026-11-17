@@ -342,6 +342,9 @@
       "crm_leads__btn_edit": [
         "edit"
       ],
+      "crm_leads__btn_hide_lead": [
+        "edit"
+      ],
       "crm_leads__btn_rescore": [
         "edit"
       ],
@@ -430,6 +433,9 @@
         "view"
       ],
       "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_hide_lead": [
         "edit"
       ],
       "crm_leads__btn_rescore": [
@@ -600,6 +606,9 @@
         "view"
       ],
       "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_hide_lead": [
         "edit"
       ],
       "crm_leads__btn_rescore": [
@@ -2079,6 +2088,9 @@
         "view"
       ],
       "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_hide_lead": [
         "edit"
       ],
       "crm_leads__btn_rescore": [

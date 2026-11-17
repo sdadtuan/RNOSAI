@@ -14,7 +14,8 @@ type Block =
   | { type: 'p'; inlines: Inline[][] }
   | { type: 'ul'; items: Inline[][] }
   | { type: 'ol'; items: Inline[][] }
-  | { type: 'h'; inlines: Inline[] };
+  | { type: 'h'; inlines: Inline[] }
+  | { type: 'table'; rows: string[][] };
 
 export function SolutionAiDraftBody({
   title,
@@ -200,6 +201,21 @@ function SolutionAiRichText({ text }: { text: string }) {
   return (
     <div className="solution-ai-doc__prose">
       {blocks.map((block, index) => {
+        if (block.type === 'table') {
+          return (
+            <table key={index} className="solution-ai-doc__table">
+              <tbody>
+                {block.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map((cell, cellIndex) =>
+                      rowIndex === 0 ? <th key={cellIndex}>{cell}</th> : <td key={cellIndex}>{cell}</td>,
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        }
         if (block.type === 'h') {
           return <h5 key={index}>{renderInlines(block.inlines)}</h5>;
         }
@@ -246,6 +262,26 @@ function parseRichBlocks(text: string): Block[] {
   const limit = Math.min(lines.length, 400);
   for (let i = 0; i < limit; i += 1) {
     const raw = lines[i] ?? '';
+    if (/^\s*\|/.test(raw)) {
+      const rows: string[][] = [];
+      while (i < limit && /^\s*\|/.test(lines[i] ?? '')) {
+        const current = lines[i] ?? '';
+        if (!/^\s*\|?\s*:?-{3,}/.test(current)) {
+          rows.push(
+            current
+              .trim()
+              .replace(/^\|/, '')
+              .replace(/\|$/, '')
+              .split('|')
+              .map((cell) => cell.trim()),
+          );
+        }
+        i += 1;
+      }
+      if (rows.length) blocks.push({ type: 'table', rows });
+      i -= 1;
+      continue;
+    }
     const heading = raw.match(/^\s{0,3}#{1,3}\s+(.+)$/);
     const bullet = raw.match(/^\s*[-*•–]\s+(.+)$/);
     const ordered = raw.match(/^\s*(\d+)[.)]\s+(.+)$/);
@@ -326,7 +362,9 @@ function buildSolutionHtmlDocument(input: {
   <meta charset="utf-8" />
   <title>Solution - ${escapeHtml(input.customer)}</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #243027; max-width: 720px; margin: 32px auto; padding: 0 24px 48px; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #1a2421; max-width: 880px; margin: 32px auto; padding: 0 24px 48px; }
+    header { background: #14382f; color: #fff; margin: -8px -24px 20px; padding: 28px 24px; }
+    header .kicker, header h1, header .meta, header p { color: #fff; }
     header { border-bottom: 2px solid #173526; padding-bottom: 16px; margin-bottom: 8px; }
     .kicker { letter-spacing: .08em; text-transform: uppercase; font-size: 12px; color: #5b6570; font-weight: 700; margin: 0 0 4px; }
     h1 { margin: 0; font-size: 28px; color: #173526; }
@@ -353,6 +391,12 @@ function richTextToHtml(text: string): string {
   if (!blocks.length) return '<p style="color:#5b6570;">Chưa có nội dung.</p>';
   return blocks
     .map((block) => {
+      if (block.type === 'table') {
+        const rows = block.rows
+          .map((row, rowIndex) => `<tr>${row.map((cell) => `<${rowIndex === 0 ? 'th' : 'td'} style="border:1px solid #d5e0db;padding:6px 8px;text-align:left;${rowIndex === 0 ? 'background:#14382f;color:#fff;' : ''}">${escapeHtml(cell)}</${rowIndex === 0 ? 'th' : 'td'}>`).join('')}</tr>`)
+          .join('');
+        return `<table style="border-collapse:collapse;width:100%;margin:8px 0 14px;font-size:12.5px;">${rows}</table>`;
+      }
       if (block.type === 'h') return `<h3 style="font-size:15px;margin:10px 0 4px;">${inlinesToHtml(block.inlines)}</h3>`;
       if (block.type === 'ul') return `<ul>${block.items.map((item) => `<li>${inlinesToHtml(item)}</li>`).join('')}</ul>`;
       if (block.type === 'ol') return `<ol>${block.items.map((item) => `<li>${inlinesToHtml(item)}</li>`).join('')}</ol>`;

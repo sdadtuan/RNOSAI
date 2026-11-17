@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import { POS_CARRIER_LABEL, posGet, posPost } from '@/lib/portal-pos-api';
+import { isPortalReadOnly, VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
 
 type CarrierId = 'ghn' | 'ghtk' | 'vtp';
 const CARRIERS: CarrierId[] = ['ghn', 'ghtk', 'vtp'];
@@ -30,7 +31,12 @@ export function PortalPosCarrierSettings() {
         user.role === 'staff' ? (
           <p className="pos-error">Chỉ chủ tài khoản hoặc quản lý mới xem và sửa tài khoản vận chuyển.</p>
         ) : (
-          <CarrierBody token={token} />
+          <>
+            {isPortalReadOnly(user.role) ? <p className="pos-hint">{VIEWER_READ_ONLY_HINT}</p> : null}
+            <fieldset className="portal-ro" disabled={isPortalReadOnly(user.role)}>
+              <CarrierBody token={token} />
+            </fieldset>
+          </>
         )
       }
     </PortalPageShell>

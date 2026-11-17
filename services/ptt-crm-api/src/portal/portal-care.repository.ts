@@ -4,7 +4,7 @@ import { createAppPgPool, shouldEndLocalPool } from '../config/pg-pool.factory';
 import { AppConfigService } from '../config/app-config.service';
 import { ensurePortalCrmLocalSchema } from './portal-crm-local-ddl.util';
 import { parseProductSpec, type ProductSpec } from './portal-product.util';
-import { appendAssigneeWhere, deriveInboxFlags, type PortalCareListFilter } from './portal-care.util';
+import { appendAssigneeWhere, appendPageScopeWhere, deriveInboxFlags, type PortalCareListFilter } from './portal-care.util';
 import {
   breakdownRow,
   channelLabel,
@@ -405,14 +405,16 @@ export class PortalCareRepository implements OnModuleDestroy {
   async messagesSince(
     clientId: string,
     since: Date,
-    filter?: { assigneeUserId?: string },
+    filter?: { assigneeUserId?: string; pageIds?: string[] },
   ): Promise<Array<{ id: string; page_id: string; sender_name: string; sender_psid: string; body: string; received_at: string; direction: string }>> {
     const values: unknown[] = [clientId, since.toISOString()];
-    let assigneeSql = '';
+    const pageWhere: string[] = [];
+    appendPageScopeWhere(pageWhere, values, filter?.pageIds, 'm');
+    let assigneeSql = pageWhere.length ? ` AND ${pageWhere.join(' AND ')}` : '';
     if (filter?.assigneeUserId) {
       values.push(filter.assigneeUserId);
       const n = values.length;
-      assigneeSql = ` AND EXISTS (
+      assigneeSql += ` AND EXISTS (
         SELECT 1 FROM portal_care_cases c
         WHERE c.client_id = m.client_id
           AND c.kind = 'message'
@@ -448,7 +450,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async casesForSenders(
     clientId: string,
     keys: Array<{ page_id: string; sender_psid?: string; sender_name?: string }>,
-    filter?: { assigneeUserId?: string },
+    filter?: { assigneeUserId?: string; pageIds?: string[] },
   ): Promise<CareCaseRow[]> {
     const unique = new Map<string, { page_id: string; sender_psid: string; sender_name: string }>();
     for (const key of keys) {
@@ -471,6 +473,7 @@ export class PortalCareRepository implements OnModuleDestroy {
     });
     const where = ['c.client_id = $1::uuid', `c.kind = 'message'`, `(${clauses.join(' OR ')})`];
     appendAssigneeWhere(where, values, filter?.assigneeUserId, 'c');
+    appendPageScopeWhere(where, values, filter?.pageIds, 'c');
     const result = await this.db.query(`${this.caseSelect()} WHERE ${where.join(' AND ')}`, values);
     return result.rows.map((row) => mapCase(row as Record<string, unknown>));
   }
@@ -558,7 +561,7 @@ export class PortalCareRepository implements OnModuleDestroy {
 
   async summary(
     clientId: string,
-    filter?: { assigneeUserId?: string },
+    filter?: { assigneeUserId?: string; pageIds?: string[] },
   ): Promise<{
     leads_today: number;
     leads_yesterday: number;
@@ -573,6 +576,7 @@ export class PortalCareRepository implements OnModuleDestroy {
     const values: unknown[] = [clientId];
     const where = ['c.client_id = $1::uuid'];
     appendAssigneeWhere(where, values, filter?.assigneeUserId, 'c');
+    appendPageScopeWhere(where, values, filter?.pageIds, 'c');
     const counts = await this.db.query(
       `SELECT
          COUNT(*) FILTER (WHERE c.kind = 'lead' AND (l.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = (NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::int AS leads_today,
@@ -695,14 +699,22 @@ export class PortalCareRepository implements OnModuleDestroy {
     role: string;
     display_name: string;
     phone: string;
+    page_ids: string[];
   }>> {
+    await this.ensureStaffPages();
     const result = await this.db.query(
-      `SELECT id::text, email, active, role,
-              COALESCE(display_name, '') AS display_name,
-              COALESCE(phone, '') AS phone
-       FROM portal_client_users
-       WHERE client_id = $1::uuid AND role IN ('staff', 'viewer') AND deleted_at IS NULL
-       ORDER BY active DESC, email ASC`,
+      `SELECT u.id::text, u.email, u.active, u.role,
+              COALESCE(u.display_name, '') AS display_name,
+              COALESCE(u.phone, '') AS phone,
+              COALESCE(
+                (SELECT array_agg(sp.page_id ORDER BY sp.page_id)
+                 FROM portal_staff_pages sp
+                 WHERE sp.client_id = u.client_id AND sp.user_id = u.id),
+                ARRAY[]::text[]
+              ) AS page_ids
+       FROM portal_client_users u
+       WHERE u.client_id = $1::uuid AND u.role IN ('staff', 'viewer') AND u.deleted_at IS NULL
+       ORDER BY u.active DESC, u.email ASC`,
       [clientId],
     );
     return result.rows.map((row) => ({
@@ -712,7 +724,115 @@ export class PortalCareRepository implements OnModuleDestroy {
       role: String(row.role ?? 'staff'),
       display_name: String(row.display_name ?? ''),
       phone: String(row.phone ?? ''),
+      page_ids: Array.isArray(row.page_ids) ? row.page_ids.map((id: unknown) => String(id)) : [],
     }));
+  }
+
+  private staffPagesReady = false;
+
+  /** SQL 09 is applied by ensurePortalCrmLocalSchema(); this guards a process started before SQL 09 existed. */
+  private async ensureStaffPages(): Promise<void> {
+    if (this.staffPagesReady) return;
+    const result = await this.db.query(`SELECT to_regclass('public.portal_staff_pages') IS NOT NULL AS ok`);
+    if (result.rows[0]?.ok !== true) {
+      throw new Error('portal_staff_pages missing: apply sql/09_portal_staff_pages.sql');
+    }
+    this.staffPagesReady = true;
+  }
+
+  /** Page ids assigned to one Portal user (staff/viewer). */
+  async listUserPageIds(clientId: string, userId: string): Promise<string[]> {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) return [];
+    await this.ensureStaffPages();
+    const result = await this.db.query(
+      `SELECT page_id FROM portal_staff_pages
+       WHERE client_id = $1::uuid AND user_id = $2::uuid
+       ORDER BY page_id`,
+      [clientId, userId],
+    );
+    return result.rows.map((row) => String(row.page_id));
+  }
+
+  /** page_id -> active role=staff user ids assigned to that Page (auto-assign pool). */
+  async staffPoolByPage(clientId: string): Promise<Record<string, string[]>> {
+    await this.ensureStaffPages();
+    const result = await this.db.query(
+      `SELECT sp.page_id, u.id::text AS user_id
+       FROM portal_staff_pages sp
+       JOIN portal_client_users u ON u.id = sp.user_id AND u.client_id = sp.client_id
+       WHERE sp.client_id = $1::uuid
+         AND u.active IS TRUE AND u.deleted_at IS NULL AND u.role = 'staff'
+       ORDER BY u.created_at ASC, u.email ASC`,
+      [clientId],
+    );
+    const pool: Record<string, string[]> = {};
+    for (const row of result.rows) {
+      const pageId = String(row.page_id);
+      (pool[pageId] ??= []).push(String(row.user_id));
+    }
+    return pool;
+  }
+
+  /** Replace a user's Page assignments (ids must already be validated against the tenant's Pages). */
+  async setUserPageIds(clientId: string, userId: string, pageIds: string[]): Promise<void> {
+    await this.ensureStaffPages();
+    const unique = [...new Set(pageIds.map((id) => String(id).trim()).filter(Boolean))];
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `DELETE FROM portal_staff_pages WHERE client_id = $1::uuid AND user_id = $2::uuid`,
+        [clientId, userId],
+      );
+      if (unique.length) {
+        await client.query(
+          `INSERT INTO portal_staff_pages (client_id, user_id, page_id)
+           SELECT $1::uuid, $2::uuid, UNNEST($3::text[])
+           ON CONFLICT DO NOTHING`,
+          [clientId, userId, unique],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Open assigned cases (for releasing cases whose assignee is outside the Page pool). */
+  async listOpenAssigned(clientId: string): Promise<Array<{ id: string; page_id: string; assignee_user_id: string }>> {
+    const result = await this.db.query(
+      `SELECT id::text, page_id, assignee_user_id::text
+       FROM portal_care_cases
+       WHERE client_id = $1::uuid AND status <> 'purchased' AND assignee_user_id IS NOT NULL`,
+      [clientId],
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      page_id: String(row.page_id ?? ''),
+      assignee_user_id: String(row.assignee_user_id),
+    }));
+  }
+
+  /** Release specific open cases back to the auto-assign queue (same reset as releaseOpenCasesForUser). */
+  async releaseCases(clientId: string, ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const result = await this.db.query(
+      `UPDATE portal_care_cases
+       SET assignee_user_id = NULL,
+           assigned_at = NULL,
+           assigned_manually = FALSE,
+           held = FALSE,
+           receive_due_at = NULL,
+           received_at = CASE WHEN status = 'received' THEN NULL ELSE received_at END,
+           status = CASE WHEN status = 'received' THEN 'waiting_receive' ELSE status END,
+           updated_at = NOW()
+       WHERE client_id = $1::uuid AND id = ANY($2::uuid[]) AND status <> 'purchased'`,
+      [clientId, ids],
+    );
+    return result.rowCount ?? 0;
   }
 
   async openLoads(clientId: string): Promise<Record<string, number>> {
@@ -730,6 +850,7 @@ export class PortalCareRepository implements OnModuleDestroy {
 
   async listHopRows(clientId: string): Promise<Array<{
     id: string;
+    page_id: string;
     assignee_user_id: string | null;
     status: string;
     receive_due_at: Date | null;
@@ -737,7 +858,7 @@ export class PortalCareRepository implements OnModuleDestroy {
     assigned_manually: boolean;
   }>> {
     const result = await this.db.query(
-      `SELECT id::text, assignee_user_id::text, status, receive_due_at, care_due_at, assigned_manually
+      `SELECT id::text, page_id, assignee_user_id::text, status, receive_due_at, care_due_at, assigned_manually
        FROM portal_care_cases
        WHERE client_id = $1::uuid
          AND status IN ('waiting_receive', 'caring')
@@ -746,6 +867,7 @@ export class PortalCareRepository implements OnModuleDestroy {
     );
     return result.rows.map((row) => ({
       id: String(row.id),
+      page_id: String(row.page_id ?? ''),
       assignee_user_id: row.assignee_user_id ? String(row.assignee_user_id) : null,
       status: String(row.status),
       receive_due_at: row.receive_due_at ? new Date(row.receive_due_at) : null,
@@ -754,24 +876,24 @@ export class PortalCareRepository implements OnModuleDestroy {
     }));
   }
 
-  async listUnassignedCare(clientId: string): Promise<string[]> {
+  async listUnassignedCare(clientId: string): Promise<Array<{ id: string; page_id: string }>> {
     const result = await this.db.query(
-      `SELECT id::text FROM portal_care_cases
+      `SELECT id::text, page_id FROM portal_care_cases
        WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'caring' AND held IS NOT TRUE
        ORDER BY created_at ASC`,
       [clientId],
     );
-    return result.rows.map((row) => String(row.id));
+    return result.rows.map((row) => ({ id: String(row.id), page_id: String(row.page_id ?? '') }));
   }
 
-  async listUnassigned(clientId: string): Promise<string[]> {
+  async listUnassigned(clientId: string): Promise<Array<{ id: string; page_id: string }>> {
     const result = await this.db.query(
-      `SELECT id::text FROM portal_care_cases
+      `SELECT id::text, page_id FROM portal_care_cases
        WHERE client_id = $1::uuid AND assignee_user_id IS NULL AND status = 'waiting_receive' AND held IS NOT TRUE
        ORDER BY created_at ASC`,
       [clientId],
     );
-    return result.rows.map((row) => String(row.id));
+    return result.rows.map((row) => ({ id: String(row.id), page_id: String(row.page_id ?? '') }));
   }
 
   async assignReceive(id: string, userId: string, due: Date, expectedAssignee: string | null = null): Promise<boolean> {
@@ -829,6 +951,7 @@ export class PortalCareRepository implements OnModuleDestroy {
       where.push(`c.kind = $${values.length}`);
     }
     appendAssigneeWhere(where, values, filter.assigneeUserId, 'c');
+    appendPageScopeWhere(where, values, filter.pageIds, 'c');
     const orderBy =
       filter.kind === 'message'
         ? 'last_interaction_at DESC NULLS LAST, c.created_at DESC'
@@ -984,7 +1107,9 @@ export class PortalCareRepository implements OnModuleDestroy {
   async findLeadsByPhones(
     clientId: string,
     phones: string[],
+    pageIds?: string[],
   ): Promise<Array<{ id: string; page_id: string; full_name: string; phone: string; email: string; created_at: string; campaign_name: string }>> {
+    if (pageIds !== undefined && !pageIds.length) return [];
     const cleaned = [...new Set(phones.map((item) => item.replace(/\D/g, '')).filter((item) => item.length >= 8))];
     if (!cleaned.length) return [];
     const variants = new Set<string>();
@@ -1003,9 +1128,10 @@ export class PortalCareRepository implements OnModuleDestroy {
        FROM portal_page_leads
        WHERE client_id = $1::uuid
          AND regexp_replace(phone, '[^0-9]', '', 'g') = ANY($2::text[])
+         AND ($3::text[] IS NULL OR page_id = ANY($3::text[]))
        ORDER BY created_at DESC
        LIMIT 20`,
-      [clientId, [...variants]],
+      [clientId, [...variants], pageIds ?? null],
     );
     return result.rows.map((row) => ({
       id: String(row.id),
@@ -1318,6 +1444,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async listFbPosts(
     clientId: string,
     pageId?: string,
+    pageIds?: string[],
   ): Promise<Array<{ post_id: string; page_id: string; message: string; permalink: string; picture: string; created_time: string }>> {
     const values: unknown[] = [clientId];
     let pageSql = '';
@@ -1325,6 +1452,9 @@ export class PortalCareRepository implements OnModuleDestroy {
       values.push(pageId);
       pageSql = ` AND page_id = $2`;
     }
+    const scopeWhere: string[] = [];
+    appendPageScopeWhere(scopeWhere, values, pageIds, '');
+    if (scopeWhere.length) pageSql += ` AND ${scopeWhere.join(' AND ')}`;
     const result = await this.db.query(
       `SELECT post_id, page_id, message, permalink, picture, created_time
        FROM portal_fb_posts
@@ -1346,6 +1476,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async listComments(
     clientId: string,
     pageId?: string,
+    pageIds?: string[],
   ): Promise<Array<{
     comment_id: string; page_id: string; post_id: string; parent_id: string; from_name: string; from_id: string;
     message: string; created_time: string; is_hidden: boolean; replied: boolean; can_hide: boolean; can_reply: boolean; can_reply_privately: boolean;
@@ -1356,6 +1487,9 @@ export class PortalCareRepository implements OnModuleDestroy {
       values.push(pageId);
       pageSql = ` AND page_id = $2`;
     }
+    const scopeWhere: string[] = [];
+    appendPageScopeWhere(scopeWhere, values, pageIds, '');
+    if (scopeWhere.length) pageSql += ` AND ${scopeWhere.join(' AND ')}`;
     const result = await this.db.query(
       `SELECT comment_id, page_id, post_id, parent_id, from_name, from_id, message, created_time,
               is_hidden, replied, can_hide, can_reply, can_reply_privately
@@ -1385,7 +1519,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async inboxReport(
     clientId: string,
     rangeStart: Date,
-    filter?: { assigneeUserId?: string },
+    filter?: { assigneeUserId?: string; pageIds?: string[] },
   ): Promise<{
     by_page: Array<{ page_id: string; new_conversations: number; unreplied: number; avg_first_response_sec: number | null; phones_collected: number }>;
     by_staff: Array<{ user_id: string; email: string; new_conversations: number; unreplied: number; avg_first_response_sec: number | null; phones_collected: number }>;
@@ -1396,6 +1530,9 @@ export class PortalCareRepository implements OnModuleDestroy {
       values.push(filter.assigneeUserId);
       assignee = ` AND c.assignee_user_id = $${values.length}::uuid`;
     }
+    const pageWhere: string[] = [];
+    appendPageScopeWhere(pageWhere, values, filter?.pageIds, 'c');
+    if (pageWhere.length) assignee += ` AND ${pageWhere.join(' AND ')}`;
     const base = `
       WITH cases AS (
         SELECT c.id, c.page_id, c.assignee_user_id, COALESCE(u.email, '') AS email,
@@ -1580,7 +1717,7 @@ export class PortalCareRepository implements OnModuleDestroy {
 
   async listCustomers(
     clientId: string,
-    filter: { pageId?: string; day?: string; label?: string; assigneeUserId?: string },
+    filter: { pageId?: string; day?: string; label?: string; assigneeUserId?: string; pageIds?: string[] },
   ): Promise<CareCaseRow[]> {
     await this.ensure();
     const values: unknown[] = [clientId];
@@ -1600,6 +1737,7 @@ export class PortalCareRepository implements OnModuleDestroy {
       where.push(`$${values.length} = ANY (c.labels)`);
     }
     appendAssigneeWhere(where, values, filter.assigneeUserId, 'c');
+    appendPageScopeWhere(where, values, filter.pageIds, 'cu');
     const result = await this.db.query(
       `${this.customerCaseSelect()} WHERE ${where.join(' AND ')} ORDER BY cu.last_interaction_at DESC NULLS LAST, cu.created_at DESC LIMIT 200`,
       values,
@@ -1871,7 +2009,7 @@ export class PortalCareRepository implements OnModuleDestroy {
   async leadFunnel(
     clientId: string,
     rawFilter: LeadFunnelFilter,
-    options: { assigneeUserId?: string; today: string },
+    options: { assigneeUserId?: string; pageIds?: string[]; today: string },
   ): Promise<{
     kpis: LeadFunnelKpis;
     by_page: LeadFunnelBreakdownRow[];
@@ -1886,6 +2024,7 @@ export class PortalCareRepository implements OnModuleDestroy {
       values.push(options.assigneeUserId);
       where.push(`c.assignee_user_id = $${values.length}::uuid`);
     }
+    appendPageScopeWhere(where, values, options.pageIds, 'c');
     if (filter.pageId) {
       values.push(filter.pageId);
       where.push(`c.page_id = $${values.length}`);

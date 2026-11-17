@@ -150,12 +150,23 @@ export async function fetchStaffNotifications(
 }
 
 export async function markStaffNotificationRead(token: string, id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/staff/notifications/${id}/read`, {
+  const res = await fetch(`${API_BASE}/api/v1/staff/notifications/${encodeURIComponent(id)}/read`, {
     method: 'POST',
     headers: authHeaders(token),
   });
   if (!res.ok) {
     const body = await parseJson<{ error?: string }>(res);
     throw new ApiError(body.error ?? 'Mark read failed', res.status);
+  }
+}
+
+export async function markAllStaffNotificationsRead(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/notifications/read-all`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Mark all read failed', res.status);
   }
 }

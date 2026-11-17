@@ -10,6 +10,7 @@ import { PortalClientUsersService } from '../agency/portal-client-users.service'
 import { normalizeProductSpec } from './portal-product.util';
 import { pullFacebookPage, sendFacebookText } from './portal-page-inbox.util';
 import { PortalJwtPayload } from './portal-jwt.util';
+import { assertNotViewer } from './portal-viewer.util';
 import { PortalCareRepository, psidFromMessageThreadKey } from './portal-care.repository';
 import { PortalCareRebalanceService } from './portal-care-rebalance.service';
 import { PortalCareNotifyService } from './portal-care-notify.service';
@@ -21,9 +22,13 @@ import {
   extractContacts,
   filterCasesForPortalList,
   filterVisiblePages,
+  isPortalOwnerRole,
+  pageInScope,
   receiveDueAt,
+  scopePageIds,
   staffCanViewCareCase,
   visibleAdsChannels,
+  type PortalPageScope,
 } from './portal-care.util';
 
 import { channelLabel, sanitizeFunnelFilter, type LeadFunnelFilter } from './portal-lead-funnel.util';
@@ -88,7 +93,7 @@ export class PortalCareService {
   async live(user: PortalJwtPayload, sinceRaw?: string) {
     await this.repo.ensure();
     const since = liveSince(sinceRaw);
-    const scope = careListFilterForUser(user);
+    const scope = careListFilterForUser(user, await this.pageScope(user));
     const messages = await this.repo.messagesSince(user.client_id, since, scope);
     const inbound = messages.filter((row) => row.direction !== 'out' && row.sender_name);
     if (inbound.length) {
@@ -131,12 +136,14 @@ export class PortalCareService {
 
   async summary(user: PortalJwtPayload) {
     await this.prepare(user.client_id);
-    const counts = await this.repo.summary(user.client_id, careListFilterForUser(user));
-    const pages = await this.visiblePages(user.client_id);
+    const pageScope = await this.pageScope(user);
+    const counts = await this.repo.summary(user.client_id, careListFilterForUser(user, pageScope));
+    const pages = await this.visiblePagesFor(user, pageScope);
     return {
       ok: true,
       ...counts,
       pages: pages.map((page) => ({ page_id: page.page_id, page_name: page.page_name, channel: page.channel })),
+      page_scope: { all: pageScope.all, count: pages.length },
     };
   }
 
@@ -148,12 +155,14 @@ export class PortalCareService {
     const accounts = await this.agency.listChannelAccounts(user.client_id);
     const channels = visibleAdsChannels(accounts.map((row) => row.channel));
     const selected = query.channel ? channels.find((item) => item.id === query.channel) ?? null : null;
-    const pages = (await this.visiblePages(user.client_id)).filter((page) => {
+    const pageScope = await this.pageScope(user);
+    const pages = (await this.visiblePagesFor(user, pageScope)).filter((page) => {
       if (!selected) return true;
       return selected.pageChannels.includes(page.channel);
     });
     const pageId = query.page_id && pages.some((page) => page.page_id === query.page_id) ? query.page_id : '';
-    const filter = { pageId: pageId || undefined, day: query.day, label: query.label, ...careListFilterForUser(user) };
+    const filter = { pageId: pageId || undefined, day: query.day, label: query.label, ...careListFilterForUser(user, pageScope) };
+    const scopedPageIds = scopePageIds(pageScope);
     const includeInactive = user.role !== 'staff' && query.include_inactive === '1';
     const [leads, messages, customers, posts, products, labels, staff, quickReplies] = await Promise.all([
       this.repo.listCases(user.client_id, { ...filter, kind: 'lead' }),
@@ -162,7 +171,8 @@ export class PortalCareService {
       this.repo.listPosts(user.client_id, pageId || undefined),
       this.repo.listProducts(user.client_id, pageId || undefined, { includeInactive }),
       this.repo.listLabels(user.client_id),
-      this.repo.listStaff(user.client_id),
+      // Only the account owner needs the staff list (manual assign); never send emails to staff/viewer.
+      isPortalOwnerRole(user.role) ? this.repo.listStaff(user.client_id) : Promise.resolve([]),
       this.repo.listQuickReplies(user.client_id),
     ]);
     const pageIds = new Set(pages.map((page) => page.page_id));
@@ -180,7 +190,12 @@ export class PortalCareService {
       customers: filterCasesForPortalList(customers, user, pageIds),
       staff,
       quick_replies: quickReplies,
-      me: { id: user.sub, role: user.role },
+      me: {
+        id: user.sub,
+        role: user.role,
+        all_pages: pageScope.all,
+        page_count: scopedPageIds === undefined ? pages.length : scopedPageIds.length,
+      },
       inbox:
         this.inboxStat.get(user.client_id) ?? {
           pages: pages.length,
@@ -196,7 +211,8 @@ export class PortalCareService {
 
   async caseDetail(user: PortalJwtPayload, caseId: string) {
     await this.prepare(user.client_id);
-    const row = await this.requireActor(user, caseId);
+    const pageScope = await this.pageScope(user);
+    const row = await this.requireVisibleCase(user, caseId, pageScope);
     const psid = row.kind === 'message' ? psidFromMessageThreadKey(row.page_id, row.thread_key) : '';
     const senderName = row.kind === 'message' ? row.title : '';
     const [messages, products] = await Promise.all([
@@ -207,11 +223,11 @@ export class PortalCareService {
     ]);
     const threadText = messages.map((item) => item.body).join('\n');
     const detected = extractContacts(`${row.snippet || ''}\n${row.order.phone}\n${threadText}\n${row.phone || ''}\n${row.notes || ''}`);
-    const linkedLeads = await this.repo.findLeadsByPhones(user.client_id, [
-      ...detected.phones,
-      row.order.phone,
-      row.phone,
-    ].filter(Boolean));
+    const linkedLeads = await this.repo.findLeadsByPhones(
+      user.client_id,
+      [...detected.phones, row.order.phone, row.phone].filter(Boolean),
+      scopePageIds(pageScope),
+    );
     return {
       ok: true,
       case: row,
@@ -227,7 +243,10 @@ export class PortalCareService {
   }
 
   async markRead(user: PortalJwtPayload, caseId: string) {
-    const row = await this.requireActor(user, caseId);
+    const row = await this.requireVisibleCase(user, caseId);
+    // Staff opening a teammate's case on the same Page must not clear the assignee's unread flag;
+    // a viewer is read-only and never clears it either.
+    if (user.role === 'viewer' || !staffCanViewCareCase(user, row.assignee_user_id)) return { ok: true, skipped: true };
     await this.repo.markRead(row.id, user.sub);
     return { ok: true };
   }
@@ -267,6 +286,7 @@ export class PortalCareService {
   }
 
   async addQuickReply(user: PortalJwtPayload, body: { shortcut?: string; title?: string; body?: string }) {
+    assertNotViewer(user);
     await this.repo.ensure();
     const shortcut = this.normalizeShortcut(body.shortcut);
     const text = String(body.body ?? '').trim().slice(0, 2000);
@@ -281,6 +301,7 @@ export class PortalCareService {
     id: string,
     body: { shortcut?: string; title?: string; body?: string; sort_order?: number },
   ) {
+    assertNotViewer(user);
     await this.repo.ensure();
     const patch: { shortcut?: string; title?: string; body?: string; sort_order?: number } = {};
     if (body.shortcut !== undefined) patch.shortcut = this.normalizeShortcut(body.shortcut);
@@ -297,6 +318,7 @@ export class PortalCareService {
   }
 
   async removeQuickReply(user: PortalJwtPayload, id: string) {
+    assertNotViewer(user);
     await this.repo.ensure();
     const removed = await this.repo.deleteQuickReply(user.client_id, id);
     if (!removed) throw new NotFoundException({ error: 'quick_reply_not_found' });
@@ -355,6 +377,13 @@ export class PortalCareService {
     }
     const target = await this.repo.findActiveClientUser(user.client_id, targetId);
     if (!target) throw new NotFoundException({ error: 'user_not_found' });
+    const targetPages = await this.repo.listUserPageIds(user.client_id, targetId);
+    if (!targetPages.includes(row.page_id)) {
+      throw new BadRequestException({
+        error: 'staff_page_not_assigned',
+        message: 'Nhân viên này chưa được phân Page của hội thoại/Lead này.',
+      });
+    }
     const now = new Date();
     const receiveDue = row.status === 'waiting_receive' ? receiveDueAt(now) : null;
     await this.repo.assignManual(row.id, targetId, receiveDue);
@@ -520,7 +549,7 @@ export class PortalCareService {
     const text = body.trim().slice(0, 4000);
     if (!text) throw new BadRequestException({ error: 'post_required' });
     await this.repo.ensure();
-    await this.ownPage(user.client_id, pageId);
+    await this.ownPage(user, pageId);
     await this.repo.insertPost(user.client_id, pageId, text);
     return { ok: true };
   }
@@ -536,7 +565,7 @@ export class PortalCareService {
     const spec = normalizeProductSpec(input);
     if (!spec.colors.length) throw new BadRequestException({ error: 'color_image_required' });
     await this.repo.ensure();
-    await this.ownPage(user.client_id, pageId);
+    await this.ownPage(user, pageId);
     await this.repo.insertProduct(user.client_id, pageId, name, spec.colors[0].image, String(input.detail ?? '').trim().slice(0, 4000), spec);
     return { ok: true };
   }
@@ -549,7 +578,7 @@ export class PortalCareService {
   ) {
     this.requireManager(user);
     await this.repo.ensure();
-    await this.ownPage(user.client_id, pageId);
+    await this.ownPage(user, pageId);
     const existing = await this.repo.findProduct(user.client_id, productId);
     if (!existing || existing.page_id !== pageId) throw new NotFoundException({ error: 'product_not_found' });
     const patch: { name?: string; detail?: string; imageUrl?: string; spec?: ReturnType<typeof normalizeProductSpec>; active?: boolean } = {};
@@ -586,7 +615,7 @@ export class PortalCareService {
   async removeProduct(user: PortalJwtPayload, pageId: string, productId: string) {
     this.requireManager(user);
     await this.repo.ensure();
-    await this.ownPage(user.client_id, pageId);
+    await this.ownPage(user, pageId);
     const removed = await this.repo.deleteProduct(user.client_id, pageId, productId);
     if (!removed) throw new NotFoundException({ error: 'product_not_found' });
     return { ok: true };
@@ -623,11 +652,12 @@ export class PortalCareService {
 
   async addStaff(
     user: PortalJwtPayload,
-    body: { email?: string; password?: string; name?: string; phone?: string; role?: string },
+    body: { email?: string; password?: string; name?: string; phone?: string; role?: string; page_ids?: unknown },
   ) {
     this.requireApprover(user);
     await this.repo.ensure();
     const parsed = parsePortalStaffInput(body);
+    const pageIds = body.page_ids === undefined ? [] : await this.validStaffPageIds(user.client_id, body.page_ids);
     const created = await this.users.create(user.client_id, {
       email: parsed.email,
       password: parsed.password,
@@ -636,6 +666,10 @@ export class PortalCareService {
       phone: parsed.phone,
       send_email: false,
     });
+    if (body.page_ids !== undefined) {
+      await this.repo.setUserPageIds(user.client_id, created.user.id, pageIds);
+      if (pageIds.length) await this.rebalancer.rebalance(user.client_id);
+    }
     return {
       ok: true,
       user: {
@@ -645,23 +679,33 @@ export class PortalCareService {
         display_name: created.user.display_name ?? parsed.name,
         phone: created.user.phone ?? parsed.phone,
         active: created.user.active,
+        page_ids: pageIds,
       },
       ...(created.temporary_password ? { temporary_password: created.temporary_password } : {}),
     };
   }
 
   async listManagedStaff(user: PortalJwtPayload) {
-    this.requireManager(user);
+    // Staff emails and Page assignments are owner-only (t350u).
+    this.requireApprover(user);
     await this.repo.ensure();
-    const staff = await this.repo.listManagedStaff(user.client_id);
-    return { ok: true, staff };
+    const [staff, pages] = await Promise.all([
+      this.repo.listManagedStaff(user.client_id),
+      this.allVisiblePages(user.client_id),
+    ]);
+    return {
+      ok: true,
+      staff,
+      pages: pages.map((page) => ({ page_id: page.page_id, page_name: page.page_name, channel: page.channel })),
+    };
   }
 
   async syncPage(user: PortalJwtPayload, pageId: string, body?: { reset?: boolean }) {
+    assertNotViewer(user);
     if (user.role !== 'approver') {
       throw new ForbiddenException({ error: 'approver_only' });
     }
-    await this.ownPage(user.client_id, pageId);
+    await this.ownPage(user, pageId);
     await this.pages.ensureStore();
     await this.repo.ensure();
     const token = (await this.meta.pageTokens()).get(pageId);
@@ -723,6 +767,7 @@ export class PortalCareService {
       active?: boolean;
       reset_password?: boolean;
       password?: string;
+      page_ids?: unknown;
     },
   ) {
     this.requireApprover(user);
@@ -745,8 +790,10 @@ export class PortalCareService {
       parsed.phone !== undefined ||
       parsed.role !== undefined;
     const wantsReset = parsed.reset_password;
+    const wantsPages = body.page_ids !== undefined;
+    const pageIds = wantsPages ? await this.validStaffPageIds(user.client_id, body.page_ids) : [];
 
-    if (!wantsActive && !wantsProfile && !wantsReset) {
+    if (!wantsActive && !wantsProfile && !wantsReset && !wantsPages) {
       throw new BadRequestException({ error: 'no_updates' });
     }
 
@@ -763,6 +810,12 @@ export class PortalCareService {
         released = await this.repo.releaseOpenCasesForUser(user.client_id, userId);
         await this.rebalancer.rebalance(user.client_id);
       }
+    }
+
+    if (wantsPages) {
+      await this.repo.setUserPageIds(user.client_id, userId, pageIds);
+      // Releases cases this person holds on Pages they no longer have, then reassigns per Page.
+      await this.rebalancer.rebalance(user.client_id);
     }
 
     let temporaryPassword: string | undefined;
@@ -784,6 +837,7 @@ export class PortalCareService {
         display_name: parsed.name ?? target.display_name,
         phone: parsed.phone ?? target.phone,
         active: wantsActive ? Boolean(body.active) : target.active,
+        page_ids: wantsPages ? pageIds : target.page_ids,
       },
       ...(temporaryPassword ? { temporary_password: temporaryPassword } : {}),
       ...(released ? { released } : {}),
@@ -818,6 +872,7 @@ export class PortalCareService {
 
 
   async reorderQuickReplies(user: PortalJwtPayload, ids: string[]) {
+    assertNotViewer(user);
     await this.repo.ensure();
     const clean = ids.map((id) => String(id).trim()).filter(Boolean);
     if (!clean.length) throw new BadRequestException({ error: 'ids_required' });
@@ -844,23 +899,27 @@ export class PortalCareService {
     query: { page_id?: string; sync?: string },
   ) {
     await this.prepare(user.client_id);
-    if (query.sync === '1' || query.sync === 'true') {
+    // Viewer is read-only: never let it trigger a Graph pull or the auto-hide pass; serve cached rows.
+    if ((query.sync === '1' || query.sync === 'true') && user.role !== 'viewer') {
       await this.ingestComments(user.client_id);
     }
     const pageId = String(query.page_id ?? '').trim();
+    const pageScope = await this.pageScope(user);
+    const scoped = scopePageIds(pageScope);
     const [posts, comments, sync, settings] = await Promise.all([
-      this.repo.listFbPosts(user.client_id, pageId || undefined),
-      this.repo.listComments(user.client_id, pageId || undefined),
+      this.repo.listFbPosts(user.client_id, pageId || undefined, scoped),
+      this.repo.listComments(user.client_id, pageId || undefined, scoped),
       this.repo.getCommentSyncState(user.client_id),
       this.repo.getInboxSettings(user.client_id),
     ]);
-    const pages = await this.visiblePages(user.client_id);
+    const pages = await this.visiblePagesFor(user, pageScope);
     const pageIds = new Set(pages.map((page) => page.page_id));
     return {
       ok: true,
       posts: posts.filter((row) => pageIds.has(row.page_id)),
       comments: comments.filter((row) => pageIds.has(row.page_id)),
       pages: pages.map((page) => ({ page_id: page.page_id, page_name: page.page_name })),
+      page_scope: { all: pageScope.all, count: pages.length },
       permission_error: sync.permission_error,
       error: sync.last_error,
       last_synced_at: sync.last_synced_at,
@@ -972,7 +1031,7 @@ export class PortalCareService {
     await this.repo.ensure();
     const days = range === '7d' || range === '7' ? 7 : 1;
     const start = this.rangeStart(days);
-    const report = await this.repo.inboxReport(user.client_id, start, careListFilterForUser(user));
+    const report = await this.repo.inboxReport(user.client_id, start, careListFilterForUser(user, await this.pageScope(user)));
     // Use every stored Page (including inactive) so the report can show names, not raw ids.
     const allPages = await this.pages.listForPortal(user.client_id);
     const names = new Map(allPages.map((page) => [page.page_id, String(page.page_name || '').trim()]));
@@ -997,7 +1056,7 @@ export class PortalCareService {
     const filter = sanitizeFunnelFilter(query);
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
     const report = await this.repo.leadFunnel(user.client_id, filter, {
-      ...careListFilterForUser(user),
+      ...careListFilterForUser(user, await this.pageScope(user)),
       today,
     });
     const allPages = await this.pages.listForPortal(user.client_id);
@@ -1032,16 +1091,83 @@ export class PortalCareService {
     await this.repo.ensure();
     const row = await this.repo.findComment(user.client_id, commentId.trim());
     if (!row) throw new NotFoundException({ error: 'comment_not_found' });
-    const pages = await this.visiblePages(user.client_id);
+    const pages = await this.visiblePagesFor(user);
     if (!pages.some((page) => page.page_id === row.page_id)) {
-      throw new ForbiddenException({ error: 'page_not_visible' });
+      // Out of the user's Page scope: same answer as a missing id (no existence leak).
+      throw new NotFoundException({ error: 'comment_not_found' });
     }
+    // requireComment is only used by comment actions (reply/hide/create-lead): viewer is read-only.
+    assertNotViewer(user);
     return row;
   }
 
-  private async visiblePages(clientId: string): Promise<PortalClientPage[]> {
+  /** Active inbox Pages of the tenant (ad accounts excluded). */
+  private async allVisiblePages(clientId: string): Promise<PortalClientPage[]> {
     const allPages = await this.pages.listForPortal(clientId);
     return filterVisiblePages(allPages);
+  }
+
+  /** Back-compat alias used by background ingest paths (tenant-wide, not user-scoped). */
+  private async visiblePages(clientId: string): Promise<PortalClientPage[]> {
+    return this.allVisiblePages(clientId);
+  }
+
+  /**
+   * Shared Page scope (t350u): approver sees every Page; staff and viewer only the Pages
+   * assigned to them in portal_staff_pages (intersected with the tenant's active Pages).
+   * A staff/viewer account with no assigned Page gets an empty scope and sees nothing.
+   */
+  async pageScope(user: PortalJwtPayload): Promise<PortalPageScope> {
+    if (isPortalOwnerRole(user.role)) return { all: true };
+    const [assigned, pages] = await Promise.all([
+      this.repo.listUserPageIds(user.client_id, user.sub),
+      this.allVisiblePages(user.client_id),
+    ]);
+    const active = new Set(pages.map((page) => page.page_id));
+    return { all: false, pageIds: assigned.filter((id) => active.has(id)) };
+  }
+
+  /** Pages the user may see (inbox Pages only). */
+  async visiblePagesFor(user: PortalJwtPayload, scope?: PortalPageScope): Promise<PortalClientPage[]> {
+    const pageScope = scope ?? (await this.pageScope(user));
+    const pages = await this.allVisiblePages(user.client_id);
+    return pages.filter((page) => pageInScope(pageScope, page.page_id));
+  }
+
+  /** Raw tenant pages (incl. ad accounts) filtered to the user's scope; approver gets all. */
+  async pagesForUser(user: PortalJwtPayload): Promise<PortalClientPage[]> {
+    const rows = await this.pages.listForPortal(user.client_id);
+    const scope = await this.pageScope(user);
+    return scope.all ? rows : rows.filter((page) => pageInScope(scope, page.page_id));
+  }
+
+  /** pages/:pageId guard: `all` only for the approver; otherwise the Page must be in scope (else 404). */
+  async assertWorkspaceVisible(user: PortalJwtPayload, pageId: string): Promise<void> {
+    if (isPortalOwnerRole(user.role)) return;
+    const raw = String(pageId ?? '').trim();
+    const scope = await this.pageScope(user);
+    if (raw.toLowerCase() === 'all' || !pageInScope(scope, raw)) {
+      throw new NotFoundException({ error: 'page_not_found' });
+    }
+  }
+
+  private async validStaffPageIds(clientId: string, raw: unknown): Promise<string[]> {
+    if (!Array.isArray(raw)) {
+      throw new BadRequestException({ error: 'invalid_page_ids', message: 'Danh sách Page không hợp lệ.' });
+    }
+    const wanted = [...new Set(raw.map((id) => String(id ?? '').trim()).filter(Boolean))];
+    if (!wanted.length) return [];
+    const pages = await this.allVisiblePages(clientId);
+    const known = new Set(pages.map((page) => page.page_id));
+    const unknown = wanted.filter((id) => !known.has(id));
+    if (unknown.length) {
+      throw new BadRequestException({
+        error: 'page_not_found',
+        message: 'Có Page không thuộc tài khoản hoặc đã tắt.',
+        page_ids: unknown,
+      });
+    }
+    return wanted;
   }
 
   private async prepare(clientId: string): Promise<void> {
@@ -1076,13 +1202,28 @@ export class PortalCareService {
 
   private async requireCase(user: PortalJwtPayload, caseId: string) {
     await this.repo.ensure();
-    const row = await this.repo.findCase(user.client_id, caseId);
+    const id = String(caseId ?? '').trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      throw new NotFoundException({ error: 'case_not_found' });
+    }
+    const row = await this.repo.findCase(user.client_id, id);
     if (!row) throw new NotFoundException({ error: 'case_not_found' });
     return row;
   }
 
-  private async requireActor(user: PortalJwtPayload, caseId: string) {
+  /** Case must be on a Page in the user's scope; otherwise 404 (no existence leak). */
+  private async requireVisibleCase(user: PortalJwtPayload, caseId: string, scope?: PortalPageScope) {
     const row = await this.requireCase(user, caseId);
+    const pageScope = scope ?? (await this.pageScope(user));
+    if (!pageInScope(pageScope, row.page_id)) {
+      throw new NotFoundException({ error: 'case_not_found' });
+    }
+    return row;
+  }
+
+  private async requireActor(user: PortalJwtPayload, caseId: string) {
+    const row = await this.requireVisibleCase(user, caseId);
+    assertNotViewer(user);
     if (!staffCanViewCareCase(user, row.assignee_user_id)) {
       throw new ForbiddenException({ error: 'not_assignee' });
     }
@@ -1090,20 +1231,25 @@ export class PortalCareService {
   }
 
   private requireManager(user: PortalJwtPayload): void {
+    assertNotViewer(user);
     if (user.role === 'staff') throw new ForbiddenException({ error: 'approver_only' });
   }
 
   /** Staff account mutations: approver or admin only. Viewers may list, not change. */
   private requireApprover(user: PortalJwtPayload): void {
+    assertNotViewer(user);
     // Portal JWT roles are approver | viewer | staff (no admin). Only approver may mutate staff.
     if (user.role !== 'approver') {
       throw new ForbiddenException({ error: 'approver_only' });
     }
   }
 
-  private async ownPage(clientId: string, pageId: string): Promise<void> {
-    const pages = await this.pages.listForPortal(clientId);
+  private async ownPage(user: PortalJwtPayload, pageId: string): Promise<void> {
+    const pages = await this.pages.listForPortal(user.client_id);
     const page = pages.find((item) => item.page_id === pageId);
     if (!page) throw new NotFoundException({ error: 'page_not_found' });
+    if (!isPortalOwnerRole(user.role) && !pageInScope(await this.pageScope(user), pageId)) {
+      throw new NotFoundException({ error: 'page_not_found' });
+    }
   }
 }

@@ -4727,8 +4727,19 @@ html.ops-shell-bitrix .win-home__scope {
   box-shadow: none;
 }
 
+.quote-sheet__scroll {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: quote-lines;
+}
+
 .quote-sheet__lines {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.78rem;
@@ -4737,15 +4748,15 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__col-check {
-  width: 3.1rem;
+  width: 6%;
 }
 
 .quote-sheet__col-task {
-  width: 22%;
+  width: 30%;
 }
 
 .quote-sheet__col-subtask {
-  width: auto;
+  width: 34%;
 }
 
 .quote-sheet__col-staff {
@@ -4753,11 +4764,15 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__col-qty {
-  width: 6.4rem;
+  width: 12%;
 }
 
 .quote-sheet__col-amount {
-  width: 7.2rem;
+  width: 18%;
+}
+
+.quote-sheet__h-short {
+  display: none;
 }
 
 .quote-sheet__lines th {
@@ -4766,11 +4781,26 @@ html.ops-shell-bitrix .win-home__scope {
   color: #6f6a62;
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   text-align: left;
   border-bottom: 1px solid #e8e2d8;
   vertical-align: middle;
+  white-space: normal;
+}
+
+.quote-sheet__th-qty,
+.quote-sheet__th-amount {
+  text-align: right;
+}
+
+.quote-sheet__th-qty {
+  white-space: nowrap;
+}
+
+.quote-sheet__th-amount {
+  white-space: normal;
+  line-height: 1.15;
 }
 
 .quote-sheet__lines th:last-child,
@@ -4796,6 +4826,11 @@ html.ops-shell-bitrix .win-home__scope {
   margin: 0.15rem 0 0;
 }
 
+.quote-sheet__task {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .quote-sheet__task strong {
   display: block;
   font-weight: 700;
@@ -4813,8 +4848,9 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__subtask {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
 }
 
 .quote-sheet__staff {
@@ -4825,6 +4861,8 @@ html.ops-shell-bitrix .win-home__scope {
 
 .quote-sheet__qty {
   white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .quote-sheet__qty .muted {
@@ -4835,7 +4873,41 @@ html.ops-shell-bitrix .win-home__scope {
 
 .quote-sheet__amount {
   white-space: nowrap;
+  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Narrow center card: keep every column inside the card. SL and Tiền stay one line. */
+@container quote-lines (max-width: 760px) {
+  .quote-sheet__col-check { width: 7%; }
+  .quote-sheet__col-task { width: 27%; }
+  .quote-sheet__col-subtask { width: 34%; }
+  .quote-sheet__col-qty { width: 8%; }
+  .quote-sheet__col-amount { width: 24%; }
+  .quote-sheet__h-full { display: none; }
+  .quote-sheet__h-short { display: inline; }
+  .quote-sheet__lines th,
+  .quote-sheet__lines td {
+    padding: 0.35rem 0.28rem;
+  }
+  .quote-sheet__th-check,
+  .quote-sheet__check {
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+    text-align: center;
+  }
+  .quote-sheet__th-qty,
+  .quote-sheet__th-amount,
+  .quote-sheet__qty,
+  .quote-sheet__amount {
+    padding-left: 0.1rem;
+    padding-right: 0.2rem;
+    text-align: right;
+    letter-spacing: 0;
+  }
+  .quote-sheet__amount {
+    font-size: 0.72rem;
+  }
 }
 
 .quote-sheet__lines tr.is-off td {
@@ -4858,8 +4930,10 @@ html.ops-shell-bitrix .win-home__scope {
 }
 
 .quote-sheet__qty input[type='number'] {
-  width: 3.6rem;
+  width: 100%;
+  max-width: 4.2rem;
   display: inline-block;
+  text-align: right;
 }
 
 .quote-sheet__totals {

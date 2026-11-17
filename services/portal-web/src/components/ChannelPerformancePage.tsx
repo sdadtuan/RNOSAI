@@ -20,7 +20,7 @@ export function ChannelPerformancePage({ channel }: ChannelPerformancePageProps)
       ]}
     >
       {({ token, user }) => (
-        <ChannelPerformanceLayout channel={channel} token={token} canSync={user.role !== 'staff'} />
+        <ChannelPerformanceLayout channel={channel} token={token} canSync={user.role === 'approver'} />
       )}
     </PortalPageShell>
   );

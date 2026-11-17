@@ -10,7 +10,7 @@ import {
 import { PortalDateRange } from '@/components/portal/PortalDateRange';
 import Link from 'next/link';
 
-export function PortalPosOrders({ token }: { token: string }) {
+export function PortalPosOrders({ token, readOnly = false }: { token: string; readOnly?: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
@@ -59,7 +59,7 @@ export function PortalPosOrders({ token }: { token: string }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/crm/shipping" className="pos-btn pos-btn--sm">Cài đặt vận chuyển</Link>
-          <button type="button" className="pos-btn pos-btn--teal" onClick={() => router.push('/crm/orders/new')}>Tạo đơn</button>
+          <button type="button" className="pos-btn pos-btn--teal" disabled={readOnly} title={readOnly ? 'Tài khoản Chỉ xem không tạo được đơn' : undefined} onClick={() => router.push('/crm/orders/new')}>Tạo đơn</button>
         </div>
       </header>
       {error ? <p className="pos-error">{error}</p> : null}

@@ -5,11 +5,15 @@ export function SolutionFileList({
   files,
   canEdit = false,
   busy = false,
+  onOpen,
+  onDownload,
   onRemove,
 }: {
   files: SolutionAttachment[];
   canEdit?: boolean;
   busy?: boolean;
+  onOpen?: (file: SolutionAttachment) => void;
+  onDownload?: (file: SolutionAttachment) => void;
   onRemove?: (file: SolutionAttachment) => void;
 }) {
   if (!files.length) return null;
@@ -24,25 +28,22 @@ export function SolutionFileList({
             <div className="solution-file-row__meta">{formatAttachmentMeta(file)}</div>
           </div>
           <div className="solution-file-row__actions">
-            <a
-              className="btn btn-sm btn-secondary"
-              href={file.data_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Xem
-            </a>
-            <a className="btn btn-sm btn-secondary" href={file.data_url} download={file.name}>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => onOpen?.(file)}>
+              Mở
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => onDownload?.(file)}>
               Tải về
-            </a>
+            </button>
             {canEdit && onRemove ? (
               <button
                 type="button"
                 className="btn btn-sm btn-ghost"
                 disabled={busy}
-                onClick={() => onRemove(file)}
+                onClick={() => {
+                  if (window.confirm(`Xóa file "${file.name}"?`)) onRemove(file);
+                }}
               >
-                Gỡ
+                Xóa
               </button>
             ) : null}
           </div>

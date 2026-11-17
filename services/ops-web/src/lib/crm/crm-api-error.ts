@@ -40,6 +40,9 @@ const CRM_API_ERROR_VI: Record<string, string> = {
   invalid_lead_id: 'Mã lead không hợp lệ.',
   lead_not_found: 'Không tìm thấy lead.',
   lead_locked: 'Lead đã khóa (Sai số) — chỉ Super Admin được chỉnh sửa hoặc chuyển lead này.',
+  lead_hidden: 'Lead đã ẩn — chỉ Super Admin được xem hoặc chỉnh lead này.',
+  am_cannot_claim_lead: 'Vai trò AM không nhận lead. Sales bấm Nhận lead.',
+  note_required: 'Ghi chú Ẩn lead cần từ 3 đến 500 ký tự.',
 };
 
 /** A server sentence worth showing as-is (not an HTTP default and not a snake_case code). */

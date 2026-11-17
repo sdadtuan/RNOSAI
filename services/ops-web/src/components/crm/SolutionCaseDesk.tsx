@@ -58,6 +58,7 @@ import {
 import { presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL, SOLUTION_AI_PENDING_LABEL, type SolutionAiDraftView } from '@/lib/crm/solution-ai-draft-display';
 import { withoutLegacyMarketingPlanHints } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionAiDraftBody, SolutionFileList } from '@/components/crm/SolutionFileList';
+import { deleteSolutionStoredFile, openOrDownloadSolutionFile } from '@/lib/crm/solution-file-actions';
 import type { SolutionAiJobPhase, SolutionDeskActivity } from '@/lib/crm/solution-activity';
 
 type Attachment = SolutionAttachment;
@@ -457,7 +458,11 @@ export function SolutionCaseDesk({
         {files.length === 0 && !aiDraft ? (
           <p className="muted">Chưa có file Solution.</p>
         ) : files.length === 0 ? null : (
-          <SolutionFileList files={files} />
+          <SolutionFileList
+            files={files}
+            onOpen={(file) => void openStoredFile(file, 'open')}
+            onDownload={(file) => void openStoredFile(file, 'download')}
+          />
         )}
         {aiDraft ? (
           <SolutionAiDraftBody
@@ -511,6 +516,16 @@ export function SolutionCaseDesk({
         : undefined,
     );
     if (out.funnel) onFunnelChange(out.funnel);
+  }
+
+  async function openStoredFile(file: Attachment, mode: 'open' | 'download') {
+    await openOrDownloadSolutionFile(token, lead.id, file, mode);
+  }
+
+  async function removeStoredFile(file: Attachment) {
+    await deleteSolutionStoredFile(token, lead.id, file.id);
+    setFiles((current) => current.filter((row) => row.id !== file.id));
+    await load();
   }
 
   const canPack = handoff === 'with_solution';
@@ -876,7 +891,9 @@ export function SolutionCaseDesk({
             files={files}
             canEdit={canEditFiles}
             busy={busy}
-            onRemove={(file) => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
+            onOpen={(file) => void run(() => openStoredFile(file, 'open'))}
+            onDownload={(file) => void run(() => openStoredFile(file, 'download'))}
+            onRemove={(file) => void run(() => removeStoredFile(file))}
           />
         )}
         {aiDraft ? (
@@ -1258,7 +1275,9 @@ export function SolutionCaseDesk({
             files={files}
             canEdit={canEditFiles}
             busy={busy}
-            onRemove={(file) => void run(async () => saveFiles(files.filter((row) => row.id !== file.id)))}
+            onOpen={(file) => void run(() => openStoredFile(file, 'open'))}
+            onDownload={(file) => void run(() => openStoredFile(file, 'download'))}
+            onRemove={(file) => void run(() => removeStoredFile(file))}
           />
         )}
         {aiDraft ? (

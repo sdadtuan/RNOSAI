@@ -29,7 +29,18 @@ const SHIP_STATUS_VI: Record<string, string> = {
   failed: 'Thất bại',
 };
 
-export function PortalPosOrderDetail({ token, id, canManage }: { token: string; id: string; canManage: boolean }) {
+export function PortalPosOrderDetail({
+  token,
+  id,
+  canManage,
+  readOnly = false,
+}: {
+  token: string;
+  id: string;
+  canManage: boolean;
+  /** Viewer ("Chỉ xem"): status, shipping and cancel buttons disabled. */
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const [order, setOrder] = useState<PosOrder | null>(null);
 
@@ -114,7 +125,7 @@ export function PortalPosOrderDetail({ token, id, canManage }: { token: string; 
           <a className="pos-btn" href={`/client/crm/orders/${order.id}/print?size=a5`} target="_blank" rel="noreferrer">In A5</a>
           <a className="pos-btn" href={`/client/crm/orders/${order.id}/print?size=80`} target="_blank" rel="noreferrer">In 80mm</a>
           {!['cancelled', 'returned', 'success'].includes(order.status) ? (
-            <button type="button" className="pos-btn pos-btn--teal" onClick={() => { setShipOpen(true); void loadQuotes(); }}>Gửi vận chuyển</button>
+            <button type="button" className="pos-btn pos-btn--teal" disabled={readOnly} title={readOnly ? 'Tài khoản Chỉ xem không gửi vận chuyển được' : undefined} onClick={() => { setShipOpen(true); void loadQuotes(); }}>Gửi vận chuyển</button>
           ) : null}
         </div>
       </header>
@@ -161,7 +172,7 @@ export function PortalPosOrderDetail({ token, id, canManage }: { token: string; 
             ) : <p className="pos-hint">Chưa có sự kiện.</p>}
             <div className="pos__actions" style={{ marginTop: 12 }}>
               {(NEXT[order.status] ?? []).map((s) => (
-                <button key={s} type="button" disabled={busy} className={`pos-btn ${s === 'cancelled' || s === 'returned' ? 'pos-btn--danger' : 'pos-btn--teal'} pos-btn--sm`} onClick={() => void go(s)}>
+                <button key={s} type="button" disabled={busy || readOnly} className={`pos-btn ${s === 'cancelled' || s === 'returned' ? 'pos-btn--danger' : 'pos-btn--teal'} pos-btn--sm`} onClick={() => void go(s)}>
                   {POS_STATUS_LABEL[s] || s}
                 </button>
               ))}
@@ -190,7 +201,7 @@ export function PortalPosOrderDetail({ token, id, canManage }: { token: string; 
                 <p>Mã vận đơn: <strong>{ship.tracking_code}</strong> {ship.test_mode ? <span className="pos-badge pos-badge--low">TEST</span> : null}</p>
                 <p>Phí: {vnd(ship.fee_vnd)} · {SHIP_STATUS_VI[ship.status] || ship.status}</p>
                 {ship.label_url ? <p><a href={ship.label_url} target="_blank" rel="noreferrer">In vận đơn</a></p> : null}
-                <button type="button" className="pos-btn pos-btn--sm pos-btn--danger" disabled={busy} onClick={() => void posPost(token, `/api/portal/pos/orders/${order.id}/cancel-shipment`, { shipment_id: ship.id }).then(() => load())}>Hủy vận đơn</button>
+                <button type="button" className="pos-btn pos-btn--sm pos-btn--danger" disabled={busy || readOnly} onClick={() => void posPost(token, `/api/portal/pos/orders/${order.id}/cancel-shipment`, { shipment_id: ship.id }).then(() => load())}>Hủy vận đơn</button>
               </>
             ) : <p className="pos-hint">Chưa gửi vận chuyển.</p>}
           </div>
@@ -230,7 +241,7 @@ export function PortalPosOrderDetail({ token, id, canManage }: { token: string; 
                     <strong>{vnd(q.fee_vnd)}</strong>
                   </label>
                 ))}
-                <button type="button" className="pos-btn pos-btn--teal" style={{ marginTop: 12 }} disabled={busy || !service} onClick={() => void sendShip()}>
+                <button type="button" className="pos-btn pos-btn--teal" style={{ marginTop: 12 }} disabled={busy || readOnly || !service} onClick={() => void sendShip()}>
                   {busy ? 'Đang tạo…' : 'Tạo vận đơn'}
                 </button>
               </div>

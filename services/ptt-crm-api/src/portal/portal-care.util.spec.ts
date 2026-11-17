@@ -1,14 +1,18 @@
 import {
   adsChannelOf,
   appendAssigneeWhere,
+  appendPageScopeWhere,
   careDueAt,
   careListFilterForUser,
   filterCasesForPortalList,
   filterVisiblePages,
+  isPortalOwnerRole,
   nextAssignee,
+  pageInScope,
   receiveDueAt,
   shouldHopCare,
   shouldHopReceive,
+  scopePageIds,
   staffCanViewCareCase,
   visibleAdsChannels,
 } from './portal-care.util';
@@ -38,22 +42,28 @@ describe('portal care assignment', () => {
     expect(nextAssignee(['a', 'b'], { a: 1, b: 1 }, 'a')).toBe('b');
   });
 
-  it('scopes staff lists to their assignee_user_id; managers see all cases', () => {
+  it('scopes staff and viewer lists to their assigned Pages; the approver sees every Page', () => {
     const staff = { role: 'staff', sub: 'staff-a' };
     const approver = { role: 'approver', sub: 'mgr-1' };
-    expect(careListFilterForUser(staff)).toEqual({ assigneeUserId: 'staff-a' });
-    expect(careListFilterForUser(approver)).toEqual({});
+    expect(careListFilterForUser(staff, { all: false, pageIds: ['p1'] })).toEqual({ pageIds: ['p1'] });
+    expect(careListFilterForUser({ role: 'viewer', sub: 'v1' }, { all: false, pageIds: [] })).toEqual({ pageIds: [] });
+    expect(careListFilterForUser(approver, { all: true })).toEqual({});
+    expect(isPortalOwnerRole('approver')).toBe(true);
+    expect(isPortalOwnerRole('viewer')).toBe(false);
+    expect(isPortalOwnerRole('staff')).toBe(false);
+    expect(pageInScope({ all: true }, 'x')).toBe(true);
+    expect(pageInScope({ all: false, pageIds: ['p1'] }, 'p1')).toBe(true);
+    expect(pageInScope({ all: false, pageIds: ['p1'] }, 'p2')).toBe(false);
+    expect(pageInScope({ all: false, pageIds: [] }, 'p1')).toBe(false);
+    expect(scopePageIds({ all: true })).toBeUndefined();
+    // Mutation rule is unchanged: staff act only on their own cases.
     expect(staffCanViewCareCase(staff, 'staff-a')).toBe(true);
     expect(staffCanViewCareCase(staff, 'other')).toBe(false);
     expect(staffCanViewCareCase(staff, null)).toBe(false);
     expect(staffCanViewCareCase(approver, null)).toBe(true);
-    expect(staffCanViewCareCase({ role: 'viewer', sub: 'v1' }, null)).toBe(true);
-    expect(careListFilterForUser({ role: 'admin', sub: 'admin-1' })).toEqual({});
-    expect(staffCanViewCareCase({ role: 'admin', sub: 'admin-1' }, null)).toBe(true);
-    expect(staffCanViewCareCase({ role: 'owner', sub: 'owner-1' }, null)).toBe(true);
   });
 
-  it('filters list/badge cases by attached pages and assignee visibility', () => {
+  it('keeps every case on the visible Pages (not only the assignee own cases)', () => {
     const attached = ['page-live'];
     const rows = [
       { id: 'mine', page_id: 'page-live', assignee_user_id: 'staff-a' },
@@ -62,11 +72,22 @@ describe('portal care assignment', () => {
       { id: 'old', page_id: 'page-old', assignee_user_id: 'staff-a' },
     ];
     const staff = { role: 'staff', sub: 'staff-a' };
-    const admin = { role: 'admin', sub: 'admin-1' };
-    const manager = { role: 'approver', sub: 'mgr-1' };
-    expect(filterCasesForPortalList(rows, staff, attached).map((row) => row.id)).toEqual(['mine']);
-    expect(filterCasesForPortalList(rows, manager, attached).map((row) => row.id)).toEqual(['mine', 'other', 'open']);
-    expect(filterCasesForPortalList(rows, admin, attached).map((row) => row.id)).toEqual(['mine', 'other', 'open']);
+    expect(filterCasesForPortalList(rows, staff, attached).map((row) => row.id)).toEqual(['mine', 'other', 'open']);
+    expect(filterCasesForPortalList(rows, staff, []).map((row) => row.id)).toEqual([]);
+  });
+
+  it('builds a Page scope WHERE: undefined = all, [] = nothing', () => {
+    const where: string[] = [];
+    const values: unknown[] = ['client-1'];
+    appendPageScopeWhere(where, values, undefined, 'c');
+    expect(where).toEqual([]);
+    appendPageScopeWhere(where, values, [], 'c');
+    expect(where).toEqual(['FALSE']);
+    const w2: string[] = [];
+    const v2: unknown[] = ['client-1'];
+    appendPageScopeWhere(w2, v2, ['p1', 'p2'], 'm');
+    expect(w2).toEqual(['m.page_id = ANY($2::text[])']);
+    expect(v2).toEqual(['client-1', ['p1', 'p2']]);
   });
 
   it('builds assignee WHERE for staff queries', () => {

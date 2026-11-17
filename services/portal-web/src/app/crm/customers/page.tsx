@@ -42,7 +42,7 @@ function CustomersInner() {
       {({ token, user }) => (
         <>
           <CustomerTabs tab={tab} onTab={setTab} />
-          <PortalPosCustomers token={token} canManage={user.role !== 'staff'} initialPhone={posPhone} />
+          <PortalPosCustomers token={token} canManage={user.role === 'approver'} initialPhone={posPhone} />
         </>
       )}
     </PortalPageShell>

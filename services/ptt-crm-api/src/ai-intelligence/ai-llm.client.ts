@@ -77,6 +77,9 @@ export interface LlmJsonCompletionInput {
   apiKey?: string;
   timeoutMs?: number;
   imageUrls?: string[];
+  /** Completion budget. Omitted callers keep the provider default. */
+  maxTokens?: number;
+  temperature?: number;
 }
 
 export interface LlmJsonCompletionResult {
@@ -262,6 +265,8 @@ export class AiLlmClient {
         imageUrls: input.imageUrls,
         timeoutMs,
         baseUrl: input.baseUrl,
+        maxTokens: input.maxTokens,
+        temperature: input.temperature,
       });
       const tokenUsage = raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
       const { tokenUsage: _tu, ...parsed } = raw;
@@ -332,6 +337,8 @@ export class AiLlmClient {
     timeoutMs: number;
     baseUrl?: string;
     imageUrls?: string[];
+    maxTokens?: number;
+    temperature?: number;
   }): Promise<Record<string, unknown> & { tokenUsage?: AiTokenUsage }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), args.timeoutMs);
@@ -346,7 +353,8 @@ export class AiLlmClient {
         },
         body: JSON.stringify({
           model: args.model,
-          temperature: 0.2,
+          temperature: args.temperature ?? 0.2,
+          ...(args.maxTokens ? { max_tokens: args.maxTokens } : {}),
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: args.systemPrompt },

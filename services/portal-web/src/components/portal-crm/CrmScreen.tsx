@@ -25,6 +25,8 @@ import {
   saigonRefreshLabel,
 } from '@/components/portal-crm/portal-crm-refresh.util';
 import { PortalLeadsTable } from '@/components/portal-crm/PortalLeadsTable';
+import { isNoPageScope, PortalNoPagesNotice } from '@/components/portal-crm/PortalNoPagesNotice';
+import { canActOnCase, canManagePortal } from '@/lib/portal-role';
 
 export type CrmView = 'leads' | 'messages' | 'customers';
 
@@ -211,14 +213,16 @@ function CrmBody({
     };
   }, [token, detail?.case.id]);
 
-  async function run(task: () => Promise<void>) {
+  async function run(task: () => Promise<void>): Promise<boolean> {
     setBusy(true);
     setError('');
     try {
       await task();
       await load();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -241,43 +245,45 @@ function CrmBody({
   const products = (desk?.products ?? []).filter(
     (item) => (!pageId || item.page_id === pageId) && item.active !== false,
   );
-  const canManage = role !== 'staff';
+  const canManage = canManagePortal(role);
   const canSyncInbox = role === 'approver';
+  const noPages = isNoPageScope(desk?.me);
   const showProductTools = view === 'messages';
 
   if (view === 'leads') {
     return (
-      <div className="portal-crm">
-        {error ? <p className="error">{error}</p> : null}
-        <PortalInboxBanner lines={portalInboxAlerts(desk?.inbox, pages.length)} />
-        <header className="portal-crm__head">
-          <div>
-            <h2>Lead</h2>
-            <p className="portal-crm__sub">Lead trên các Page đang gắn.</p>
-            {refreshedAt ? <p className="muted portal-crm__refresh">Cập nhật lúc {saigonRefreshLabel(refreshedAt)}</p> : null}
-            {syncNote ? <p className="muted">{syncNote}</p> : null}
-          </div>
-        </header>
-        <PortalLeadsTable
-          rows={desk?.leads ?? []}
-          pages={pages}
-          staff={desk?.staff ?? []}
-          role={role}
-          userId={userId}
-          busy={busy}
-          loading={!desk && !error}
-          error={error}
-          token={token}
-          labels={desk?.labels ?? []}
-          messages={desk?.messages ?? []}
-          onOpen={async (id) => {
-            setDetail(await fetchPortalCase(token, id));
-          }}
-          onAct={(id, action, body) => void run(() => postPortalCase(token, id, action, body))}
-          onNotes={(id, notes) => void run(async () => {
-            await postPortalCaseNotes(token, id, notes);
-          })}
-        />
+      <div className="portal-crm portal-crm--leads">
+        {noPages ? (
+          <PortalNoPagesNotice />
+        ) : (
+          <PortalLeadsTable
+            rows={desk?.leads ?? []}
+            pages={pages}
+            staff={desk?.staff ?? []}
+            role={role}
+            userId={userId}
+            busy={busy}
+            loading={!desk && !error}
+            error={error}
+            token={token}
+            labels={desk?.labels ?? []}
+            messages={desk?.messages ?? []}
+            refreshedLabel={refreshedAt ? saigonRefreshLabel(refreshedAt) : ''}
+            alerts={portalInboxAlerts(desk?.inbox, pages.length)}
+            onOpen={async (id) => {
+              setDetail(await fetchPortalCase(token, id));
+            }}
+            onAct={(id, action, body) => void run(() => postPortalCase(token, id, action, body))}
+            onBulk={(ids, action, body) =>
+              run(async () => {
+                for (const id of ids) await postPortalCase(token, id, action, body);
+              })
+            }
+            onNotes={(id, notes) => void run(async () => {
+              await postPortalCaseNotes(token, id, notes);
+            })}
+          />
+        )}
       </div>
     );
   }
@@ -286,7 +292,9 @@ function CrmBody({
     <div className="portal-crm portal-crm__grid">
       <aside className="portal-crm__pages">
         <h2>Page đang nhận</h2>
-        {desk && pages.length === 0 ? <p className="muted">Chưa gắn Page từ Kênh ads.</p> : null}
+        {desk && pages.length === 0 ? (
+          <p className="muted">{noPages ? 'Chưa được phân Page' : 'Chưa gắn Page từ Kênh ads.'}</p>
+        ) : null}
         {pages.map((page) => (
           <button
             key={page.page_id}
@@ -476,7 +484,7 @@ function CrmBody({
             {detail.products
               .filter((item) => item.page_id === detail.case.page_id && item.active !== false)
               .map((item) => {
-                const canAct = role !== 'staff' || detail.case.assignee_user_id === userId;
+                const canAct = canActOnCase(role, detail.case.assignee_user_id, userId);
                 return (
                   <PortalProductRow
                     key={item.id}
@@ -558,7 +566,7 @@ function CaseList({
   return (
     <ul className="portal-crm__list">
       {rows.map((row) => {
-        const mine = role !== 'staff' || row.assignee_user_id === me;
+        const mine = canActOnCase(role, row.assignee_user_id, me);
         return (
           <li key={row.id}>
             <div>

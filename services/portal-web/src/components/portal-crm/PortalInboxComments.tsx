@@ -10,6 +10,7 @@ import {
   type PortalFbPost,
   type PortalPageComment,
 } from '@/lib/api';
+import { PortalNoPagesNotice } from '@/components/portal-crm/PortalNoPagesNotice';
 import {
   absoluteTime,
   avatarTone,
@@ -23,6 +24,7 @@ import { PortalInboxListHeader } from '@/components/portal-crm/PortalInboxListHe
 import { PortalInboxSideTabs, type InboxSideTab } from '@/components/portal-crm/PortalInboxSideTabs';
 import { PortalPosOrderForm } from '@/components/portal-pos/PortalPosOrderForm';
 import { setPortalTitleOverride } from '@/lib/portal/nav';
+import { VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
 
 type Filter = 'all' | 'unreplied' | 'phone' | 'hidden';
 
@@ -30,10 +32,13 @@ export function PortalInboxComments({
   token,
   tabs,
   headerActions,
+  readOnly = false,
 }: {
   token: string;
   tabs?: ReactNode;
   headerActions?: ReactNode;
+  /** Viewer ("Chỉ xem"): every action control is disabled (server also refuses with 403). */
+  readOnly?: boolean;
 }) {
   const [data, setData] = useState<PortalCommentsResponse | null>(null);
   const [error, setError] = useState('');
@@ -255,7 +260,9 @@ export function PortalInboxComments({
         {error ? <p className="tram-inbox__error" style={{ margin: '0.5rem 0.75rem' }}>{error}</p> : null}
         <div className="tram-inbox__rows">
           {!syncedAt && !error && !permission ? <InboxSkeleton /> : null}
-          {syncedAt && groups.length === 0 ? (
+          {syncedAt && groups.length === 0 && data?.page_scope?.all === false && data.page_scope.count === 0 ? (
+            <PortalNoPagesNotice />
+          ) : syncedAt && groups.length === 0 ? (
             <div className="tram-inbox__empty">
               <p>
                 <strong>{permission ? 'Chưa đọc được bình luận.' : 'Chưa có bình luận phù hợp.'}</strong>
@@ -364,7 +371,10 @@ export function PortalInboxComments({
                 });
               }}
             >
-              <label htmlFor="comment-reply">Trả lời bình luận — công khai trên bài viết, hoặc riêng qua Messenger</label>
+              <label htmlFor="comment-reply">
+                {readOnly ? VIEWER_READ_ONLY_HINT : 'Trả lời bình luận — công khai trên bài viết, hoặc riêng qua Messenger'}
+              </label>
+              <fieldset className="portal-ro" disabled={readOnly}>
               <div className="tram-inbox__mode">
                 <label>
                   <input type="radio" name="comment-mode" checked={mode === 'public'} onChange={() => setMode('public')} />
@@ -394,9 +404,9 @@ export function PortalInboxComments({
                   }}
                   rows={2}
                   maxLength={2000}
-                  placeholder="Nhập trả lời. Enter để gửi, Shift+Enter xuống dòng."
+                  placeholder={readOnly ? 'Tài khoản Chỉ xem không trả lời được bình luận.' : 'Nhập trả lời. Enter để gửi, Shift+Enter xuống dòng.'}
                 />
-                <button type="submit" className="tram-inbox__btn tram-inbox__btn--teal" disabled={busy || !reply.trim()}>
+                <button type="submit" className="tram-inbox__btn tram-inbox__btn--teal" disabled={busy || readOnly || !reply.trim()}>
                   {busy ? 'Đang gửi' : 'Gửi'}
                 </button>
               </div>
@@ -414,6 +424,7 @@ export function PortalInboxComments({
                   {selected.is_hidden ? 'Bỏ ẩn' : 'Ẩn bình luận'}
                 </button>
               </div>
+              </fieldset>
               <p className="tram-inbox__hint">
                 Trả lời công khai hiện ngay dưới bình luận trên Page. Trả lời riêng gửi vào Messenger của khách. Ẩn thì khách không còn thấy bình luận đó.
               </p>
@@ -462,6 +473,7 @@ export function PortalInboxComments({
             </div>
             <div className="tram-inbox__side-pane" hidden={sideTab !== 'lead'}>
             <p className="tram-inbox__kicker">Tạo Lead</p>
+            <fieldset className="portal-ro" disabled={readOnly}>
             <div className="tram-inbox__lead-form">
               <label className="tram-inbox__field">
                 <span>Tên</span>
@@ -497,6 +509,7 @@ export function PortalInboxComments({
               </button>
               {leadOk ? <p className="tram-inbox__ok">{leadOk}</p> : null}
             </div>
+            </fieldset>
             </div>
             <div className="tram-inbox__side-pane" hidden={sideTab !== 'chot'}>
             <p className="tram-inbox__kicker">Chốt đơn</p>

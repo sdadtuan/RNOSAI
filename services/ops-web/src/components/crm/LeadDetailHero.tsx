@@ -83,7 +83,7 @@ export function LeadDetailHero({
             <span className={`lead-status-badge lead-status-badge--${tone}`} data-testid="lead-status-badge">
               {chipLabel}
             </span>
-            {lead.lead_locked ? <LeadLockedBadge /> : null}
+            {lead.lead_locked ? <LeadLockedBadge kind={lead.lead_lock_kind} /> : null}
             {nbaTitle ? (
               <span className="lead-detail-hero__nba">{nbaTitle}</span>
             ) : null}

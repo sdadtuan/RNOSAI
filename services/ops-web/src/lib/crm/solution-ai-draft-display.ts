@@ -4,14 +4,30 @@ export const SOLUTION_AI_DRAFT_LABEL = 'Bản nháp AI — AM kiểm tra trướ
 export const SOLUTION_AI_PENDING_LABEL = 'Đang chờ AI viết';
 
 export const SOLUTION_AI_SECTIONS = [
-  { key: 'context', label: 'Bối cảnh khách hàng' },
-  { key: 'goals', label: 'Mục tiêu / KPI' },
-  { key: 'service_strategy', label: 'Chiến lược theo từng dịch vụ–hạng mục' },
-  { key: 'monthly_plan', label: 'Kế hoạch theo tháng' },
-  { key: 'budget_split', label: 'Phân bổ ngân sách' },
-  { key: 'prelim_quote', label: 'Báo giá sơ bộ' },
-  { key: 'risks', label: 'Rủi ro / điểm cần AM xác nhận' },
+  { key: 'executive_summary', label: 'Tóm tắt điều hành' },
+  { key: 'client_context', label: 'Bối cảnh khách hàng' },
+  { key: 'objectives', label: 'Mục tiêu và KPI' },
+  { key: 'strategy', label: 'Chiến lược' },
+  { key: 'channel_plan', label: 'Kế hoạch kênh' },
+  { key: 'timeline', label: 'Lộ trình' },
+  { key: 'budget', label: 'Ngân sách và liên kết báo giá' },
+  { key: 'team', label: 'Đội ngũ PTT' },
+  { key: 'risks', label: 'Rủi ro và giả định' },
+  { key: 'next_steps', label: 'Bước tiếp theo' },
 ] as const;
+
+const SOLUTION_AI_SECTION_ALIASES: Record<string, string[]> = {
+  executive_summary: ['executive_summary', 'tom_tat'],
+  client_context: ['client_context', 'context'],
+  objectives: ['objectives', 'goals'],
+  strategy: ['strategy', 'service_strategy'],
+  channel_plan: ['channel_plan'],
+  timeline: ['timeline', 'monthly_plan'],
+  budget: ['budget', 'budget_split', 'prelim_quote'],
+  team: ['team'],
+  risks: ['risks'],
+  next_steps: ['next_steps'],
+};
 
 const SECTION_LABELS: Record<string, string> = {
   north_star: 'North Star',
@@ -38,6 +54,7 @@ export type SolutionAiDraftView = {
   source?: 'llm' | 'agent' | 'legacy';
   requestedAt?: string;
   packedJson?: string;
+  warnings?: string[];
   sections: SolutionAiDraftSection[];
 };
 
@@ -72,6 +89,7 @@ export function parsePackedSolutionAi(plan: Record<string, unknown> | null | und
   source?: 'llm' | 'agent';
   requested_at?: string;
   sections: Record<string, string>;
+  warnings: string[];
 } | null {
   if (!plan) return null;
   const framework = (plan.strategy_framework ?? plan.strategy_framework_json) as unknown;
@@ -95,14 +113,24 @@ export function parsePackedSolutionAi(plan: Record<string, unknown> | null | und
       : row;
   const sections: Record<string, string> = {};
   for (const item of SOLUTION_AI_SECTIONS) {
-    sections[item.key] = formatSolutionAiSectionText(sectionRaw[item.key], item.key);
+    const aliases = SOLUTION_AI_SECTION_ALIASES[item.key] ?? [item.key];
+    const parts: string[] = [];
+    for (const alias of aliases) {
+      const text = formatSolutionAiSectionText(sectionRaw[alias], item.key);
+      if (text && !parts.includes(text)) parts.push(text);
+    }
+    sections[item.key] = item.key === 'budget' ? parts.join('\n') : (parts[0] ?? '');
   }
+  const warnings = Array.isArray(row.warnings)
+    ? row.warnings.map((item) => String(item ?? '').trim()).filter(Boolean)
+    : [];
   return {
     title: filled(row.title as string | undefined) || undefined,
     status,
     source,
     requested_at: filled(row.requested_at as string | undefined) || undefined,
     sections,
+    warnings,
   };
 }
 
@@ -128,11 +156,12 @@ export function presentSolutionAiDraft(
       source: packed.source,
       requestedAt: packed.requested_at,
       packedJson: JSON.stringify(packed),
+      warnings: packed.warnings,
       sections: SOLUTION_AI_SECTIONS.map((item) => ({
         key: item.key,
         label: item.label,
         body: packed.sections[item.key] || '',
-      })),
+      })).filter((item) => item.body.trim()),
     };
   }
   const hydrated = hydratePresalesR5Form(plan);
@@ -228,14 +257,14 @@ function formatArrayItem(item: unknown, sectionKey: string, index: number, depth
   }
   const rec = item as Record<string, unknown>;
   const key = sectionKey.toLowerCase();
-  if (key === 'monthly_plan' || looksLikeMonth(rec)) {
+  if (key === 'monthly_plan' || key === 'timeline' || looksLikeMonth(rec)) {
     return formatMonthLine(rec, index, sectionKey, depth);
   }
-  if (key === 'budget_split' || looksLikeBudget(rec)) {
+  if (key === 'budget_split' || key === 'budget' || key === 'prelim_quote' || looksLikeBudget(rec)) {
     const line = formatBudgetLine(rec, sectionKey, depth);
     return line && !alreadyListed(line) ? `- ${line}` : line;
   }
-  if (key === 'service_strategy' || looksLikeService(rec)) {
+  if (key === 'service_strategy' || key === 'strategy' || key === 'channel_plan' || looksLikeService(rec)) {
     const line = formatServiceLine(rec, sectionKey, depth);
     return line && !alreadyListed(line) ? `- ${line}` : line;
   }
@@ -254,7 +283,7 @@ function formatSectionObject(rec: Record<string, unknown>, sectionKey: string, d
     }
   }
   const key = sectionKey.toLowerCase();
-  if (key === 'monthly_plan' || (keys.length > 0 && keys.every((item) => isMonthKey(item) || MONTH_INDEX_KEYS.includes(item) || MONTH_BODY_KEYS.includes(item) || MONTH_LABEL_KEYS.includes(item)))) {
+  if (key === 'monthly_plan' || key === 'timeline' || (keys.length > 0 && keys.every((item) => isMonthKey(item) || MONTH_INDEX_KEYS.includes(item) || MONTH_BODY_KEYS.includes(item) || MONTH_LABEL_KEYS.includes(item)))) {
     if (looksLikeMonth(rec) && !keys.every((item) => isMonthKey(item))) {
       return formatMonthLine(rec, 0, sectionKey, depth);
     }
@@ -269,7 +298,7 @@ function formatSectionObject(rec: Record<string, unknown>, sectionKey: string, d
         .join('\n');
     }
   }
-  if (key === 'budget_split' || looksLikeBudget(rec)) {
+  if (key === 'budget_split' || key === 'budget' || key === 'prelim_quote' || looksLikeBudget(rec)) {
     if (looksLikeBudget(rec) && !keys.every((item) => isPlainLeaf(rec[item]))) {
       const own = formatBudgetLine(rec, sectionKey, depth);
       if (own) return own;
@@ -291,7 +320,7 @@ function formatSectionObject(rec: Record<string, unknown>, sectionKey: string, d
         .join('\n');
     }
   }
-  if (key === 'service_strategy' || looksLikeService(rec)) {
+  if (key === 'service_strategy' || key === 'strategy' || key === 'channel_plan' || looksLikeService(rec)) {
     if (looksLikeService(rec) && hasAny(rec, SERVICE_NAME_KEYS) && hasAny(rec, SERVICE_BODY_KEYS)) {
       return formatServiceLine(rec, sectionKey, depth);
     }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   ForbiddenException,
   HttpCode,
@@ -786,6 +787,32 @@ export class LeadsFunnelController {
     return this.funnel.getMarketingPlan(id);
   }
 
+  @Get(':id/presales/solution-files/:fileId')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async readSolutionFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId') fileId: string,
+  ): Promise<StreamableFile> {
+    const out = await this.funnel.readSolutionFile(id, fileId);
+    const mime = out.mime || 'application/octet-stream';
+    const inline = /^(application\/pdf|text\/|image\/)/i.test(mime);
+    return new StreamableFile(out.buffer, {
+      type: mime,
+      disposition: `${inline ? 'inline' : 'attachment'}; filename="${out.filename.replace(/["\r\n]/g, '')}"`,
+      length: out.buffer.length,
+    });
+  }
+
+  @Delete(':id/presales/solution-files/:fileId')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  deleteSolutionFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fileId') fileId: string,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.deleteSolutionFile(id, fileId, req.staffUser);
+  }
+
   @Patch(':id/presales/marketing-plan')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
   patchMarketingPlan(
@@ -836,6 +863,16 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     return this.funnel.suggestClientBriefFacts(id, req.staffUser);
+  }
+
+  @Post(':id/presales/solution-proposal/export')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  exportSolutionProposal(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.exportSolutionProposal(id, req.staffUser);
   }
 
   @Post(':id/presales/marketing-plan/ai-draft')

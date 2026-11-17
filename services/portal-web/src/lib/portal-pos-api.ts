@@ -25,6 +25,7 @@ async function posFetch<T>(token: string, path: string, init: RequestInit = {}):
       invalid_transition: 'Không thể chuyển sang trạng thái này.',
       order_locked: 'Đơn đã xác nhận, không sửa được sản phẩm.',
       approver_only: 'Chỉ chủ sở hữu hoặc người duyệt mới làm được.',
+      viewer_read_only: 'Tài khoản Chỉ xem không được thay đổi dữ liệu.',
       not_assignee: 'Đơn này không được giao cho bạn.',
       name_required: 'Nhập tên sản phẩm.',
     };

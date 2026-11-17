@@ -134,13 +134,22 @@ export interface CreativeHistoryResponse {
   rows: CreativeRow[];
 }
 
+/** Server error codes that must read as Vietnamese wherever the raw message is shown. */
+const API_ERROR_TEXT: Record<string, string> = {
+  viewer_read_only: 'Tài khoản Chỉ xem không được thay đổi dữ liệu.',
+};
+
 export class ApiError extends Error {
+  /** Raw server code when the message was translated (e.g. `viewer_read_only`). */
+  readonly code?: string;
+
   constructor(
     message: string,
     readonly status: number,
   ) {
-    super(message);
+    super(API_ERROR_TEXT[message] ?? message);
     this.name = 'ApiError';
+    if (API_ERROR_TEXT[message]) this.code = message;
   }
 }
 
@@ -173,6 +182,7 @@ export function portalFriendlyError(err: unknown, fallback: string): string {
     'Unauthorized': 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
     'Forbidden': 'Bạn không có quyền thực hiện thao tác này.',
     'approver_only': 'Chỉ quản trị viên mới thực hiện được thao tác này.',
+    'viewer_read_only': 'Tài khoản Chỉ xem không được thay đổi dữ liệu.',
     'tenant_archived': 'Tài khoản khách hàng này đã được đóng.',
     'Invalid JSON response': 'Máy chủ trả về dữ liệu không hợp lệ. Vui lòng thử lại.',
     'VAPID key fetch failed': 'Không tải được cấu hình thông báo đẩy.',
@@ -1848,7 +1858,8 @@ export interface PortalDesk {
   customers: PortalCareCase[];
   staff: Array<{ id: string; email: string }>;
   quick_replies?: PortalQuickReply[];
-  me: { id: string; role: string };
+  /** all_pages: approver sees every Page; staff/viewer only page_count assigned Pages. */
+  me: { id: string; role: string; all_pages?: boolean; page_count?: number };
   inbox?: {
     pages: number;
     withToken: number;
@@ -1897,6 +1908,7 @@ export interface PortalCrmSummary {
   spend_today: number;
   spend_yesterday: number;
   pages?: Array<{ page_id: string; page_name: string; channel: string }>;
+  page_scope?: { all: boolean; count: number };
 }
 
 export interface PortalLiveMessage {
@@ -1931,15 +1943,21 @@ export type PortalStaffMember = {
   role?: string;
   display_name?: string;
   phone?: string;
+  /** Pages assigned to this staff/viewer account (scopes Leads, Tin nhắn, bình luận). */
+  page_ids?: string[];
 };
 
-export function fetchPortalStaff(token: string): Promise<{ staff: PortalStaffMember[] }> {
+export type PortalStaffPageOption = { page_id: string; page_name: string; channel: string };
+
+export function fetchPortalStaff(token: string): Promise<{ staff: PortalStaffMember[]; pages?: PortalStaffPageOption[] }> {
   return portalCrm(token, '/staff');
 }
 
 export function createPortalStaff(
   token: string,
-  emailOrInput: string | { name?: string; email?: string; phone?: string; role?: 'staff' | 'viewer'; password?: string },
+  emailOrInput:
+    | string
+    | { name?: string; email?: string; phone?: string; role?: 'staff' | 'viewer'; password?: string; page_ids?: string[] },
   password?: string,
 ): Promise<{ ok: boolean; user: PortalStaffMember; temporary_password?: string }> {
   const body =
@@ -1968,6 +1986,7 @@ export function updatePortalStaff(
     active?: boolean;
     reset_password?: boolean;
     password?: string;
+    page_ids?: string[];
   },
 ): Promise<{ ok: boolean; user: PortalStaffMember; temporary_password?: string; released?: number }> {
   return portalCrm(token, `/staff/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -2165,6 +2184,7 @@ export interface PortalCommentsResponse {
   posts: PortalFbPost[];
   comments: PortalPageComment[];
   pages: Array<{ page_id: string; page_name: string }>;
+  page_scope?: { all: boolean; count: number };
   permission_error?: string;
   error?: string;
   last_synced_at?: string;

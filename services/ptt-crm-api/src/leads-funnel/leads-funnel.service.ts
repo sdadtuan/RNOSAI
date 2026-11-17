@@ -37,13 +37,19 @@ import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-proj
 import { canWriteLeadContract, CONTRACT_AM_ONLY_MESSAGE } from '../leads-contract/contract-writer.util';
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS, hasCompletedSolutionPack, preliminaryPlanHasSolutionFile } from './presales-marketing-plan.util';
-import { sessionHasCompleteDiscovery } from '../intake/sales-discovery.util';
+import { channelLabels, sessionHasCompleteDiscovery } from '../intake/sales-discovery.util';
+import {
+  SOLUTION_FILE_MAX_COUNT,
+  decodeSolutionDataUrl,
+  parseSolutionStoredFiles,
+  solutionFileMime,
+} from './solution-file-bytes.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
-import { briefFieldFilled, clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, resolveLeadNiche, writeClientBrief } from './client-plan-brief.util';
+import { briefFieldFilled, clientBriefMissing, clientBriefPayload, fillClientBriefFromDiscovery, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, resolveLeadNiche, writeClientBrief } from './client-plan-brief.util';
 import { fetchClientPlanSources } from './client-plan-source.util';
 import { buildClientPlanDraftCall,
   humanEditedR5Fields,
@@ -121,7 +127,13 @@ import {
   parseSolutionAiFromStrategy,
   SOLUTION_AI_NOT_CONFIGURED,
   SOLUTION_AI_PENDING_LABEL,
+  type AgencySolutionFacts,
+  type SolutionAiSections,
 } from './solution-ai-draft.util';
+import { generateAgencySolution, SOLUTION_STRATEGIST_MODEL, type StrategistLlm } from './solution-ai-strategist.util';
+import { proposalSections, renderSolutionProposalPdf } from './solution-proposal-file';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import {
   postSolutionAiWebhook,
   readSolutionAgentConfig,
@@ -1949,6 +1961,54 @@ export class LeadsFunnelService {
     }
   }
 
+  async readSolutionFile(leadId: number, fileId: string) {
+    const plan = await this.requirePreliminaryPlan(leadId);
+    const content = planContentFromRow(plan);
+    const files = parseSolutionStoredFiles(content.strategy_framework);
+    const wanted = decodeURIComponent(fileId);
+    const file = files.find((row) => row.id === wanted || row.name === wanted);
+    if (!file) {
+      throw new NotFoundException({ error: 'solution_file_not_found', message: 'Không tìm thấy file Solution.' });
+    }
+    const buffer = decodeSolutionDataUrl(file.data_url);
+    if (!buffer) {
+      throw new BadRequestException({
+        error: 'solution_file_unreadable',
+        message: 'Không đọc được file. File lưu trong hồ sơ không còn nguyên dữ liệu.',
+      });
+    }
+    return { filename: file.name, mime: solutionFileMime(file), buffer };
+  }
+
+  async deleteSolutionFile(leadId: number, fileId: string, staffUser?: StaffJwtPayload) {
+    await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
+    const plan = await this.requirePreliminaryPlan(leadId);
+    const content = planContentFromRow(plan);
+    const files = parseSolutionStoredFiles(content.strategy_framework);
+    const wanted = decodeURIComponent(fileId);
+    const next = files.filter((row) => row.id !== wanted && row.name !== wanted);
+    if (next.length === files.length) {
+      throw new NotFoundException({ error: 'solution_file_not_found', message: 'Không tìm thấy file Solution.' });
+    }
+    const stored = next.map((row) => ({
+      id: row.id,
+      name: row.name,
+      mime: row.mime,
+      data_url: row.data_url,
+      size: row.size,
+    }));
+    await this.pgRepo.patchMarketingPlan(leadId, {
+      strategy_framework: { ...content.strategy_framework, mkt_files: JSON.stringify(stored) },
+    });
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  private async requirePreliminaryPlan(leadId: number): Promise<Record<string, unknown>> {
+    const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
+    if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
+    return this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+  }
+
   async getMarketingPlan(leadId: number) {
     const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
     if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
@@ -1978,6 +2038,15 @@ export class LeadsFunnelService {
     const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
     if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
     const existing = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+    const incomingFiles = body.strategy_framework?.mkt_files;
+    if (incomingFiles != null) {
+      const parsed = parseSolutionStoredFiles(
+        typeof incomingFiles === 'string' ? { mkt_files: incomingFiles } : { mkt_files: incomingFiles },
+      );
+      if (parsed.length > SOLUTION_FILE_MAX_COUNT) {
+        throw new BadRequestException({ error: 'solution_file_limit', message: 'Tối đa 5 file' });
+      }
+    }
     const beforeFiles = this.marketingPlanFileNames(existing);
     const patchBody = this.mergeManualMarketingPlanPatch(existing, body);
     const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
@@ -2088,6 +2157,106 @@ export class LeadsFunnelService {
     }
   }
 
+  private solutionStrategistLlm(): StrategistLlm {
+    return async (input) => {
+      const models = [...new Set([SOLUTION_STRATEGIST_MODEL, this.aiConfig.llmModel].filter(Boolean))];
+      let lastError: unknown;
+      for (const model of models) {
+        try {
+          const completion = await this.llm.completeJson({
+            systemPrompt: input.systemPrompt,
+            userContent: input.userContent,
+            model,
+            maxTokens: input.maxTokens,
+            temperature: input.temperature,
+            timeoutMs: 180_000,
+            stubJson: () => ({}),
+          });
+          if (!completion.stubMode) {
+            return { parsed: completion.parsed, stubMode: false, modelName: completion.modelName || model };
+          }
+        } catch (err) {
+          lastError = err;
+          new Logger(LeadsFunnelService.name).warn(
+            `Solution strategist ${input.step} failed on ${model}: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+      }
+      throw lastError instanceof Error ? lastError : new Error('Solution strategist failed');
+    };
+  }
+
+  async exportSolutionProposal(leadId: number, staffUser?: StaffJwtPayload) {
+    const plan = await this.requirePreliminaryPlan(leadId);
+    const content = planContentFromRow(plan);
+    const packed = parseSolutionAiFromStrategy(content.strategy_framework);
+    if (!packed || !Object.values(packed.sections).some((text) => String(text ?? '').trim())) {
+      throw new BadRequestException({ error: 'solution_ai_missing', message: 'Chưa có bản Solution để xuất file.' });
+    }
+    const proposal = await this.attachSolutionProposal(
+      leadId,
+      packed.title || `Solution PTT Ads — Lead ${leadId}`,
+      packed.sections,
+      staffUser,
+    );
+    return { ok: true, ...proposal, funnel: await this.getFunnel(leadId) };
+  }
+
+  private async attachSolutionProposal(
+    leadId: number,
+    title: string,
+    sections: SolutionAiSections,
+    staffUser?: StaffJwtPayload,
+  ) {
+    const dateLabel = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date());
+    const clientName = (await this.pgRepo.getLeadCompanyName(leadId)) || `Lead ${leadId}`;
+    const amName = String(staffUser?.display_name || staffUser?.email || '').trim();
+    const rendered = proposalSections(sections);
+    const input = { title, clientName, amName, dateLabel, sections: rendered };
+    const pdf = await renderSolutionProposalPdf(input);
+    const dir = join(process.cwd(), 'data', 'solution-proposals', String(leadId));
+    mkdirSync(dir, { recursive: true });
+    const pdfName = `Solution PTT Ads - ${clientName}.pdf`;
+    const pdfPath = join(dir, 'solution-ptt.pdf');
+    const docxPath = join(dir, 'solution-ptt.docx');
+    writeFileSync(pdfPath, pdf);
+    if (existsSync(docxPath)) unlinkSync(docxPath);
+    const plan = await this.requirePreliminaryPlan(leadId);
+    const content = planContentFromRow(plan);
+    const existing = parseSolutionStoredFiles(content.strategy_framework).filter(
+      (file) => !/^Solution PTT Ads - /i.test(file.name) && !/^solution-ptt-docx-/i.test(file.id),
+    );
+    const additions = [
+      {
+        id: `solution-ptt-pdf-${leadId}`,
+        name: pdfName,
+        mime: 'application/pdf',
+        data_url: `data:application/pdf;base64,${pdf.toString('base64')}`,
+        size: pdf.length,
+      },
+    ];
+    const attached = existing.length + additions.length <= SOLUTION_FILE_MAX_COUNT;
+    if (attached) {
+      await this.pgRepo.patchMarketingPlan(leadId, {
+        strategy_framework: {
+          ...content.strategy_framework,
+          mkt_files: JSON.stringify([...existing, ...additions]),
+        },
+      });
+    }
+    return {
+      attached,
+      warning: attached ? undefined : 'Tối đa 5 file. File PDF đã lưu trên máy chủ nhưng chưa gắn vào danh sách.',
+      pdf_path: pdfPath,
+      files: additions.map((file) => ({ id: file.id, name: file.name, mime: file.mime })),
+    };
+  }
+
   async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {
     try {
       rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, {});
@@ -2095,30 +2264,53 @@ export class LeadsFunnelService {
       const loaded = await this.loadClientBrief(leadId);
       const serviceSlug = loaded.snap.presales.service_slug;
       await this.assertPresalesMktAiEnabled(serviceSlug, staffUser);
-      const missing = clientBriefMissing(loaded.brief, {
-        company_name: loaded.company_name,
-        niche: loaded.niche,
-        need: loaded.need,
-      });
-      if (missing.length) {
-        throw new BadRequestException({
-          error: 'client_brief_incomplete',
-          message: missing.join('; '),
-          details: missing,
-        });
-      }
-
-      const urls = [loaded.brief.website, loaded.brief.fanpage].map((url) => String(url ?? '').trim()).filter(Boolean);
-      const hasPublicSource = urls.length > 0;
-      const sources = hasPublicSource
-        ? await fetchClientPlanSources(urls, fetch)
-        : { text: '', image_urls: [] as string[], fetched_urls: [] as string[], errors: [] as string[] };
       const content = planContentFromRow(loaded.plan);
       const context = await loadSolutionAiContext(this.config.databaseUrl, leadId, {
         id: Number((loaded.plan as { id?: number }).id ?? 0),
         strategy_framework: content.strategy_framework,
         strategy_framework_json: (loaded.plan as { strategy_framework_json?: unknown }).strategy_framework_json,
       });
+      const discovery = context.discovery;
+      loaded.brief = fillClientBriefFromDiscovery(loaded.brief, discovery
+        ? {
+            marketing_goal: discovery.marketing_goal,
+            channels_text: channelLabels(discovery.channels ?? []),
+            channels: discovery.channels,
+            target_customers: discovery.target_customers,
+          }
+        : null);
+      const nicheForBrief = loaded.niche || String(discovery?.industry ?? '').trim();
+      const needForBrief = loaded.need || String(discovery?.biggest_problem ?? '').trim();
+      const missing = clientBriefMissing(loaded.brief, {
+        company_name: loaded.company_name || String(discovery?.company_name ?? '').trim(),
+        niche: nicheForBrief,
+        need: needForBrief,
+      });
+      const facts: AgencySolutionFacts = {
+        companyName: loaded.company_name || context.companyName,
+        industry: loaded.niche || discovery?.industry,
+        contactName: discovery?.contact_name,
+        need: loaded.need || discovery?.biggest_problem,
+        goal: loaded.brief.goal || discovery?.marketing_goal,
+        channels: loaded.brief.channels || channelLabels(discovery?.channels ?? []),
+        audience: loaded.brief.audience || discovery?.target_customers,
+        usp: loaded.brief.usp,
+        services: context.serviceLinesText,
+        budget: context.budgetLabel,
+        timeline: context.timelineLabel,
+        currentResults: discovery?.current_results,
+        difficulties: discovery?.difficulties,
+        callNotes: context.callNotes,
+        competitors: loaded.brief.competitors,
+        metrics: loaded.brief.metrics,
+        website: [loaded.brief.website, loaded.brief.fanpage, discovery?.websites].filter(Boolean).join(' · '),
+        missing,
+      };
+      const urls = [loaded.brief.website, loaded.brief.fanpage].map((url) => String(url ?? '').trim()).filter(Boolean);
+      const hasPublicSource = urls.length > 0;
+      const sources = hasPublicSource
+        ? await fetchClientPlanSources(urls, fetch)
+        : { text: '', image_urls: [] as string[], fetched_urls: [] as string[], errors: [] as string[] };
       const briefText = [
         `Công ty: ${loaded.company_name || context.companyName || ''}`,
         `Ngành: ${loaded.niche || ''}`,
@@ -2135,11 +2327,12 @@ export class LeadsFunnelService {
           .map((v) => String(v ?? '').trim())
           .filter(Boolean)
           .join('\n')}`,
-      ].join('\n');
+        missing.length ? `Mục còn thiếu, phải giữ placeholder, không bịa: ${missing.join('; ')}` : '',
+      ].filter(Boolean).join('\n');
       const agent = readSolutionAgentConfig();
       const hasKey = Boolean(this.aiConfig.llmApiKey);
       if (agent.configured) {
-        return this.dispatchSolutionAiAgentJob({
+        const dispatched = await this.dispatchSolutionAiAgentJob({
           leadId,
           staffUser,
           loaded,
@@ -2150,67 +2343,38 @@ export class LeadsFunnelService {
           sourceErrors: sources.errors,
           agent,
         });
+        return { ...dispatched, warnings: missing };
       }
-      if (!hasKey) {
-        throw new BadRequestException({
-          error: 'ai_not_configured',
-          message: SOLUTION_AI_NOT_CONFIGURED,
-        });
-      }
-
-      const selection = selectClientPlanModel({
-        hasPublicSource,
-        mktAiModel: this.config.mktAiModel,
-        openAiModel: this.config.openAiModel,
-        llmModel: this.aiConfig.llmModel,
-      });
-      const built = buildSolutionAiDraftCall({
-        companyName: loaded.company_name || context.companyName,
-        briefText,
-        discoveryText: context.discoveryText,
-        serviceLines: context.serviceLinesText,
-        budgetLabel: context.budgetLabel || taskBudget(loaded.tasks) || '',
-        timelineLabel: context.timelineLabel,
-        callNotes: context.callNotes,
-        attachmentText: context.attachmentText,
-        sourceText: sources.text,
-      });
-      const completion = await this.llm.completeJson({
-        systemPrompt: built.systemPrompt,
-        userContent: built.userContent,
-        model: selection.model,
-        stubJson: () => ({}),
-        timeoutMs: Math.max(60_000, Number(this.aiConfig.llmTimeoutMs) || 0),
-      });
-      if (completion.stubMode) {
-        throw new BadRequestException({
-          error: 'ai_not_configured',
-          message: SOLUTION_AI_NOT_CONFIGURED,
-        });
-      }
-      const parsed = completion.parsed && typeof completion.parsed === 'object'
-        ? (completion.parsed as Record<string, unknown>)
-        : {};
+      const strategist = hasKey ? this.solutionStrategistLlm() : undefined;
+      const generated = await generateAgencySolution(facts, strategist);
       const packed = packSolutionAi({
         status: 'ready',
         source: 'llm',
         requested_at: new Date().toISOString(),
         completed_at: new Date().toISOString(),
-        title: String(parsed.title ?? '').trim() || `Solution sơ bộ — ${loaded.company_name || context.companyName || 'lead'}`,
-        sections: normalizeSolutionAiSections(parsed.sections ?? parsed),
+        title: generated.title,
+        sections: generated.sections,
+        warnings: missing,
       });
-      return this.persistSolutionAiDraft({
+      const saved = await this.persistSolutionAiDraft({
         leadId,
         staffUser,
         loaded,
         content,
         packed,
-        modelName: completion.modelName || selection.model,
-        stubMode: false,
+        modelName: generated.modelName,
+        stubMode: generated.stubMode,
         source: 'llm',
         status: 'ready',
         sourceErrors: sources.errors,
       });
+      const proposal = await this.attachSolutionProposal(leadId, generated.title, generated.sections, staffUser).catch((err: unknown) => {
+        new Logger(LeadsFunnelService.name).warn(
+          `Solution file export skipped: ${err instanceof Error ? err.message : err}`,
+        );
+        return null;
+      });
+      return { ...saved, warnings: missing, proposal };
     } catch (err) {
       this.funnelError(err);
     }

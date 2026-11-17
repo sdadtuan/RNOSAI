@@ -24,6 +24,7 @@ export const CONTACT_STATUSES = [
   'redistribute_queue',
   'reassigned',
   'invalid_contact',
+  'hidden_lead',
   'unreachable_closed',
   'nurture',
   'disqualified',
@@ -40,9 +41,10 @@ export type LeadHoldReason =
   | 'callback'
   | 'manual_extend'
   | 'hot_lead'
-  | 'wrong_number';
+  | 'wrong_number'
+  | 'hidden_lead';
 
-export type LeadHoldProfile = '' | '1a' | '1b' | '1c' | 'callback' | 'invalid';
+export type LeadHoldProfile = '' | '1a' | '1b' | '1c' | 'callback' | 'invalid' | 'hidden';
 
 export type LeadFrSlaCaseConfig = {
   case_1a: {

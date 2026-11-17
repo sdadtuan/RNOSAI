@@ -9,13 +9,12 @@ import {
   claimLeadSolution,
   fetchKpiSolution,
   fetchSolutionQueue,
-  releaseLeadToSales,
-  returnLeadToSales,
   staffMe,
   staffRefresh,
   type KpiSolutionDashboard,
   type SolutionQueueRow,
 } from '@/lib/api';
+import './solution-queue.css';
 import {
   clearSession,
   getAccessToken,
@@ -27,14 +26,16 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
+import {
+  solutionQueueHandedAt,
+  solutionQueueOwners,
+  solutionQueueServiceName,
+  solutionQueueShowStage,
+  solutionQueueSlaTone,
+  solutionQueueStageLabel,
+  solutionQueueStatus,
+} from '@/lib/crm/solution-queue-display';
 import { ActionErrorToast, ActionSuccessToast } from '@/components/ui/ActionToast';
-
-function statusLabel(row: SolutionQueueRow): string {
-  if (row.queue_kind === 'am_rework') return 'Trả lại — cần chỉnh';
-  if (row.handoff_status === 'pending') return 'Chờ nhận';
-  if (row.solution_owner_name) return `Solution: ${row.solution_owner_name}`;
-  return 'Đang xử lý';
-}
 
 export default function CrmSolutionQueuePage() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function CrmSolutionQueuePage() {
   const [slaTiles, setSlaTiles] = useState<KpiSolutionDashboard | null>(null);
   const solutionCaps = resolvePresalesSolutionCaps(user);
   const aeTrackOnly = solutionCaps.isAeTrackOnly;
+  const showStage = solutionQueueShowStage(rows);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -138,47 +140,6 @@ export default function CrmSolutionQueuePage() {
     }
   }
 
-  async function onReturn(leadId: number) {
-    const token = getAccessToken();
-    if (!token) return;
-    const reason = window.prompt('Thông tin còn thiếu? MKT trả lead này về Sales.');
-    if (reason == null) return;
-    if (reason.trim().length < 5) {
-      setError('Nhập lý do, ít nhất 5 ký tự');
-      return;
-    }
-    setBusyLeadId(leadId);
-    setMessage('');
-    setError('');
-    try {
-      await returnLeadToSales(token, leadId, reason.trim());
-      setMessage(`Đã trả lại Sales Lead #${leadId}`);
-      await loadQueue();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Trả lại Sales thất bại');
-    } finally {
-      setBusyLeadId(null);
-    }
-  }
-
-  async function onRelease(leadId: number) {
-    const token = getAccessToken();
-    if (!token) return;
-    if (!window.confirm(`Nộp Solution cho Lead #${leadId} và chuyển sang Chờ báo giá?`)) return;
-    setBusyLeadId(leadId);
-    setMessage('');
-    setError('');
-    try {
-      await releaseLeadToSales(token, leadId);
-      setMessage(`Đã trả Sales Lead #${leadId}`);
-      await loadQueue();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Trả Sales thất bại');
-    } finally {
-      setBusyLeadId(null);
-    }
-  }
-
   return (
     <StaffPageShell user={user} onLogout={logout}>
       <PageToolbar
@@ -195,7 +156,7 @@ export default function CrmSolutionQueuePage() {
 
       {aeTrackOnly ? (
         <p className="muted" style={{ marginTop: 0 }}>
-          Nhận case / Trả Sales dành cho Solution-MKT. AE mở lead để chỉnh bước trước rồi giao lại khi sẵn sàng.
+          Nhận case dành cho Solution-MKT. AE chỉ mở lead để xem hoặc chỉnh bước trước.
         </p>
       ) : (
         <KpiSlaTileGrid data={slaTiles} />
@@ -236,84 +197,88 @@ export default function CrmSolutionQueuePage() {
             : 'Không có lead chờ tư vấn'}
         </p>
       ) : (
-        <div className="table-wrap">
-          <table className="data-table">
+        <div className="sq-wrap" data-testid="solution-queue-list">
+          <table className="sq-table">
+            <colgroup>
+              <col className="sq-col-lead" />
+              <col className="sq-col-service" />
+              {showStage ? <col className="sq-col-stage" /> : null}
+              <col className="sq-col-people" />
+              <col className="sq-col-status" />
+              <col className="sq-col-time" />
+              <col className="sq-col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Lead</th>
                 <th>Dịch vụ</th>
-                <th>Owner Lead</th>
-                <th>AM</th>
+                {showStage ? <th>Bước</th> : null}
+                <th>Phụ trách</th>
                 <th>Trạng thái</th>
                 <th>Giao lúc</th>
-                <th />
+                <th className="sq-actions-head" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={`${row.queue_kind ?? 'solution'}-${row.lead_id}`}>
-                  <td>
-                    <Link href={`/crm/leads/${row.lead_id}`} className="nav-link">
-                      #{row.lead_id} · {row.full_name || row.phone}
-                    </Link>
-                  </td>
-                  <td>{row.service_slug || '—'}</td>
-                  <td>{row.owner_name || '—'}</td>
-                  <td>{row.solution_owner_name || '—'}</td>
-                  <td>{statusLabel(row)}</td>
-                  <td>{row.handed_off_at ? row.handed_off_at.slice(0, 16).replace('T', ' ') : '—'}</td>
-                  <td className="table-actions">
-                    <Link
-                      href={
-                        row.queue_kind === 'am_rework'
-                          ? `/crm/leads/${row.lead_id}`
-                          : `/crm/leads/${row.lead_id}#funnel-presales`
-                      }
-                      className="btn btn-sm btn-ghost"
-                    >
-                      {row.queue_kind === 'am_rework' ? 'Chỉnh lại' : 'Mở'}
-                    </Link>
-                    {!aeTrackOnly &&
-                    row.queue_kind !== 'am_rework' &&
-                    (row.handoff_status === 'pending' || row.handoff_status === 'with_solution') &&
-                    (solutionCaps.canClaim || solutionCaps.canEditConsult) ? (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        disabled={busyLeadId === row.lead_id}
-                        onClick={() => void onReturn(row.lead_id)}
-                      >
-                        Trả lại — thiếu thông tin
-                      </button>
-                    ) : null}
-                    {!aeTrackOnly && row.queue_kind !== 'am_rework' && row.handoff_status === 'pending' ? (
-                      solutionCaps.canClaim ? (
+          {rows.map((row) => {
+            const openHref =
+              row.queue_kind === 'am_rework'
+                ? `/crm/leads/${row.lead_id}`
+                : `/crm/leads/${row.lead_id}#funnel-presales`;
+            const canClaim =
+              !aeTrackOnly &&
+              row.queue_kind !== 'am_rework' &&
+              row.handoff_status === 'pending' &&
+              solutionCaps.canClaim;
+            const owners = solutionQueueOwners(row);
+            const status = solutionQueueStatus(row);
+            const sla = solutionQueueSlaTone(row);
+            const stageLabel = solutionQueueStageLabel(row.presales_stage);
+            return (
+                  <tr key={`${row.queue_kind ?? 'solution'}-${row.lead_id}`}>
+                    <td>
+                      <div className="sq-name">{row.full_name?.trim() || '—'}</div>
+                      <div className="sq-sub">
+                        <Link href={openHref} className="sq-id">#{row.lead_id}</Link>
+                        {row.phone?.trim() ? <span> · {row.phone.trim()}</span> : null}
+                      </div>
+                    </td>
+                    <td title={row.service_slug || undefined}>{solutionQueueServiceName(row.service_slug)}</td>
+                    {showStage ? <td>{stageLabel || '—'}</td> : null}
+                    <td>
+                      {owners.length ? owners.map((line) => <div key={line} className="sq-sub">{line}</div>) : '—'}
+                    </td>
+                    <td>
+                      <span className={`sq-badge sq-badge--${status.tone}`}>{status.label}</span>
+                      {status.detail ? <div className="sq-sub">{status.detail}</div> : null}
+                    </td>
+                    <td className={sla ? `sq-time is-${sla}` : 'sq-time'} title={row.handed_off_at || undefined}>
+                      {solutionQueueHandedAt(row.handed_off_at)}
+                    </td>
+                    <td className="sq-actions">
+                      {canClaim ? (
                         <button
                           type="button"
-                          className="btn btn-sm"
+                          className="btn btn-sm btn-primary"
+                          data-testid="solution-queue-claim"
                           disabled={busyLeadId === row.lead_id}
                           onClick={() => void onClaim(row.lead_id)}
                         >
-                          Nhận case
+                          {busyLeadId === row.lead_id ? 'Đang nhận…' : 'Nhận Case'}
                         </button>
-                      ) : null
-                    ) : null}
-                    {!aeTrackOnly &&
-                    row.queue_kind !== 'am_rework' &&
-                    row.handoff_status === 'with_solution' &&
-                    solutionCaps.canRelease ? (
+                      ) : null}
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"
-                        disabled={busyLeadId === row.lead_id}
-                        onClick={() => void onRelease(row.lead_id)}
+                        data-testid="solution-queue-open"
+                        onClick={() => router.push(openHref)}
                       >
-                        Trả Sales
+                        Mở
                       </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+            );
+          })}
             </tbody>
           </table>
         </div>

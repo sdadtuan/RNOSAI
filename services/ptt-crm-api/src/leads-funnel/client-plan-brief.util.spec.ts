@@ -1,5 +1,6 @@
 import {
   clientBriefMissing,
+  fillClientBriefFromDiscovery,
   clientBriefPayload,
   emptyClientBrief,
   leadQualifyFacts,
@@ -50,6 +51,28 @@ describe('clientBriefMissing', () => {
     expect(clientBriefMissing({ usp: 'x', goal: 'y', channels: 'z' }, { company_name: '', niche: '', need: '' })).toEqual(
       ['Tên công ty trên hồ sơ lead', 'Ngành KH', 'Nhu cầu cụ thể'],
     );
+  });
+});
+
+describe('fillClientBriefFromDiscovery', () => {
+  it('maps Sales Brief goal and channels when the client brief uses other names', () => {
+    const filled = fillClientBriefFromDiscovery(emptyClientBrief(), {
+      marketing_goal: '30 lead/tháng',
+      channels: ['facebook', 'google'],
+      target_customers: 'Học sinh',
+    });
+    expect(filled.goal).toBe('30 lead/tháng');
+    expect(filled.channels).toBe('facebook, google');
+    expect(filled.audience).toBe('Học sinh');
+  });
+
+  it('keeps a brief value that is already filled', () => {
+    const filled = fillClientBriefFromDiscovery(
+      { ...emptyClientBrief(), goal: 'Đã có', channels: 'TikTok' },
+      { marketing_goal: 'khác', channels_text: 'Facebook' },
+    );
+    expect(filled.goal).toBe('Đã có');
+    expect(filled.channels).toBe('TikTok');
   });
 });
 

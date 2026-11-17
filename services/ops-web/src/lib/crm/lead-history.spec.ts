@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { firstAcceptorName, formatCompactHistoryRow, isSolutionHistoryLine, mergeLeadCareHistory, presentCallHistoryLine, presentLeadHistory, presentOwnerChange, presentShortHistoryRow, resolveActorDisplayName, shortenHistoryAction, splitLeadHistoryColumns } from './lead-history';
+import { firstAcceptorName, formatCompactHistoryRow, historyColumnOf, isSolutionHistoryLine, mergeLeadCareHistory, presentCallHistoryLine, presentLeadHistory, presentOwnerChange, presentShortHistoryRow, resolveActorDisplayName, shortenHistoryAction, splitLeadHistoryColumns } from './lead-history';
 
 describe('presentLeadHistory', () => {
+  it('keeps Ẩn lead on the lead history column', () => {
+    const line = presentLeadHistory({
+      id: 9,
+      user_name: 'Lan',
+      content: 'Ẩn lead — khách không còn nhu cầu',
+      activity_type: 'note',
+      created_at: '2026-10-14T09:42:00.000Z',
+      created_by: 'lan@example.com',
+    });
+    expect(line.what).toContain('Ẩn lead');
+    expect(historyColumnOf(line)).toBe('lead');
+  });
+
   it('shows the carer, the update, and the time in Vietnamese', () => {
     const line = presentLeadHistory({
       id: 1,

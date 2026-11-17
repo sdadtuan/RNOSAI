@@ -93,7 +93,7 @@ export function DashboardContent({ token }: { token: string }) {
       }
       headerExtra={<ChannelQuickLinks />}
     >
-      <section className="portal-hub-section">
+      <section className="portal-hub-section portal-hub-section--dashboard">
         <DashboardConversionCharts
           loading={desk == null}
           messages={desk?.messages ?? []}
@@ -102,7 +102,7 @@ export function DashboardContent({ token }: { token: string }) {
         />
       </section>
 
-      <section className="portal-hub-section">
+      <section className="portal-hub-section portal-hub-section--dashboard">
         <DashboardAdsSummary
           token={token}
           range={range}

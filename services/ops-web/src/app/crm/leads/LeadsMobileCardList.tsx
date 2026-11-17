@@ -96,7 +96,7 @@ export function LeadsMobileCardList({
                 <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
                 <div className="win-leads-mobile-card__badges">
                   <span className="lead-status-badge lead-status-badge--neutral">{situation.status}</span>
-                  {lead.lead_locked ? <LeadLockedBadge compact /> : null}
+                  {lead.lead_locked ? <LeadLockedBadge compact kind={lead.lead_lock_kind} /> : null}
                   {situation.call ? (
                     <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
                   ) : null}

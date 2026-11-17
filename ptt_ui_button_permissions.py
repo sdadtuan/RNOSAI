@@ -80,6 +80,14 @@ CRM_UI_BUTTONS: tuple[dict[str, Any], ...] = (
         note="Ghi nhận hoạt động chăm sóc lead.",
     ),
     _btn(
+        "crm_leads__btn_hide_lead",
+        "Ẩn Lead",
+        "crm_leads",
+        "edit",
+        page="/crm/leads",
+        note="Ẩn lead khỏi danh sách và hàng đợi (khóa như Sai số, lý do riêng).",
+    ),
+    _btn(
         "crm_leads__btn_save",
         "Lưu lead",
         "crm_leads",

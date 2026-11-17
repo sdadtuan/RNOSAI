@@ -6,9 +6,10 @@ import { careDueAt, receiveDueAt, shouldSkipHop } from './portal-care.util';
 function mockRepo(overrides: Record<string, unknown> = {}) {
   const repo = {
     withClientLock: jest.fn(async (_id: string, fn: () => Promise<void>) => fn()),
-    listStaff: jest.fn().mockResolvedValue([{ id: 's1' }, { id: 's2' }]),
+    staffPoolByPage: jest.fn().mockResolvedValue({ p1: ['s1', 's2'] }),
     listApprovers: jest.fn().mockResolvedValue([{ id: 'a1' }]),
-    releaseCasesWithInactiveAssignees: jest.fn().mockResolvedValue(0),
+    listOpenAssigned: jest.fn().mockResolvedValue([]),
+    releaseCases: jest.fn().mockResolvedValue(0),
     openLoads: jest.fn().mockResolvedValue({ s1: 1, s2: 0 }),
     listHopRows: jest.fn().mockResolvedValue([]),
     listUnassigned: jest.fn().mockResolvedValue([]),
@@ -35,12 +36,11 @@ describe('PortalCareRebalanceService', () => {
 
   it('assigns unassigned waiting_receive cases to the least-loaded active staff', async () => {
     const repo = mockRepo({
-      listUnassigned: jest.fn().mockResolvedValue(['c-new']),
+      listUnassigned: jest.fn().mockResolvedValue([{ id: 'c-new', page_id: 'p1' }]),
     });
     const service = new PortalCareRebalanceService(repo as never);
     await service.rebalance(clientId);
     expect(repo.withClientLock).toHaveBeenCalledWith(clientId, expect.any(Function));
-    expect(repo.releaseCasesWithInactiveAssignees).toHaveBeenCalledWith(clientId, ['s1', 's2']);
     expect(repo.assignReceive).toHaveBeenCalledWith('c-new', 's2', receiveDueAt(now), null);
     expect(repo.assignCare).not.toHaveBeenCalled();
   });
@@ -62,6 +62,7 @@ describe('PortalCareRebalanceService', () => {
       listHopRows: jest.fn().mockResolvedValue([
         {
           id: 'pinned',
+          page_id: 'p1',
           assignee_user_id: 's1',
           status: 'waiting_receive',
           receive_due_at: expired,
@@ -82,6 +83,7 @@ describe('PortalCareRebalanceService', () => {
       listHopRows: jest.fn().mockResolvedValue([
         {
           id: 'orphan',
+          page_id: 'p1',
           assignee_user_id: 'disabled',
           status: 'waiting_receive',
           receive_due_at: expired,
@@ -101,6 +103,7 @@ describe('PortalCareRebalanceService', () => {
       listHopRows: jest.fn().mockResolvedValue([
         {
           id: 'late-recv',
+          page_id: 'p1',
           assignee_user_id: 's1',
           status: 'waiting_receive',
           receive_due_at: new Date(now.getTime() - 1),
@@ -109,6 +112,7 @@ describe('PortalCareRebalanceService', () => {
         },
         {
           id: 'late-care',
+          page_id: 'p1',
           assignee_user_id: 's1',
           status: 'caring',
           receive_due_at: null,
@@ -126,7 +130,7 @@ describe('PortalCareRebalanceService', () => {
   it('does not update loads when a conditional assign loses the race (rowCount 0)', async () => {
     const repo = mockRepo({
       openLoads: jest.fn().mockResolvedValue({ s1: 0, s2: 0 }),
-      listUnassigned: jest.fn().mockResolvedValue(['c1', 'c2']),
+      listUnassigned: jest.fn().mockResolvedValue([{ id: 'c1', page_id: 'p1' }, { id: 'c2', page_id: 'p1' }]),
       assignReceive: jest
         .fn()
         .mockResolvedValueOnce(false)
@@ -140,21 +144,53 @@ describe('PortalCareRebalanceService', () => {
     expect(repo.assignReceive.mock.calls[1][1]).toBe('s1');
   });
 
-  it('falls back to approvers when no active staff exist, and skips release when the pool is empty', async () => {
+  it('assigns nobody and releases nothing when a Page has no staff and no approver', async () => {
     const repo = mockRepo({
-      listStaff: jest.fn().mockResolvedValue([]),
+      staffPoolByPage: jest.fn().mockResolvedValue({}),
       listApprovers: jest.fn().mockResolvedValue([]),
-      listUnassigned: jest.fn().mockResolvedValue(['c-new']),
+      listOpenAssigned: jest.fn().mockResolvedValue([{ id: 'x', page_id: 'p1', assignee_user_id: 's9' }]),
+      listUnassigned: jest.fn().mockResolvedValue([{ id: 'c-new', page_id: 'p1' }]),
     });
     const service = new PortalCareRebalanceService(repo as never);
     await service.rebalance(clientId);
-    expect(repo.releaseCasesWithInactiveAssignees).not.toHaveBeenCalled();
+    expect(repo.releaseCases).not.toHaveBeenCalled();
     expect(repo.assignReceive).not.toHaveBeenCalled();
+  });
+
+  it('only assigns a case to staff assigned to its Page; a Page without staff goes to the approver', async () => {
+    const repo = mockRepo({
+      staffPoolByPage: jest.fn().mockResolvedValue({ pA: ['sa'], pB: ['sb'] }),
+      openLoads: jest.fn().mockResolvedValue({ sa: 5, sb: 0 }),
+      listUnassigned: jest.fn().mockResolvedValue([
+        { id: 'case-a', page_id: 'pA' },
+        { id: 'case-b', page_id: 'pB' },
+        { id: 'case-c', page_id: 'pC' },
+      ]),
+    });
+    const service = new PortalCareRebalanceService(repo as never);
+    await service.rebalance(clientId);
+    expect(repo.assignReceive).toHaveBeenCalledWith('case-a', 'sa', receiveDueAt(now), null);
+    expect(repo.assignReceive).toHaveBeenCalledWith('case-b', 'sb', receiveDueAt(now), null);
+    expect(repo.assignReceive).toHaveBeenCalledWith('case-c', 'a1', receiveDueAt(now), null);
+  });
+
+  it('releases open cases held by someone outside the Page pool', async () => {
+    const repo = mockRepo({
+      staffPoolByPage: jest.fn().mockResolvedValue({ pA: ['sa'] }),
+      listOpenAssigned: jest.fn().mockResolvedValue([
+        { id: 'keep', page_id: 'pA', assignee_user_id: 'sa' },
+        { id: 'moved', page_id: 'pA', assignee_user_id: 'sb' },
+        { id: 'owner', page_id: 'pZ', assignee_user_id: 'a1' },
+      ]),
+    });
+    const service = new PortalCareRebalanceService(repo as never);
+    await service.rebalance(clientId);
+    expect(repo.releaseCases).toHaveBeenCalledWith(clientId, ['moved']);
   });
 
   it('assigns unassigned caring cases', async () => {
     const repo = mockRepo({
-      listUnassignedCare: jest.fn().mockResolvedValue(['care-1']),
+      listUnassignedCare: jest.fn().mockResolvedValue([{ id: 'care-1', page_id: 'p1' }]),
     });
     const service = new PortalCareRebalanceService(repo as never);
     await service.rebalance(clientId);
@@ -163,7 +199,7 @@ describe('PortalCareRebalanceService', () => {
 
   it('notifies the new assignee after an auto-assign', async () => {
     const repo = mockRepo({
-      listUnassigned: jest.fn().mockResolvedValue(['c-new']),
+      listUnassigned: jest.fn().mockResolvedValue([{ id: 'c-new', page_id: 'p1' }]),
     });
     const careNotify = { notifyAssignment: jest.fn().mockResolvedValue(undefined) };
     const service = new PortalCareRebalanceService(repo as never, careNotify as never);
@@ -185,6 +221,7 @@ describe('PortalCareRebalanceService', () => {
       listHopRows: jest.fn().mockResolvedValue([
         {
           id: 'c-hop',
+          page_id: 'p1',
           assignee_user_id: 's1',
           status: 'waiting_receive',
           receive_due_at: past,
@@ -234,17 +271,33 @@ describe('PortalCareService.assign and setStaffActive', () => {
 
   const approver = { sub: 'owner-1', role: 'approver', client_id: 'client-1', email: 'o@x.com' };
   const viewer = { sub: 'view-1', role: 'viewer', client_id: 'client-1', email: 'v@x.com' };
+  const CASE_ID = '11111111-1111-4111-8111-111111111111';
+
+  it('rejects manual assign to staff who is not assigned to the case Page', async () => {
+    const repo = {
+      ensure: jest.fn(),
+      findCase: jest.fn().mockResolvedValue({ id: 'c1', page_id: 'p1', status: 'waiting_receive' }),
+      findActiveClientUser: jest.fn().mockResolvedValue({ id: 's2', email: 's2@x.com' }),
+      listUserPageIds: jest.fn().mockResolvedValue(['p2']),
+      assignManual: jest.fn(),
+    };
+    const service = makeService(repo as never, {}, { rebalance: jest.fn() });
+    await expect(service.assign(approver as never, CASE_ID, 's2')).rejects.toMatchObject({
+      response: { error: 'staff_page_not_assigned' },
+    });
+    expect(repo.assignManual).not.toHaveBeenCalled();
+  });
 
   it('lets only an approver assign or unassign; viewers are read-only', async () => {
     const repo = {
       ensure: jest.fn(),
-      findCase: jest.fn().mockResolvedValue({ id: 'c1', status: 'waiting_receive' }),
+      findCase: jest.fn().mockResolvedValue({ id: 'c1', page_id: 'p1', status: 'waiting_receive' }),
       unassign: jest.fn(),
     };
     const rebalancer = { rebalance: jest.fn() };
     const service = makeService(repo as never, {}, rebalancer);
-    await expect(service.assign(viewer as never, 'c1', '')).rejects.toBeInstanceOf(ForbiddenException);
-    await service.assign(approver as never, 'c1', '');
+    await expect(service.assign(viewer as never, CASE_ID, '')).rejects.toBeInstanceOf(ForbiddenException);
+    await service.assign(approver as never, CASE_ID, '');
     expect(repo.unassign).toHaveBeenCalledWith('c1');
     expect(rebalancer.rebalance).toHaveBeenCalledWith('client-1');
   });
@@ -252,11 +305,11 @@ describe('PortalCareService.assign and setStaffActive', () => {
   it('rejects manual assign to a user who is not an active staff member', async () => {
     const repo = {
       ensure: jest.fn(),
-      findCase: jest.fn().mockResolvedValue({ id: 'c1', status: 'waiting_receive' }),
+      findCase: jest.fn().mockResolvedValue({ id: 'c1', page_id: 'p1', status: 'waiting_receive' }),
       findActiveClientUser: jest.fn().mockResolvedValue(null),
     };
     const service = makeService(repo as never, {}, { rebalance: jest.fn() });
-    await expect(service.assign(approver as never, 'c1', 'viewer-id')).rejects.toMatchObject({
+    await expect(service.assign(approver as never, CASE_ID, 'viewer-id')).rejects.toMatchObject({
       status: 404,
     });
   });

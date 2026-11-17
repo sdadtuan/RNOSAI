@@ -28,14 +28,27 @@ export class PortalCareRebalanceService {
   }
 
   private async rebalanceLocked(clientId: string): Promise<void> {
-    let staff = (await this.repo.listStaff(clientId)).map((row) => row.id);
-    if (!staff.length) {
-      staff = (await this.repo.listApprovers(clientId)).map((row) => row.id);
+    // t350u: the auto-assign pool of a case is the active staff assigned to that case's Page.
+    // A Page with no staff falls back to the approvers (account owner), as before when no staff existed.
+    const byPage = await this.repo.staffPoolByPage(clientId);
+    const approvers = (await this.repo.listApprovers(clientId)).map((row) => row.id);
+    const poolFor = (pageId: string): string[] => {
+      const staff = byPage[pageId] ?? [];
+      return staff.length ? staff : approvers;
+    };
+
+    // Safety net: release open cases whose assignee is not in the pool of the case's Page
+    // (inactive/deleted staff, or staff no longer assigned to that Page).
+    const misplaced = (await this.repo.listOpenAssigned(clientId))
+      .filter((row) => {
+        const pool = poolFor(row.page_id);
+        return pool.length > 0 && !pool.includes(row.assignee_user_id);
+      })
+      .map((row) => row.id);
+    if (misplaced.length) {
+      await this.repo.releaseCases(clientId, misplaced);
     }
-    const active = new Set(staff);
-    if (active.size) {
-      await this.repo.releaseCasesWithInactiveAssignees(clientId, staff);
-    }
+
     const loads = await this.repo.openLoads(clientId);
     const now = new Date();
     const changes: Array<{
@@ -45,11 +58,12 @@ export class PortalCareRebalanceService {
       reason: 'hop' | 'auto';
     }> = [];
     for (const row of await this.repo.listHopRows(clientId)) {
-      if (shouldSkipHop(row, active)) continue;
+      const pool = poolFor(row.page_id);
+      if (shouldSkipHop(row, new Set(pool))) continue;
       const receiveHop = shouldHopReceive(row.status, row.receive_due_at, now);
       const careHop = shouldHopCare(row.status, row.care_due_at, now);
       if (!receiveHop && !careHop) continue;
-      const next = nextAssignee(staff, loads, row.assignee_user_id);
+      const next = nextAssignee(pool, loads, row.assignee_user_id);
       if (!next) continue;
       const ok = receiveHop
         ? await this.repo.assignReceive(row.id, next, receiveDueAt(now), row.assignee_user_id)
@@ -64,21 +78,21 @@ export class PortalCareRebalanceService {
         reason: 'hop',
       });
     }
-    for (const id of await this.repo.listUnassigned(clientId)) {
-      const next = nextAssignee(staff, loads, null);
-      if (!next) break;
-      const ok = await this.repo.assignReceive(id, next, receiveDueAt(now), null);
+    for (const row of await this.repo.listUnassigned(clientId)) {
+      const next = nextAssignee(poolFor(row.page_id), loads, null);
+      if (!next) continue;
+      const ok = await this.repo.assignReceive(row.id, next, receiveDueAt(now), null);
       if (!ok) continue;
       loads[next] = (loads[next] ?? 0) + 1;
-      changes.push({ caseId: id, assigneeId: next, previousAssigneeId: null, reason: 'auto' });
+      changes.push({ caseId: row.id, assigneeId: next, previousAssigneeId: null, reason: 'auto' });
     }
-    for (const id of await this.repo.listUnassignedCare(clientId)) {
-      const next = nextAssignee(staff, loads, null);
-      if (!next) break;
-      const ok = await this.repo.assignCare(id, next, careDueAt(now), null);
+    for (const row of await this.repo.listUnassignedCare(clientId)) {
+      const next = nextAssignee(poolFor(row.page_id), loads, null);
+      if (!next) continue;
+      const ok = await this.repo.assignCare(row.id, next, careDueAt(now), null);
       if (!ok) continue;
       loads[next] = (loads[next] ?? 0) + 1;
-      changes.push({ caseId: id, assigneeId: next, previousAssigneeId: null, reason: 'auto' });
+      changes.push({ caseId: row.id, assigneeId: next, previousAssigneeId: null, reason: 'auto' });
     }
     await this.emitAssignmentChanges(clientId, changes);
   }

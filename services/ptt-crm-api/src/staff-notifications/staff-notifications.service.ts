@@ -29,4 +29,10 @@ export class StaffNotificationsService {
     const notification = await this.repo.markRead(user.sub, id);
     return { ok: true, notification };
   }
+
+  async markAllRead(payload: StaffJwtPayload | undefined) {
+    const user = this.requireUser(payload);
+    const updated = await this.repo.markAllRead(user.sub);
+    return { ok: true, updated };
+  }
 }

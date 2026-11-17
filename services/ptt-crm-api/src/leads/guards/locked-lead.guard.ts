@@ -15,6 +15,9 @@ import {
   isLeadLockExemptPath,
   leadIdsFromRequest,
   leadLockedSql,
+  LEAD_HIDDEN_CONTACT_STATUS,
+  LEAD_HIDDEN_ERROR,
+  LEAD_HIDDEN_MESSAGE_VI,
   LEAD_LOCKED_ERROR,
   LEAD_LOCKED_MESSAGE_VI,
   LEAD_LOCKED_NOT_FOUND_MESSAGE_VI,
@@ -64,14 +67,18 @@ export class LockedLeadGuard implements CanActivate, OnModuleDestroy {
     if (!ids.length) return true;
     const db = this.db;
     if (!db) return true;
-    let locked: number[] = [];
+    let locked: Array<{ id: number; contact_status: string }> = [];
     try {
       const result = await db.query(
-        `SELECT sqlite_lead_id AS id FROM crm_leads l
+        `SELECT sqlite_lead_id AS id, COALESCE(l.contact_status, '') AS contact_status
+           FROM crm_leads l
           WHERE l.sqlite_lead_id = ANY($1::bigint[]) AND ${leadLockedSql('l')}`,
         [ids],
       );
-      locked = result.rows.map((row: { id: unknown }) => Number(row.id));
+      locked = result.rows.map((row: { id: unknown; contact_status: unknown }) => ({
+        id: Number(row.id),
+        contact_status: String(row.contact_status ?? ''),
+      }));
     } catch (err) {
       this.logger.warn(`lead lock check failed: ${(err as Error).message}`);
       return true;
@@ -80,11 +87,12 @@ export class LockedLeadGuard implements CanActivate, OnModuleDestroy {
     if (await this.isSuperAdmin(req)) return true;
     const method = String(req.method || 'GET').toUpperCase();
     const readOnly = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+    const hiddenOnly = locked.every((row) => row.contact_status === LEAD_HIDDEN_CONTACT_STATUS);
     if (!readOnly) {
       throw new ForbiddenException({
-        error: LEAD_LOCKED_ERROR,
-        message: LEAD_LOCKED_MESSAGE_VI,
-        lead_ids: locked,
+        error: hiddenOnly ? LEAD_HIDDEN_ERROR : LEAD_LOCKED_ERROR,
+        message: hiddenOnly ? LEAD_HIDDEN_MESSAGE_VI : LEAD_LOCKED_MESSAGE_VI,
+        lead_ids: locked.map((row) => row.id),
       });
     }
     throw new NotFoundException({

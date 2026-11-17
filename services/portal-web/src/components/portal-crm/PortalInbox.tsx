@@ -21,6 +21,7 @@ import {
   type PortalProductRecord,
   type PortalQuickReply,
 } from '@/lib/api';
+import { isNoPageScope, PortalNoPagesNotice } from '@/components/portal-crm/PortalNoPagesNotice';
 import {
   PortalProductRow,
   portalProductFromList,
@@ -52,6 +53,7 @@ import { PortalInboxSettings } from '@/components/portal-crm/PortalInboxSettings
 import { PortalPosOrderForm } from '@/components/portal-pos/PortalPosOrderForm';
 import { PortalInboxListHeader } from '@/components/portal-crm/PortalInboxListHeader';
 import { PortalInboxSideTabs, type InboxSideTab } from '@/components/portal-crm/PortalInboxSideTabs';
+import { canActOnCase, canManagePortal, isPortalReadOnly, VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
 
 const STATUS: Record<string, string> = {
   waiting_receive: 'Chờ nhận',
@@ -122,15 +124,26 @@ export function PortalInbox() {
   const [crumb, setCrumb] = useState('Tin nhắn');
   return (
     <PortalPageShell breadcrumb={[{ label: 'Cổng khách hàng', href: '/crm' }, { label: crumb }]}>
-      {({ token }) => (
-        <InboxBody token={token} onMainTab={(tab) => setCrumb(tab === 'comments' ? 'Bình luận' : 'Tin nhắn')} />
+      {({ token, user }) => (
+        <InboxBody token={token} role={user.role} onMainTab={(tab) => setCrumb(tab === 'comments' ? 'Bình luận' : 'Tin nhắn')} />
       )}
     </PortalPageShell>
   );
 }
 
-function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'messages' | 'comments') => void }) {
+function InboxBody({
+  token,
+  role,
+  onMainTab,
+}: {
+  token: string;
+  role?: string;
+  onMainTab?: (tab: 'messages' | 'comments') => void;
+}) {
   const [desk, setDesk] = useState<PortalDesk | null>(null);
+  // Role from the session first (no flash), then the server's view of it once the desk loads.
+  const myRole = desk?.me.role ?? role ?? '';
+  const readOnly = isPortalReadOnly(myRole);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<PortalCaseDetail | null>(null);
   const [query, setQuery] = useState('');
@@ -403,7 +416,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
   );
   const canActProducts =
     Boolean(detail) &&
-    (desk?.me.role !== 'staff' || detail?.case.assignee_user_id === desk?.me.id) &&
+    canActOnCase(myRole, detail?.case.assignee_user_id, desk?.me.id) &&
     detail?.case.status !== 'purchased';
   const threadText = (detail?.messages ?? []).filter((msg) => msg.direction !== 'out').map((msg) => msg.body).join('\n');
   const scanned = extractContacts(`${detail?.case.snippet || ''}\n${threadText}\n${detail?.case.notes || ''}`);
@@ -510,11 +523,12 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
     return (
       <PortalInboxComments
         token={token}
+        readOnly={readOnly}
         tabs={inboxTabs}
         headerActions={
           <>
             <PortalInboxReportStrip token={token} />
-            <PortalInboxSettings token={token} canEdit={desk?.me.role !== 'staff'} />
+            <PortalInboxSettings token={token} canEdit={canManagePortal(myRole)} />
           </>
         }
       />
@@ -537,7 +551,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
           headerActions={
             <>
               <PortalInboxReportStrip token={token} />
-              <PortalInboxSettings token={token} canEdit={desk?.me.role !== 'staff'} />
+              <PortalInboxSettings token={token} canEdit={canManagePortal(myRole)} />
             </>
           }
           refreshLabel={refreshedAt ? `Cập nhật lúc ${saigonRefreshLabel(refreshedAt)}` : 'Đang tải…'}
@@ -608,7 +622,9 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
         ) : null}
         <div className="tram-inbox__rows" ref={listRef}>
           {!refreshedAt && !error ? <InboxSkeleton /> : null}
-          {refreshedAt && threads.length === 0 ? (
+          {refreshedAt && threads.length === 0 && isNoPageScope(desk?.me) ? (
+            <PortalNoPagesNotice />
+          ) : refreshedAt && threads.length === 0 ? (
             <div className="tram-inbox__empty">
               <p>
                 <strong>Chưa có hội thoại phù hợp.</strong>
@@ -694,7 +710,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                     </p>
                   </div>
                 </div>
-                {(desk?.me.role !== 'staff' || detail.case.assignee_user_id === desk?.me.id) &&
+                {canActOnCase(myRole, detail.case.assignee_user_id, desk?.me.id) &&
                 detail.case.status !== 'purchased' ? (
                   <div className="tram-inbox__assign-actions">
                     {detail.case.status === 'waiting_receive' ? (
@@ -779,7 +795,9 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                 });
               }}
             >
-              <label htmlFor="reply">Trả lời khách qua Page của hội thoại này — gõ “/” để dùng tin mẫu</label>
+              <label htmlFor="reply">
+                {readOnly ? VIEWER_READ_ONLY_HINT : 'Trả lời khách qua Page của hội thoại này — gõ “/” để dùng tin mẫu'}
+              </label>
               {slashOpen && slashHits.length ? (
                 <ul className="tram-inbox__slash" role="listbox" aria-label="Tin nhắn mẫu">
                   {slashHits.map((item, index) => (
@@ -798,6 +816,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                   ))}
                 </ul>
               ) : null}
+              <fieldset className="portal-ro" disabled={readOnly}>
               <div className="tram-inbox__reply-row">
                 <textarea
                   id="reply"
@@ -827,17 +846,19 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                   }}
                   rows={2}
                   maxLength={2000}
-                  placeholder="Nhập tin gửi khách, hoặc gõ / để chọn tin mẫu"
+                  placeholder={readOnly ? 'Tài khoản Chỉ xem không gửi được tin.' : 'Nhập tin gửi khách, hoặc gõ / để chọn tin mẫu'}
                 />
-                <button type="submit" className="tram-inbox__btn tram-inbox__btn--teal" disabled={busy || !reply.trim()}>
+                <button type="submit" className="tram-inbox__btn tram-inbox__btn--teal" disabled={busy || readOnly || !reply.trim()}>
                   {busy ? 'Đang gửi' : 'Gửi'}
                 </button>
               </div>
+              </fieldset>
               <div className="tram-inbox__reply-actions">
                 <PortalInboxQuickReplies
                   token={token}
                   items={templates}
                   busy={busy}
+                  readOnly={readOnly}
                   onUse={(item) => applyTemplate(item)}
                   onChange={(items) =>
                     setDesk((current) => (current ? { ...current, quick_replies: items } : current))
@@ -904,6 +925,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
 
             <div>
               <p className="tram-inbox__kicker">Thẻ</p>
+              <fieldset className="portal-ro" disabled={readOnly}>
               <div className="tram-inbox__tag-wrap">
                 {(desk?.labels ?? []).map((item) => {
                   const on = detail.case.labels.includes(item.name);
@@ -936,10 +958,11 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                 }}
               >
                 <input value={newTag} onChange={(event) => setNewTag(event.target.value)} maxLength={40} placeholder="Thêm thẻ mới" aria-label="Thêm thẻ" />
-                <button type="submit" className="tram-inbox__btn" disabled={busy || !newTag.trim()}>
+                <button type="submit" className="tram-inbox__btn" disabled={busy || readOnly || !newTag.trim()}>
                   Thêm
                 </button>
               </form>
+              </fieldset>
             </div>
 
             <div>
@@ -949,10 +972,11 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                 value={notes}
                 rows={4}
                 maxLength={4000}
-                placeholder="Ghi chú chỉ nhân viên thấy, không gửi cho khách"
+                placeholder={readOnly ? 'Tài khoản Chỉ xem không sửa được ghi chú.' : 'Ghi chú chỉ nhân viên thấy, không gửi cho khách'}
+                readOnly={readOnly}
                 onChange={(event) => setNotes(event.target.value)}
                 onBlur={() => {
-                  if ((detail.case.notes ?? '') !== notes) {
+                  if (!readOnly && (detail.case.notes ?? '') !== notes) {
                     void run(async () => {
                       await postPortalCaseNotes(token, detail.case.id, notes);
                     });
@@ -980,6 +1004,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
               ) : (
                 <p className="tram-inbox__hint">Chưa có Lead trùng số điện thoại của hội thoại này.</p>
               )}
+              <fieldset className="portal-ro" disabled={readOnly}>
               <div className="tram-inbox__lead-form">
                 <label className="tram-inbox__field">
                   <span>Tên Lead</span>
@@ -1025,11 +1050,13 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                   <p className="tram-inbox__hint">Điền số điện thoại đã phát hiện (hoặc nhập tay) rồi tạo Lead.</p>
                 ) : null}
               </div>
+              </fieldset>
             </section>
             </div>
             <div className="tram-inbox__side-pane" hidden={sideTab !== 'chot'}>
             <section className="tram-inbox__side-section">
               <p className="tram-inbox__kicker">Chốt đơn</p>
+              <fieldset className="portal-ro" disabled={readOnly}>
               <PortalPosOrderForm
                 token={token}
                 compact
@@ -1045,6 +1072,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                   post_id: (detail.case as { post_id?: string }).post_id || '',
                 }}
               />
+              </fieldset>
             </section>
 
             </div>
@@ -1087,6 +1115,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                 {showTemplates ? 'Ẩn danh sách mẫu' : `Hiện ${templates.length} mẫu (phím /)`}
               </button>
               {showTemplates ? (
+                <fieldset className="portal-ro" disabled={readOnly}>
                 <div className="tram-inbox__templates">
                   {templates.map((item) => (
                     <div key={item.id} className="tram-inbox__template">
@@ -1146,6 +1175,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
                     </button>
                   </form>
                 </div>
+                </fieldset>
               ) : null}
             </div>
 
@@ -1159,7 +1189,7 @@ function InboxBody({ token, onMainTab }: { token: string; onMainTab?: (tab: 'mes
             </div>
             <div>
               <p className="tram-inbox__kicker">Sản phẩm Page đang bán</p>
-              {desk?.me.role !== 'staff' ? (
+              {canManagePortal(myRole) ? (
                 <p className="tram-inbox__hint">
                   <Link href={`/products?page_id=${encodeURIComponent(detail.case.page_id)}`}>Quản lý sản phẩm Page này</Link>
                 </p>

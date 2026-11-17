@@ -105,6 +105,42 @@ export function clientBriefMissing(
   return missing;
 }
 
+/** Sales Brief stores the same answers under discovery names. Copy them when the client brief key is empty. */
+export function fillClientBriefFromDiscovery(
+  brief: ClientPlanBrief,
+  discovery: {
+    marketing_goal?: string | null;
+    channels?: string[] | string | null;
+    channels_text?: string | null;
+    target_customers?: string | null;
+    audience?: string | null;
+    goal?: string | null;
+    kpi?: string | null;
+    measurable_goal?: string | null;
+  } | null | undefined,
+): ClientPlanBrief {
+  const next = { ...brief };
+  if (!briefFieldFilled(next.goal)) {
+    const goal = [discovery?.marketing_goal, discovery?.measurable_goal, discovery?.goal, discovery?.kpi]
+      .map((item) => String(item ?? '').trim())
+      .find((item) => briefFieldFilled(item));
+    if (goal) next.goal = goal;
+  }
+  if (!briefFieldFilled(next.channels)) {
+    const listed = Array.isArray(discovery?.channels)
+      ? discovery.channels.map((item) => String(item ?? '').trim()).filter((item) => briefFieldFilled(item))
+      : [];
+    const text = String(discovery?.channels_text ?? (typeof discovery?.channels === 'string' ? discovery.channels : '') ?? '').trim();
+    const channels = briefFieldFilled(text) ? text : listed.join(', ');
+    if (briefFieldFilled(channels)) next.channels = channels;
+  }
+  if (!briefFieldFilled(next.audience)) {
+    const audience = String(discovery?.target_customers ?? discovery?.audience ?? '').trim();
+    if (briefFieldFilled(audience)) next.audience = audience;
+  }
+  return next;
+}
+
 export function resolveLeadNiche(taskNiche: string, metaIndustry: string | null | undefined): string {
   const task = String(taskNiche ?? '').trim();
   if (briefFieldFilled(task)) return task;

@@ -167,6 +167,7 @@ export type SalesLeadDeskProps = {
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
   onSelectActivity?: (id: number | null) => void;
+  headerExtra?: ReactNode;
 };
 
 export function SalesLeadDesk({
@@ -194,6 +195,7 @@ export function SalesLeadDesk({
   ownerLines = [],
   selectedActivityId = null,
   onSelectActivity,
+  headerExtra,
 }: SalesLeadDeskProps) {
   const [tab, setTab] = useState<DeskTabKey>('solution');
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
@@ -361,6 +363,7 @@ export function SalesLeadDesk({
               <span className="ahd-badge" data-testid="sld-status">
                 {flow.currentLabel}
               </span>
+              {headerExtra}
             </div>
             <ul className="ahd-meta">
               <li>
@@ -586,6 +589,7 @@ export function SalesOrLegacyLeadLayout({
   ownerLines,
   selectedActivityId,
   onSelectActivity,
+  headerExtra,
 }: {
   useDesk: boolean;
   token?: string | null;
@@ -613,6 +617,7 @@ export function SalesOrLegacyLeadLayout({
   ownerLines?: LeadHistoryLine[];
   selectedActivityId?: number | null;
   onSelectActivity?: (id: number | null) => void;
+  headerExtra?: ReactNode;
 }) {
   if (useDesk && token && lead) {
     return (
@@ -641,6 +646,7 @@ export function SalesOrLegacyLeadLayout({
         ownerLines={ownerLines}
         selectedActivityId={selectedActivityId}
         onSelectActivity={onSelectActivity}
+        headerExtra={headerExtra}
       >
         {children}
       </SalesLeadDesk>

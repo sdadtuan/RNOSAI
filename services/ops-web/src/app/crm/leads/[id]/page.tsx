@@ -44,6 +44,7 @@ import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
 import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
+import { HideLeadButton } from '@/components/crm/HideLeadButton';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import { LeadStageRecords } from '@/components/crm/LeadStageRecords';
@@ -1109,6 +1110,19 @@ export default function CrmLeadDetailPage() {
   }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
 
   const accessToken = getAccessToken();
+  const canHideLead = Boolean(
+    lead &&
+      !lead.lead_locked &&
+      accessToken &&
+      (superAdmin ||
+        hasCap(user, 'crm_leads', 'edit') ||
+        hasCap(user, 'crm_leads', 'assign') ||
+        hasCap(user, 'crm_presales_solution', 'edit')),
+  );
+  const hideLeadAction =
+    canHideLead && accessToken ? (
+      <HideLeadButton token={accessToken} leadId={leadId} variant="desk" onError={setError} />
+    ) : null;
 
   useEffect(() => {
     setContractSummary(null);
@@ -1819,6 +1833,7 @@ export default function CrmLeadDetailPage() {
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
           onSelectActivity={setSelectedActivityId}
+          headerExtra={hideLeadAction}
           mgmtExtra={
             superAdmin && accessToken && lead ? (
               <LeadOwnerReassignControl
@@ -1945,6 +1960,7 @@ export default function CrmLeadDetailPage() {
           ownerLines={ownerLines}
           selectedActivityId={selectedActivityId}
           onSelectActivity={setSelectedActivityId}
+          headerExtra={hideLeadAction}
           mgmtExtra={
             superAdmin && accessToken && lead ? (
               <LeadOwnerReassignControl
@@ -1978,6 +1994,9 @@ export default function CrmLeadDetailPage() {
               onOpenAssign={() => setAssignOpen(true)}
               contactActions={
                 <>
+                  {canHideLead && accessToken ? (
+                    <HideLeadButton token={accessToken} leadId={leadId} variant="hero" onError={setError} />
+                  ) : null}
                   {lead.phone ? (
                     <LeadContactActions
                       phone={lead.phone}
@@ -2123,6 +2142,7 @@ export default function CrmLeadDetailPage() {
               token={accessToken}
               leadId={leadId}
               canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'create')}
+              allowClaim={!isAccountManager(user)}
               status={lead?.status || status}
               onClaimed={setSalesClaimedAt}
             />

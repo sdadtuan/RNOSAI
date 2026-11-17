@@ -98,21 +98,24 @@ function PeriodDelta({ value, previousLabel, testId }: { value: number | null; p
 function ChannelSplit({ pieces, weights, testId }: { pieces: SplitPiece[]; weights: number[]; testId: string }) {
   if (!pieces.length) return null;
   const total = weights.reduce((sum, n) => sum + n, 0);
+  const active = weights.filter((weight) => weight > 0).length;
   return (
-    <div className="kpi-tile__split" data-testid={testId}>
-      <div className="kpi-tile__mini-bar" aria-hidden="true">
-        {pieces.map((piece, index) => {
-          const share = total > 0 ? (weights[index] / total) * 100 : 0;
-          if (share <= 0) return null;
-          return (
-            <span
-              key={piece.id}
-              className="kpi-tile__mini-bar-seg"
-              style={{ width: `${Math.max(share, 2)}%`, background: piece.color }}
-            />
-          );
-        })}
-      </div>
+    <div className={`kpi-tile__split${active > 1 ? '' : ' kpi-tile__split--solo'}`} data-testid={testId}>
+      {active > 1 ? (
+        <div className="kpi-tile__mini-bar" aria-hidden="true">
+          {pieces.map((piece, index) => {
+            const share = total > 0 ? (weights[index] / total) * 100 : 0;
+            if (share <= 0) return null;
+            return (
+              <span
+                key={piece.id}
+                className="kpi-tile__mini-bar-seg"
+                style={{ width: `${Math.max(share, 2)}%`, background: piece.color }}
+              />
+            );
+          })}
+        </div>
+      ) : null}
       <p className="kpi-tile__split-text">
         {pieces.map((piece, index) => (
           <span key={piece.id} className="kpi-tile__split-item">
@@ -254,11 +257,11 @@ export function DashboardAdsSummary({
   const kpis = (
     <div className="dashboard-ads-summary__kpis">
       <div className="kpi-tile" data-testid="ads-summary-spend">
-        <div className="kpi-tile__top">
-          <p className="kpi-tile__label">Chi tiêu</p>
+        <p className="kpi-tile__label">Chi tiêu</p>
+        <div className="kpi-tile__value-row">
+          <p className="kpi-tile__value">{showSkeleton ? '—' : spend != null ? fmtVnd(spend) : '—'}</p>
           <PeriodDelta value={showSkeleton ? null : spendDelta} previousLabel={prevLabel} testId="ads-summary-spend-delta" />
         </div>
-        <p className="kpi-tile__value">{showSkeleton ? '—' : spend != null ? fmtVnd(spend) : '—'}</p>
         {!showSkeleton ? (
           <ChannelSplit pieces={spendSplit} weights={miniBarWeights(spendSplit, 'value')} testId="ads-summary-spend-split" />
         ) : (
@@ -267,34 +270,34 @@ export function DashboardAdsSummary({
       </div>
       <Link href="/crm/leads" className="kpi-tile-link" data-testid="dash-leads-received">
         <div className="kpi-tile" data-testid="ads-summary-leads">
-          <div className="kpi-tile__top">
-            <p className="kpi-tile__label">Lead nhận được</p>
+          <p className="kpi-tile__label">Lead nhận được</p>
+          <div className="kpi-tile__value-row">
+            <p className="kpi-tile__value">{leadsReceived != null ? fmtNumber(leadsReceived) : '—'}</p>
             <PeriodDelta value={leadDelta} previousLabel={prevLabel} testId="ads-summary-leads-delta" />
           </div>
-          <p className="kpi-tile__value">{leadsReceived != null ? fmtNumber(leadsReceived) : '—'}</p>
           <ChannelSplit pieces={leadSplit} weights={miniBarWeights(leadSplit, 'value')} testId="ads-summary-leads-split" />
         </div>
       </Link>
       <Link href="/crm/messages" className="kpi-tile-link" data-testid="dash-messages-received">
         <div className="kpi-tile" data-testid="ads-summary-messages">
-          <div className="kpi-tile__top">
-            <p className="kpi-tile__label">Tin nhắn</p>
+          <p className="kpi-tile__label">Tin nhắn</p>
+          <div className="kpi-tile__value-row">
+            <p className="kpi-tile__value">
+              {messagesReceived != null ? fmtNumber(messagesReceived) : '—'}
+            </p>
             <PeriodDelta value={messageDelta} previousLabel={prevLabel} testId="ads-summary-messages-delta" />
           </div>
-          <p className="kpi-tile__value">
-            {messagesReceived != null ? fmtNumber(messagesReceived) : '—'}
-          </p>
           <ChannelSplit pieces={messageSplit} weights={miniBarWeights(messageSplit, 'value')} testId="ads-summary-messages-split" />
         </div>
       </Link>
       <div className="kpi-tile" data-testid="ads-summary-ctr">
-        <div className="kpi-tile__top">
-          <p className="kpi-tile__label" title="Tỷ lệ nhấp — số nhấp chia cho số lần hiển thị">
-            CTR
-          </p>
+        <p className="kpi-tile__label" title="Tỷ lệ nhấp — số nhấp chia cho số lần hiển thị">
+          CTR
+        </p>
+        <div className="kpi-tile__value-row">
+          <p className="kpi-tile__value">{showSkeleton ? '—' : ctr != null ? fmtPct(ctr, 2) : '—'}</p>
           <PeriodDelta value={showSkeleton ? null : ctrDelta} previousLabel={prevLabel} testId="ads-summary-ctr-delta" />
         </div>
-        <p className="kpi-tile__value">{showSkeleton ? '—' : ctr != null ? fmtPct(ctr, 2) : '—'}</p>
         {!showSkeleton ? (
           <ChannelSplit
             pieces={channelCtr}
@@ -311,19 +314,20 @@ export function DashboardAdsSummary({
   const panel = (
     <aside className="dashboard-ads-summary__panel" data-testid="ads-summary-channel-panel">
       <p className="dashboard-ads-summary__panel-title">Chi tiêu theo kênh</p>
-      <PortalDonutChart
-        testId="ads-summary-spend-donut"
-        ariaLabel="Chi tiêu theo kênh quảng cáo"
-        center={!showSkeleton && spend != null && spend > 0 ? fmtVnd(spend) : '—'}
-        sublabel="Tổng chi"
-        slices={donutSlices.length ? donutSlices : [{ id: 'empty', label: 'Chưa có chi tiêu', value: 0 }]}
-        size={208}
-        thickness={24}
-        gapRatio={0.012}
-        trackColor="#ffffff"
-        showLegend={false}
-      />
-      <ul className="ads-channel-breakdown" data-testid="ads-channel-breakdown">
+      <div className="dashboard-ads-summary__panel-body">
+        <PortalDonutChart
+          testId="ads-summary-spend-donut"
+          ariaLabel="Chi tiêu theo kênh quảng cáo"
+          center={!showSkeleton && spend != null && spend > 0 ? fmtVnd(spend) : '—'}
+          sublabel="Tổng chi"
+          slices={donutSlices.length ? donutSlices : [{ id: 'empty', label: 'Chưa có chi tiêu', value: 0 }]}
+          size={128}
+          thickness={16}
+          gapRatio={0.012}
+          trackColor="#ffffff"
+          showLegend={false}
+        />
+        <ul className="ads-channel-breakdown" data-testid="ads-channel-breakdown">
         {(showSkeleton ? [0, 1] : breakdown).map((row, index) => {
           if (showSkeleton || typeof row === 'number') {
             return (
@@ -360,14 +364,15 @@ export function DashboardAdsSummary({
             </li>
           );
         })}
-      </ul>
+        </ul>
+      </div>
     </aside>
   );
 
   return (
     <section className="dashboard-ads-summary" data-testid="dashboard-ads-summary">
       <div className="dashboard-ads-summary__head">
-        <div>
+        <div className="dashboard-ads-summary__intro">
           <h2 className="portal-hub-section__title">Quảng cáo</h2>
           <p className="muted dashboard-ads-summary__sub">Tóm tắt chi tiêu và hiệu quả — {range.label}</p>
         </div>

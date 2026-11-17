@@ -191,7 +191,7 @@ export class PortalCrmController {
   @Post('staff')
   addStaff(
     @PortalUser() user: PortalJwtPayload,
-    @Body() body: { email?: string; password?: string; name?: string; phone?: string; role?: string },
+    @Body() body: { email?: string; password?: string; name?: string; phone?: string; role?: string; page_ids?: string[] },
   ) {
     this.assertEnabled();
     return this.care.addStaff(user, body ?? {});
@@ -210,6 +210,7 @@ export class PortalCrmController {
       role?: string;
       active?: boolean;
       reset_password?: boolean;
+      page_ids?: string[];
     },
   ) {
     this.assertEnabled();
@@ -230,13 +231,15 @@ export class PortalCrmController {
   @Get('pages')
   async listPages(@PortalUser() user: PortalJwtPayload) {
     this.assertEnabled();
-    const rows = await this.pages.listForPortal(user.client_id);
+    // Approver: every Page/ad account; staff/viewer: only their assigned Pages.
+    const rows = await this.care.pagesForUser(user);
     return { ok: true, enabled: true, client_id: user.client_id, pages: rows };
   }
 
   @Get('pages/:pageId')
   async workspace(@PortalUser() user: PortalJwtPayload, @Param('pageId') pageId: string) {
     this.assertEnabled();
+    await this.care.assertWorkspaceVisible(user, pageId);
     return this.pages.workspace(user.client_id, pageId);
   }
 

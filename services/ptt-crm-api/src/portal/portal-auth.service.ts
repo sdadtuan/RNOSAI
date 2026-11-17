@@ -238,6 +238,44 @@ export class PortalAuthService {
     }
   }
 
+  private readonly liveUserCache = new Map<string, { at: number; role: 'viewer' | 'approver' | 'staff' | null }>();
+
+  /**
+   * Cheap per-request re-check for PortalJwtGuard: the account must still be active and not
+   * soft-deleted. Returns the current role, or null when the account is disabled/deleted.
+   * Non-UUID subjects (stub / Keycloak-mapped) are not stored in portal_client_users: returns undefined.
+   * Cached for 30s per user so the guard costs at most one indexed query per user per 30s.
+   */
+  async liveUserRole(
+    userId: string,
+    clientId: string,
+  ): Promise<'viewer' | 'approver' | 'staff' | null | undefined> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId ?? ''))) {
+      return undefined;
+    }
+    const key = `${clientId}:${userId}`;
+    const now = Date.now();
+    const hit = this.liveUserCache.get(key);
+    if (hit && now - hit.at < 30_000) return hit.role;
+    let role: 'viewer' | 'approver' | 'staff' | null = null;
+    try {
+      const result = await this.db.query(
+        `SELECT role FROM portal_client_users
+         WHERE id = $1::uuid AND client_id = $2::uuid AND active IS TRUE AND deleted_at IS NULL
+         LIMIT 1`,
+        [userId, clientId],
+      );
+      const row = result.rows[0] as { role: string } | undefined;
+      role = row ? portalClientRole(row.role) : null;
+    } catch {
+      // DB hiccup or column missing on an old schema: do not lock everyone out.
+      return undefined;
+    }
+    if (this.liveUserCache.size > 5000) this.liveUserCache.clear();
+    this.liveUserCache.set(key, { at: now, role });
+    return role;
+  }
+
   private verifyPassword(plain: string, stored: string): boolean {
     return verifyPortalPassword(plain, stored);
   }

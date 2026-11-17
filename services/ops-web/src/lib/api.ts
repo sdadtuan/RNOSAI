@@ -61,8 +61,10 @@ export interface StaffMeResponse extends StoredStaffUser {
 
 export interface LeadRow {
   id: number;
-  /** Sales confirmed "Sai số" — locked, only super admin can view. */
+  /** Sai số or Ẩn lead — locked, only super admin can view. */
   lead_locked?: boolean;
+  /** 'hidden' | 'wrong_number' | '' */
+  lead_lock_kind?: 'hidden' | 'wrong_number' | '';
   /** Stage 1: '' | 'cho_am_phan_lead' (hết vòng Sales, chờ AM giao tay). */
   claim_queue_state?: string;
   full_name: string;
@@ -1710,6 +1712,18 @@ export async function claimLeadSalesReceipt(
   return crmFetch(token, `/api/crm/leads/${leadId}/sales-claim`, { method: 'POST' });
 }
 
+/** Hide the lead from lists and queues (same lock as Sai số, status hidden_lead). */
+export async function hideLead(
+  token: string,
+  leadId: number,
+  notes: string,
+): Promise<{ ok: boolean; lead_id: number; already_hidden?: boolean }> {
+  return crmFetch(token, `/api/crm/leads/${leadId}/hide`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
 /** CHỜ AM PHÂN LEAD: AM / Super-Admin giao tay cho một Sale (lượt nhận mới). */
 export async function amAssignLeadSales(
   token: string,
@@ -2446,6 +2460,8 @@ export interface SolutionQueueRow {
   owner_id: number | null;
   owner_name: string;
   queue_kind?: 'solution' | 'am_rework';
+  solution_accept_due_at?: string;
+  solution_due_at?: string;
 }
 
 export type ImplementationQueueRow = {
@@ -3073,6 +3089,7 @@ export async function postLeadPresalesMarketingPlanAiDraft(
   requires_sp_review?: boolean;
   badge_vi?: string;
   source_errors?: string[];
+  warnings?: string[];
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan/ai-draft`, {
     method: 'POST',

@@ -39,6 +39,16 @@ export class LeadFrSlaController {
     return this.service.claimSalesLead(Number(id), req.staffUser);
   }
 
+  /** Ẩn lead — locks and hides like confirmed Sai số, with status hidden_lead. */
+  @Post(':id/hide')
+  hide(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @Req() req: { staffUser?: StaffJwtPayload },
+  ) {
+    return this.service.hideLead(Number(id), String(body?.notes ?? ''), req.staffUser, this.actor(req));
+  }
+
   /** CHỜ AM PHÂN LEAD: AM / Super-Admin hand-assigns a Sale (fresh claim window). */
   @Post(':id/am-assign')
   amAssign(

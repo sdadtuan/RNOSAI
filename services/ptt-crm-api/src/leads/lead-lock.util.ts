@@ -1,29 +1,53 @@
 /**
- * Lead lock — Sales confirmed "Sai số" (wrong number).
+ * Lead lock — hidden from every desk except Super Admin.
  *
- * Source flag: crm_leads.contact_status = 'invalid_contact' (set by the FR-SLA
- * "Đã xác minh đây là số sai" checkbox, GDKD mark-invalid, and the B2 "Ghi nhận sai số"
- * care report). A locked lead is hidden from everyone except Super Admin. Super Admin
- * can still view and mutate it; everyone else gets 404 on reads and 403 lead_locked
- * on writes. Auto-reassign jobs skip locked leads.
+ * - Sai số: contact_status = 'invalid_contact'
+ * - Ẩn lead: contact_status = 'hidden_lead' (same hide/lock, distinct reason)
+ *
+ * Super Admin can still view and mutate. Everyone else gets 404 on reads and
+ * 403 on writes. Lists, queues, search, and auto-reassign skip both statuses.
  */
 export const LEAD_LOCKED_CONTACT_STATUS = 'invalid_contact';
 
+export const LEAD_HIDDEN_CONTACT_STATUS = 'hidden_lead';
+
+export const LEAD_LOCKED_CONTACT_STATUSES = [
+  LEAD_LOCKED_CONTACT_STATUS,
+  LEAD_HIDDEN_CONTACT_STATUS,
+] as const;
+
 export const LEAD_LOCKED_ERROR = 'lead_locked';
+
+export const LEAD_HIDDEN_ERROR = 'lead_hidden';
 
 export const LEAD_LOCKED_MESSAGE_VI =
   'Lead đã khóa (Sai số) — chỉ Super Admin được chỉnh sửa hoặc chuyển lead này.';
 
+export const LEAD_HIDDEN_MESSAGE_VI =
+  'Lead đã ẩn — chỉ Super Admin được xem hoặc chỉnh lead này.';
+
 export const LEAD_LOCKED_NOT_FOUND_MESSAGE_VI = 'Không tìm thấy lead hoặc bạn không có quyền xem.';
 
+function contactStatusCol(alias = 'l'): string {
+  return alias ? `${alias}.contact_status` : 'contact_status';
+}
+
+function lockedStatusListSql(): string {
+  return LEAD_LOCKED_CONTACT_STATUSES.map((status) => `'${status}'`).join(', ');
+}
+
 export function leadLockedSql(alias = 'l'): string {
-  const col = alias ? `${alias}.contact_status` : 'contact_status';
-  return `(COALESCE(${col}, '') = '${LEAD_LOCKED_CONTACT_STATUS}')`;
+  return `(COALESCE(${contactStatusCol(alias)}, '') IN (${lockedStatusListSql()}))`;
 }
 
 export function leadNotLockedSql(alias = 'l'): string {
-  const col = alias ? `${alias}.contact_status` : 'contact_status';
-  return `COALESCE(${col}, '') <> '${LEAD_LOCKED_CONTACT_STATUS}'`;
+  return `COALESCE(${contactStatusCol(alias)}, '') NOT IN (${lockedStatusListSql()})`;
+}
+
+/** 'hidden' | 'wrong_number' | '' — for badges. Distinct from the boolean lock. */
+export function leadLockKindSql(alias = 'l'): string {
+  const col = `COALESCE(${contactStatusCol(alias)}, '')`;
+  return `CASE WHEN ${col} = '${LEAD_HIDDEN_CONTACT_STATUS}' THEN 'hidden' WHEN ${col} = '${LEAD_LOCKED_CONTACT_STATUS}' THEN 'wrong_number' ELSE '' END`;
 }
 
 const LOCK_EXEMPT_PREFIXES = ['/api/portal', '/api/v1/portal', '/portal', '/api/v1/auth', '/api/auth'];

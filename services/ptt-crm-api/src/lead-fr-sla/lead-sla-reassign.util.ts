@@ -32,6 +32,7 @@ export type ReassignDecision =
 const TERMINAL = new Set([
   'meeting_booked',
   'invalid_contact',
+  'hidden_lead',
   'nurture',
   'disqualified',
   'unreachable_closed',
@@ -61,6 +62,10 @@ export function evaluateReassignDecision(
   const status = String(lead.contact_status || '').toLowerCase();
   const result = String(lead.last_call_result || '').toLowerCase();
   const profile = String(lead.hold_profile || lead.hold_reason || '').toLowerCase();
+
+  if (status === 'hidden_lead' || result === 'hidden_lead' || profile === 'hidden') {
+    return { action: 'skip', reason: 'hidden_lead' };
+  }
 
   // T5 — wrong_number: never reassign (check before terminal skip)
   if (result === 'wrong_number' || status === 'invalid_contact' || profile === 'invalid') {

@@ -17,12 +17,15 @@ export function PortalInboxQuickReplies({
   onChange,
   onUse,
   busy,
+  readOnly = false,
 }: {
   token: string;
   items: PortalQuickReply[];
   onChange: (items: PortalQuickReply[]) => void;
   onUse?: (item: PortalQuickReply) => void;
   busy?: boolean;
+  /** Viewer ("Chỉ xem"): list is visible, every change is disabled. */
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ shortcut: '', title: '', body: '' });
@@ -94,7 +97,7 @@ export function PortalInboxQuickReplies({
               </button>
             </header>
             <p className="tram-inbox__hint">
-              Gõ “/” trong ô trả lời để chèn mẫu. Dùng Lên/Xuống để đổi thứ tự.
+              {readOnly ? 'Tài khoản Chỉ xem — chỉ xem danh sách mẫu.' : 'Gõ “/” trong ô trả lời để chèn mẫu. Dùng Lên/Xuống để đổi thứ tự.'}
             </p>
             {error ? <p className="tram-inbox__error">{error}</p> : null}
             <ul className="tram-inbox__qr-list">
@@ -150,6 +153,7 @@ export function PortalInboxQuickReplies({
                           <button
                             type="button"
                             className="tram-inbox__clear"
+                            disabled={readOnly}
                             onClick={() => {
                               onUse(item);
                               setOpen(false);
@@ -161,7 +165,7 @@ export function PortalInboxQuickReplies({
                         <button
                           type="button"
                           className="tram-inbox__clear"
-                          disabled={index === 0 || saving}
+                          disabled={readOnly || index === 0 || saving}
                           onClick={() => void move(item.id, -1)}
                         >
                           Lên
@@ -169,7 +173,7 @@ export function PortalInboxQuickReplies({
                         <button
                           type="button"
                           className="tram-inbox__clear"
-                          disabled={index === items.length - 1 || saving}
+                          disabled={readOnly || index === items.length - 1 || saving}
                           onClick={() => void move(item.id, 1)}
                         >
                           Xuống
@@ -177,6 +181,7 @@ export function PortalInboxQuickReplies({
                         <button
                           type="button"
                           className="tram-inbox__clear"
+                          disabled={readOnly}
                           onClick={() => {
                             setEditing(item.id);
                             setEdit({ shortcut: item.shortcut, title: item.title, body: item.body });
@@ -187,7 +192,7 @@ export function PortalInboxQuickReplies({
                         <button
                           type="button"
                           className="tram-inbox__clear"
-                          disabled={saving || busy}
+                          disabled={readOnly || saving || busy}
                           onClick={() =>
                             void run(async () => {
                               await deletePortalQuickReply(token, item.id);
@@ -213,6 +218,7 @@ export function PortalInboxQuickReplies({
               }}
             >
               <h3>Thêm mẫu mới</h3>
+              <fieldset className="portal-ro" disabled={readOnly}>
               <input
                 value={form.shortcut}
                 onChange={(event) => setForm((c) => ({ ...c, shortcut: event.target.value }))}
@@ -236,6 +242,7 @@ export function PortalInboxQuickReplies({
               <button type="submit" className="tram-inbox__btn tram-inbox__btn--teal" disabled={saving || !form.shortcut || !form.body}>
                 Tạo mẫu
               </button>
+              </fieldset>
             </form>
           </div>
         </div>,

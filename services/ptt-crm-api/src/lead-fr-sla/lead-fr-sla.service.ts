@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { addWorkingHours } from '../lead-sla-settings/lead-sla-working-hours.util';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
@@ -12,6 +13,7 @@ import { TeamSlaService } from '../team-sla/team-sla.service';
 import {
   CLAIM_QUEUE_AWAITING_AM,
   CLAIM_QUEUE_AWAITING_AM_LABEL,
+  amCannotClaimSalesLead,
   isSalesStaff,
   listAccountManagerIds,
   startClaimRound,
@@ -19,6 +21,11 @@ import {
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
+import {
+  LEAD_HIDDEN_CONTACT_STATUS,
+  LEAD_LOCKED_CONTACT_STATUS,
+  LEAD_LOCKED_MESSAGE_VI,
+} from '../leads/lead-lock.util';
 import { isStatusTransitionAllowed } from '../leads/lead-status-gate.util';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
@@ -181,6 +188,13 @@ export class LeadFrSlaService {
       ? await this.staffAuth.resolveCrmStaffUserId(staffUser)
       : null;
     const isSuper = staffUser ? await this.staffAuth.isSuperAdminUser(staffUser) : false;
+    const amIds = await listAccountManagerIds(this.sqlQuery).catch(() => [] as number[]);
+    if (amCannotClaimSalesLead(staffId != null && amIds.includes(staffId), isSuper)) {
+      throw new ForbiddenException({
+        error: 'am_cannot_claim_lead',
+        message: 'Vai trò AM không nhận lead. Sales bấm Nhận lead.',
+      });
+    }
     const ownerId = Number(row.owner_id ?? 0);
     if (!isSuper && (staffId == null || staffId !== ownerId)) {
       throw new ForbiddenException({
@@ -198,6 +212,79 @@ export class LeadFrSlaService {
       )
       .catch(() => undefined);
     return this.readSla(leadId, staffUser);
+  }
+
+  /**
+   * Ẩn lead — same hide/lock as confirmed Sai số, with its own status and audit.
+   * Writers: crm_leads edit/assign, Solution edit, or Super Admin.
+   */
+  async hideLead(
+    leadId: number,
+    notesRaw: string,
+    staffUser: StaffJwtPayload | undefined,
+    actor: string,
+  ) {
+    const notes = String(notesRaw ?? '').trim();
+    if (notes.length < 3 || notes.length > 500) {
+      throw new BadRequestException({
+        error: 'note_required',
+        message: 'Ghi chú Ẩn lead cần từ 3 đến 500 ký tự.',
+      });
+    }
+    await this.assertCanHideLead(staffUser);
+    const row = await this.repo.getLeadSlaRow(leadId);
+    if (!row) throw new NotFoundException({ error: 'lead_not_found' });
+    const status = String(row.contact_status ?? '');
+    if (status === LEAD_LOCKED_CONTACT_STATUS) {
+      throw new ForbiddenException({ error: 'lead_locked', message: LEAD_LOCKED_MESSAGE_VI });
+    }
+    if (status === LEAD_HIDDEN_CONTACT_STATUS) {
+      return { ok: true, lead_id: leadId, already_hidden: true };
+    }
+    const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+    const closed = `staff_hidden_lead: ${notes}`.slice(0, 240);
+    await this.repo.hideLead(leadId, closed);
+    await this.repo
+      .recordStaffNote({
+        leadId,
+        staffId,
+        content: `Ẩn lead — ${notes}`.slice(0, 8000),
+        result: 'hidden_lead',
+        createdBy: actor,
+      })
+      .catch(() => undefined);
+    await this.repo
+      .insertReassignEvent({
+        leadId,
+        fromStaffId: row.owner_id != null ? Number(row.owner_id) : null,
+        toStaffId: null,
+        wouldToStaffId: null,
+        reason: 'staff_hide_lead',
+        decision: 'hidden_path',
+        notes: `actor=${actor}; ${notes}`.slice(0, 2000),
+        holdUntil: asDate(row.hold_until),
+        attemptCount: Number(row.attempts_since_assign ?? 0),
+        jobRunId: `hide-${leadId}-${Date.now()}`,
+        dryRun: false,
+      })
+      .catch(() => undefined);
+    return { ok: true, lead_id: leadId, already_hidden: false };
+  }
+
+  private async assertCanHideLead(staffUser?: StaffJwtPayload): Promise<void> {
+    if (!staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    if (await this.staffAuth.isSuperAdminUser(staffUser).catch(() => false)) return;
+    const me = await this.staffAuth.me(staffUser);
+    const ok =
+      this.staffAuth.hasCap(me.caps, 'crm_leads', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign') ||
+      this.staffAuth.hasCap(me.caps, 'crm_presales_solution', 'edit');
+    if (!ok) {
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        message: 'Bạn chưa được cấp quyền ẩn lead.',
+      });
+    }
   }
 
   async readSla(leadId: number, staffUser?: StaffJwtPayload) {

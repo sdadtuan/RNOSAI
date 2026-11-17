@@ -19,6 +19,11 @@ export class StaffNotificationsController {
     return this.notifications.list(req.staffUser, unreadOnly, limit);
   }
 
+  @Post('read-all')
+  markAllRead(@Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    return this.notifications.markAllRead(req.staffUser);
+  }
+
   @Post(':id/read')
   markRead(@Req() req: Request & { staffUser?: StaffJwtPayload }, @Param('id') id: string) {
     return this.notifications.markRead(req.staffUser, id);

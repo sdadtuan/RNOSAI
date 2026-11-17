@@ -82,19 +82,44 @@ export type PortalCareListFilter = {
   day?: string;
   label?: string;
   kind?: string;
-  /** When set (staff), SQL restricts to assignee_user_id = this user. Managers omit. */
+  /** When set, SQL restricts to assignee_user_id = this user (explicit filters only). */
   assigneeUserId?: string;
+  /**
+   * Page scope. undefined = every Page of the tenant (approver).
+   * [] = no Page at all (staff/viewer without an assigned Page sees nothing).
+   */
+  pageIds?: string[];
 };
 
-/**
- * Inbox visibility: staff only sees cases assigned to them; unassigned cases are manager-only (role !== 'staff').
- * Managers (approver/admin/owner/viewer) see every case for the tenant.
- */
-export function careListFilterForUser(user: { role: string; sub: string }): Pick<PortalCareListFilter, 'assigneeUserId'> {
-  if (user.role === 'staff') return { assigneeUserId: user.sub };
-  return {};
+/** Page visibility for a Portal user. Approver (account owner) sees every Page. */
+export type PortalPageScope = { all: true } | { all: false; pageIds: string[] };
+
+export function isPortalOwnerRole(role: string | null | undefined): boolean {
+  return role === 'approver';
 }
 
+export function scopePageIds(scope: PortalPageScope): string[] | undefined {
+  return scope.all ? undefined : scope.pageIds;
+}
+
+export function pageInScope(scope: PortalPageScope, pageId: string | null | undefined): boolean {
+  if (scope.all) return true;
+  return Boolean(pageId) && scope.pageIds.includes(String(pageId));
+}
+
+/**
+ * Inbox visibility (t350u): approver sees every case; staff and viewer see ALL cases
+ * on the Pages assigned to them (not only their own). Mutations keep the assignee rule.
+ */
+export function careListFilterForUser(
+  _user: { role: string; sub: string },
+  scope: PortalPageScope,
+): Pick<PortalCareListFilter, 'pageIds'> {
+  if (scope.all) return {};
+  return { pageIds: scope.pageIds };
+}
+
+/** Mutation rule (unchanged): staff may act only on cases assigned to them. */
 export function staffCanViewCareCase(
   user: { role: string; sub: string },
   assigneeUserId: string | null,
@@ -116,14 +141,31 @@ export function appendAssigneeWhere(
   where.push(`${col} = $${values.length}::uuid`);
 }
 
-/** Same page + assignee visibility as the portal desk lists (does not delete old-page rows). */
+/** Appends a Page scope condition. undefined = no restriction; [] = match nothing. */
+export function appendPageScopeWhere(
+  where: string[],
+  values: unknown[],
+  pageIds?: string[],
+  tableAlias = 'c',
+): void {
+  if (pageIds === undefined) return;
+  if (!pageIds.length) {
+    where.push('FALSE');
+    return;
+  }
+  values.push(pageIds);
+  const col = tableAlias ? `${tableAlias}.page_id` : 'page_id';
+  where.push(`${col} = ANY($${values.length}::text[])`);
+}
+
+/** Desk lists: keep rows on the user's visible Pages (scope already applied to visiblePageIds). */
 export function filterCasesForPortalList<T extends { page_id: string; assignee_user_id: string | null }>(
   rows: T[],
-  user: { role: string; sub: string },
+  _user: { role: string; sub: string },
   visiblePageIds: Iterable<string>,
 ): T[] {
   const pages = visiblePageIds instanceof Set ? visiblePageIds : new Set(visiblePageIds);
-  return rows.filter((row) => pages.has(row.page_id) && staffCanViewCareCase(user, row.assignee_user_id));
+  return rows.filter((row) => pages.has(row.page_id));
 }
 
 export type InboxFlagInput = {

@@ -153,16 +153,46 @@
 }
 
 .quote-sheet--brand .quote-sheet__lines th {
-  padding: 0.45rem 0.6rem;
+  padding: 0.45rem 0.55rem;
   background: var(--ahd-soft, #e8f6ee);
   color: var(--ahd-primary-700, #125a28);
   font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
   text-align: left;
   border-bottom: 1px solid #d9ece0;
   vertical-align: middle;
+  white-space: normal;
+}
+
+.quote-sheet--brand .quote-sheet__th-qty,
+.quote-sheet--brand .quote-sheet__th-amount {
+  text-align: right;
+}
+
+.quote-sheet--brand .quote-sheet__th-qty {
+  white-space: nowrap;
+}
+
+.quote-sheet--brand .quote-sheet__th-amount {
+  white-space: normal;
+  line-height: 1.15;
+}
+
+@container quote-lines (max-width: 760px) {
+  .quote-sheet--brand .quote-sheet__lines th,
+  .quote-sheet--brand .quote-sheet__lines td {
+    padding: 0.4rem 0.28rem;
+  }
+  .quote-sheet--brand .quote-sheet__th-qty,
+  .quote-sheet--brand .quote-sheet__th-amount,
+  .quote-sheet--brand .quote-sheet__qty,
+  .quote-sheet--brand .quote-sheet__amount {
+    padding-left: 0.1rem;
+    padding-right: 0.18rem;
+    letter-spacing: 0;
+  }
 }
 
 .quote-sheet--brand .quote-sheet__more {

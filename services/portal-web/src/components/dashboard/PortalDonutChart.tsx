@@ -39,6 +39,8 @@ export function PortalDonutChart({
   }));
   const arcs = donutArcs(colored, radius, gapRatio);
   const legend = showLegend ? colored.filter((slice) => slice.value > 0) : [];
+  const centerClass =
+    center.length > 7 ? 'portal-donut__center portal-donut__center--long' : 'portal-donut__center';
 
   return (
     <figure className="portal-donut" data-testid={testId}>
@@ -75,9 +77,9 @@ export function PortalDonutChart({
           ))}
         </g>
         <text
-          className="portal-donut__center"
+          className={centerClass}
           x={cx}
-          y={sublabel ? cx - 8 : cx}
+          y={sublabel ? cx - 6 : cx}
           textAnchor="middle"
           dominantBaseline="middle"
         >
@@ -87,7 +89,7 @@ export function PortalDonutChart({
           <text
             className="portal-donut__sub"
             x={cx}
-            y={cx + 16}
+            y={cx + 12}
             textAnchor="middle"
             dominantBaseline="middle"
           >

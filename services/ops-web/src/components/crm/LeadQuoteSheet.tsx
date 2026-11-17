@@ -635,6 +635,7 @@ export function LeadQuoteSheet({
           </span>
         </button>
         {hasTable ? (
+          <div className="quote-sheet__scroll">
           <table className="quote-sheet__lines">
             <colgroup>
               <col className="quote-sheet__col-check" />
@@ -645,11 +646,14 @@ export function LeadQuoteSheet({
             </colgroup>
             <thead>
               <tr>
-                <th>Tính</th>
+                <th className="quote-sheet__th-check">Tính</th>
                 <th>Việc</th>
                 <th>Việc nhỏ</th>
-                <th>Số lượng</th>
-                <th>Thành tiền</th>
+                <th className="quote-sheet__th-qty" title="Số lượng">
+                  <span className="quote-sheet__h-full">Số lượng</span>
+                  <span className="quote-sheet__h-short">SL</span>
+                </th>
+                <th className="quote-sheet__th-amount">Thành tiền</th>
               </tr>
             </thead>
             <tbody>
@@ -716,6 +720,7 @@ export function LeadQuoteSheet({
               })}
             </tbody>
           </table>
+          </div>
         ) : null}
       </div>
     );

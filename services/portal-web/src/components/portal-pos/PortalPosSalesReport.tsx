@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchPortalDesk } from '@/lib/api';
 import { displayPageName } from '@/components/portal-crm/portal-inbox.util';
 import { POS_SOURCE_LABEL, POS_CARRIER_LABEL, posGet, posPost, posUploadCsv, vnd } from '@/lib/portal-pos-api';
+import { VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
 
 type ReportRow = { staff?: string; page_id?: string; source?: string; orders: number; success: number; returned: number; revenue_vnd: number; expected_revenue_vnd?: number; return_rate: number };
 type Report = {
@@ -18,7 +19,17 @@ type Report = {
 type Statement = { id: string; carrier: string; period: string; filename: string; imported_at: string; line_count: number; matched: number; diffs: number; missing: number; difference_total: number };
 type StatementDetail = Statement & { lines: Array<{ tracking_code: string; order_code: string; expected_cod: number; actual_cod: number; fee_vnd: number; payout_vnd: number; difference_vnd: number; match_status: string }> };
 
-export function PortalPosSalesReport({ token, canManage }: { token: string; canManage: boolean }) {
+export function PortalPosSalesReport({
+  token,
+  canManage,
+  readOnly = false,
+}: {
+  token: string;
+  /** Can read COD statements (approver, viewer). */
+  canManage: boolean;
+  /** Viewer ("Chỉ xem"): COD import/payout controls disabled. */
+  readOnly?: boolean;
+}) {
   const [range, setRange] = useState<'today' | '7d' | '30d' | 'month'>('today');
   const [report, setReport] = useState<Report | null>(null);
   const [statements, setStatements] = useState<Statement[]>([]);
@@ -103,12 +114,15 @@ export function PortalPosSalesReport({ token, canManage }: { token: string; canM
       {canManage ? (
         <div className="pos-card">
           <h2>Đối soát COD</h2>
-          <p className="pos-hint">Nhập sao kê CSV của hãng (cột: Mã vận đơn, Tiền COD, Phí, Thực nhận) hoặc ghi một khoản chi.</p>
+          <p className="pos-hint">
+            {readOnly ? VIEWER_READ_ONLY_HINT : 'Nhập sao kê CSV của hãng (cột: Mã vận đơn, Tiền COD, Phí, Thực nhận) hoặc ghi một khoản chi.'}
+          </p>
+          <fieldset className="portal-ro" disabled={readOnly}>
           <div className="pos-filters">
             <select className="pos-select" value={payout.carrier} onChange={(e) => setPayout({ ...payout, carrier: e.target.value })}>
               {Object.entries(POS_CARRIER_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <label className="pos-btn">Nhập CSV sao kê
+            <label className={readOnly ? 'pos-btn is-disabled' : 'pos-btn'} aria-disabled={readOnly || undefined}>Nhập CSV sao kê
               <input type="file" accept=".csv,text/csv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onCsv(f); e.target.value = ''; }} />
             </label>
           </div>
@@ -119,6 +133,7 @@ export function PortalPosSalesReport({ token, canManage }: { token: string; canM
             <label className="pos-field">Thực chi<input className="pos-input" value={payout.payout_vnd} onChange={(e) => setPayout({ ...payout, payout_vnd: e.target.value })} /></label>
           </div>
           <button type="button" className="pos-btn pos-btn--sm" style={{ marginTop: 8 }} onClick={() => void posPost(token, '/api/portal/pos/cod/payout', { ...payout, actual_cod: Number(payout.actual_cod) || 0, fee_vnd: Number(payout.fee_vnd) || 0, payout_vnd: Number(payout.payout_vnd) || 0 }).then(() => load())}>Ghi khoản chi</button>
+          </fieldset>
           {statements.length ? (
             <table className="pos-table" style={{ marginTop: 16 }}>
               <thead><tr><th>Ngày nhập</th><th>Hãng</th><th>Khớp</th><th>Lệch</th><th>Thiếu</th><th>Tổng lệch</th></tr></thead>

@@ -8,6 +8,7 @@ import {
   setPortalStaffActive,
   updatePortalStaff,
   type PortalStaffMember,
+  type PortalStaffPageOption,
 } from '@/lib/api';
 import { SettingsSection } from './SettingsSection';
 
@@ -42,6 +43,10 @@ function staffErrorMessage(err: unknown): string {
       return 'Không tìm thấy nhân viên.';
     case 'no_updates':
       return 'Không có thay đổi.';
+    case 'page_not_found':
+      return 'Có Page không thuộc tài khoản hoặc đã tắt. Tải lại trang rồi chọn lại.';
+    case 'invalid_page_ids':
+      return 'Danh sách Page không hợp lệ.';
     default:
       return raw || 'Không thực hiện được thao tác nhân viên';
   }
@@ -59,12 +64,70 @@ type StaffFormState = {
   phone: string;
   role: 'staff' | 'viewer';
   password: string;
+  pageIds: string[];
 };
 
-const EMPTY_FORM: StaffFormState = { name: '', email: '', phone: '', role: 'staff', password: '' };
+const EMPTY_FORM: StaffFormState = { name: '', email: '', phone: '', role: 'staff', password: '', pageIds: [] };
+
+function pageLabel(page: PortalStaffPageOption | undefined, id: string): string {
+  const name = (page?.page_name || '').trim();
+  if (name && name !== id) return name;
+  return `Page …${id.slice(-4)}`;
+}
+
+/** Fixed-height checkbox list so the form never jumps while ticking Pages. */
+function StaffPagePicker({
+  id,
+  pages,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  pages: PortalStaffPageOption[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}) {
+  const selected = new Set(value);
+  return (
+    <div className="field portal-staff-pages">
+      <span className="portal-staff-pages__label" id={`${id}_label`}>
+        Page được phân <span className="muted">({value.length}/{pages.length})</span>
+      </span>
+      {pages.length === 0 ? (
+        <p className="settings-form__hint muted">Chưa có Page nào đang gắn cho tài khoản này.</p>
+      ) : (
+        <div className="portal-staff-pages__box" role="group" aria-labelledby={`${id}_label`}>
+          {pages.map((page) => (
+            <label key={page.page_id} className="portal-staff-check portal-staff-pages__item">
+              <input
+                type="checkbox"
+                disabled={disabled}
+                checked={selected.has(page.page_id)}
+                onChange={(e) => {
+                  const next = new Set(selected);
+                  if (e.target.checked) next.add(page.page_id);
+                  else next.delete(page.page_id);
+                  onChange(pages.map((item) => item.page_id).filter((pid) => next.has(pid)));
+                }}
+              />
+              <span className="portal-staff-pages__name">{pageLabel(page, page.page_id)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="settings-form__hint muted">
+        Nhân viên và tài khoản Chỉ xem chỉ thấy Lead, tin nhắn và bình luận của các Page được chọn. Không chọn Page nào thì
+        sẽ không thấy gì.
+      </p>
+    </div>
+  );
+}
 
 export function ClientStaffSettings({ token, canManage }: { token: string; canManage: boolean }) {
   const [staff, setStaff] = useState<PortalStaffMember[]>([]);
+  const [pages, setPages] = useState<PortalStaffPageOption[]>([]);
   const [form, setForm] = useState<StaffFormState>(EMPTY_FORM);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -79,6 +142,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
   const load = useCallback(async () => {
     const out = await fetchPortalStaff(token);
     setStaff(out.staff ?? []);
+    setPages(out.pages ?? []);
   }, [token]);
 
   useEffect(() => {
@@ -104,6 +168,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
       phone: item.phone ?? '',
       role: item.role === 'viewer' ? 'viewer' : 'staff',
       password: '',
+      pageIds: item.page_ids ?? [],
     });
   }
 
@@ -129,6 +194,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
               phone: form.phone.trim(),
               role: form.role,
               password: form.password.trim() || undefined,
+              page_ids: form.pageIds,
             })
               .then(async (out) => {
                 setForm(EMPTY_FORM);
@@ -196,6 +262,13 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
               />
               <p className="settings-form__hint muted">Để trống sẽ tạo mật khẩu tạm, hiện một lần sau khi tạo.</p>
             </div>
+            <StaffPagePicker
+              id="staff_pages"
+              pages={pages}
+              value={form.pageIds}
+              disabled={busy}
+              onChange={(pageIds) => setForm((f) => ({ ...f, pageIds }))}
+            />
           </div>
           <div className="portal-staff-form__actions">
             <button className="btn" type="submit" disabled={busy}>
@@ -224,6 +297,20 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
               <span className="muted">
                 {' '}
                 · {roleLabel(item.role)} · {item.active ? 'Đang nhận việc' : 'Đã tắt'}
+              </span>
+              <span className="portal-staff-pages__chips">
+                {(item.page_ids ?? []).length === 0 ? (
+                  <span className="portal-staff-pages__chip is-empty">Chưa được phân Page</span>
+                ) : (
+                  (item.page_ids ?? []).map((pid) => (
+                    <span key={pid} className="portal-staff-pages__chip">
+                      {pageLabel(
+                        pages.find((page) => page.page_id === pid),
+                        pid,
+                      )}
+                    </span>
+                  ))
+                )}
               </span>
             </span>
             {canManage && item.role !== 'approver' ? (
@@ -298,6 +385,7 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
                   role: editForm.role,
                   reset_password: editReset,
                   password: editForm.password.trim() || undefined,
+                  page_ids: editForm.pageIds,
                 })
                   .then(async (out) => {
                     setEditing(null);
@@ -369,6 +457,13 @@ export function ClientStaffSettings({ token, canManage }: { token: string; canMa
                     Mật khẩu tạm sẽ hiện một lần sau khi lưu. Nhân viên dùng mật khẩu này để đăng nhập.
                   </p>
                 </div>
+                <StaffPagePicker
+                  id="edit_staff_pages"
+                  pages={pages}
+                  value={editForm.pageIds}
+                  disabled={busy}
+                  onChange={(pageIds) => setEditForm((f) => ({ ...f, pageIds }))}
+                />
               </div>
               <div className="portal-staff-modal__actions">
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setEditing(null)}>
