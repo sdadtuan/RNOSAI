@@ -463,7 +463,7 @@ const CLIENT_RULES = [
   'Sự kiện của khách chỉ lấy từ hồ sơ. Thiếu thì để một lần trong mục Giả định & thông tin cần bổ sung, dạng [Cần bổ sung: …].',
   'Không viết vào bài các câu nội bộ: không bịa, không thêm giải thưởng, không phải số tiền mới, không đặt thêm KPI, không gán tên, Sales gửi các mục.',
   'Cụm "Đề xuất của PTT" chỉ đứng một lần ở đầu mỗi mục, không lặp từng dòng.',
-  'Không chép ví dụ Ánh Dương. Không bịa ưu đãi nếu hồ sơ không có ưu đãi.',
+  'Không chép ví dụ Ánh Dương. Không bịa ưu đãi, giảm giá, voucher nếu hồ sơ không có. Không đặt KPI dạng "tỷ lệ 30%".',
   'Kế hoạch kênh: mỗi kênh một cách nhắm khác nhau. Facebook là bán kính + lookalike + retargeting. TikTok là interest và hành vi. Google là từ khóa tiếng Việt. YouTube là custom intent và remarketing. Website là điểm đến.',
   'Bảng tổng không được dùng câu "Phục vụ mục tiêu khách đã ghi" hay "Xem khối".',
   'Nếu hồ sơ nói tin nhắn nhiều mà ít lịch, hoặc lễ tân chậm sau 18h, phải có mục Chuyển tin nhắn thành lịch hẹn: trả tin tự động, SLA 5 phút, kịch bản chọn giờ, KPI tỷ lệ ra lịch.',
@@ -555,6 +555,33 @@ export function clientVoiceIssues(sections: SolutionAiSections, facts: AgencySol
   if ((sections.strategy || '').length < 180) issues.push('Chiến lược quá ngắn.');
   if (!/\|/.test(sections.timeline || '')) issues.push('Lộ trình chưa là bảng tuần.');
   if (!/\|/.test(sections.objectives || '')) issues.push('KPI chưa là bảng chỉ số / định nghĩa / công cụ / nhịp.');
+  const offer = servicePhrase(facts);
+  if (offer !== 'dịch vụ chủ lực' && !channelPlan.toLowerCase().includes(offer.toLowerCase())) {
+    issues.push(`Kế hoạch kênh chưa gắn dịch vụ khách đã nêu (${offer}).`);
+  }
+  if (channels.includes('TikTok') && !/spark|reach|video view|lượt xem/i.test(channelPlan)) {
+    issues.push('TikTok chưa có Reach, video views hoặc Spark Ads.');
+  }
+  if (channels.includes('YouTube') && !/custom intent|remarketing/i.test(channelPlan)) {
+    issues.push('YouTube chưa có custom intent và remarketing.');
+  }
+  if (channels.includes('Website') && /\|\s*0%\s*\|/.test(channelPlan)) {
+    issues.push('Website đang 0%. Ghi phần ngân sách đề xuất, không để 0%.');
+  }
+  if (!/tuần/i.test(sections.timeline || '') || !/vai trò|content|ads|strategist|\bam\b/i.test(sections.timeline || '')) {
+    issues.push('Lộ trình phải là bảng tuần, bàn giao và vai trò.');
+  }
+  const quotes = channelPlan.match(/"[^"]{8,}"/g) ?? [];
+  if (quotes.length < 2) issues.push('Thiếu headline tiếng Việt trong ngoặc kép cho từng kênh.');
+  const promoInFacts = /ưu đãi|giảm giá|voucher|tặng/i.test(
+    [facts.need, facts.usp, facts.callNotes, facts.goal, facts.currentResults].join(' '),
+  );
+  if (!promoInFacts && /ưu đãi hấp dẫn|ưu đãi đặc biệt|giảm giá|voucher/i.test(blob)) {
+    issues.push('Đang bịa chương trình ưu đãi. Hồ sơ không có ưu đãi.');
+  }
+  if (/tỷ lệ[^|\n]{0,48}\d+\s*%/i.test(blob)) {
+    issues.push('Đang đặt KPI số phần trăm. Chỉ dùng % cho phân bổ ngân sách.');
+  }
   return issues;
 }
 

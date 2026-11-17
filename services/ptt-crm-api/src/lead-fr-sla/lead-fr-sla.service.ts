@@ -121,7 +121,7 @@ export class LeadFrSlaService {
       // patchLead logs the assignment, resets the clocks, notifies the Sale and starts the manual round.
       await this.leadsWrite.patchLead(
         leadId,
-        { owner_id: target, assign_reason: 'am_manual_assign', assigned_by: actor },
+        { owner_id: target, assign_reason: 'am_manual_assign', assigned_by: actor, split: 'reset_closer' },
         actor,
       );
     } else {
