@@ -502,7 +502,7 @@ export class LeadFrSlaService {
     });
 
     if (channel === 'phone' && (result === 'ring_no_answer' || result === 'unreachable')) {
-      // CHỜ GỌI LẠI: gọi lại sau N giờ/lần (team-SLA retry_gap_hours).
+      // CHỜ GỌI LẠI: gọi lại sau N (team-SLA retry_gap_hours, mặc định 5 phút).
       await this.repo
         .setRetryCallAt(leadId, addWorkingHours(startedAt, retryGap, config.working_hours, config.holidays))
         .catch(() => undefined);

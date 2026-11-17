@@ -38,7 +38,7 @@ import {
   resolveHandoffFlow,
   flowTimesFromFunnel,
 } from '@/lib/crm/handoff-flow.util';
-import { funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
+import { effectiveAssignedAmId, funnelAssignedAmId, funnelB2Complete } from '@/lib/crm/funnel-snapshot.util';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
 import { HandoffSlaCountdown } from '@/components/crm/HandoffSlaCountdown';
 import { pickHandoffSlaClockForStep } from '@/lib/crm/handoff-sla-current.util';
@@ -522,13 +522,17 @@ export function AmHandoffDesk({
     ...flowTimesFromFunnel(funnel),
   });
   const salesName = dash((lead as { owner_name?: string }).owner_name);
-  const assignedAmId = amStaffId ?? funnelAssignedAmId(funnel);
-  const amName = dash(
-    amNameProp ||
-      (lead as { am_name?: string; account_manager_name?: string }).am_name ||
-      (lead as { account_manager_name?: string }).account_manager_name ||
-      (funnel?.presales as { am_name?: string } | null | undefined)?.am_name,
-  );
+  const salesOwnerId = (lead as { owner_id?: number | null }).owner_id;
+  const assignedAmId = effectiveAssignedAmId(amStaffId ?? funnelAssignedAmId(funnel, salesOwnerId), salesOwnerId);
+  const amName =
+    assignedAmId == null
+      ? '—'
+      : dash(
+          amNameProp ||
+            (lead as { am_name?: string; account_manager_name?: string }).am_name ||
+            (lead as { account_manager_name?: string }).account_manager_name ||
+            (funnel?.presales as { am_name?: string } | null | undefined)?.am_name,
+        );
   const amIsYou = Boolean(userId && assignedAmId && Number(userId) === Number(assignedAmId));
   const temp = view.temperature;
   const tempLabel = temperatureLabel(temp) || temp;
@@ -813,13 +817,6 @@ export function AmHandoffDesk({
                   Sales phụ trách: <strong>{salesName}</strong>
                 </span>
               </div>
-              {firstAcceptorName ? (
-                <div className="ahd-person" data-testid="ahd-first-acceptor">
-                  <span>
-                    Nhận ban đầu: <strong>{firstAcceptorName}</strong>
-                  </span>
-                </div>
-              ) : null}
               <div className="ahd-person" data-testid="ahd-am-owner">
                 <span className="ahd-person__av">{initials(amName === '—' ? 'A' : amName)}</span>
                 <span>
@@ -835,6 +832,13 @@ export function AmHandoffDesk({
                       {temp === 'hot' ? '🔥 ' : ''}
                       {tempLabel}
                     </span>
+                  </span>
+                </div>
+              ) : null}
+              {firstAcceptorName ? (
+                <div className="ahd-person" data-testid="ahd-first-acceptor">
+                  <span>
+                    Nhận ban đầu: <strong>{firstAcceptorName}</strong>
                   </span>
                 </div>
               ) : null}

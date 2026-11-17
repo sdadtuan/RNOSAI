@@ -22,12 +22,29 @@ export function normalizeAgencyClientId(value: unknown): string | null {
 
 type PresalesOwnerFields = { assigned_am?: number | null };
 
-export function funnelAssignedAmId(funnel: LeadFunnelSnapshot | null | undefined): number | null {
+/** Hide assigned_am when it is unset or still equal to the Sales owner. */
+export function effectiveAssignedAmId(
+  assignedAm: number | null | undefined,
+  salesOwnerId?: number | null,
+): number | null {
+  const id = Number(assignedAm);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const sales = Number(salesOwnerId);
+  if (Number.isFinite(sales) && sales > 0 && id === sales) return null;
+  return id;
+}
+
+export function funnelAssignedAmId(
+  funnel: LeadFunnelSnapshot | null | undefined,
+  salesOwnerId?: number | null,
+): number | null {
   const block = funnel?.presales as
     | (PresalesOwnerFields & { presales?: PresalesOwnerFields })
     | null
     | undefined;
   const raw = block?.presales?.assigned_am ?? block?.assigned_am;
-  const id = Number(raw);
-  return Number.isFinite(id) && id > 0 ? id : null;
+  return effectiveAssignedAmId(
+    Number.isFinite(Number(raw)) ? Number(raw) : null,
+    salesOwnerId,
+  );
 }

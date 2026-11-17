@@ -78,7 +78,7 @@ export function defaultLeadSlaSettingsPayload(
     case_1b: {
       max_working_days: 3,
       min_attempts: 5,
-      min_gap_working_hours: 2,
+      min_gap_working_hours: 5 / 60, // 5 minutes
       hot_max_working_days: 2,
       hot_min_attempts: 4,
       cooldown_days_same_am: 7,

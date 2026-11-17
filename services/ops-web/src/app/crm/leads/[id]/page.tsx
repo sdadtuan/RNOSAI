@@ -1492,16 +1492,21 @@ export default function CrmLeadDetailPage() {
     });
   }, [ownerKind, lead?.owner_id, funnelSnap]);
 
-  const assignedAmId = useMemo(() => funnelAssignedAmId(funnelSnap), [funnelSnap]);
+  const assignedAmId = useMemo(
+    () => funnelAssignedAmId(funnelSnap, lead?.owner_id),
+    [funnelSnap, lead?.owner_id],
+  );
   const assignedAmName = useMemo(
     () =>
-      resolveStaffDisplayName(
-        assignedAmId,
-        (lead as { am_name?: string; account_manager_name?: string } | null | undefined)?.am_name ||
-          (lead as { account_manager_name?: string } | null | undefined)?.account_manager_name ||
-          (funnelSnap?.presales as { am_name?: string } | null | undefined)?.am_name,
-        staffOptions,
-      ),
+      assignedAmId == null
+        ? '—'
+        : resolveStaffDisplayName(
+            assignedAmId,
+            (lead as { am_name?: string; account_manager_name?: string } | null | undefined)?.am_name ||
+              (lead as { account_manager_name?: string } | null | undefined)?.account_manager_name ||
+              (funnelSnap?.presales as { am_name?: string } | null | undefined)?.am_name,
+            staffOptions,
+          ),
     [assignedAmId, lead, funnelSnap, staffOptions],
   );
 

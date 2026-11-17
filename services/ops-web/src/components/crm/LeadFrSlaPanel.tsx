@@ -271,6 +271,17 @@ export function LeadFrSlaPanel({
     return `Cuộc gọi quá sát lần trước (cách ${elapsedLabel}) — chưa ghi. Gọi lại sau ${when}.`;
   }, [sla?.next_call_allowed_at, sla?.last_call_at, sla?.call_gap_message, now]);
 
+  const gapRetryLabel = useMemo(() => {
+    const nextIso = sla?.next_call_allowed_at;
+    if (!nextIso) return null;
+    const next = new Date(nextIso);
+    if (Number.isNaN(next.getTime())) return null;
+    const remainingMs = next.getTime() - now.getTime();
+    if (remainingMs <= 0) return null;
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+    return `Gọi lại sau ${remainingMinutes} phút`;
+  }, [sla?.next_call_allowed_at, now]);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!canWrite || inFlight.current || busy || gapBlocked) return;
@@ -559,7 +570,7 @@ export function LeadFrSlaPanel({
             data-testid="lead-fr-sla-submit"
             disabled={busy || gapBlocked || (callResult === 'callback_requested' && !callbackAt)}
           >
-            {busy ? 'Đang lưu…' : 'Ghi cuộc gọi — phản hồi đầu'}
+            {busy ? 'Đang lưu…' : gapBlocked && gapRetryLabel ? gapRetryLabel : 'Ghi cuộc gọi — phản hồi đầu'}
           </button>
           {gapBlocked && gapMessage ? (
             <p className="lead-fr-sla__gap" data-testid="lead-fr-sla-gap" role="status">

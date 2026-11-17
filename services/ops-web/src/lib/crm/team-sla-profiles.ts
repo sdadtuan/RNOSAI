@@ -88,7 +88,7 @@ function saleServiceClocks(): SaleTeamClocks {
     claim_after_hours_time: '08:30',
     update_after_claim_hours: 1,
     reassign_after_claim_hours: 2,
-    retry_gap_hours: 2,
+    retry_gap_hours: 5 / 60, // 5 minutes
     max_calls_per_day: 3,
     no_contact_days: 2,
     reassign_within_days: 3,

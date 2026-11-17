@@ -115,6 +115,7 @@ import {
   SOLUTION_AUTO_ASSIGN_PREVIOUS_REASON,
   SOLUTION_AUTO_ASSIGN_REASON,
 } from './solution-auto-assign.util';
+import { assignedAmShouldReplace } from './assigned-am.util';
 import { TeamSlaService } from '../team-sla/team-sla.service';
 import { Logger, Optional } from '@nestjs/common';
 import {
@@ -1631,13 +1632,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       return existing;
     }
 
-    const ownerId = row.owner_id;
     const insert = await this.db.query(
       `INSERT INTO crm_lead_presales
          (lead_id, service_slug, stage, status, assigned_am, stage_entered_at, notes, created_at, updated_at)
-       VALUES ($1, $2, 'lead', 'active', $3, NOW(), $4, NOW(), NOW())
+       VALUES ($1, $2, 'lead', 'active', NULL, NOW(), $3, NOW(), NOW())
        RETURNING *`,
-      [leadId, slug, ownerId, `Pre-sales tạo bởi ${actor}`.slice(0, 4000)],
+      [leadId, slug, `Pre-sales tạo bởi ${actor}`.slice(0, 4000)],
     );
     const ps = this.mapPresalesRow(insert.rows[0] as PgPresalesRow);
     await this.seedPresalesTasks(ps.id, slug);
@@ -2376,6 +2376,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
       if (autoReclaim && lastOwner && assignedAm <= 0) {
         reclaimed = true;
+        const ownerRow = await client.query(
+          `SELECT owner_id FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
+          [leadId],
+        );
+        const salesOwnerId = ownerRow.rows[0]?.owner_id != null ? Number(ownerRow.rows[0].owner_id) : 0;
+        const nextAssignedAm = assignedAmShouldReplace(current.assigned_am, salesOwnerId)
+          ? lastOwner
+          : Number(current.assigned_am);
         const updated = await client.query(
         `UPDATE crm_lead_presales
          SET stage = 'consult',
@@ -2390,6 +2398,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              handed_off_by_staff_id = $2,
              solution_owner_staff_id = $3,
              last_solution_owner_staff_id = $3,
+             assigned_am = $5,
              solution_accept_due_at = NULL,
              solution_claimed_at = NOW(),
              solution_due_at = $4,
@@ -2399,7 +2408,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
              solution_revision_due_at = NULL
          WHERE id = $1
          RETURNING *`,
-        [ps.id, staffId, lastOwner, due.toISOString()],
+        [ps.id, staffId, lastOwner, due.toISOString(), nextAssignedAm],
         );
         updatedRow = updated.rows[0] as PgPresalesRow;
       } else {
@@ -2646,11 +2655,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       if (!Number.isNaN(parsed.getTime())) due = parsed;
     }
     const assignNote = String(opts?.note ?? '').trim().slice(0, 2000);
+    const salesOwnerId = (await this.fetchLeadRow(leadId))?.owner_id ?? null;
+    const nextAssignedAm = assignedAmShouldReplace(snap.presales.assigned_am, salesOwnerId)
+      ? assignee
+      : Number(snap.presales.assigned_am);
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
        SET handoff_status = 'with_solution',
            solution_owner_staff_id = $2,
            last_solution_owner_staff_id = $2,
+           assigned_am = $6,
            solution_claimed_at = NOW(),
            solution_due_at = $3,
            solution_revision_note = $4,
@@ -2665,6 +2679,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         due.toISOString(),
         assignNote,
         assignNote ? `AM làm Solution — ghi chú: ${assignNote}` : '',
+        nextAssignedAm,
       ],
     );
     const status = await this.currentLeadStatus(leadId);

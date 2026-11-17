@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  effectiveAssignedAmId,
   funnelB2Complete,
   funnelAssignedAmId,
   funnelPresalesStage,
@@ -33,7 +34,6 @@ describe('funnel-snapshot.util', () => {
     expect(normalizeAgencyClientId(42)).toBe('42');
     expect(normalizeAgencyClientId('  uuid  ')).toBe('uuid');
   });
-});
 
   it('funnelAssignedAmId reads nested presales.assigned_am', () => {
     expect(funnelAssignedAmId(null)).toBeNull();
@@ -42,3 +42,15 @@ describe('funnel-snapshot.util', () => {
     ).toBe(108);
     expect(funnelAssignedAmId({ presales: { assigned_am: 107 } } as never)).toBe(107);
   });
+
+  it('funnelAssignedAmId is empty when assigned_am equals the Sales owner', () => {
+    expect(funnelAssignedAmId({ presales: { assigned_am: 7 } } as never, 7)).toBeNull();
+    expect(funnelAssignedAmId({ presales: { assigned_am: 21 } } as never, 7)).toBe(21);
+  });
+
+  it('effectiveAssignedAmId hides a Sales owner used as AM', () => {
+    expect(effectiveAssignedAmId(null, 7)).toBeNull();
+    expect(effectiveAssignedAmId(7, 7)).toBeNull();
+    expect(effectiveAssignedAmId(21, 7)).toBe(21);
+  });
+});

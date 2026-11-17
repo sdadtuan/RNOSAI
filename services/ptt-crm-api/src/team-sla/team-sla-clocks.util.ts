@@ -30,8 +30,8 @@ export function saleMissingInfoHours(doc?: TeamSlaDocument | null): number {
 
 /** Doc V5.1 §05 bước 5: Sales liên hệ khách trong 1 giờ sau khi nhận. */
 export const DEFAULT_UPDATE_AFTER_CLAIM_HOURS = 1;
-/** Doc V5.1 §05 bước 5: không nghe máy / máy bận → CHỜ GỌI LẠI, gọi lại sau 2 giờ/lần. */
-export const DEFAULT_RETRY_GAP_HOURS = 2;
+/** Min gap between phone call attempts (CHỜ GỌI LẠI): 5 minutes. */
+export const DEFAULT_RETRY_GAP_HOURS = 5 / 60;
 
 export function saleUpdateAfterClaimHours(doc?: TeamSlaDocument | null): number {
   const profile = teamSlaProfile(doc ?? defaultTeamSlaDocument(), 'sale_service');

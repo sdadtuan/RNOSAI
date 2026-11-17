@@ -1,6 +1,4 @@
-/** Min gap between phone call logs: case_1b.min_gap_working_hours (working hours). */
-
-import { addBusinessHours } from '../leads-funnel/business-hours.util';
+/** Min gap between phone call logs: wall-clock minutes from minGapWorkingHours (hours as duration). */
 
 export type CallGapInput = {
   lastCallAt: Date | null;
@@ -66,7 +64,7 @@ export function evaluateCallGap(input: CallGapInput): CallGapResult {
     };
   }
   const last = input.lastCallAt;
-  const nextAllowedAt = addBusinessHours(last, minGapWorkingHours);
+  const nextAllowedAt = new Date(last.getTime() + minGapWorkingHours * 60 * 60 * 1000);
   const elapsedMs = input.now.getTime() - last.getTime();
   const elapsedMinutes = Math.max(0, Math.floor(elapsedMs / 60_000));
   const blocked = input.now.getTime() < nextAllowedAt.getTime();
