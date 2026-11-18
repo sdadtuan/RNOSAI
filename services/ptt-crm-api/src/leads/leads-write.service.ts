@@ -43,7 +43,16 @@ import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.s
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { caseStaffNotify } from '../leads-funnel/case-staff-notify.util';
 import { TeamSlaService } from '../team-sla/team-sla.service';
-import { isSalesStaff, isStep1Status, startClaimRound, type ClaimRoundMode } from '../lead-fr-sla/lead-claim-round.util';
+import {
+  isSalesStaff,
+  isStep1Status,
+  listSalesOrder,
+  loadPausedSales,
+  pickFirstSale,
+  startClaimRound,
+  type ClaimRoundMode,
+} from '../lead-fr-sla/lead-claim-round.util';
+import { leadReturnNote } from './ingest/lead-return-note';
 
 @Injectable()
 export class LeadsWriteService {
@@ -179,13 +188,19 @@ export class LeadsWriteService {
       await this.timeline.recordLeadCreatedFromV1(lead);
       const duplicateOf = Number(enriched.meta?.duplicate_of_id);
       if (enriched.is_duplicate && Number.isFinite(duplicateOf) && duplicateOf > 0) {
-        const note = `Khách quay lại — lead #${lead.id} được gộp vào lead này.`;
-        await this.writeRepo
-          .insertSystemNote(duplicateOf, note, 'lead_return')
-          .catch(() => undefined);
+        const note = leadReturnNote(lead.id);
+        await this.writeRepo.insertSystemNote(duplicateOf, note, 'lead_return').catch((err) => {
+          this.notifyLogger.warn(
+            `lead return note failed original=${duplicateOf} returned=${lead.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
         await this.timeline
           .recordLeadReturn({ leadId: duplicateOf, returnedLeadId: lead.id })
-          .catch(() => undefined);
+          .catch((err) => {
+            this.notifyLogger.warn(
+              `lead return timeline failed original=${duplicateOf} returned=${lead.id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
       }
       if (lead.owner_id != null && !enriched.is_duplicate) {
         const reason =
@@ -234,6 +249,85 @@ export class LeadsWriteService {
     } catch (err) {
       this.rethrowPg(err);
     }
+  }
+
+  /**
+   * Staff decision on a duplicate: fold it into the original (leaves active work)
+   * or clear the flag so it is assigned and clocked like any other lead.
+   */
+  async resolveDuplicate(
+    leadId: number,
+    action: 'merge' | 'not_duplicate',
+    actor = 'system',
+  ): Promise<LeadV1> {
+    const existing = await this.leadsRepo.getLeadById(leadId);
+    if (!existing) throw new NotFoundException({ error: 'Not found' });
+    if (!existing.is_duplicate) {
+      throw new BadRequestException({ error: 'not_duplicate', message: 'Lead này không bị đánh dấu trùng.' });
+    }
+    const intoId = Number(existing.duplicate_of_id);
+    if (action === 'merge') {
+      if (!Number.isFinite(intoId) || intoId <= 0) {
+        throw new BadRequestException({ error: 'duplicate_target_missing', message: 'Không xác định được lead gốc.' });
+      }
+      const original = await this.leadsRepo.getLeadById(intoId);
+      if (!original) {
+        throw new BadRequestException({ error: 'duplicate_target_missing', message: 'Không tìm thấy lead gốc.' });
+      }
+      await this.writeRepo.markDuplicateMerged(leadId, intoId, actor);
+      const who = actor && actor !== 'system' ? ` bởi ${actor}` : '';
+      await this.writeRepo
+        .insertSystemNote(intoId, `Lead #${leadId} được gộp vào lead này${who}.`, 'lead_merged')
+        .catch(() => undefined);
+      await this.writeRepo
+        .insertSystemNote(leadId, `Gộp vào Lead #${intoId}${who}.`, 'lead_merged')
+        .catch(() => undefined);
+      await this.timeline
+        .recordLeadReturn({ leadId: intoId, returnedLeadId: leadId })
+        .catch(() => undefined);
+      const lead = await this.leadsRepo.getLeadById(leadId);
+      if (!lead) throw new NotFoundException({ error: 'Not found' });
+      return lead;
+    }
+
+    await this.writeRepo.clearDuplicateFlag(leadId, actor);
+    await this.writeRepo
+      .insertSystemNote(leadId, 'Đánh dấu không trùng — xử lý như lead mới.', 'duplicate_cleared')
+      .catch(() => undefined);
+    if (Number.isFinite(intoId) && intoId > 0) {
+      await this.writeRepo
+        .insertSystemNote(intoId, `Lead #${leadId} được xác nhận không trùng.`, 'duplicate_cleared')
+        .catch(() => undefined);
+    }
+    let lead = await this.leadsRepo.getLeadById(leadId);
+    if (!lead) throw new NotFoundException({ error: 'Not found' });
+    if (lead.owner_id == null) {
+      const query = (sql: string, params: unknown[] = []) => this.writeRepo.query(sql, params);
+      const pool = await listSalesOrder(query, null).catch(() => ({ order: [] as number[], source: 'global' as const }));
+      const paused = await loadPausedSales(query).catch(() => new Set<number>());
+      const picked = pickFirstSale(pool.order, null, paused);
+      if (picked != null) {
+        lead = await this.patchLead(
+          leadId,
+          { owner_id: picked, assigned_by: actor || 'system', assign_reason: 'duplicate_cleared' },
+          actor,
+        );
+        return lead;
+      }
+    }
+    if (lead.owner_id != null && isStep1Status(lead.status)) {
+      await this.leadSlaSettings.applyFr1OnNewAssign(leadId).catch(() => undefined);
+      await this.startSalesClaimRound({
+        leadId,
+        ownerId: Number(lead.owner_id),
+        fromOwnerId: null,
+        mode: 'auto',
+        reason: 'duplicate_cleared',
+        actor,
+      });
+      await this.notifyLeadAssigned(lead.owner_id, leadId);
+    }
+    return lead;
   }
 
   async logKanbanCall(

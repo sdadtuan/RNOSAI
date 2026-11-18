@@ -175,6 +175,12 @@ export function CrmLeadsList({
                     <td>
                       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
                         {lead.full_name || '—'}
+                        {lead.is_duplicate && lead.duplicate_of_id ? (
+                          <Link href={`/crm/leads/${lead.duplicate_of_id}`} className="lead-dup-badge">
+                            Trùng #{lead.duplicate_of_id}
+                          </Link>
+                        ) : null}
+                        {lead.has_return_customer ? <span className="lead-return-badge">Khách quay lại</span> : null}
                         <WinScopeBadge clientId={lead.client_id} />
                         {!lead.owner_id ? (
                           <span className="revops-tag revops-tag--orange">Unassigned</span>

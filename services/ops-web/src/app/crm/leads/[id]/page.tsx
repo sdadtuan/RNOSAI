@@ -35,6 +35,7 @@ import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import { isBaoGiaKanbanColumn, localizeLeadStatusOptions, normalizeLeadStatus } from '@/lib/crm/lead-status';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
+import { LeadDuplicateNotice } from '@/components/crm/LeadDuplicateNotice';
 import { isAccountExecutive, isAccountManager, isGdkdContractDesk, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { isCeoPosition } from '@/lib/auth/post-login-path.util';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
@@ -1981,6 +1982,14 @@ export default function CrmLeadDetailPage() {
             ) : null
           }
         >
+          {accessToken && lead ? (
+            <LeadDuplicateNotice
+              token={accessToken}
+              lead={lead}
+              onUpdated={setLead}
+              onError={setError}
+            />
+          ) : null}
           {!useSalesDesk ? (
             <>
           <div className="lead-detail-top">

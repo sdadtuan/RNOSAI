@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { portalMediaUrl, uploadPortalProductImage, fetchPortalDesk, type PortalDesk } from '@/lib/api';
+import { generateColorSizeVariants, splitVariantTokens } from '@/lib/portal-pos-variants.util';
 import {
   posGet, posPost, posPatch, posUploadCsv, vnd,
   type PosProduct, type PosVariant,
@@ -310,6 +311,22 @@ export function PortalPosProducts({ token, canManage }: Props) {
               <label className="pos-hint"><input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} /> Đang bán</label>
             </div>
             <h3 style={{ margin: '1rem 0 0.5rem' }}>Biến thể (màu, size)</h3>
+            <VariantBulkAdd
+              onGenerate={(colors, sizes) => {
+                setDraft((current) => ({
+                  ...current,
+                  variants: generateColorSizeVariants(
+                    current.variants,
+                    colors,
+                    sizes,
+                    (color, size) => ({
+                      color, size, sku: '', barcode: '', price_vnd: current.price_vnd || '',
+                      stock: '0', active: true, image_url: '', cost_vnd: '', compare_at_vnd: '', weight_gram: '',
+                    }),
+                  ),
+                }));
+              }}
+            />
             {draft.variants.map((v, i) => (
               <div key={i} className="pos-grid pos-grid--form pos-card" style={{ marginBottom: 8, padding: 10 }}>
                 <label className="pos-field">Màu<input className="pos-input" value={String(v.color)} onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, j) => j === i ? { ...x, color: e.target.value } : x) })} /></label>
@@ -353,6 +370,44 @@ export function PortalPosProducts({ token, canManage }: Props) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function VariantBulkAdd({ onGenerate }: { onGenerate: (colors: string[], sizes: string[]) => void }) {
+  const [colors, setColors] = useState('');
+  const [sizes, setSizes] = useState('');
+  const [hint, setHint] = useState('');
+  return (
+    <div className="pos-card" style={{ marginBottom: 8, padding: 10 }}>
+      <div className="pos-grid pos-grid--form">
+        <label className="pos-field">Nhiều màu
+          <input className="pos-input" value={colors} placeholder="Đen, Trắng, Xanh" onChange={(e) => setColors(e.target.value)} />
+        </label>
+        <label className="pos-field">Nhiều size
+          <input className="pos-input" value={sizes} placeholder="S, M, L, XL" onChange={(e) => setSizes(e.target.value)} />
+        </label>
+      </div>
+      <button
+        type="button"
+        className="pos-btn pos-btn--sm"
+        style={{ marginTop: 8 }}
+        onClick={() => {
+          const colorList = splitVariantTokens(colors);
+          const sizeList = splitVariantTokens(sizes);
+          if (!colorList.length || !sizeList.length) {
+            setHint('Nhập ít nhất một màu và một size, cách nhau bởi dấu phẩy.');
+            return;
+          }
+          setHint('');
+          onGenerate(colorList, sizeList);
+          setColors('');
+          setSizes('');
+        }}
+      >
+        Tạo biến thể
+      </button>
+      {hint ? <p className="pos-hint">{hint}</p> : null}
     </div>
   );
 }

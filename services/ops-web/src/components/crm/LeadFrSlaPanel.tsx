@@ -640,6 +640,10 @@ export function LeadFrSlaPanel({
           border-radius: 10px;
           background: linear-gradient(180deg, #f7faf8 0%, #ffffff 42%);
           box-shadow: 0 1px 0 rgba(15, 40, 25, 0.04);
+          container-type: inline-size;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .lead-fr-sla--embedded {
           margin: 0;
@@ -651,8 +655,13 @@ export function LeadFrSlaPanel({
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
+          flex-wrap: wrap;
           gap: 0.85rem;
           margin-bottom: 0.75rem;
+        }
+        .lead-fr-sla__titles {
+          flex: 1 1 14rem;
+          min-width: 0;
         }
         .lead-fr-sla__titles h3 {
           margin: 0;
@@ -670,8 +679,9 @@ export function LeadFrSlaPanel({
         .lead-fr-sla__head-actions {
           display: flex;
           align-items: center;
+          flex-wrap: wrap;
           gap: 0.45rem;
-          flex-shrink: 0;
+          flex: 1 1 auto;
         }
         .lead-fr-sla__guide-btn {
           border: 1px solid rgba(23, 105, 47, 0.25);
@@ -781,9 +791,10 @@ export function LeadFrSlaPanel({
         }
         .lead-fr-sla__form {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: 0.6rem;
           padding-top: 0.15rem;
+          min-width: 0;
         }
         .lead-fr-sla__form-head {
           grid-column: 1 / -1;
@@ -807,16 +818,22 @@ export function LeadFrSlaPanel({
           font-size: 0.8rem;
           font-weight: 560;
           color: #2d3d34;
+          min-width: 0;
         }
         .lead-fr-sla__form select,
         .lead-fr-sla__form input,
-        .lead-fr-sla__form textarea {
+        .lead-fr-sla__form textarea,
+        .lead-fr-sla__am-assign select {
           font: inherit;
           font-weight: 450;
           border: 1px solid #e3dccd;
           border-radius: 6px;
           padding: 0.4rem 0.5rem;
           background: #fffdf8;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
         }
         .lead-fr-sla__form select:is(:disabled, :read-only, [readonly]),
         .lead-fr-sla__form input:is(:disabled, :read-only, [readonly]),
@@ -843,6 +860,14 @@ export function LeadFrSlaPanel({
           grid-column: 1 / -1;
           justify-self: start;
           min-width: 11rem;
+        }
+        @container (max-width: 560px) {
+          .lead-fr-sla__form {
+            grid-template-columns: 1fr;
+          }
+          .lead-fr-sla__titles {
+            flex-basis: 100%;
+          }
         }
         @media (max-width: 640px) {
           .lead-fr-sla__head {

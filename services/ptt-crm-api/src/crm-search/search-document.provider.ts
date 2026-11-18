@@ -57,22 +57,31 @@ export class SearchDocumentProvider implements OnModuleDestroy {
     if (!(await this.tableExists('crm_leads'))) return [];
     try {
       const result = await this.db.query(
-        `SELECT sqlite_lead_id, full_name, phone, email, status, source, channel, created_at
+        `SELECT sqlite_lead_id, full_name, phone, email, status, source, channel, created_at,
+                is_duplicate,
+                CASE WHEN (meta_json->>'duplicate_of_id') ~ '^[0-9]+$'
+                  THEN meta_json->>'duplicate_of_id' ELSE '' END AS duplicate_of_id
          FROM crm_leads
-         WHERE is_duplicate IS NOT TRUE AND ${leadNotLockedSql('')}
+         WHERE ${leadNotLockedSql('')}
          ORDER BY sqlite_lead_id DESC
          LIMIT $1`,
         [limit],
       );
-      return result.rows.map((r) => ({
-        entity_type: 'lead' as const,
-        entity_id: String(r.sqlite_lead_id),
-        title: String(r.full_name ?? `Lead #${r.sqlite_lead_id}`),
-        subtitle: String(r.status ?? ''),
-        body: [r.phone, r.email, r.source, r.channel].filter(Boolean).join(' · '),
-        route_path: '/crm/leads',
-        updated_at: r.created_at ? String(r.created_at) : undefined,
-      }));
+      return result.rows.map((r) => {
+        const dupOf = String(r.duplicate_of_id ?? '').trim();
+        const duplicate = Boolean(r.is_duplicate) && dupOf;
+        return {
+          entity_type: 'lead' as const,
+          entity_id: String(r.sqlite_lead_id),
+          title: String(r.full_name ?? `Lead #${r.sqlite_lead_id}`),
+          subtitle: duplicate ? `Trùng #${dupOf}` : String(r.status ?? ''),
+          body: [r.phone, r.email, r.source, r.channel, duplicate ? `Trùng #${dupOf}` : '']
+            .filter(Boolean)
+            .join(' · '),
+          route_path: `/crm/leads/${r.sqlite_lead_id}`,
+          updated_at: r.created_at ? String(r.created_at) : undefined,
+        };
+      });
     } catch {
       return [];
     }

@@ -144,6 +144,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [filterReceivedFrom, setFilterReceivedFrom] = useState('');
   const [filterReceivedTo, setFilterReceivedTo] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('');
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
@@ -315,6 +316,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
           lead_flow_kind: flowKindFilter,
+          duplicates_only: duplicatesOnly || undefined,
         };
         if (!kanban) {
           const data = await fetchLeads(accessToken, {
@@ -356,7 +358,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         if (!silent) setLoading(false);
       }
     },
-    [browsesAllB2bLeads, canViewAllLeads, filterAssignee, filterChannel, filterReceivedFrom, filterReceivedTo, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, marketingLeader, myCrmStaffId, savedView, viewMode],
+    [browsesAllB2bLeads, canViewAllLeads, duplicatesOnly, filterAssignee, filterChannel, filterReceivedFrom, filterReceivedTo, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, marketingLeader, myCrmStaffId, savedView, viewMode],
   );
 
   useEffect(() => {
@@ -377,6 +379,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     setFilterReceivedFrom(parsed.receivedFrom);
     setFilterReceivedTo(parsed.receivedTo);
     setFilterAssignee(parsed.assignee);
+    setDuplicatesOnly(parsed.duplicates);
     if (isLeadP1SavedView(parsed.savedView) && flowScope !== 'b2b_prospect') {
       setListTab('unassigned');
       setFilterStatus('moi');
@@ -414,6 +417,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         receivedFrom: filterReceivedFrom,
         receivedTo: filterReceivedTo,
         assignee: filterAssignee,
+        duplicates: duplicatesOnly,
       },
       flowScope,
     );
@@ -431,6 +435,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     filterReceivedFrom,
     filterReceivedTo,
     filterAssignee,
+    duplicatesOnly,
     listHref,
     flowScope,
     revopsEmbedded,
@@ -455,6 +460,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       receivedFrom: filterReceivedFrom,
       receivedTo: filterReceivedTo,
       assignee: filterAssignee,
+      duplicates: duplicatesOnly,
     };
     if (!filtersReadyRef.current) {
       filtersReadyRef.current = true;
@@ -470,6 +476,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           setFilterReceivedFrom(saved.receivedFrom);
           setFilterReceivedTo(saved.receivedTo);
           setFilterAssignee(saved.assignee);
+          setDuplicatesOnly(saved.duplicates);
           setSavedView(saved.savedView);
           setQ(saved.q);
           setQuery(saved.q);
@@ -491,6 +498,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     filterReceivedFrom,
     filterReceivedTo,
     filterAssignee,
+    duplicatesOnly,
   ]);
 
   useEffect(() => {
@@ -725,6 +733,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           receivedFrom: filterReceivedFrom,
           receivedTo: filterReceivedTo,
           assignee: filterAssignee,
+          duplicates: duplicatesOnly,
         },
         flowScope,
         {
@@ -743,6 +752,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       filterReceivedFrom,
       filterReceivedTo,
       filterAssignee,
+      duplicatesOnly,
       assigneeChoices,
       query,
       savedView,
@@ -1087,6 +1097,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 receivedFrom: filterReceivedFrom,
                 receivedTo: filterReceivedTo,
                 assignee: filterAssignee,
+      duplicates: duplicatesOnly,
               },
               chipId,
             );
@@ -1098,6 +1109,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterReceivedFrom(next.receivedFrom);
             setFilterReceivedTo(next.receivedTo);
             setFilterAssignee(next.assignee);
+            setDuplicatesOnly(next.duplicates);
             setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
@@ -1117,6 +1129,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 receivedFrom: filterReceivedFrom,
                 receivedTo: filterReceivedTo,
                 assignee: filterAssignee,
+      duplicates: duplicatesOnly,
               },
               flowScope,
             );
@@ -1128,6 +1141,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterReceivedFrom(next.receivedFrom);
             setFilterReceivedTo(next.receivedTo);
             setFilterAssignee(next.assignee);
+            setDuplicatesOnly(next.duplicates);
             setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
@@ -1165,6 +1179,18 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            className={`btn btn-sm${duplicatesOnly ? ' btn-primary' : ' btn-ghost'}`}
+            aria-pressed={duplicatesOnly}
+            onClick={() => {
+              setDuplicatesOnly((current) => !current);
+              setOffset(0);
+              setSelectedIds(new Set());
+            }}
+          >
+            Lead trùng
+          </button>
           <select
             className="kpi-select"
             value={filterChannel}

@@ -173,6 +173,13 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     updated_at: row.updated_at ? formatLeadTs(row.updated_at) : null,
     last_call_at: row.last_call_at ? formatLeadTs(row.last_call_at) : null,
     is_duplicate: Boolean(row.is_duplicate),
+    duplicate_of_id: positiveId(row.duplicate_of_id),
+    duplicate_of_name: row.duplicate_of_name ? String(row.duplicate_of_name).trim() || null : null,
+    duplicate_of_owner_name: row.duplicate_of_owner_name
+      ? String(row.duplicate_of_owner_name).trim() || null
+      : null,
+    has_return_customer: Boolean(row.has_return_customer),
+    merged_into_id: positiveId(row.merged_into_id),
     b2b_project_id: row.b2b_project_id ? String(row.b2b_project_id) : null,
     owner_company_id: row.owner_company_id ? String(row.owner_company_id) : null,
     assign_strategy: row.assign_strategy ? String(row.assign_strategy) : null,
@@ -205,6 +212,11 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     lead_lock_kind:
       row.lead_lock_kind === 'hidden' || row.lead_lock_kind === 'wrong_number' ? row.lead_lock_kind : '',
   };
+}
+
+function positiveId(value: number | string | null | undefined): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function asDate(value: Date | string | null | undefined): Date | null {

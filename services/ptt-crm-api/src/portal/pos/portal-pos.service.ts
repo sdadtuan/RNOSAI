@@ -14,7 +14,7 @@ import { CARRIERS } from './portal-pos.types';
 import { getCarrierAdapter } from './carriers';
 import type { CarrierAccount, CreateShipmentInput, QuoteInput } from './carriers/carrier-adapter';
 import { StockError } from './portal-pos-stock.util';
-import { normalizeVnPhone } from './portal-pos-pricing.util';
+import { normalizeVnPhone, OrderSellError } from './portal-pos-pricing.util';
 
 @Injectable()
 export class PortalPosService {
@@ -139,11 +139,15 @@ export class PortalPosService {
         assignee_email: body.assignee_email || user.email,
       }, user.email, user.sub);
       if (!order) throw new BadRequestException({ error: 'create_failed' });
+      const createdId = order.id;
       if (body.confirm) {
         try {
-          order = await this.repo.changeStatus(user.client_id, order.id, 'confirmed', user.email, 'Xác nhận khi tạo');
+          order = await this.repo.changeStatus(user.client_id, createdId, 'confirmed', user.email, 'Xác nhận khi tạo');
         } catch (err) {
-          if (err instanceof StockError) throw new BadRequestException({ error: 'insufficient_stock', message: err.message });
+          await this.repo.deleteNewOrder(user.client_id, createdId).catch(() => undefined);
+          if (err instanceof StockError) {
+            throw new BadRequestException({ error: 'insufficient_stock', message: 'Không đủ tồn kho.' });
+          }
           throw err;
         }
       }
@@ -153,7 +157,12 @@ export class PortalPosService {
       }
       return { order };
     } catch (err) {
-      if (err instanceof StockError) throw new BadRequestException({ error: 'insufficient_stock' });
+      if (err instanceof OrderSellError) {
+        throw new BadRequestException({ error: err.code, message: err.message });
+      }
+      if (err instanceof StockError) {
+        throw new BadRequestException({ error: 'insufficient_stock', message: 'Không đủ tồn kho.' });
+      }
       if (err instanceof Error && err.message === 'items_required') throw new BadRequestException({ error: 'items_required' });
       throw err;
     }
@@ -166,6 +175,9 @@ export class PortalPosService {
       if (!order) throw new NotFoundException({ error: 'order_not_found' });
       return { order };
     } catch (err) {
+      if (err instanceof OrderSellError) {
+        throw new BadRequestException({ error: err.code, message: err.message });
+      }
       if (err instanceof Error && err.message === 'order_locked') throw new BadRequestException({ error: 'order_locked' });
       throw err;
     }

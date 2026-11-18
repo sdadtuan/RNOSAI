@@ -1,4 +1,4 @@
-import { computeOrderTotals, isValidVnPhone, normalizeVnPhone } from './portal-pos-pricing.util';
+import { assertSellableLine, computeOrderTotals, isValidVnPhone, normalizeVnPhone, OrderSellError } from './portal-pos-pricing.util';
 
 describe('computeOrderTotals', () => {
   it('sums lines and derives COD after discount, shipping and deposit', () => {
@@ -49,6 +49,25 @@ describe('computeOrderTotals', () => {
       ],
     });
     expect(totals.subtotal_vnd).toBe(1001);
+  });
+});
+
+describe('assertSellableLine', () => {
+  it('snapshots the catalog price and rejects 0 price or short stock', () => {
+    expect(assertSellableLine({ name: 'Áo', qty: 2, catalogPrice: 150000, available: 5 })).toEqual({
+      qty: 2,
+      price_vnd: 150000,
+    });
+    expect(() => assertSellableLine({ name: 'Áo Thun Nam', qty: 100000, catalogPrice: 0, available: 3 })).toThrow(
+      OrderSellError,
+    );
+    try {
+      assertSellableLine({ name: 'Áo Thun Nam', qty: 100000, catalogPrice: 120000, available: 3 });
+    } catch (err) {
+      expect(err).toBeInstanceOf(OrderSellError);
+      expect((err as OrderSellError).code).toBe('insufficient_stock');
+      expect((err as Error).message).toContain('chỉ còn 3');
+    }
   });
 });
 

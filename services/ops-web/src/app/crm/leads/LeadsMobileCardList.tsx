@@ -93,7 +93,15 @@ export function LeadsMobileCardList({
           >
             <div className="win-leads-mobile-card__body">
               <div className="win-leads-mobile-card__head">
-                <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
+                <h3 className="win-leads-mobile-card__name">
+                  {lead.full_name || `Lead #${lead.id}`}
+                  {lead.is_duplicate && lead.duplicate_of_id ? (
+                    <Link href={`/crm/leads/${lead.duplicate_of_id}`} className="lead-dup-badge">
+                      Trùng #{lead.duplicate_of_id}
+                    </Link>
+                  ) : null}
+                  {lead.has_return_customer ? <span className="lead-return-badge">Khách quay lại</span> : null}
+                </h3>
                 <div className="win-leads-mobile-card__badges">
                   <span className="lead-status-badge lead-status-badge--neutral">{situation.status}</span>
                   {lead.lead_locked ? <LeadLockedBadge compact kind={lead.lead_lock_kind} /> : null}

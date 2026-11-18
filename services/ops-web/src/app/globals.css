@@ -2765,6 +2765,52 @@ html.ops-shell-bitrix .win-home__scope {
   border: 1px solid transparent;
 }
 
+.lead-dup-badge,
+.lead-return-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lead-dup-badge {
+  background: #fff4e5;
+  color: #c2410c;
+}
+.lead-return-badge {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.lead-dup-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.86rem;
+}
+.lead-dup-notice a {
+  color: inherit;
+  font-weight: 700;
+}
+.lead-dup-notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
 .lead-status-badge--new {
   background: #dbeafe;
   color: #1e40af;

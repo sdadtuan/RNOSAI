@@ -10,6 +10,7 @@ import {
   InsightLevel,
   isoDateOnly,
   normalizeAdAccountDigits,
+  resolveOnDemandBackfillRange,
   summarizeBreakdownWarnings,
   computeCtr,
 } from './portal-meta-insights.util';
@@ -149,9 +150,10 @@ export class PortalMetaInsightsService {
       last_synced_at: fatalError ? null : now,
       last_error: syncErrors.last_error,
       last_breakdown_warnings: syncErrors.last_breakdown_warnings,
-      last_since: since,
-      last_until: until,
-      rows_upserted: totalRows,
+      // A failed window must not advance last_until, or the next on-open sync skips the gap.
+      last_since: fatalError ? null : since,
+      last_until: fatalError ? null : until,
+      ...(fatalError ? {} : { rows_upserted: totalRows }),
     });
 
     const state = await this.repo.readSyncState(clientId, accountId);
@@ -402,7 +404,29 @@ export class PortalMetaInsightsService {
     return out;
   }
 
+  /** Page open: refresh every ad account linked to the client, not only the one on screen. */
   private async maybeRefreshOnDemand(clientId: string, accountId: string): Promise<void> {
+    if (shouldPauseGraph()) return;
+    const ids = new Set<string>([accountId]);
+    try {
+      const pages = await this.pagesRepo.listActiveAdAccounts(clientId);
+      for (const page of pages) {
+        const digits = normalizeAdAccountDigits(page.page_id);
+        if (/^\d{6,32}$/.test(digits)) ids.add(digits);
+      }
+    } catch {
+      // The account being viewed still syncs.
+    }
+    for (const id of ids) {
+      try {
+        await this.maybeRefreshAccount(clientId, id);
+      } catch {
+        // syncAccount records per-account errors; keep going so one account cannot block the rest.
+      }
+    }
+  }
+
+  private async maybeRefreshAccount(clientId: string, accountId: string): Promise<void> {
     if (shouldPauseGraph()) return;
     const ttl = portalInsightsOnDemandTtlMs();
     const key = `${clientId}:${accountId}`;
@@ -415,7 +439,9 @@ export class PortalMetaInsightsService {
       if (shouldPauseGraph()) return;
       if (shouldReuseFreshSync(this.insightAttemptAt.get(key), Date.now(), ttl)) return;
       this.insightAttemptAt.set(key, Date.now());
-      await this.syncAccount(clientId, accountId, undefined, { incremental: true });
+      const fresh = await this.repo.readSyncState(clientId, accountId);
+      const range = resolveOnDemandBackfillRange(fresh?.last_until, isoDateOnly(new Date()));
+      await this.syncAccount(clientId, accountId, range);
     });
   }
 }

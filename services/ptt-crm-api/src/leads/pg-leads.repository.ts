@@ -30,6 +30,24 @@ const SOLUTION_HANDOFF_EXPR = `(
 
 const SOLUTION_HANDOFF_SQL = `${SOLUTION_HANDOFF_EXPR} AS solution_handoff`;
 
+const jsonIdSql = (expr: string) =>
+  `CASE WHEN (${expr}) ~ '^[0-9]+$' THEN (${expr})::bigint ELSE NULL END`;
+
+const DUP_SELECT_SQL = `
+              ${jsonIdSql(`l.meta_json->>'duplicate_of_id'`)} AS duplicate_of_id,
+              dup.full_name AS duplicate_of_name,
+              dup_owner.name AS duplicate_of_owner_name,
+              ${jsonIdSql(`l.meta_json->>'merged_into_id'`)} AS merged_into_id,
+              EXISTS (
+                SELECT 1 FROM crm_leads ret
+                WHERE ret.is_duplicate IS TRUE
+                  AND ${jsonIdSql(`ret.meta_json->>'duplicate_of_id'`)} = l.sqlite_lead_id
+              ) AS has_return_customer`;
+
+const DUP_JOIN_SQL = `
+       LEFT JOIN crm_leads dup ON dup.sqlite_lead_id = ${jsonIdSql(`l.meta_json->>'duplicate_of_id'`)}
+       LEFT JOIN crm_staff dup_owner ON dup_owner.id = dup.owner_id`;
+
 /** Stage artifacts the kanban must not pretend exist. */
 const STAGE_RECORD_SQL = `
               EXISTS (
@@ -178,6 +196,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ${leadLockedSql('l')} AS lead_locked,
               ${leadLockKindSql('l')} AS lead_lock_kind,
               l.meta_json::text AS meta_json,
+              ${DUP_SELECT_SQL},
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
                 WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
@@ -185,6 +204,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at${b2bList ? b2bListEnrichmentSql() : ''}
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id${b2bList ? b2bListJoinSql() : ''}
+       ${DUP_JOIN_SQL}
        ${QUOTE_STATE_JOIN_SQL}
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
@@ -274,6 +294,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ${leadLockedSql('l')} AS lead_locked,
               ${leadLockKindSql('l')} AS lead_lock_kind,
               l.meta_json::text AS meta_json,
+              ${DUP_SELECT_SQL},
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
                 WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
@@ -281,6 +302,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ), '') AS first_assigned_at
        FROM crm_leads l
        LEFT JOIN crm_staff s ON s.id = l.owner_id
+       ${DUP_JOIN_SQL}
        ${QUOTE_STATE_JOIN_SQL}
        WHERE l.sqlite_lead_id = $1`,
       [leadId],
@@ -341,7 +363,10 @@ export class PgLeadsRepository implements OnModuleDestroy {
   }
 
   private buildWhere(query: ListLeadsQuery): PgWhereClause {
-    const clauses = ['l.is_duplicate IS NOT TRUE'];
+    // Duplicates stay on the lead list so staff can find them. Merged rows leave
+    // active work. KPI and desk queries keep their own `is_duplicate IS NOT TRUE`.
+    const clauses = [`COALESCE(l.meta_json->>'merged_into_id', '') = ''`];
+    if (query.duplicates_only) clauses.push('l.is_duplicate IS TRUE');
     if (!query.include_locked) clauses.push(leadNotLockedSql('l'));
     const params: unknown[] = [];
 

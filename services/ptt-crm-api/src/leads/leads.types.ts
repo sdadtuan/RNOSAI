@@ -22,6 +22,14 @@ export interface LeadV1 {
   updated_at?: string | null;
   last_call_at?: string | null;
   is_duplicate: boolean;
+  /** Original lead when this row is a phone/email duplicate. */
+  duplicate_of_id?: number | null;
+  duplicate_of_name?: string | null;
+  duplicate_of_owner_name?: string | null;
+  /** True when at least one duplicate points at this lead. */
+  has_return_customer?: boolean;
+  /** Set when staff folds this duplicate into the original. Hidden from active work. */
+  merged_into_id?: number | null;
   /** B2B Project OS */
   b2b_project_id?: string | null;
   owner_company_id?: string | null;
@@ -110,6 +118,11 @@ export interface PgLeadRow {
   /** Joined from crm_staff.name when available. */
   owner_name?: string | null;
   is_duplicate: boolean | null;
+  duplicate_of_id?: number | string | null;
+  duplicate_of_name?: string | null;
+  duplicate_of_owner_name?: string | null;
+  has_return_customer?: boolean | null;
+  merged_into_id?: number | string | null;
   agency_client_id: string | null;
   channel: string | null;
   external_lead_id: string | null;
@@ -196,6 +209,8 @@ export interface ListLeadsQuery {
   from_solution_onward?: boolean;
   /** Super admin only: include leads locked as "Sai số" (contact_status=invalid_contact). */
   include_locked?: boolean;
+  /** Only leads flagged is_duplicate (still excludes ones already merged away). */
+  duplicates_only?: boolean;
 }
 
 export interface CreateLeadV1Body {

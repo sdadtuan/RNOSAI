@@ -81,6 +81,11 @@ export interface LeadRow {
   updated_at?: string | null;
   last_call_at?: string | null;
   is_duplicate: boolean;
+  duplicate_of_id?: number | null;
+  duplicate_of_name?: string | null;
+  duplicate_of_owner_name?: string | null;
+  has_return_customer?: boolean;
+  merged_into_id?: number | null;
   b2b_project_id?: string | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect' | string | null;
   project_code?: string | null;
@@ -558,6 +563,7 @@ export async function fetchLeads(
     hide_review_queue?: boolean;
     review_queue_only?: boolean;
     lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+    duplicates_only?: boolean;
   },
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
@@ -578,6 +584,7 @@ export async function fetchLeads(
   if (params?.hide_review_queue === false) qs.set('hide_review_queue', '0');
   if (params?.review_queue_only) qs.set('review_queue_only', '1');
   if (params?.lead_flow_kind) qs.set('lead_flow_kind', params.lead_flow_kind);
+  if (params?.duplicates_only) qs.set('duplicates_only', '1');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/v1/leads${suffix}`, {
     headers: authHeaders(token),
@@ -1497,6 +1504,23 @@ export async function deleteLeadPartyLogo(token: string, id: number): Promise<Le
 
 export function leadPartyLogoUrl(id: number): string {
   return `${API_BASE}/api/v1/leads/${id}/party-logo`;
+}
+
+export async function resolveLeadDuplicate(
+  token: string,
+  id: number,
+  action: 'merge' | 'not_duplicate',
+): Promise<LeadRow> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${id}/duplicate-resolution`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.message || out.error || 'Không xử lý được lead trùng', res.status, out.error);
+  }
+  return out;
 }
 
 export async function patchLead(

@@ -4,7 +4,7 @@ import { CreateLeadV1Body } from '../leads.types';
 import { PTT_OPERATING_COMPANY_ID } from '../../b2b-projects/b2b-projects.constants';
 import { B2bFirstAssignService } from '../../b2b-projects/b2b-first-assign.service';
 import { LeadAutoAssignService } from './lead-auto-assign.service';
-import { LeadDedupRepository } from './lead-dedup.repository';
+import { LeadDedupRepository, type LeadDuplicateMatch } from './lead-dedup.repository';
 import { normalizeEmail, normalizePhone } from './lead-contact.util';
 import { LeadIngestRulesRepository } from './lead-ingest-rules.repository';
 import {
@@ -94,9 +94,9 @@ export class LeadCreateEnrichmentService {
       createdAfter,
     });
     let isDuplicate = dupMatches.length > 0;
-    let duplicateOfId = isDuplicate ? dupMatches[0].lead_id : null;
-    if (duplicateOfId) {
-      meta.duplicate_of_id = duplicateOfId;
+    let dupMatch: LeadDuplicateMatch | null = isDuplicate ? dupMatches[0] : null;
+    if (dupMatch) {
+      meta.duplicate_of_id = dupMatch.lead_id;
       meta.dedup_matches = dupMatches.slice(0, 3).map((row) => row.lead_id);
     } else if (phone || email) {
       const lostMatches = await this.dedup.findLostContact({
@@ -106,13 +106,12 @@ export class LeadCreateEnrichmentService {
       });
       if (lostMatches.length > 0) {
         isDuplicate = true;
-        duplicateOfId = lostMatches[0].lead_id;
-        meta.duplicate_of_id = duplicateOfId;
+        dupMatch = lostMatches[0];
+        meta.duplicate_of_id = dupMatch.lead_id;
         meta.dedup_matches = lostMatches.slice(0, 3).map((row) => row.lead_id);
         meta.dedup_reason = 'lost_contact';
       }
     }
-
     let ownerId = body.owner_id ?? null;
     let assignStrategy = '';
     let b2bFirstAssignMeta: EnrichedCreateLeadBody['b2b_first_assign'];
@@ -193,6 +192,14 @@ export class LeadCreateEnrichmentService {
         meta.assign_failed_at = new Date().toISOString();
         meta.assign_failed_reason = 'Không có Sales đang nhận lead';
       }
+    }
+
+    if (isDuplicate && dupMatch?.owner_id != null && Number(dupMatch.owner_id) > 0) {
+      ownerId = Number(dupMatch.owner_id);
+      assignStrategy = 'duplicate_owner';
+      meta.assign_strategy = 'duplicate_owner';
+      meta.assign_reason = `duplicate_of_${dupMatch.lead_id}`;
+      meta.auto_assigned_at = new Date().toISOString();
     }
 
     if (assignStrategy) {

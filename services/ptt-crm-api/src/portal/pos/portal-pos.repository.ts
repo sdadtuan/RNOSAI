@@ -5,7 +5,7 @@ import { createAppPgPool, shouldEndLocalPool } from '../../config/pg-pool.factor
 import { AppConfigService } from '../../config/app-config.service';
 import { ensurePortalCrmLocalSchema } from '../portal-crm-local-ddl.util';
 import { parseProductSpec } from '../portal-product.util';
-import { computeOrderTotals, normalizeVnPhone } from './portal-pos-pricing.util';
+import { assertSellableLine, computeOrderTotals, normalizeVnPhone, OrderSellError } from './portal-pos-pricing.util';
 import { applyStockMovement, availableStock, isLowStock } from './portal-pos-stock.util';
 import { csvBool, csvMoney, parseCsv } from './portal-pos-csv.util';
 import type { CarrierId, OrderSource, OrderStatus, StockKind } from './portal-pos.types';
@@ -572,17 +572,96 @@ export class PortalPosRepository implements OnModuleDestroy {
     };
   }
 
+  private async resolveSellableItems(
+    clientId: string,
+    warehouseId: string,
+    items: OrderItemInput[],
+    runner: Pool | PoolClient,
+  ): Promise<OrderItemInput[]> {
+    const resolved: OrderItemInput[] = [];
+    for (const item of items) {
+      const variantId = String(item.variant_id ?? '').trim();
+      const productId = String(item.product_id ?? '').trim();
+      if (!variantId && !productId) {
+        throw new OrderSellError('product_not_found', 'Chọn sản phẩm trong danh mục.');
+      }
+      const params: unknown[] = [clientId, warehouseId, variantId || productId];
+      const match = variantId ? 'v.id = $3::uuid' : 'v.product_id = $3::uuid';
+      const res = await runner.query(
+        `SELECT v.id AS variant_id, v.product_id, COALESCE(v.sku, '') AS sku, COALESCE(v.color, '') AS color,
+                COALESCE(v.size, '') AS size, COALESCE(v.image_url, '') AS image_url,
+                v.weight_gram, v.price_vnd AS variant_price, v.cost_vnd, v.active,
+                p.name, COALESCE(p.image_url, '') AS product_image, COALESCE(p.sku, '') AS product_sku,
+                p.active AS product_active,
+                COALESCE(NULLIF(p.spec->>'price_vnd', '')::numeric, 0) AS product_price,
+                COALESCE(s.on_hand, 0) AS on_hand, COALESCE(s.reserved, 0) AS reserved
+           FROM portal_pos_variants v
+           JOIN portal_page_products p ON p.id = v.product_id AND p.client_id = v.client_id
+           LEFT JOIN portal_pos_stock s ON s.variant_id = v.id AND s.warehouse_id = $2::uuid
+          WHERE v.client_id = $1::uuid AND ${match}`,
+        params,
+      );
+      const rows = res.rows.filter((row) => row.active !== false && row.product_active !== false);
+      if (!rows.length) {
+        throw new OrderSellError('product_not_found', 'Không tìm thấy sản phẩm trong danh mục.');
+      }
+      let row = rows[0] as Record<string, unknown>;
+      if (!variantId && rows.length > 1) {
+        const color = String(item.color ?? '').trim().toLowerCase();
+        const size = String(item.size ?? '').trim().toLowerCase();
+        const matched = rows.filter((candidate) => {
+          const c = String(candidate.color ?? '').trim().toLowerCase();
+          const s = String(candidate.size ?? '').trim().toLowerCase();
+          return (!color || c === color) && (!size || s === size);
+        });
+        if (matched.length !== 1) {
+          throw new OrderSellError('price_missing', 'Chọn màu và size còn hàng.');
+        }
+        row = matched[0] as Record<string, unknown>;
+      }
+      const available = Math.max(0, int(row.on_hand) - int(row.reserved));
+      const variantPrice = money(row.variant_price);
+      const catalogPrice = variantPrice > 0 ? variantPrice : money(row.product_price);
+      const snapped = assertSellableLine({
+        name: str(row.name, 200) || str(item.name, 200),
+        qty: item.qty,
+        catalogPrice,
+        available,
+      });
+      resolved.push({
+        product_id: String(row.product_id),
+        variant_id: String(row.variant_id),
+        name: str(row.name, 200) || str(item.name, 200),
+        sku: str(row.sku, 80) || str(row.product_sku, 80),
+        color: str(row.color, 40),
+        size: str(row.size, 40),
+        qty: snapped.qty,
+        price_vnd: snapped.price_vnd,
+        cost_vnd: money(row.cost_vnd),
+        image_url: str(row.image_url, 500) || str(row.product_image, 500),
+        weight_gram: int(row.weight_gram),
+      });
+    }
+    return resolved;
+  }
+
   async createOrder(clientId: string, input: OrderInput, actorEmail = '', actorId = '') {
     await this.ensure();
     const warehouse = await this.ensureWarehouse(clientId);
     if (!input.items?.length) throw new Error('items_required');
-    const totals = computeOrderTotals({
-      items: input.items, discount_vnd: input.discount_vnd,
-      shipping_fee_vnd: input.shipping_fee_vnd, deposit_vnd: input.deposit_vnd,
-    });
     const cx = await this.db.connect();
     try {
       await cx.query('BEGIN');
+      const resolved = await this.resolveSellableItems(clientId, warehouse.id, input.items, cx);
+      const totals = computeOrderTotals({
+        items: resolved,
+        discount_vnd: input.discount_vnd,
+        shipping_fee_vnd: input.shipping_fee_vnd,
+        deposit_vnd: input.deposit_vnd,
+      });
+      if (totals.total_vnd <= 0) {
+        throw new OrderSellError('zero_total', 'Tổng đơn phải lớn hơn 0.');
+      }
       const code = await this.nextOrderCode(clientId, cx);
       const customer = await this.upsertPosCustomer(clientId, {
         phone: input.phone ?? '', name: input.customer_name, email: input.email,
@@ -610,7 +689,7 @@ export class PortalPosRepository implements OnModuleDestroy {
          totals.deposit_vnd, totals.total_vnd, totals.cod_vnd, str(input.notes, 2000),
          str(input.customer_notes, 2000), str(input.ad_id, 80), str(input.post_id, 80), warehouse.id],
       );
-      for (const item of input.items) {
+      for (const item of resolved) {
         await cx.query(
           `INSERT INTO portal_pos_order_items
              (order_id, product_id, variant_id, name, sku, color, size, qty, price_vnd, cost_vnd, image_url, weight_gram)
@@ -771,12 +850,33 @@ export class PortalPosRepository implements OnModuleDestroy {
     const current = await this.getOrder(clientId, id);
     if (!current) return null;
     if (current.status !== 'new') throw new Error('order_locked');
-    const items = patch.items ?? current.items;
+    let lineItems: OrderItemInput[] = patch.items
+      ? patch.items
+      : current.items.map((item) => ({
+          product_id: item.product_id ?? undefined,
+          variant_id: item.variant_id ?? undefined,
+          name: item.name,
+          sku: item.sku,
+          color: item.color,
+          size: item.size,
+          qty: item.qty,
+          price_vnd: item.price_vnd,
+          cost_vnd: item.cost_vnd,
+          image_url: item.image_url,
+          weight_gram: item.weight_gram,
+        }));
+    if (patch.items) {
+      const warehouse = await this.ensureWarehouse(clientId);
+      lineItems = await this.resolveSellableItems(clientId, warehouse.id, patch.items, this.db);
+    }
     const totals = computeOrderTotals({
-      items, discount_vnd: patch.discount_vnd ?? current.discount_vnd,
+      items: lineItems, discount_vnd: patch.discount_vnd ?? current.discount_vnd,
       shipping_fee_vnd: patch.shipping_fee_vnd ?? current.shipping_fee_vnd,
       deposit_vnd: patch.deposit_vnd ?? current.deposit_vnd,
     });
+    if (totals.total_vnd <= 0) {
+      throw new OrderSellError('zero_total', 'Tổng đơn phải lớn hơn 0.');
+    }
     if (patch.phone || patch.customer_name || patch.address) {
       await this.upsertPosCustomer(clientId, {
         phone: patch.phone ?? current.phone, name: patch.customer_name ?? current.customer_name,
@@ -806,7 +906,7 @@ export class PortalPosRepository implements OnModuleDestroy {
     );
     if (patch.items) {
       await this.db.query(`DELETE FROM portal_pos_order_items WHERE order_id = $1`, [current.id]);
-      for (const item of patch.items) {
+      for (const item of lineItems) {
         await this.db.query(
           `INSERT INTO portal_pos_order_items
              (order_id, product_id, variant_id, name, sku, color, size, qty, price_vnd, cost_vnd, image_url, weight_gram)
@@ -818,6 +918,15 @@ export class PortalPosRepository implements OnModuleDestroy {
       }
     }
     return this.getOrder(clientId, current.id);
+  }
+
+  async deleteNewOrder(clientId: string, id: string): Promise<void> {
+    await this.db.query(`DELETE FROM portal_pos_order_events WHERE order_id = $1`, [id]);
+    await this.db.query(`DELETE FROM portal_pos_order_items WHERE order_id = $1`, [id]);
+    await this.db.query(
+      `DELETE FROM portal_pos_orders WHERE id = $1 AND client_id = $2 AND status = 'new'`,
+      [id, clientId],
+    );
   }
 
   async changeStatus(clientId: string, id: string, to: OrderStatus, actorEmail = '', note = '') {

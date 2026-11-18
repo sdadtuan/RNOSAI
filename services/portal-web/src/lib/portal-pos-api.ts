@@ -17,11 +17,14 @@ async function posFetch<T>(token: string, path: string, init: RequestInit = {}):
     }
   }
   if (!res.ok) {
-    const err = body.error || body.message || `Lỗi ${res.status}`;
+    const code = body.error || '';
     const map: Record<string, string> = {
       items_required: 'Chọn ít nhất một sản phẩm.',
       phone_required: 'Nhập số điện thoại khách.',
       insufficient_stock: 'Không đủ tồn kho.',
+      zero_total: 'Tổng đơn phải lớn hơn 0.',
+      price_missing: 'Sản phẩm chưa có giá bán.',
+      product_not_found: 'Không tìm thấy sản phẩm trong danh mục.',
       invalid_transition: 'Không thể chuyển sang trạng thái này.',
       order_locked: 'Đơn đã xác nhận, không sửa được sản phẩm.',
       approver_only: 'Chỉ chủ sở hữu hoặc người duyệt mới làm được.',
@@ -29,7 +32,8 @@ async function posFetch<T>(token: string, path: string, init: RequestInit = {}):
       not_assignee: 'Đơn này không được giao cho bạn.',
       name_required: 'Nhập tên sản phẩm.',
     };
-    throw new Error(map[err] || body.message || err);
+    const detailed = body.message && body.message !== code ? body.message : '';
+    throw new Error(detailed || map[code] || body.message || code || `Lỗi ${res.status}`);
   }
   return body;
 }

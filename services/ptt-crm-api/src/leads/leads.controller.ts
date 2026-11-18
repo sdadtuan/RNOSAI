@@ -362,6 +362,27 @@ export class LeadsController {
     res.send(logo.buffer);
   }
 
+  @Post(':id/duplicate-resolution')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async resolveDuplicate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { action?: string },
+    @Headers('x-ptt-actor') actorHeader?: string,
+    @Req() req?: Request & { staffUser?: { email?: string; preferred_username?: string } },
+  ): Promise<LeadV1> {
+    const action = body?.action === 'merge' || body?.action === 'not_duplicate' ? body.action : '';
+    if (!action) {
+      throw new BadRequestException({ error: 'invalid_action', message: 'Chọn gộp hoặc không trùng.' });
+    }
+    const actor =
+      actorHeader?.trim() ||
+      req?.staffUser?.email ||
+      req?.staffUser?.preferred_username ||
+      'staff';
+    return this.leadsWriteService.resolveDuplicate(id, action, actor);
+  }
+
   @Patch(':id')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
   async patchLead(
@@ -442,6 +463,7 @@ export class LeadsController {
     @Query('unassigned_only') unassignedOnly?: string,
     @Query('assigned_only') assignedOnly?: string,
     @Query('lead_flow_kind') leadFlowKind?: string,
+    @Query('duplicates_only') duplicatesOnly?: string,
   ): Promise<LeadsListResponseV1> {
     const truthy = (v?: string) => v === '1' || v === 'true';
     const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
@@ -513,6 +535,7 @@ export class LeadsController {
       b2b_list_scope: b2bListScope,
       from_solution_onward: fromSolutionOnward || undefined,
       include_locked: includeLocked || undefined,
+      duplicates_only: truthy(duplicatesOnly) || undefined,
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
       const caps = (await this.staffAuth.isSuperAdminUser(req.staffUser))

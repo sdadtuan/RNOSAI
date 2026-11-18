@@ -1,6 +1,7 @@
 import {
   buildSyncStateFromErrors,
   chunkDateRange,
+  resolveOnDemandBackfillRange,
   formatGraphError,
   graphBreakdownsParam,
   normalizeAdAccountDigits,
@@ -40,6 +41,19 @@ describe('portal-meta-insights.util', () => {
     expect(row?.external_adset_id).toBe('');
     expect(row?.external_ad_id).toBe('');
     expect(row?.spend).toBe(10);
+  });
+
+  it('backfills from last_until through today, capped at 90 days', () => {
+    expect(resolveOnDemandBackfillRange('2026-11-13', '2026-11-18')).toEqual({
+      since: '2026-11-11',
+      until: '2026-11-18',
+    });
+    expect(resolveOnDemandBackfillRange(null, '2026-11-18').since).toBe('2026-08-21');
+    expect(resolveOnDemandBackfillRange('2026-01-01', '2026-11-18').since).toBe('2026-08-21');
+    expect(resolveOnDemandBackfillRange('2026-11-18', '2026-11-18')).toEqual({
+      since: '2026-11-16',
+      until: '2026-11-18',
+    });
   });
 
   it('chunkDateRange splits windows', () => {

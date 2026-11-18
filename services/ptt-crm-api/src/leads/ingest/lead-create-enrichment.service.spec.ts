@@ -75,6 +75,8 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
     );
     expect(out.is_duplicate).toBe(true);
     expect(out.meta?.duplicate_of_id).toBe(42);
+    expect(out.owner_id).toBe(7);
+    expect(out.meta?.assign_strategy).toBe('duplicate_owner');
   });
 
   it('keeps a lost contact as a duplicate after the dedupe window', async () => {
@@ -105,5 +107,7 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
     expect(out.status).toBe('moi');
     expect(out.meta?.duplicate_of_id).toBe(9);
     expect(out.meta?.dedup_reason).toBe('lost_contact');
+    expect(out.owner_id).toBe(3);
+    expect(out.meta?.assign_reason).toBe('duplicate_of_9');
   });
 });

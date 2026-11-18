@@ -14,6 +14,7 @@ export interface LeadsListUrlState {
   receivedFrom: string;
   receivedTo: string;
   assignee: string;
+  duplicates: boolean;
 }
 
 export interface LeadsFilterChip {
@@ -54,6 +55,7 @@ export function parseLeadsListUrl(
     receivedFrom: searchParams.get('from')?.trim() ?? '',
     receivedTo: searchParams.get('to')?.trim() ?? '',
     assignee: searchParams.get('assignee')?.trim() ?? '',
+    duplicates: searchParams.get('dup') === '1',
   };
 }
 
@@ -70,6 +72,7 @@ export function buildLeadsListSearchParams(
   if (state.receivedFrom) params.set('from', state.receivedFrom);
   if (state.receivedTo) params.set('to', state.receivedTo);
   if (state.assignee) params.set('assignee', state.assignee);
+  if (state.duplicates) params.set('dup', '1');
   if (state.owner === 'mine') params.set('owner', 'me');
   else if (state.owner === 'unassigned') params.set('owner', 'unassigned');
   if (flowScope !== 'b2b_prospect') {
@@ -138,6 +141,7 @@ export function buildLeadsFilterChips(
       label: `Nhân viên phụ trách: ${labels.assigneeLabel?.(state.assignee) ?? state.assignee}`,
     });
   }
+  if (state.duplicates) chips.push({ id: 'duplicates', label: 'Lead trùng' });
   return chips;
 }
 
@@ -164,6 +168,8 @@ export function clearLeadsFilterField(
       return { ...state, receivedFrom: '', receivedTo: '' };
     case 'assignee':
       return { ...state, assignee: '' };
+    case 'duplicates':
+      return { ...state, duplicates: false };
     default:
       return state;
   }
@@ -184,6 +190,7 @@ export function clearAllLeadsFilters(
     receivedFrom: '',
     receivedTo: '',
     assignee: '',
+    duplicates: false,
   };
 }
 
@@ -210,6 +217,7 @@ export function readSavedLeadsFilters(userId: string): LeadsListUrlState | null 
       receivedFrom: String(parsed.receivedFrom ?? ''),
       receivedTo: String(parsed.receivedTo ?? ''),
       assignee: String(parsed.assignee ?? ''),
+      duplicates: parsed.duplicates === true,
     };
   } catch {
     return null;
@@ -231,6 +239,7 @@ export function leadsFiltersAreEmpty(state: LeadsListUrlState): boolean {
     !state.receivedFrom &&
     !state.receivedTo &&
     !state.assignee &&
+    !state.duplicates &&
     state.owner === 'all'
   );
 }

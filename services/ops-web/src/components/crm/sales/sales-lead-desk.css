@@ -196,6 +196,23 @@
   }
 }
 
+/* 1024px viewport with the sidebar open leaves ~760px for the desk.
+   Three fixed side tracks crush the SLA panel (countdown one word per line,
+   selects overflowing the card). Stack until the desk is wide enough. */
+@container ahd (max-width: 980px) {
+  .sld .ahd-body,
+  .sld .ahd-body.ahd-body--notes-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sld .ahd-col--side,
+  .sld .ahd-col--side-notes {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 /* Only when the desk is too narrow for three tracks, drop the whole rail below as one row. */
 @container ahd (max-width: 780px) {
   .sld .ahd-body,
@@ -214,12 +231,12 @@
 @media (max-width: 1100px) {
   .sld .ahd-body,
   .sld .ahd-body.ahd-body--notes-only {
-    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr) minmax(180px, 200px);
+    grid-template-columns: minmax(0, 1fr);
   }
   .sld .ahd-col--side,
   .sld .ahd-col--side-notes {
-    grid-column: 3;
-    grid-row: 1;
+    grid-column: 1 / -1;
+    grid-row: auto;
     display: flex;
     flex-direction: column;
   }
@@ -238,6 +255,11 @@
   }
 }
 
+.sld .lead-fr-sla {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
 .sld .lead-fr-sla__sub {
   display: flex;
   flex-wrap: wrap;

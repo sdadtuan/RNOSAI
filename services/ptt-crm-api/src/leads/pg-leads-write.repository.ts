@@ -3,6 +3,7 @@ import { Pool, PoolClient } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
 import { pgRowToV1 } from './lead-v1.mapper';
+import { leadReturnNote } from './ingest/lead-return-note';
 import {
   CreateLeadV1Body,
   LeadV1,
@@ -133,6 +134,18 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           body.b2b_project_id ?? null,
         ],
       );
+      if (opts.isDuplicate) {
+        const duplicateOf = Number(opts.meta?.duplicate_of_id);
+        if (Number.isFinite(duplicateOf) && duplicateOf > 0) {
+          await client.query('SAVEPOINT lead_return_note');
+          try {
+            await this.insertSystemNote(duplicateOf, leadReturnNote(leadId), 'lead_return', client);
+            await client.query('RELEASE SAVEPOINT lead_return_note');
+          } catch {
+            await client.query('ROLLBACK TO SAVEPOINT lead_return_note');
+          }
+        }
+      }
       await client.query('COMMIT');
       const lead = await this.getLeadById(leadId);
       if (!lead) {
@@ -239,15 +252,56 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     );
   }
 
-  async insertSystemNote(leadId: number, content: string, nextAction: string): Promise<void> {
-    await this.db.query(
+  async insertSystemNote(
+    leadId: number,
+    content: string,
+    nextAction: string,
+    runner: { query: (sql: string, params?: unknown[]) => Promise<unknown> } = this.db,
+  ): Promise<void> {
+    const text = content.slice(0, 8000);
+    const action = nextAction.slice(0, 80);
+    await runner.query(
       `INSERT INTO crm_lead_activities (
          lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
        )
        SELECT $1, 'note', $2, '', $3, NOW(), 'system', COALESCE(status, '')
        FROM crm_leads
-       WHERE sqlite_lead_id = $1`,
-      [leadId, content.slice(0, 8000), nextAction.slice(0, 80)],
+       WHERE sqlite_lead_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM crm_lead_activities a
+           WHERE a.lead_id = $1 AND a.next_action = $3 AND a.content = $2
+         )`,
+      [leadId, text, action],
+    );
+  }
+
+  async markDuplicateMerged(leadId: number, intoId: number, actor: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+          SET meta_json = COALESCE(meta_json, '{}'::jsonb) || jsonb_build_object(
+                'merged_into_id', $2::text,
+                'merged_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'merged_by', $3
+              ),
+              updated_at = NOW(),
+              write_source = 'nest'
+        WHERE sqlite_lead_id = $1 AND is_duplicate IS TRUE`,
+      [leadId, String(intoId), actor.slice(0, 120)],
+    );
+  }
+
+  async clearDuplicateFlag(leadId: number, actor: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+          SET is_duplicate = FALSE,
+              meta_json = (COALESCE(meta_json, '{}'::jsonb) - 'duplicate_of_id') || jsonb_build_object(
+                'duplicate_cleared_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'duplicate_cleared_by', $2
+              ),
+              updated_at = NOW(),
+              write_source = 'nest'
+        WHERE sqlite_lead_id = $1`,
+      [leadId, actor.slice(0, 120)],
     );
   }
 

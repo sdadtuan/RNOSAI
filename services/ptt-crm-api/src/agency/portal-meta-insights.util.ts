@@ -61,6 +61,29 @@ export function addDays(iso: string, days: number): string {
   return isoDateOnly(d);
 }
 
+/** On-open sync never walks further back than this, even if last_until is older. */
+export const ON_DEMAND_BACKFILL_MAX_DAYS = 90;
+/** Rewrite a few days before last_until so late Meta rows are not missed. */
+export const ON_DEMAND_OVERLAP_DAYS = 3;
+
+/**
+ * Window for an on-open insights sync: from each account's last_until (minus a
+ * short overlap) through today, capped at {@link ON_DEMAND_BACKFILL_MAX_DAYS}.
+ * Accounts that have never synced take the full cap.
+ */
+export function resolveOnDemandBackfillRange(
+  lastUntil: string | null | undefined,
+  today: string,
+): { since: string; until: string } {
+  const until = String(today).slice(0, 10);
+  const floor = addDays(until, -(ON_DEMAND_BACKFILL_MAX_DAYS - 1));
+  const last = String(lastUntil ?? '').slice(0, 10);
+  let since = /^\d{4}-\d{2}-\d{2}$/.test(last) ? addDays(last, -(ON_DEMAND_OVERLAP_DAYS - 1)) : floor;
+  if (since < floor) since = floor;
+  if (since > until) since = until;
+  return { since, until };
+}
+
 export function chunkDateRange(since: string, until: string, maxDays: number): Array<{ since: string; until: string }> {
   const out: Array<{ since: string; until: string }> = [];
   let cursor = since;
