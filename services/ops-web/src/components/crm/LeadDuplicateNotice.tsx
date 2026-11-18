@@ -7,11 +7,13 @@ import { resolveLeadDuplicate, type LeadRow } from '@/lib/api';
 export function LeadDuplicateNotice({
   token,
   lead,
+  canWrite = false,
   onUpdated,
   onError,
 }: {
   token: string;
   lead: LeadRow;
+  canWrite?: boolean;
   onUpdated: (lead: LeadRow) => void;
   onError: (message: string) => void;
 }) {
@@ -34,6 +36,7 @@ export function LeadDuplicateNotice({
   const name = lead.duplicate_of_name?.trim() || '—';
   const owner = lead.duplicate_of_owner_name?.trim();
   async function run(action: 'merge' | 'not_duplicate') {
+    if (!canWrite || busy) return;
     setBusy(true);
     try {
       onUpdated(await resolveLeadDuplicate(token, lead.id, action));
@@ -52,10 +55,10 @@ export function LeadDuplicateNotice({
         {owner ? `${owner} đang phụ trách` : 'chưa có người phụ trách'}
       </span>
       <span className="lead-dup-notice__actions">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run('merge')}>
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canWrite} onClick={() => void run('merge')}>
           Gộp vào Lead cũ
         </button>
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void run('not_duplicate')}>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !canWrite} onClick={() => void run('not_duplicate')}>
           Không trùng
         </button>
       </span>

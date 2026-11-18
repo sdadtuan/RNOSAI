@@ -22,6 +22,7 @@ import {
 } from '@/lib/portal/portal-leads-table.util';
 import { leadAgeLabel, leadSla, staffLabel, toneFor } from '@/lib/portal/portal-leads-pro.util';
 import { canActOnCase, canManagePortal, isPortalReadOnly, VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
+import { portalCustomerListHref } from '@/lib/portal-confirm-customer.util';
 import { LEAD_STATUS_LABEL, PlAvatar, PlIcon, PlStatus } from '@/components/portal-crm/PortalLeadBits';
 
 export { LEAD_STATUS_LABEL };
@@ -253,10 +254,18 @@ export function PortalLeadPanel({
               <PlIcon name="cart" /> Mua hàng
             </button>
             {!row.customer_id ? (
-              <button type="button" className="pl-btn" disabled={busy} onClick={() => onAct(row.id, 'customer')}>
-                Chuyển thành khách hàng
-              </button>
-            ) : null}
+              <Link
+                className="pl-btn"
+                href={phone ? `/crm/messages` : '/crm/messages'}
+                title="Mở Tin nhắn → tab Chốt đơn để ghi nhận khách"
+              >
+                Chốt đơn (khách hàng)
+              </Link>
+            ) : (
+              <Link className="pl-btn" href={portalCustomerListHref(phoneDisplay || phone)}>
+                Mở hồ sơ khách
+              </Link>
+            )}
           </div>
         ) : !mine && row.status !== 'purchased' ? (
           <p className="pld__ro">Chỉ người phụ trách (hoặc chủ tài khoản) mới thao tác lead này.</p>
@@ -379,7 +388,7 @@ export function PortalLeadPanel({
                 <span>{detail?.messages?.length ? `${detail.messages.length} tin nhắn` : ''}</span>
               </p>
               <p className="pld__snippet">{lastBody || 'Đã gắn hội thoại hộp thư.'}</p>
-              <Link className="pl-btn" href={`/inbox?open=${encodeURIComponent(linked.id)}`}>
+              <Link className="pl-btn" href={`/crm/messages?open=${encodeURIComponent(linked.id)}`}>
                 <PlIcon name="chat" /> Mở hội thoại
               </Link>
             </div>
@@ -389,7 +398,7 @@ export function PortalLeadPanel({
                 <strong>Bình luận liên kết</strong>
               </p>
               <p className="pld__snippet">{commentHint.label}</p>
-              <Link className="pl-btn" href="/inbox">
+              <Link className="pl-btn" href="/crm/messages?tab=comments">
                 Mở hộp thư bình luận
               </Link>
             </div>

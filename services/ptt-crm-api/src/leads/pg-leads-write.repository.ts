@@ -281,7 +281,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           SET meta_json = COALESCE(meta_json, '{}'::jsonb) || jsonb_build_object(
                 'merged_into_id', $2::text,
                 'merged_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'merged_by', $3
+                'merged_by', $3::text
               ),
               updated_at = NOW(),
               write_source = 'nest'
@@ -296,7 +296,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           SET is_duplicate = FALSE,
               meta_json = (COALESCE(meta_json, '{}'::jsonb) - 'duplicate_of_id') || jsonb_build_object(
                 'duplicate_cleared_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'duplicate_cleared_by', $2
+                'duplicate_cleared_by', $2::text
               ),
               updated_at = NOW(),
               write_source = 'nest'

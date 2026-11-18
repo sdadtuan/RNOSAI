@@ -14,6 +14,7 @@ import {
   postPortalCase,
   postPortalCaseNotes,
   postPortalPage,
+  type PortalConfirmCustomerResult,
   type PortalCareCase,
   type PortalCaseDetail,
   type PortalDesk,
@@ -27,6 +28,7 @@ import {
 import { PortalLeadsTable } from '@/components/portal-crm/PortalLeadsTable';
 import { isNoPageScope, PortalNoPagesNotice } from '@/components/portal-crm/PortalNoPagesNotice';
 import { canActOnCase, canManagePortal } from '@/lib/portal-role';
+import { portalConfirmCustomerMessage, portalCustomerListHref } from '@/lib/portal-confirm-customer.util';
 
 export type CrmView = 'leads' | 'messages' | 'customers';
 
@@ -144,6 +146,7 @@ function CrmBody({
   const [syncNote, setSyncNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [customerNotice, setCustomerNotice] = useState<{ text: string; phone: string } | null>(null);
 
   useEffect(() => {
     setCustomerSource(initialCustomerSource ?? '');
@@ -228,6 +231,22 @@ function CrmBody({
     }
   }
 
+  async function actCase(id: string, action: string, body?: Record<string, string>) {
+    const res = await postPortalCase<PortalConfirmCustomerResult>(token, id, action, body);
+    if (action === 'customer' && res?.ok) {
+      setCustomerNotice({ text: portalConfirmCustomerMessage(res), phone: res.phone?.trim() ?? '' });
+    }
+    const openId = detail?.case.id;
+    if (openId && openId === id) {
+      const nextDetail = await fetchPortalCase(token, id);
+      setDetail((current) =>
+        current && current.case.id === id
+          ? { ...nextDetail, messages: mergeCaseMessages(current.messages, nextDetail.messages) }
+          : nextDetail,
+      );
+    }
+  }
+
   const pages = (desk?.pages ?? []).filter((page) => page.channel !== 'ad_account');
   const activePage = pages.find((page) => page.page_id === pageId) ?? null;
   const pageName = new Map(pages.map((page) => [page.page_id, page.page_name || page.page_id]));
@@ -273,7 +292,9 @@ function CrmBody({
             onOpen={async (id) => {
               setDetail(await fetchPortalCase(token, id));
             }}
-            onAct={(id, action, body) => void run(() => postPortalCase(token, id, action, body))}
+            onAct={(id, action, body) => void run(() => actCase(id, action, body))}
+            customerNotice={customerNotice}
+            onDismissCustomerNotice={() => setCustomerNotice(null)}
             onBulk={(ids, action, body) =>
               run(async () => {
                 for (const id of ids) await postPortalCase(token, id, action, body);
@@ -312,6 +333,12 @@ function CrmBody({
       </aside>
       <div className="portal-crm__main">
         {error ? <p className="error">{error}</p> : null}
+        {customerNotice ? (
+          <div className="portal-crm__note" role="status" style={{ padding: '0.65rem 0.85rem', marginBottom: '0.75rem' }}>
+            {customerNotice.text}{' '}
+            <Link href={portalCustomerListHref(customerNotice.phone)}>Mở hồ sơ khách →</Link>
+          </div>
+        ) : null}
         <PortalInboxBanner lines={portalInboxAlerts(desk?.inbox, pages.length)} />
         <header className="portal-crm__head">
           <div>
@@ -465,7 +492,7 @@ function CrmBody({
           onOpen={async (id) => {
             setDetail(await fetchPortalCase(token, id));
           }}
-          onAct={(id, action, body) => void run(() => postPortalCase(token, id, action, body))}
+          onAct={(id, action, body) => void run(() => actCase(id, action, body))}
         />
       {detail && view === 'messages' ? (
         <div className="portal-mess">
@@ -618,7 +645,16 @@ function CaseList({
                   <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAct(row.id, 'purchase')}>Mua hàng</button>
                 ) : null}
                 {showCustomer && !row.customer_id ? (
-                  <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAct(row.id, 'customer')}>Khách hàng</button>
+                  <Link className="btn btn-sm" href="/crm/messages" title="Chốt đơn POS trong Tin nhắn">
+                    Chốt đơn (KH)
+                  </Link>
+                ) : row.customer_id ? (
+                  <Link
+                    className="btn btn-secondary btn-sm"
+                    href={portalCustomerListHref(row.order?.phone)}
+                  >
+                    Đã là khách →
+                  </Link>
                 ) : null}
                 {labels.map((item) => (
                   <button key={item.id} type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onAct(row.id, 'label', { name: item.name })}>

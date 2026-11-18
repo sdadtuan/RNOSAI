@@ -321,8 +321,9 @@ export default function CrmLeadDetailPage() {
 
   const leadFlowKind = useMemo(
     () =>
+      (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : null) ??
       statusOptionsApi?.lead_flow_kind ??
-      (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : 'b2b_prospect'),
+      'b2b_prospect',
     [lead, funnelSnap, statusOptionsApi?.lead_flow_kind],
   );
   const statusDropdownOptions = localizeLeadStatusOptions(statusOptionsApi?.allowed_next ?? []);
@@ -1986,6 +1987,7 @@ export default function CrmLeadDetailPage() {
             <LeadDuplicateNotice
               token={accessToken}
               lead={lead}
+              canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'assign')}
               onUpdated={setLead}
               onError={setError}
             />

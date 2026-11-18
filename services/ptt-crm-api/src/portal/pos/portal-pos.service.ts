@@ -196,8 +196,20 @@ export class PortalPosService {
     }
   }
 
-  async customers(user: PortalJwtPayload, q?: string) {
-    return this.repo.listCustomers(user.client_id, q);
+  async customers(
+    user: PortalJwtPayload,
+    q?: string,
+    query?: { source?: string; assignee?: string; segment?: string; unified?: string; limit?: number; offset?: number },
+  ) {
+    if (query?.unified === '0') return this.repo.listCustomers(user.client_id, q, query?.limit, query?.offset);
+    const limit = query?.limit && query.limit > 0 ? Math.min(100, Math.round(query.limit)) : 80;
+    const offset = query?.offset && query.offset > 0 ? Math.round(query.offset) : 0;
+    return this.repo.listUnifiedCustomers(user.client_id, {
+      q,
+      source: query?.source,
+      assignee: query?.assignee,
+      segment: query?.segment,
+    }, limit, offset);
   }
 
   async customer(user: PortalJwtPayload, phone: string) {
@@ -207,6 +219,13 @@ export class PortalPosService {
   async setBlacklist(user: PortalJwtPayload, phone: string, blacklist: boolean, notes?: string) {
     this.requireManager(user);
     return this.repo.setBlacklist(user.client_id, phone, blacklist, notes);
+  }
+
+  async addCustomerNote(user: PortalJwtPayload, phone: string, body: string) {
+    if (user.role === 'viewer') throw new ForbiddenException({ error: 'viewer_read_only' });
+    const text = String(body ?? '').trim();
+    if (!text) throw new BadRequestException({ error: 'note_required', message: 'Nhập nội dung ghi chú.' });
+    return this.repo.addCustomerNote(user.client_id, phone, text, user.email);
   }
 
   async customerWarning(user: PortalJwtPayload, phone: string) {

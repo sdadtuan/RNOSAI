@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setPortalTitleOverride } from '@/lib/portal/nav';
 import { portalMediaUrl } from '@/lib/api';
@@ -191,7 +192,7 @@ export function PortalPosOrderDetail({
             {order.page_id ? <p className="pos-hint">Page {order.page_id}</p> : null}
             {order.ad_id ? <p className="pos-hint">Ad {order.ad_id}</p> : null}
             {order.post_id ? <p className="pos-hint">Post {order.post_id}</p> : null}
-            {order.phone ? <p><a href={`/client/crm/customers?pos=${encodeURIComponent(order.phone)}`}>Hồ sơ khách</a></p> : null}
+            {order.phone ? <p><Link href={`/crm/customers/${encodeURIComponent(order.phone)}`}>Hồ sơ khách</Link></p> : null}
           </div>
           <div className="pos-card">
             <h2>Vận chuyển</h2>

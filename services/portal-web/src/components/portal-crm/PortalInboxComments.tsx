@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   fetchPortalComments,
+  fetchPortalDesk,
   postPortalCommentCreateLead,
   postPortalCommentHide,
   postPortalCommentReply,
+  type PortalCareCase,
   type PortalCommentsResponse,
   type PortalFbPost,
   type PortalPageComment,
@@ -60,6 +62,7 @@ export function PortalInboxComments({
   const [leadOk, setLeadOk] = useState('');
   const [info, setInfo] = useState('');
   const [sideTab, setSideTab] = useState<InboxSideTab>('chot');
+  const [inboxCases, setInboxCases] = useState<PortalCareCase[]>([]);
 
   const load = useCallback(
     async (sync = false) => {
@@ -78,6 +81,12 @@ export function PortalInboxComments({
       setError(err instanceof Error ? err.message : 'Không tải được bình luận'),
     );
   }, [load]);
+
+  useEffect(() => {
+    void fetchPortalDesk(token, {})
+      .then((desk) => setInboxCases(desk.messages ?? []))
+      .catch(() => setInboxCases([]));
+  }, [token]);
 
   const pageName = new Map((data?.pages ?? []).map((page) => [page.page_id, page.page_name || page.page_id]));
   const posts = useMemo(() => {
@@ -121,6 +130,19 @@ export function PortalInboxComments({
   }, [filtered, posts]);
 
   const selected = (data?.comments ?? []).find((row) => row.comment_id === selectedId) ?? null;
+
+  const linkedCaseId = useMemo(() => {
+    if (!selected) return '';
+    const phones = extractContacts(selected.message).phones.map((phone) => displayVnPhone(phone));
+    const fromId = selected.from_id?.trim();
+    const match = inboxCases.find((row) => {
+      if (row.page_id !== selected.page_id) return false;
+      if (fromId && row.title && row.title.trim() === selected.from_name?.trim()) return true;
+      const casePhone = displayVnPhone(row.phone || row.order?.phone || '');
+      return casePhone ? phones.includes(casePhone) : false;
+    });
+    return match?.id ?? '';
+  }, [inboxCases, selected]);
   const thread = useMemo(() => {
     if (!selected || !data) return [];
     const rootId = selected.parent_id || selected.comment_id;
@@ -165,6 +187,9 @@ export function PortalInboxComments({
     try {
       await task();
       await load(false);
+      void fetchPortalDesk(token, {})
+        .then((desk) => setInboxCases(desk.messages ?? []))
+        .catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được');
     } finally {
@@ -516,11 +541,13 @@ export function PortalInboxComments({
             <PortalPosOrderForm
               token={token}
               compact
+              readOnly={readOnly}
               confirmOnCreate
               prefill={{
                 phone: leadForm.phone || extractContacts(selected.message).phones[0] || '',
                 name: selected.from_name || leadForm.name || '',
                 page_id: selected.page_id,
+                case_id: linkedCaseId || undefined,
                 comment_id: selected.comment_id,
                 source: 'comment',
                 post_id: selected.post_id || '',

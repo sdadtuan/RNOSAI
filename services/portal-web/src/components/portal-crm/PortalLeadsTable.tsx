@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { portalCustomerListHref } from '@/lib/portal-confirm-customer.util';
 import type { PortalCareCase, PortalDeskPage, PortalLeadFunnel } from '@/lib/api';
 import { fetchPortalLeadsFunnel, fetchPortalStaff } from '@/lib/api';
 import './portal-leads-pancake.css';
@@ -134,6 +136,8 @@ export function PortalLeadsTable({
   onNotes,
   refreshedLabel = '',
   alerts = [],
+  customerNotice = null,
+  onDismissCustomerNotice = undefined,
 }: {
   rows: PortalCareCase[];
   pages: PortalDeskPage[];
@@ -153,6 +157,8 @@ export function PortalLeadsTable({
   onNotes?: (id: string, notes: string) => void;
   refreshedLabel?: string;
   alerts?: string[];
+  customerNotice?: { text: string; phone: string } | null;
+  onDismissCustomerNotice?: () => void;
 }) {
   const [filters, setFilters] = useState<LeadTableFilters>(EMPTY_LEAD_FILTERS);
   const [quick, setQuick] = useState<Quick>('');
@@ -443,6 +449,17 @@ export function PortalLeadsTable({
 
   return (
     <div className={`pl pl--${view}`}>
+      {customerNotice ? (
+        <div className="portal-crm__note" role="status" style={{ margin: '0 0 0.75rem', padding: '0.65rem 0.85rem' }}>
+          <span>{customerNotice.text} </span>
+          <Link href={portalCustomerListHref(customerNotice.phone)}>Mở hồ sơ khách →</Link>
+          {onDismissCustomerNotice ? (
+            <button type="button" className="pl-iconbtn" aria-label="Đóng" onClick={onDismissCustomerNotice} style={{ marginLeft: 8 }}>
+              ×
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <header className="pl-head">
         <div className="pl-head__title">
           <h1>Lead</h1>

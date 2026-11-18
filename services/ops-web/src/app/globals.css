@@ -2811,6 +2811,36 @@ html.ops-shell-bitrix .win-home__scope {
   margin-left: auto;
 }
 
+.lead-dup-notice__actions .btn-primary:hover:not(:disabled) {
+  background: var(--primary-700);
+}
+
+.lead-dup-notice__actions .btn-secondary:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--accent-hover);
+}
+
+.lead-dup-notice__actions .btn:disabled,
+.lead-dup-notice__actions .btn-primary:disabled,
+.lead-dup-notice__actions .btn-secondary:disabled {
+  cursor: not-allowed;
+}
+
+.lead-dup-notice__actions .btn-primary:disabled:hover {
+  background: #8fbf9a;
+  color: #fff;
+  border: 1px solid #5e8f6c;
+}
+
+.lead-dup-notice__actions .btn-secondary:disabled:hover {
+  background: var(--surface);
+  border-color: var(--surface-border);
+  color: var(--text);
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
 .lead-status-badge--new {
   background: #dbeafe;
   color: #1e40af;

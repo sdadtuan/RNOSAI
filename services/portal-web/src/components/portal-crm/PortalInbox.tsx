@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import {
@@ -51,9 +52,14 @@ import { PortalInboxQuickReplies } from '@/components/portal-crm/PortalInboxQuic
 import { PortalInboxReportStrip } from '@/components/portal-crm/PortalInboxReport';
 import { PortalInboxSettings } from '@/components/portal-crm/PortalInboxSettings';
 import { PortalPosOrderForm } from '@/components/portal-pos/PortalPosOrderForm';
+import { PosLetterThumb } from '@/components/portal-pos/PosLetterThumb';
+import { PosVariantPicker } from '@/components/portal-pos/PosVariantPicker';
+import { posGet, type PosProduct, type PosVariant } from '@/lib/portal-pos-api';
+import { hasVariantChoice, resolvePosProductImage } from '@/lib/portal-pos-order.util';
 import { PortalInboxListHeader } from '@/components/portal-crm/PortalInboxListHeader';
 import { PortalInboxSideTabs, type InboxSideTab } from '@/components/portal-crm/PortalInboxSideTabs';
 import { canActOnCase, canManagePortal, isPortalReadOnly, VIEWER_READ_ONLY_HINT } from '@/lib/portal-role';
+import { portalCustomerListHref } from '@/lib/portal-confirm-customer.util';
 
 const STATUS: Record<string, string> = {
   waiting_receive: 'Chờ nhận',
@@ -157,6 +163,7 @@ function InboxBody({
   const [notes, setNotes] = useState('');
   const [leadForm, setLeadForm] = useState({ name: '', phone: '', email: '' });
   const [error, setError] = useState('');
+  const [customerNotice, setCustomerNotice] = useState<{ text: string; phone: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -166,9 +173,20 @@ function InboxBody({
   const [showTemplates, setShowTemplates] = useState(false);
   const [didSelect, setDidSelect] = useState(false);
   const [mainTab, setMainTab] = useState<'messages' | 'comments'>('messages');
+  const searchParams = useSearchParams();
   useEffect(() => {
     onMainTab?.(mainTab);
   }, [mainTab, onMainTab]);
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'comments') setMainTab('comments');
+    const open = searchParams.get('open')?.trim();
+    if (open) {
+      setSelectedId(open);
+      setSideOpen(true);
+      setSideTab('chot');
+    }
+  }, [searchParams]);
   const [sideOpen, setSideOpen] = useState(false);
   const [sideTab, setSideTab] = useState<InboxSideTab>('chot');
   const bubblesRef = useRef<HTMLDivElement>(null);
@@ -413,6 +431,24 @@ function InboxBody({
 
   const products = (desk?.products ?? []).filter(
     (item) => detail && item.page_id === detail.case.page_id && item.active !== false,
+  );
+  const [posCatalog, setPosCatalog] = useState<PosProduct[]>([]);
+  useEffect(() => {
+    if (sideTab !== 'chot' || !detail?.case.page_id) {
+      setPosCatalog([]);
+      return;
+    }
+    const pageId = detail.case.page_id;
+    void posGet<{ products: PosProduct[] }>(
+      token,
+      `/api/portal/pos/products?active=1&page_id=${encodeURIComponent(pageId)}`,
+    )
+      .then((res) => setPosCatalog(res.products))
+      .catch(() => setPosCatalog([]));
+  }, [sideTab, detail?.case.page_id, token]);
+  const posByProductId = useMemo(
+    () => Object.fromEntries(posCatalog.map((row) => [row.id, row])),
+    [posCatalog],
   );
   const canActProducts =
     Boolean(detail) &&
@@ -742,6 +778,24 @@ function InboxBody({
                         Mua hàng
                       </button>
                     )}
+                    {!detail.case.customer_id ? (
+                      <button
+                        type="button"
+                        className="tram-inbox__btn tram-inbox__btn--primary"
+                        disabled={busy || readOnly}
+                        onClick={() => {
+                          setSideOpen(true);
+                          setSideTab('chot');
+                          setInfo('Chốt đơn POS để ghi nhận khách — không tạo hồ sơ trống.');
+                        }}
+                      >
+                        Chốt đơn (khách hàng)
+                      </button>
+                    ) : (
+                      <Link className="tram-inbox__btn" href={portalCustomerListHref(detail.case.order?.phone)}>
+                        Mở hồ sơ khách
+                      </Link>
+                    )}
                   </div>
                 ) : null}
                 <button
@@ -754,6 +808,12 @@ function InboxBody({
                 </button>
               </div>
             </header>
+            {customerNotice ? (
+              <div className="tram-inbox__notice tram-inbox__notice--ok" role="status" style={{ margin: '0 0.75rem 0.5rem' }}>
+                {customerNotice.text}{' '}
+                <Link href={portalCustomerListHref(customerNotice.phone)}>Mở hồ sơ khách →</Link>
+              </div>
+            ) : null}
             {collide ? <p className="tram-inbox__collision" style={{ margin: '0 0.75rem 0.5rem' }}>{collide}</p> : null}
             <div className="tram-inbox__bubbles" ref={bubblesRef}>
               {detail.messages.length === 0 ? (
@@ -985,100 +1045,6 @@ function InboxBody({
               />
             </div>
 
-            </div>
-            <div className="tram-inbox__side-pane" hidden={sideTab !== 'lead'}>
-            <section className="tram-inbox__side-section">
-              <p className="tram-inbox__kicker">Tạo Lead</p>
-              {linkedLeads.length ? (
-                <ul className="tram-inbox__lead-list">
-                  {linkedLeads.map((lead) => (
-                    <li key={lead.id} className="tram-inbox__lead-card">
-                      <strong>{lead.full_name || 'Lead'}</strong>
-                      <p>{displayVnPhone(lead.phone) || 'Chưa có số'}</p>
-                      {lead.email ? <p>{lead.email}</p> : null}
-                      {lead.campaign_name ? <p className="tram-inbox__hint">{lead.campaign_name}</p> : null}
-                      <Link href="/crm/leads">Mở danh sách Lead</Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="tram-inbox__hint">Chưa có Lead trùng số điện thoại của hội thoại này.</p>
-              )}
-              <fieldset className="portal-ro" disabled={readOnly}>
-              <div className="tram-inbox__lead-form">
-                <label className="tram-inbox__field">
-                  <span>Tên Lead</span>
-                  <input
-                    value={leadForm.name}
-                    maxLength={200}
-                    onChange={(event) => setLeadForm((current) => ({ ...current, name: event.target.value }))}
-                  />
-                </label>
-                <label className="tram-inbox__field">
-                  <span>Số điện thoại</span>
-                  <input
-                    value={leadForm.phone}
-                    maxLength={40}
-                    onChange={(event) => setLeadForm((current) => ({ ...current, phone: event.target.value }))}
-                  />
-                </label>
-                <label className="tram-inbox__field">
-                  <span>Email (không bắt buộc)</span>
-                  <input
-                    value={leadForm.email}
-                    maxLength={200}
-                    onChange={(event) => setLeadForm((current) => ({ ...current, email: event.target.value }))}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="tram-inbox__btn tram-inbox__btn--teal"
-                  disabled={busy || !leadForm.phone.trim()}
-                  onClick={() =>
-                    void run(async () => {
-                      await postPortalCaseCreateLead(token, detail.case.id, {
-                        full_name: leadForm.name,
-                        phone: leadForm.phone,
-                        email: leadForm.email,
-                      });
-                    })
-                  }
-                >
-                  Tạo Lead
-                </button>
-                {!leadForm.phone.trim() ? (
-                  <p className="tram-inbox__hint">Điền số điện thoại đã phát hiện (hoặc nhập tay) rồi tạo Lead.</p>
-                ) : null}
-              </div>
-              </fieldset>
-            </section>
-            </div>
-            <div className="tram-inbox__side-pane" hidden={sideTab !== 'chot'}>
-            <section className="tram-inbox__side-section">
-              <p className="tram-inbox__kicker">Chốt đơn</p>
-              <fieldset className="portal-ro" disabled={readOnly}>
-              <PortalPosOrderForm
-                token={token}
-                compact
-                confirmOnCreate
-                prefill={{
-                  phone: form.phone || detectedPhones[0] || '',
-                  name: detail.case.title || '',
-                  address: form.address,
-                  page_id: detail.case.page_id,
-                  case_id: detail.case.id,
-                  source: 'inbox',
-                  ad_id: detail.case.ad_id,
-                  post_id: (detail.case as { post_id?: string }).post_id || '',
-                }}
-              />
-              </fieldset>
-            </section>
-
-            </div>
-            {collide ? <p className="tram-inbox__collision">{collide}</p> : null}
-            <div className="tram-inbox__side-pane" hidden={sideTab !== 'khach'}>
-
             {desk?.me.role === 'approver' && (desk?.staff.length ?? 0) > 0 && detail.case.status !== 'purchased' ? (
               <div>
                 <p className="tram-inbox__kicker">Nhân viên phụ trách</p>
@@ -1184,45 +1150,145 @@ function InboxBody({
               {order?.product_id ? (
                 <ConfirmedProductRow order={order} products={products} />
               ) : (
-                <p>Chưa xác nhận. Chọn size ở sản phẩm bên dưới.</p>
+                <p className="tram-inbox__hint">Chưa xác nhận — chọn size ở tab Chốt đơn.</p>
               )}
             </div>
-            <div>
-              <p className="tram-inbox__kicker">Sản phẩm Page đang bán</p>
-              {canManagePortal(myRole) ? (
-                <p className="tram-inbox__hint">
-                  <Link href={`/products?page_id=${encodeURIComponent(detail.case.page_id)}`}>Quản lý sản phẩm Page này</Link>
-                </p>
-              ) : null}
-              {products.length === 0 ? (
-                <p>Page này chưa có sản phẩm đang bán. Thêm ở mục Sản Phẩm.</p>
-              ) : (
-                <div className="portal-product-row-stack">
-                  {products.map((item) => (
-                    <ProductPick
-                      key={`${detail.case.id}:${item.id}`}
-                      item={item}
-                      busy={busy}
-                      canAct={canActProducts}
-                      confirmed={order?.product_id === item.id ? order : null}
-                      onConfirm={(size, color) =>
-                        void run(() =>
-                          postPortalCase(token, detail.case.id, 'order', {
-                            product_id: item.id,
-                            size,
-                            color,
-                            phone: form.phone,
-                            address: form.address,
-                          }),
-                        )
-                      }
-                      onSend={() => void run(() => postPortalCase(token, detail.case.id, 'send-product', { product_id: item.id }))}
-                    />
+
+            </div>
+            <div className="tram-inbox__side-pane" hidden={sideTab !== 'lead'}>
+            <section className="tram-inbox__side-section">
+              <p className="tram-inbox__kicker">Tạo Lead</p>
+              {linkedLeads.length ? (
+                <ul className="tram-inbox__lead-list">
+                  {linkedLeads.map((lead) => (
+                    <li key={lead.id} className="tram-inbox__lead-card">
+                      <strong>{lead.full_name || 'Lead'}</strong>
+                      <p>{displayVnPhone(lead.phone) || 'Chưa có số'}</p>
+                      {lead.email ? <p>{lead.email}</p> : null}
+                      {lead.campaign_name ? <p className="tram-inbox__hint">{lead.campaign_name}</p> : null}
+                      <Link href="/crm/leads">Mở danh sách Lead</Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
+              ) : (
+                <p className="tram-inbox__hint">Chưa có Lead trùng số điện thoại của hội thoại này.</p>
               )}
+              <fieldset className="portal-ro" disabled={readOnly}>
+              <div className="tram-inbox__lead-form">
+                <label className="tram-inbox__field">
+                  <span>Tên Lead</span>
+                  <input
+                    value={leadForm.name}
+                    maxLength={200}
+                    onChange={(event) => setLeadForm((current) => ({ ...current, name: event.target.value }))}
+                  />
+                </label>
+                <label className="tram-inbox__field">
+                  <span>Số điện thoại</span>
+                  <input
+                    value={leadForm.phone}
+                    maxLength={40}
+                    onChange={(event) => setLeadForm((current) => ({ ...current, phone: event.target.value }))}
+                  />
+                </label>
+                <label className="tram-inbox__field">
+                  <span>Email (không bắt buộc)</span>
+                  <input
+                    value={leadForm.email}
+                    maxLength={200}
+                    onChange={(event) => setLeadForm((current) => ({ ...current, email: event.target.value }))}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="tram-inbox__btn tram-inbox__btn--teal"
+                  disabled={busy || !leadForm.phone.trim()}
+                  onClick={() =>
+                    void run(async () => {
+                      await postPortalCaseCreateLead(token, detail.case.id, {
+                        full_name: leadForm.name,
+                        phone: leadForm.phone,
+                        email: leadForm.email,
+                      });
+                    })
+                  }
+                >
+                  Tạo Lead
+                </button>
+                {!leadForm.phone.trim() ? (
+                  <p className="tram-inbox__hint">Điền số điện thoại đã phát hiện (hoặc nhập tay) rồi tạo Lead.</p>
+                ) : null}
+              </div>
+              </fieldset>
+            </section>
             </div>
+            <div className="tram-inbox__side-pane" hidden={sideTab !== 'chot'}>
+            <section className="tram-inbox__side-section">
+              <p className="tram-inbox__kicker">Chốt đơn</p>
+              <PortalPosOrderForm
+                token={token}
+                compact
+                readOnly={readOnly}
+                confirmOnCreate
+                prefill={{
+                  phone: form.phone || detectedPhones[0] || '',
+                  name: detail.case.title || '',
+                  address: form.address,
+                  page_id: detail.case.page_id,
+                  case_id: detail.case.id,
+                  source: 'inbox',
+                  ad_id: detail.case.ad_id,
+                  post_id: (detail.case as { post_id?: string }).post_id || '',
+                }}
+                onCreated={(order) => {
+                  const phone = order.phone?.trim() || form.phone || detectedPhones[0] || '';
+                  setCustomerNotice({
+                    text: `Đã chốt đơn ${order.code}. Khách được ghi nhận sau khi đơn xác nhận.`,
+                    phone,
+                  });
+                  void load(false);
+                  void fetchPortalCase(token, detail.case.id).then(setDetail).catch(() => undefined);
+                }}
+              />
+              <div>
+                <p className="tram-inbox__kicker">Sản phẩm Page — xác nhận 1 SP</p>
+                {canManagePortal(myRole) ? (
+                  <p className="tram-inbox__hint">
+                    <Link href={`/products?page_id=${encodeURIComponent(detail.case.page_id)}`}>Quản lý sản phẩm Page này</Link>
+                  </p>
+                ) : null}
+                {products.length === 0 ? (
+                  <p className="tram-inbox__hint">Page này chưa có sản phẩm đang bán. Thêm ở mục Sản Phẩm.</p>
+                ) : (
+                  <div className="portal-product-row-stack">
+                    {products.map((item) => (
+                      <ProductPick
+                        key={`${detail.case.id}:${item.id}`}
+                        item={item}
+                        posProduct={posByProductId[item.id]}
+                        busy={busy}
+                        canAct={canActProducts && !readOnly}
+                        confirmed={order?.product_id === item.id ? order : null}
+                        onConfirm={(size, color) =>
+                          void run(() =>
+                            postPortalCase(token, detail.case.id, 'order', {
+                              product_id: item.id,
+                              size,
+                              color,
+                              phone: form.phone,
+                              address: form.address,
+                            }),
+                          )
+                        }
+                        onSend={() => void run(() => postPortalCase(token, detail.case.id, 'send-product', { product_id: item.id }))}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
             </div>
+            {collide ? <p className="tram-inbox__collision">{collide}</p> : null}
           </div>
         ) : (
           <div className="tram-inbox__empty">Chọn một tin để xem khách, thẻ, ghi chú và Lead.</div>
@@ -1257,8 +1323,43 @@ function ConfirmedProductRow({
   );
 }
 
+function specAsVariants(item: PortalProductRecord): PosVariant[] {
+  const colors = item.spec?.colors ?? [];
+  const sizes = item.spec?.sizes ?? [];
+  const price = item.spec?.price_vnd ?? null;
+  if (!colors.length && !sizes.length) {
+    return [];
+  }
+  const colorList = colors.length ? colors : [{ name: '', image: item.image_url }];
+  const sizeList = sizes.length ? sizes : [''];
+  const rows: PosVariant[] = [];
+  for (const color of colorList) {
+    for (const size of sizeList) {
+      rows.push({
+        id: `${item.id}:${color.name}:${size}`,
+        sku: '',
+        barcode: '',
+        color: color.name,
+        size,
+        price_vnd: price,
+        compare_at_vnd: null,
+        cost_vnd: null,
+        weight_gram: null,
+        image_url: color.image || item.image_url || '',
+        active: true,
+        on_hand: 1,
+        reserved: 0,
+        available: 1,
+        low_stock: false,
+      });
+    }
+  }
+  return rows;
+}
+
 function ProductPick({
   item,
+  posProduct,
   busy,
   canAct,
   confirmed,
@@ -1266,75 +1367,99 @@ function ProductPick({
   onSend,
 }: {
   item: PortalProductRecord;
+  posProduct?: PosProduct;
   busy: boolean;
   canAct: boolean;
   confirmed: { size: string; color: string } | null;
   onConfirm: (size: string, color: string) => void;
   onSend: () => void;
 }) {
-  const sizes = item.spec?.sizes ?? [];
-  const colors = item.spec?.colors ?? [];
-  const [size, setSize] = useState(confirmed?.size || '');
-  const [color, setColor] = useState(confirmed?.color || (colors.length === 1 ? colors[0].name : ''));
-  const resolvedColor = colors.length === 1 ? colors[0].name : color;
-  const ready = (sizes.length === 0 || Boolean(size)) && (colors.length <= 1 || Boolean(color));
-  const selectionMatches = confirmed && confirmed.size === size && confirmed.color === resolvedColor;
-  const variantLine = [resolvedColor, size].filter(Boolean).join(' · ') || undefined;
-  const imageUrl = resolvePortalProductImage(item, resolvedColor);
+  const variants = posProduct?.variants?.length ? posProduct.variants : specAsVariants(item);
+  const classified = hasVariantChoice(variants);
+  const [open, setOpen] = useState(false);
+  const priceVnd = posProduct?.price_vnd ?? item.spec?.price_vnd;
+  const imageUrl = posProduct ? resolvePosProductImage(posProduct) : resolvePortalProductImage(item);
+  const confirmedLine = confirmed ? [confirmed.color, confirmed.size].filter(Boolean).join(' · ') : '';
 
-  return (
-    <PortalProductRow
-      name={item.name}
-      imageUrl={imageUrl}
-      priceVnd={item.spec?.price_vnd}
-      variantLine={variantLine}
-      confirmedHighlight={Boolean(selectionMatches)}
-      footer={
-        <>
-          {colors.length > 1 ? (
-            <div className="tram-inbox__sizes">
-              {colors.map((entry) => (
-                <button
-                  key={entry.name}
-                  type="button"
-                  className={color === entry.name ? 'tram-inbox__size is-on' : 'tram-inbox__size'}
-                  onClick={() => setColor(entry.name)}
-                >
-                  {entry.name}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {sizes.length ? (
-            <div className="tram-inbox__sizes">
-              {sizes.map((entry) => (
-                <button
-                  key={entry}
-                  type="button"
-                  className={size === entry ? 'tram-inbox__size is-on' : 'tram-inbox__size'}
-                  onClick={() => setSize(entry)}
-                >
-                  {entry}
-                </button>
-              ))}
-            </div>
-          ) : null}
+  if (!classified) {
+    return (
+      <PortalProductRow
+        name={item.name}
+        imageUrl={imageUrl}
+        priceVnd={priceVnd}
+        variantLine="Không có phân loại"
+        confirmedHighlight={Boolean(confirmed)}
+        footer={
           <div className="tram-inbox__product-actions">
-            <button
-              type="button"
-              className="tram-inbox__btn"
-              disabled={busy || !ready || !canAct}
-              onClick={() => onConfirm(size, resolvedColor)}
-            >
-              {selectionMatches ? 'Đã xác nhận' : 'Xác nhận sản phẩm'}
+            <button type="button" className="tram-inbox__btn" disabled={busy || !canAct} onClick={() => onConfirm('', '')}>
+              {confirmed ? 'Đã thêm' : 'Thêm vào đơn'}
             </button>
             <button type="button" className="tram-inbox__btn tram-inbox__btn--teal" disabled={busy || !canAct} onClick={onSend}>
               Gửi cho khách
             </button>
           </div>
-        </>
-      }
-    />
+        }
+      />
+    );
+  }
+
+  return (
+    <div className={confirmed ? 'portal-product-pick is-confirmed' : 'portal-product-pick'}>
+      <button type="button" className="portal-product-pick__open" onClick={() => setOpen(true)}>
+        <PosLetterThumb name={item.name} src={imageUrl} size={68} />
+        <span className="portal-product-pick__meta">
+          <span className="portal-product-row__name">{item.name}</span>
+          {confirmedLine ? <span className="portal-product-row__variant">{confirmedLine}</span> : <span className="portal-product-row__variant">Chọn màu, size</span>}
+          {priceVnd != null && priceVnd > 0 ? <span className="portal-product-row__price">{new Intl.NumberFormat('vi-VN').format(priceVnd)} đ</span> : null}
+        </span>
+      </button>
+      {open && posProduct ? (
+        <PosVariantPicker
+          name={item.name}
+          productPrice={posProduct.price_vnd}
+          productImage={posProduct.image_url}
+          variants={posProduct.variants}
+          specColors={posProduct.spec?.colors ?? item.spec?.colors}
+          readOnly={!canAct}
+          busy={busy}
+          onClose={() => setOpen(false)}
+          onAdd={({ color, size }) => onConfirm(size, color)}
+          footer={
+            <button type="button" className="tram-inbox__btn tram-inbox__btn--teal" style={{ width: '100%', marginTop: 6 }} disabled={busy || !canAct} onClick={onSend}>
+              Gửi cho khách
+            </button>
+          }
+        />
+      ) : null}
+      {open && !posProduct ? (
+        <PosVariantPicker
+          name={item.name}
+          productPrice={item.spec?.price_vnd ?? null}
+          productImage={item.image_url}
+          variants={variants}
+          specColors={item.spec?.colors}
+          readOnly={!canAct}
+          busy={busy}
+          onClose={() => setOpen(false)}
+          onAdd={({ color, size }) => onConfirm(size, color)}
+          footer={
+            <button type="button" className="tram-inbox__btn tram-inbox__btn--teal" style={{ width: '100%', marginTop: 6 }} disabled={busy || !canAct} onClick={onSend}>
+              Gửi cho khách
+            </button>
+          }
+        />
+      ) : null}
+      {!open ? (
+        <div className="tram-inbox__product-actions">
+          <button type="button" className="tram-inbox__btn" disabled={!canAct} onClick={() => setOpen(true)}>
+            {confirmed ? 'Đã xác nhận' : 'Xác nhận sản phẩm'}
+          </button>
+          <button type="button" className="tram-inbox__btn tram-inbox__btn--teal" disabled={!canAct} onClick={() => setOpen(true)}>
+            Gửi cho khách
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

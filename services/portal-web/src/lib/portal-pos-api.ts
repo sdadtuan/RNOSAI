@@ -87,6 +87,7 @@ export type PosProduct = {
   weight_gram: number | null; is_combo: boolean; low_stock_threshold: number;
   active: boolean; on_hand: number; reserved: number; available: number; low_stock: boolean;
   variants: PosVariant[];
+  spec?: { price_vnd?: number | null; sizes?: string[]; colors?: Array<{ name: string; image: string }> };
 };
 
 export type PosOrderItem = {

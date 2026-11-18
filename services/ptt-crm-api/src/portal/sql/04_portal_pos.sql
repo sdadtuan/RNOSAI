@@ -272,3 +272,14 @@ CREATE TABLE IF NOT EXISTS portal_pos_code_seq (
   client_id UUID PRIMARY KEY,
   last_value BIGINT NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS portal_pos_customer_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL,
+  phone TEXT NOT NULL,
+  body TEXT NOT NULL,
+  author_email TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS portal_pos_customer_notes_phone_idx
+  ON portal_pos_customer_notes (client_id, phone, created_at DESC);

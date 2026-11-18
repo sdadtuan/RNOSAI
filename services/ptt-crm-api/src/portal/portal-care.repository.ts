@@ -1708,6 +1708,30 @@ export class PortalCareRepository implements OnModuleDestroy {
     return customerId;
   }
 
+  async getCustomerBrief(
+    clientId: string,
+    customerId: string,
+  ): Promise<{ phone: string; display_name: string; email: string; kind: string } | null> {
+    if (!customerId) return null;
+    await this.ensure();
+    const result = await this.db.query(
+      `SELECT cu.phone, cu.display_name, cu.email, c.kind
+         FROM portal_customers cu
+         LEFT JOIN portal_care_cases c ON c.id = cu.case_id
+        WHERE cu.client_id = $1::uuid AND cu.id = $2::uuid
+        LIMIT 1`,
+      [clientId, customerId],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      phone: String(row.phone ?? '').trim(),
+      display_name: String(row.display_name ?? '').trim(),
+      email: String(row.email ?? '').trim(),
+      kind: String(row.kind ?? '').trim(),
+    };
+  }
+
   async saveOrder(id: string, draft: OrderDraft): Promise<void> {
     await this.db.query(`UPDATE portal_care_cases SET order_draft = $2::jsonb, updated_at = NOW() WHERE id = $1::uuid`, [
       id,
@@ -1842,12 +1866,14 @@ export class PortalCareRepository implements OnModuleDestroy {
     return result.rows.map((row) => this.mapProduct(row));
   }
 
-  async insertProduct(clientId: string, pageId: string, name: string, imageUrl: string, detail: string, spec: ProductSpec): Promise<void> {
-    await this.db.query(
+  async insertProduct(clientId: string, pageId: string, name: string, imageUrl: string, detail: string, spec: ProductSpec): Promise<string> {
+    const result = await this.db.query(
       `INSERT INTO portal_page_products (client_id, page_id, name, image_url, detail, spec)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)`,
+       VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
+       RETURNING id::text`,
       [clientId, pageId, name, imageUrl, detail, JSON.stringify(spec)],
     );
+    return String(result.rows[0]?.id ?? '');
   }
 
   async updateProduct(

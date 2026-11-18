@@ -1821,6 +1821,37 @@ html.ops-shell-bitrix .lead-nba__actions .btn-primary:hover {
   background: #114d24;
   border-color: #114d24;
 }
+
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-primary:hover:not(:disabled) {
+  background: #114d24;
+  border-color: #114d24;
+}
+
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-secondary:hover:not(:disabled) {
+  background: var(--mist);
+  border-color: var(--ptt);
+  color: var(--forest);
+}
+
+html.ops-shell-bitrix .lead-dup-notice__actions .btn:disabled,
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-primary:disabled,
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-secondary:disabled {
+  cursor: not-allowed;
+}
+
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-primary:disabled:hover {
+  background: #8fbf9a;
+  color: #fff;
+  border: 1px solid #5e8f6c;
+}
+
+html.ops-shell-bitrix .lead-dup-notice__actions .btn-secondary:disabled:hover {
+  background: var(--paper);
+  border-color: var(--border);
+  color: var(--text);
+  opacity: 0.55;
+}
+
 html.ops-shell-bitrix .lead-nba__body {
   margin: 0 0 0.85rem;
   font-size: 0.95rem;

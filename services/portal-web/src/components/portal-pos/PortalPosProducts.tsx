@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { portalMediaUrl, uploadPortalProductImage, fetchPortalDesk, type PortalDesk } from '@/lib/api';
+import { PosLetterThumb } from '@/components/portal-pos/PosLetterThumb';
 import { generateColorSizeVariants, splitVariantTokens } from '@/lib/portal-pos-variants.util';
+import { productSellWarnings, resolvePosProductImage } from '@/lib/portal-pos-order.util';
 import {
   posGet, posPost, posPatch, posUploadCsv, vnd,
   type PosProduct, type PosVariant,
@@ -216,23 +218,14 @@ export function PortalPosProducts({ token, canManage }: Props) {
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
+            {products.map((p) => {
+              const sellIssues = productSellWarnings(p);
+              const thumb = resolvePosProductImage(p);
+              return (
               <tr key={p.id} onClick={() => canManage && startEdit(p)}>
                 <td>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    {p.image_url ? (
-                      <img
-                        className="pos-thumb"
-                        src={portalMediaUrl(p.image_url)}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none';
-                          const fallback = event.currentTarget.nextElementSibling as HTMLElement | null;
-                          if (fallback) fallback.style.display = 'grid';
-                        }}
-                      />
-                    ) : null}
-                    <div className="pos-thumb is-placeholder" style={p.image_url ? { display: 'none' } : undefined} aria-hidden />
+                    <PosLetterThumb name={p.name} src={thumb} size={40} />
                     <div>
                       <strong>{p.name}</strong>
                       <div className="pos-hint">{p.variants.length} biến thể{p.barcode ? ` · ${p.barcode}` : ''}</div>
@@ -250,7 +243,11 @@ export function PortalPosProducts({ token, canManage }: Props) {
                     <div><span className="pos-badge pos-badge--low">Sắp hết</span></div>
                   ) : null}
                 </td>
-                <td>{p.on_hand <= 0 ? (
+                <td>
+                  {sellIssues.length ? (
+                    <span className="pos-warn" style={{ display: 'block', fontSize: '0.72rem' }}>{sellIssues.join(' · ')}</span>
+                  ) : null}
+                  {p.on_hand <= 0 ? (
                   <span className="pos-badge pos-badge--oos">Hết hàng</span>
                 ) : (
                   <span className={`pos-badge ${p.active ? 'pos-badge--ok' : 'pos-badge--off'}`}>{p.active ? 'Đang bán' : 'Ẩn'}</span>
@@ -264,7 +261,7 @@ export function PortalPosProducts({ token, canManage }: Props) {
                   </td>
                 ) : null}
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
         </div>

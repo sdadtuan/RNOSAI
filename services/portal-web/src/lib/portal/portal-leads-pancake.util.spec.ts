@@ -32,11 +32,11 @@ describe('leadKanbanDropAction — preserves existing CRM PTT transitions', () =
     expect(leadKanbanDropAction('received', 'caring')).toEqual({ ok: true, action: 'care' });
   });
 
-  it('rejects backward, purchased, and drag-to-purchased (no new transitions)', () => {
+  it('rejects backward drag and already-purchased; allows caring → purchased (purchase)', () => {
     expect(leadKanbanDropAction('received', 'waiting_receive').ok).toBe(false);
     expect(leadKanbanDropAction('caring', 'received').ok).toBe(false);
     expect(leadKanbanDropAction('purchased', 'caring').reason).toBe('already_purchased');
-    expect(leadKanbanDropAction('caring', 'purchased').reason).toBe('invalid_transition');
+    expect(leadKanbanDropAction('caring', 'purchased')).toEqual({ ok: true, action: 'purchase' });
     expect(leadKanbanDropAction('received', 'received').reason).toBe('same');
   });
 });

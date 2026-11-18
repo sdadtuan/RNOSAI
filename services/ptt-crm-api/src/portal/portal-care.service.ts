@@ -46,6 +46,7 @@ import {
   pullFacebookComments,
   replyFacebookComment,
 } from './portal-page-comments.util';
+import { PortalPosRepository } from './pos/portal-pos.repository';
 
 export type { PortalInboxIngestResult } from './portal-inbox-sync.service';
 
@@ -78,6 +79,7 @@ export class PortalCareService {
     private readonly inboxSync: PortalInboxSyncService,
     private readonly rebalancer: PortalCareRebalanceService,
     @Optional() private readonly careNotify?: PortalCareNotifyService,
+    @Optional() private readonly posRepo?: PortalPosRepository,
   ) {}
 
   async channels(user: PortalJwtPayload) {
@@ -433,7 +435,26 @@ export class PortalCareService {
     const row = await this.requireActor(user, caseId);
     if (row.kind !== 'lead' && row.kind !== 'message') throw new BadRequestException({ error: 'customer_source' });
     const customerId = await this.repo.confirmCustomer(row);
-    return { ok: true, customer_id: customerId };
+    if (!customerId) {
+      throw new BadRequestException({
+        error: 'customer_contact_required',
+        message: 'Cần số điện thoại (trong lead hoặc đơn nháp) để lưu khách hàng.',
+      });
+    }
+    const brief = await this.repo.getCustomerBrief(user.client_id, customerId);
+    const phone = brief?.phone || row.order?.phone?.trim() || '';
+    const name = brief?.display_name || row.title || '';
+    const email = brief?.email || '';
+    if (this.posRepo && phone) {
+      await this.posRepo.upsertPosCustomer(user.client_id, { phone, name, email });
+    }
+    return {
+      ok: true,
+      customer_id: customerId,
+      phone,
+      name,
+      kind: row.kind,
+    };
   }
 
   async saveOrder(
@@ -567,6 +588,9 @@ export class PortalCareService {
     await this.repo.ensure();
     await this.ownPage(user, pageId);
     await this.repo.insertProduct(user.client_id, pageId, name, spec.colors[0].image, String(input.detail ?? '').trim().slice(0, 4000), spec);
+    if (this.posRepo) {
+      await this.posRepo.migrateLegacyProducts(user.client_id);
+    }
     return { ok: true };
   }
 
@@ -609,6 +633,9 @@ export class PortalCareService {
     }
     const updated = await this.repo.updateProduct(user.client_id, pageId, productId, patch);
     if (!updated && Object.keys(patch).length > 0) throw new NotFoundException({ error: 'product_not_found' });
+    if (this.posRepo && patch.spec) {
+      await this.posRepo.migrateLegacyProducts(user.client_id);
+    }
     return { ok: true };
   }
 

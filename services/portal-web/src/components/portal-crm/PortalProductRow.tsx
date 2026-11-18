@@ -1,7 +1,9 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { portalMediaUrl, type PortalProductRecord } from '@/lib/api';
+import { isPlaceholderImage } from '@/lib/portal-pos-order.util';
+import { avatarTone, initials } from '@/components/portal-crm/portal-inbox.util';
 
 export function portalProductFromList(
   products: PortalProductRecord[],
@@ -12,11 +14,16 @@ export function portalProductFromList(
 
 export function resolvePortalProductImage(item: PortalProductRecord | undefined, color?: string): string {
   if (!item) return '';
+  const candidates: string[] = [];
   if (color?.trim()) {
     const match = item.spec?.colors?.find((entry) => entry.name === color);
-    if (match?.image) return match.image;
+    if (match?.image) candidates.push(match.image);
   }
-  return item.image_url || '';
+  if (item.image_url) candidates.push(item.image_url);
+  for (const entry of item.spec?.colors ?? []) {
+    if (entry.image) candidates.push(entry.image);
+  }
+  return candidates.map((entry) => entry.trim()).find((entry) => entry && !isPlaceholderImage(entry)) ?? '';
 }
 
 type PortalProductRowProps = {
@@ -29,18 +36,16 @@ type PortalProductRowProps = {
 };
 
 function ProductThumb({ src, alt }: { src: string; alt: string }) {
-  if (src) {
-    return <img src={portalMediaUrl(src)} alt={alt} className="portal-product-row__img" />;
+  const [broken, setBroken] = useState(false);
+  const url = src && !isPlaceholderImage(src) ? portalMediaUrl(src) : '';
+  if (!url || broken) {
+    return (
+      <span className="pos-letter portal-product-row__img" style={{ background: avatarTone(alt || 'Sản phẩm') }} aria-hidden>
+        {initials(alt || 'Sản phẩm')}
+      </span>
+    );
   }
-  return (
-    <div className="portal-product-row__placeholder" aria-hidden>
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
-        <path d="M21 15l-5-5L5 21" />
-      </svg>
-    </div>
-  );
+  return <img src={url} alt={alt} className="portal-product-row__img" onError={() => setBroken(true)} />;
 }
 
 export function PortalProductRow({

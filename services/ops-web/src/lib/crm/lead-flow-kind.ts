@@ -62,9 +62,15 @@ export function resolveLeadFlowKind(input: LeadFlowKindInput): LeadFlowKind {
 }
 
 export function resolveLeadFlowKindFromLead(
-  lead: Pick<LeadRow, 'client_id' | 'channel' | 'source' | 'status'>,
+  lead: Pick<
+    LeadRow,
+    'client_id' | 'channel' | 'source' | 'status' | 'lead_flow_kind' | 'b2b_project_id'
+  >,
   funnel?: Pick<LeadFunnelSnapshot, 'lead_flow_kind' | 'presales'> | null,
 ): LeadFlowKind {
+  const fromApi = lead.lead_flow_kind;
+  if (fromApi === 'spa_operational' || fromApi === 'b2b_prospect') return fromApi;
+  if (String(lead.b2b_project_id ?? '').trim()) return 'b2b_prospect';
   if (funnel?.lead_flow_kind) return funnel.lead_flow_kind;
   return resolveLeadFlowKind({
     clientId: lead.client_id,

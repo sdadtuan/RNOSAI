@@ -19,7 +19,7 @@ export function mergeCareCases(prev: PortalCareCase[], incoming: PortalCareCase[
   const byId = new Map(prev.map((row) => [row.id, row]));
   const order: string[] = [];
   for (const row of incoming) {
-    if (!byId.has(row.id)) order.push(row.id);
+    if (!order.includes(row.id)) order.push(row.id);
     const old = byId.get(row.id);
     byId.set(row.id, old ? { ...old, ...row } : row);
   }
@@ -44,7 +44,7 @@ export function mergeCaseMessages(prev: PortalCaseMessage[], incoming: PortalCas
   const byId = new Map(prev.map((row) => [row.id, row]));
   const order: string[] = [];
   for (const row of incoming) {
-    if (!byId.has(row.id)) order.push(row.id);
+    if (!order.includes(row.id)) order.push(row.id);
     byId.set(row.id, row);
   }
   for (const row of prev) {

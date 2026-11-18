@@ -1761,10 +1761,16 @@ export interface PortalProductRecord {
   active?: boolean;
 }
 
+const PLACEHOLDER_MEDIA = /placehold\.co|placeholder\.com|via\.placeholder|dummyimage\.com/i;
+
+/** Browser URL for a product photo. Placeholders are dropped. Media files always hit the API host. */
 export function portalMediaUrl(url: string): string {
-  if (!url) return '';
-  if (url.startsWith('/api/')) return `${API_BASE}${url}`;
-  return url;
+  const raw = String(url ?? '').trim();
+  if (!raw || PLACEHOLDER_MEDIA.test(raw)) return '';
+  const media = raw.match(/\/api\/portal\/crm\/media\/[0-9a-f-]{36}\.(?:jpe?g|png|webp)/i);
+  if (media) return `${API_BASE}${media[0]}`;
+  if (raw.startsWith('/api/')) return `${API_BASE}${raw}`;
+  return raw;
 }
 
 export interface PortalDeskChannel {
@@ -2042,7 +2048,7 @@ export type PortalLeadFunnel = {
 
 export function fetchPortalLeadsFunnel(
   token: string,
-  query: { from?: string; to?: string; page_id?: string; channel?: string; form_id?: string; assignee?: string; tag?: string },
+  query: { from?: string; to?: string; page_id?: string; channel?: string; form_id?: string; assignee?: string; tag?: string } = {},
 ): Promise<PortalLeadFunnel> {
   const params = new URLSearchParams();
   if (query.from) params.set('from', query.from);
@@ -2058,7 +2064,7 @@ export function fetchPortalLeadsFunnel(
 
 export function fetchPortalDesk(
   token: string,
-  query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string; sync?: boolean | string },
+  query: { channel?: string; page_id?: string; day?: string; label?: string; include_inactive?: string; sync?: boolean | string } = {},
 ): Promise<PortalDesk> {
   const params = new URLSearchParams();
   if (query.channel) params.set('channel', query.channel);
@@ -2090,8 +2096,21 @@ export function fetchPortalCase(token: string, id: string): Promise<PortalCaseDe
   return portalCrm(token, `/cases/${encodeURIComponent(id)}`);
 }
 
-export function postPortalCase(token: string, id: string, action: string, body?: Record<string, string>): Promise<void> {
-  return portalCrm(token, `/cases/${encodeURIComponent(id)}/${action}`, {
+export type PortalConfirmCustomerResult = {
+  ok: boolean;
+  customer_id?: string;
+  phone?: string;
+  name?: string;
+  kind?: string;
+};
+
+export function postPortalCase<T = { ok: boolean }>(
+  token: string,
+  id: string,
+  action: string,
+  body?: Record<string, string>,
+): Promise<T> {
+  return portalCrm<T>(token, `/cases/${encodeURIComponent(id)}/${action}`, {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
   });

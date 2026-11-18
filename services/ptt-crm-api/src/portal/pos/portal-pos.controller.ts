@@ -168,8 +168,26 @@ export class PortalPosController {
   }
 
   @Get('customers')
-  customers(@PortalUser() user: PortalJwtPayload, @Query('q') q?: string) {
-    return this.pos.customers(user, q);
+  customers(
+    @PortalUser() user: PortalJwtPayload,
+    @Query('q') q?: string,
+    @Query('source') source?: string,
+    @Query('assignee') assignee?: string,
+    @Query('segment') segment?: string,
+    @Query('unified') unified?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit = Number(limit);
+    const parsedOffset = Number(offset);
+    return this.pos.customers(user, q, {
+      source,
+      assignee,
+      segment,
+      unified,
+      limit: Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : undefined,
+      offset: Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0,
+    });
   }
 
   @Get('customers/by-phone')
@@ -189,6 +207,15 @@ export class PortalPosController {
     @Body() body: { blacklist?: boolean; notes?: string },
   ) {
     return this.pos.setBlacklist(user, phone, body?.blacklist !== false, body?.notes);
+  }
+
+  @Post('customers/:phone/notes')
+  addCustomerNote(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('phone') phone: string,
+    @Body() body: { body?: string },
+  ) {
+    return this.pos.addCustomerNote(user, phone, String(body?.body ?? ''));
   }
 
   @Get('warning')

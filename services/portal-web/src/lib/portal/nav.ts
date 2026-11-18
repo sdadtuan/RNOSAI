@@ -245,6 +245,7 @@ export function currentPortalTitle(pathname: string): string {
 export function portalPageTitle(pathname: string): string {
   if (pathname === '/crm/orders/new') return 'Tạo đơn';
   if (pathname.startsWith('/crm/orders/') && pathname !== '/crm/orders') return 'Chi tiết đơn hàng';
+  if (pathname.startsWith('/crm/customers/') && pathname !== '/crm/customers') return 'Hồ sơ khách';
   if (pathname.startsWith('/email/campaigns/')) return 'Hiệu quả chiến dịch';
   if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'Chi tiết nội dung SEO';
   if (pathname.startsWith('/research/') && pathname !== '/research') return 'Báo cáo nghiên cứu';

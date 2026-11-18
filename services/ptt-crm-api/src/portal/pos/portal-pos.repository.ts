@@ -161,7 +161,11 @@ export class PortalPosRepository implements OnModuleDestroy {
             `INSERT INTO portal_pos_variants
                (id, client_id, product_id, sku, color, size, price_vnd, compare_at_vnd, cost_vnd, weight_gram, image_url)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-             ON CONFLICT (client_id, product_id, color, size) DO NOTHING`,
+             ON CONFLICT (client_id, product_id, color, size) DO UPDATE SET
+               price_vnd = CASE WHEN portal_pos_variants.price_vnd IS NULL OR portal_pos_variants.price_vnd <= 0
+                 THEN COALESCE(NULLIF(EXCLUDED.price_vnd, 0), portal_pos_variants.price_vnd)
+                 ELSE portal_pos_variants.price_vnd END,
+               image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), portal_pos_variants.image_url)`,
             [randomUUID(), clientId, row.id, str(row.sku), str(color.name, 40), str(size, 40), spec.price_vnd, row.compare_at_vnd, row.cost_vnd, row.weight_gram, str(color.image || row.image_url, 500)],
           );
           await this.db.query(
@@ -175,7 +179,112 @@ export class PortalPosRepository implements OnModuleDestroy {
         }
       }
     }
+    const stalePrices = await this.db.query(
+      `SELECT v.id AS variant_id, p.spec
+         FROM portal_page_products p
+         JOIN portal_pos_variants v ON v.product_id = p.id AND v.client_id = p.client_id
+        WHERE p.client_id = $1 AND (v.price_vnd IS NULL OR v.price_vnd <= 0)`,
+      [clientId],
+    );
+    for (const row of stalePrices.rows) {
+      const spec = parseProductSpec(row.spec);
+      const specPrice = money(spec.price_vnd);
+      if (specPrice > 0) {
+        await this.db.query(
+          `UPDATE portal_pos_variants SET price_vnd = $3 WHERE id = $1 AND client_id = $2 AND (price_vnd IS NULL OR price_vnd <= 0)`,
+          [row.variant_id, clientId, specPrice],
+        );
+      }
+    }
+    await this.repairVariantSizesFromSpec(clientId);
+    await this.repairVariantImagesFromSpec(clientId);
     return count;
+  }
+
+  /** When spec lists sizes but legacy variants were saved with empty size, back-fill from spec. */
+  private async repairVariantSizesFromSpec(clientId: string): Promise<void> {
+    const warehouse = await this.ensureWarehouse(clientId);
+    const rows = await this.db.query(
+      `SELECT p.id AS product_id, p.spec, p.sku, p.compare_at_vnd, p.cost_vnd, p.weight_gram, p.image_url
+         FROM portal_page_products p
+        WHERE p.client_id = $1 AND EXISTS (
+          SELECT 1 FROM portal_pos_variants v
+           WHERE v.product_id = p.id AND v.client_id = p.client_id AND trim(coalesce(v.size, '')) = ''
+        )`,
+      [clientId],
+    );
+    for (const row of rows.rows) {
+      const spec = parseProductSpec(row.spec);
+      const sizes = spec.sizes.map((s) => str(s, 40)).filter(Boolean);
+      if (!sizes.length) continue;
+      const vars = await this.db.query(
+        `SELECT id, color, size, price_vnd, image_url FROM portal_pos_variants
+          WHERE product_id = $1 AND client_id = $2 AND trim(coalesce(size, '')) = ''`,
+        [row.product_id, clientId],
+      );
+      if (!vars.rows.length) continue;
+      if (sizes.length === 1) {
+        await this.db.query(
+          `UPDATE portal_pos_variants SET size = $3, updated_at = now()
+            WHERE product_id = $1 AND client_id = $2 AND trim(coalesce(size, '')) = ''`,
+          [row.product_id, clientId, sizes[0]],
+        );
+        continue;
+      }
+      for (const v of vars.rows) {
+        const color = str(v.color, 40);
+        const price = money(v.price_vnd);
+        const keepId = String(v.id);
+        await this.db.query(
+          `UPDATE portal_pos_variants SET size = $3, updated_at = now() WHERE id = $1 AND client_id = $2`,
+          [keepId, clientId, sizes[0]],
+        );
+        for (let i = 1; i < sizes.length; i += 1) {
+          const size = sizes[i];
+          const id = randomUUID();
+          await this.db.query(
+            `INSERT INTO portal_pos_variants
+               (id, client_id, product_id, sku, color, size, price_vnd, compare_at_vnd, cost_vnd, weight_gram, image_url)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             ON CONFLICT (client_id, product_id, color, size) DO NOTHING`,
+            [
+              id, clientId, row.product_id, str(row.sku), color, size, price || money(spec.price_vnd),
+              row.compare_at_vnd, row.cost_vnd, row.weight_gram, str(v.image_url || row.image_url, 500),
+            ],
+          );
+          await this.db.query(
+            `INSERT INTO portal_pos_stock (warehouse_id, variant_id, on_hand, reserved)
+             SELECT $1, v.id, 0, 0 FROM portal_pos_variants v
+              WHERE v.id = $2 AND v.client_id = $3
+             ON CONFLICT (warehouse_id, variant_id) DO NOTHING`,
+            [warehouse.id, id, clientId],
+          );
+        }
+      }
+    }
+  }
+
+  /** Back-fill variant image_url from spec color images or the product hero image. */
+  private async repairVariantImagesFromSpec(clientId: string): Promise<void> {
+    const rows = await this.db.query(
+      `SELECT v.id, v.color, v.product_id, p.image_url AS product_image, p.spec
+         FROM portal_pos_variants v
+         JOIN portal_page_products p ON p.id = v.product_id AND p.client_id = v.client_id
+        WHERE v.client_id = $1 AND trim(coalesce(v.image_url, '')) = ''`,
+      [clientId],
+    );
+    for (const row of rows.rows) {
+      const spec = parseProductSpec(row.spec);
+      const color = str(row.color, 40);
+      const colorImg = spec.colors.find((c) => c.name === color)?.image ?? '';
+      const img = str(colorImg || row.product_image, 500);
+      if (img) {
+        await this.db.query(
+          `UPDATE portal_pos_variants SET image_url = $3, updated_at = now() WHERE id = $1 AND client_id = $2`,
+          [row.id, clientId, img],
+        );
+      }
+    }
   }
 
   async listCategories(clientId: string) {
@@ -259,20 +368,26 @@ export class PortalPosRepository implements OnModuleDestroy {
   private mapProduct(row: Record<string, unknown>, warehouseThreshold: number) {
     const variantsRaw = jsonVal(row.variants);
     const threshold = int(row.low_stock_threshold, warehouseThreshold);
+    const spec = parseProductSpec(row.spec);
+    const productImage = str(row.image_url, 500);
+    const colorImages = new Map(spec.colors.map((c) => [c.name, str(c.image, 500)] as const));
     const variants = Array.isArray(variantsRaw)
       ? variantsRaw.map((item) => {
           const v = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
           const on_hand = int(v.on_hand);
           const reserved = int(v.reserved);
+          const color = str(v.color, 40);
+          const rawImage = str(v.image_url, 500);
+          const image_url = rawImage || colorImages.get(color) || productImage;
           return {
             id: String(v.id), sku: str(v.sku, 80), barcode: str(v.barcode, 80),
-            color: str(v.color, 40), size: str(v.size, 40),
+            color, size: str(v.size, 40),
             attrs: v.attrs && typeof v.attrs === 'object' ? v.attrs : {},
             price_vnd: v.price_vnd == null ? null : money(v.price_vnd),
             compare_at_vnd: v.compare_at_vnd == null ? null : money(v.compare_at_vnd),
             cost_vnd: v.cost_vnd == null ? null : money(v.cost_vnd),
             weight_gram: v.weight_gram == null ? null : int(v.weight_gram),
-            image_url: str(v.image_url, 500), active: v.active !== false,
+            image_url, active: v.active !== false,
             on_hand, reserved, available: availableStock({ on_hand, reserved }),
             low_stock: isLowStock({ on_hand, reserved }, threshold),
           };
@@ -281,10 +396,13 @@ export class PortalPosRepository implements OnModuleDestroy {
     const available = variants.reduce((s, v) => s + v.available, 0);
     const on_hand = variants.reduce((s, v) => s + v.on_hand, 0);
     const reserved = variants.reduce((s, v) => s + v.reserved, 0);
-    const spec = parseProductSpec(row.spec);
+    const image_url =
+      productImage ||
+      variants.find((v) => v.image_url)?.image_url ||
+      str(spec.colors.find((c) => c.image)?.image, 500);
     return {
       id: String(row.id), client_id: String(row.client_id), page_id: str(row.page_id, 64),
-      name: str(row.name, 200), detail: str(row.detail, 4000), image_url: str(row.image_url, 500),
+      name: str(row.name, 200), detail: str(row.detail, 4000), image_url,
       sku: str(row.sku, 80), barcode: str(row.barcode, 80),
       category_id: row.category_id ? String(row.category_id) : null,
       category_name: row.category_name ? str(row.category_name, 80) : '',
@@ -992,8 +1110,10 @@ export class PortalPosRepository implements OnModuleDestroy {
     params.push(Math.min(100, Math.max(1, limit)), Math.max(0, offset));
     const res = await this.db.query(
       `SELECT c.*, count(o.id)::int AS order_count,
+              count(o.id) FILTER (WHERE o.status NOT IN ('new', 'cancelled'))::int AS confirmed_order_count,
               count(o.id) FILTER (WHERE o.status = 'success')::int AS success_count,
               count(o.id) FILTER (WHERE o.status = 'returned')::int AS returned_count,
+              COALESCE(sum(o.total_vnd) FILTER (WHERE o.status NOT IN ('new', 'cancelled')),0)::bigint AS total_vnd,
               COALESCE(sum(o.total_vnd) FILTER (WHERE o.status = 'success'),0)::bigint AS revenue_vnd
          FROM portal_pos_customers c
          LEFT JOIN portal_pos_orders o ON o.customer_id = c.id
@@ -1008,9 +1128,225 @@ export class PortalPosRepository implements OnModuleDestroy {
         const base = this.mapCustomer(row);
         const success = int(row.success_count);
         const returned = int(row.returned_count);
-        return { ...base, order_count: int(row.order_count), success_count: success, returned_count: returned, revenue_vnd: money(row.revenue_vnd), risk: customerRisk({ success, returned, blacklist: base.blacklist }) };
+        const confirmed = int(row.confirmed_order_count);
+        const spend = money(row.total_vnd);
+        return {
+          ...base,
+          order_count: confirmed || int(row.order_count),
+          confirmed_order_count: confirmed,
+          success_count: success,
+          returned_count: returned,
+          revenue_vnd: money(row.revenue_vnd),
+          total_vnd: spend,
+          risk: customerRisk({ success, returned, blacklist: base.blacklist }),
+        };
       }),
     };
+  }
+
+  private async listCareCustomersByPhone(clientId: string) {
+    try {
+      const res = await this.db.query(
+        `SELECT cu.phone, cu.display_name, c.kind, c.assignee_user_id::text, COALESCE(u.email, '') AS assignee_email,
+                cu.last_interaction_at, c.id::text AS case_id, cu.id::text AS care_customer_id,
+                cu.source_lead_id::text AS source_lead_id
+           FROM portal_customers cu
+           INNER JOIN portal_care_cases c ON c.id = cu.case_id
+           LEFT JOIN portal_client_users u ON u.id = c.assignee_user_id
+          WHERE cu.client_id = $1 AND cu.phone <> ''`,
+        [clientId],
+      );
+      return res.rows as Array<Record<string, unknown>>;
+    } catch {
+      return [];
+    }
+  }
+
+  async listUnifiedCustomers(
+    clientId: string,
+    filter?: { q?: string; source?: string; assignee?: string; segment?: string },
+    limit = 80,
+    offset = 0,
+  ) {
+    await this.ensure();
+    const pos = await this.listCustomers(clientId, filter?.q, 500, 0);
+    const careRows = await this.listCareCustomersByPhone(clientId);
+    type Entry = {
+      phone: string;
+      name: string;
+      sources: Set<'lead' | 'message' | 'order'>;
+      order_count: number;
+      success_count: number;
+      returned_count: number;
+      revenue_vnd: number;
+      total_vnd: number;
+      confirmed_order_count: number;
+      last_purchase_at: string;
+      assignee_user_id: string;
+      assignee_email: string;
+      blacklist: boolean;
+      risk: ReturnType<typeof customerRisk>;
+      pos_id: string;
+    };
+    const map = new Map<string, Entry>();
+    const touch = (rawPhone: string) => {
+      const phone = normalizeVnPhone(rawPhone) || rawPhone.trim();
+      if (!phone) return '';
+      if (!map.has(phone)) {
+        map.set(phone, {
+          phone,
+          name: '',
+          sources: new Set(),
+          order_count: 0,
+          success_count: 0,
+          returned_count: 0,
+          revenue_vnd: 0,
+          total_vnd: 0,
+          confirmed_order_count: 0,
+          last_purchase_at: '',
+          assignee_user_id: '',
+          assignee_email: '',
+          blacklist: false,
+          risk: customerRisk({ success: 0, returned: 0 }),
+          pos_id: '',
+        });
+      }
+      return phone;
+    };
+    for (const row of pos.customers) {
+      const key = touch(row.phone);
+      if (!key) continue;
+      const entry = map.get(key)!;
+      entry.name = row.name || entry.name;
+      entry.order_count = row.confirmed_order_count ?? row.order_count;
+      entry.confirmed_order_count = row.confirmed_order_count ?? row.order_count;
+      entry.success_count = row.success_count;
+      entry.returned_count = row.returned_count;
+      entry.revenue_vnd = row.revenue_vnd;
+      entry.total_vnd = row.total_vnd ?? row.revenue_vnd;
+      entry.blacklist = row.blacklist;
+      entry.risk = row.risk;
+      entry.pos_id = row.id;
+      if (row.order_count > 0) entry.sources.add('order');
+    }
+    for (const row of careRows) {
+      const key = touch(String(row.phone ?? ''));
+      if (!key) continue;
+      const entry = map.get(key)!;
+      const name = String(row.display_name ?? '').trim();
+      if (name) entry.name = entry.name || name;
+      const kind = String(row.kind ?? '').trim();
+      if (kind === 'lead') entry.sources.add('lead');
+      if (kind === 'message') entry.sources.add('message');
+      const last = iso(row.last_interaction_at);
+      if (last && (!entry.last_purchase_at || last > entry.last_purchase_at)) entry.last_purchase_at = last;
+      const assignee = String(row.assignee_user_id ?? '').trim();
+      if (assignee && !entry.assignee_user_id) {
+        entry.assignee_user_id = assignee;
+        entry.assignee_email = String(row.assignee_email ?? '').trim();
+      }
+    }
+    const confirmedByPhone = await this.db.query(
+      `SELECT phone,
+              count(*) FILTER (WHERE status NOT IN ('new', 'cancelled'))::int AS confirmed_order_count,
+              COALESCE(sum(total_vnd) FILTER (WHERE status NOT IN ('new', 'cancelled')),0)::bigint AS total_vnd,
+              count(*) FILTER (WHERE status = 'success')::int AS success_count,
+              count(*) FILTER (WHERE status = 'returned')::int AS returned_count
+         FROM portal_pos_orders
+        WHERE client_id = $1 AND phone <> ''
+        GROUP BY phone`,
+      [clientId],
+    );
+    for (const row of confirmedByPhone.rows) {
+      const key = touch(String(row.phone ?? ''));
+      if (!key) continue;
+      const entry = map.get(key)!;
+      const confirmed = int(row.confirmed_order_count);
+      entry.confirmed_order_count = Math.max(entry.confirmed_order_count, confirmed);
+      entry.order_count = Math.max(entry.order_count, confirmed);
+      entry.total_vnd = Math.max(entry.total_vnd, money(row.total_vnd));
+      entry.success_count = Math.max(entry.success_count, int(row.success_count));
+      entry.returned_count = Math.max(entry.returned_count, int(row.returned_count));
+      if (confirmed > 0) entry.sources.add('order');
+    }
+    const lastOrderRes = await this.db.query(
+      `SELECT phone, max(created_at) AS last_at
+         FROM portal_pos_orders
+        WHERE client_id = $1 AND status = 'success' AND phone <> ''
+        GROUP BY phone`,
+      [clientId],
+    );
+    for (const row of lastOrderRes.rows) {
+      const key = touch(String(row.phone ?? ''));
+      if (!key) continue;
+      const entry = map.get(key);
+      if (!entry) continue;
+      const last = iso(row.last_at);
+      if (last && (!entry.last_purchase_at || last > entry.last_purchase_at)) entry.last_purchase_at = last;
+    }
+    const assignFromOrders = await this.db.query(
+      `SELECT DISTINCT ON (phone) phone, assignee_user_id, assignee_email
+         FROM portal_pos_orders
+        WHERE client_id = $1 AND phone <> '' AND assignee_user_id IS NOT NULL AND assignee_user_id <> ''
+        ORDER BY phone, created_at DESC`,
+      [clientId],
+    );
+    for (const row of assignFromOrders.rows) {
+      const key = touch(String(row.phone ?? ''));
+      if (!key) continue;
+      const entry = map.get(key)!;
+      if (!entry.assignee_user_id) {
+        entry.assignee_user_id = String(row.assignee_user_id ?? '').trim();
+        entry.assignee_email = String(row.assignee_email ?? '').trim();
+      }
+    }
+    const needle = filter?.q?.trim().toLowerCase() ?? '';
+    const sourceFilter = filter?.source?.trim() as 'lead' | 'message' | 'order' | '' | undefined;
+    const assigneeFilter = filter?.assignee?.trim() ?? '';
+    const segment = filter?.segment?.trim().toLowerCase() ?? '';
+    let items = [...map.values()].map((entry) => ({
+      id: entry.pos_id || entry.phone,
+      phone: entry.phone,
+      name: entry.name || 'Khách',
+      sources: [...entry.sources],
+      order_count: entry.confirmed_order_count || entry.order_count,
+      confirmed_order_count: entry.confirmed_order_count,
+      success_count: entry.success_count,
+      returned_count: entry.returned_count,
+      revenue_vnd: entry.revenue_vnd,
+      total_vnd: entry.total_vnd || entry.revenue_vnd,
+      last_purchase_at: entry.last_purchase_at,
+      assignee_user_id: entry.assignee_user_id,
+      assignee_email: entry.assignee_email,
+      blacklist: entry.blacklist,
+      risk: entry.risk,
+    }));
+    if (needle) {
+      items = items.filter(
+        (row) => row.phone.includes(needle) || row.name.toLowerCase().includes(needle),
+      );
+    }
+    if (sourceFilter === 'lead' || sourceFilter === 'message' || sourceFilter === 'order') {
+      items = items.filter((row) => row.sources.includes(sourceFilter));
+    }
+    if (assigneeFilter) {
+      items = items.filter((row) => row.assignee_user_id === assigneeFilter);
+    }
+    if (segment === 'customer') {
+      items = items.filter((row) => row.confirmed_order_count > 0);
+    } else if (segment === 'prospect') {
+      items = items.filter(
+        (row) => row.confirmed_order_count === 0 && (row.sources.includes('lead') || row.sources.includes('message')),
+      );
+    }
+    items.sort((a, b) => {
+      const ta = a.last_purchase_at ? new Date(a.last_purchase_at).getTime() : 0;
+      const tb = b.last_purchase_at ? new Date(b.last_purchase_at).getTime() : 0;
+      return tb - ta;
+    });
+    const total = items.length;
+    const page = items.slice(Math.max(0, offset), Math.max(0, offset) + Math.min(100, Math.max(1, limit)));
+    return { total, customers: page };
   }
 
   async getCustomerProfile(clientId: string, phone: string) {
@@ -1018,10 +1354,31 @@ export class PortalPosRepository implements OnModuleDestroy {
     const n = normalizeVnPhone(phone) || phone;
     const stats = await this.customerStats(clientId, n);
     const orders = await this.db.query(
-      `SELECT o.id, o.code, o.status, o.total_vnd, o.cod_vnd, o.created_at, o.page_id, o.source
+      `SELECT o.id, o.code, o.status, o.total_vnd, o.cod_vnd, o.created_at, o.page_id, o.source,
+              o.assignee_email, o.discount_vnd, o.shipping_fee_vnd,
+              (SELECT json_agg(jsonb_build_object(
+                 'name', i.name, 'color', i.color, 'size', i.size, 'qty', i.qty, 'price_vnd', i.price_vnd
+               ) ORDER BY i.id) FROM portal_pos_order_items i WHERE i.order_id = o.id) AS items,
+              (SELECT s.status FROM portal_pos_shipments s WHERE s.order_id = o.id AND s.cancelled_at IS NULL
+                ORDER BY s.created_at DESC LIMIT 1) AS ship_status,
+              (SELECT s.tracking_code FROM portal_pos_shipments s WHERE s.order_id = o.id AND s.cancelled_at IS NULL
+                ORDER BY s.created_at DESC LIMIT 1) AS tracking_code
          FROM portal_pos_orders o WHERE o.client_id = $1 AND o.phone = $2 ORDER BY o.created_at DESC LIMIT 50`,
       [clientId, n],
     );
+    const rollup = await this.db.query(
+      `SELECT
+              count(*) FILTER (WHERE status NOT IN ('new', 'cancelled'))::int AS confirmed_count,
+              min(created_at) FILTER (WHERE status NOT IN ('new', 'cancelled')) AS first_purchase_at,
+              max(created_at) FILTER (WHERE status = 'success') AS last_success_at,
+              COALESCE(sum(total_vnd) FILTER (WHERE status NOT IN ('new', 'cancelled')),0)::bigint AS spend_vnd
+         FROM portal_pos_orders WHERE client_id = $1 AND phone = $2`,
+      [clientId, n],
+    );
+    const roll = rollup.rows[0] ?? {};
+    const confirmedCount = int(roll.confirmed_count);
+    const spendVnd = money(roll.spend_vnd);
+    const avgOrder = confirmedCount > 0 ? Math.round(spendVnd / confirmedCount) : 0;
     let conversations: unknown[] = [];
     try {
       const cases = await this.db.query(
@@ -1049,14 +1406,148 @@ export class PortalPosRepository implements OnModuleDestroy {
         email: str(row.email, 200), campaign_name: str(row.campaign_name, 200), created_at: iso(row.created_at),
       }));
     } catch { leads = []; }
+    let labels: string[] = [];
+    try {
+      const labelRows = await this.db.query(
+        `SELECT DISTINCT unnest(labels) AS label FROM portal_care_cases
+          WHERE client_id = $1 AND (phone = $2 OR phone = $3) AND labels IS NOT NULL`,
+        [clientId, n, phone],
+      );
+      labels = labelRows.rows.map((row) => str(row.label, 40)).filter(Boolean);
+    } catch { labels = []; }
+  let assignee_email = '';
+    try {
+      const assign = await this.db.query(
+        `SELECT assignee_email FROM portal_pos_orders
+          WHERE client_id = $1 AND phone = $2 AND assignee_email <> ''
+          ORDER BY created_at DESC LIMIT 1`,
+        [clientId, n],
+      );
+      assignee_email = str(assign.rows[0]?.assignee_email, 200);
+    } catch { assignee_email = ''; }
+    const timeline: Array<{ kind: string; at: string; title: string; meta?: string }> = [];
+    for (const row of orders.rows) {
+      timeline.push({
+        kind: 'order',
+        at: iso(row.created_at),
+        title: `Đơn ${str(row.code, 20)}`,
+        meta: `${str(row.status, 20)} · ${money(row.total_vnd)} đ`,
+      });
+    }
+    for (const row of conversations as Array<{ created_at?: string; title?: string; kind?: string; status?: string }>) {
+      timeline.push({
+        kind: String(row.kind ?? 'message'),
+        at: iso(row.created_at),
+        title: String(row.title ?? 'Hội thoại'),
+        meta: String(row.status ?? ''),
+      });
+    }
+    for (const row of leads as Array<{ created_at?: string; full_name?: string; campaign_name?: string }>) {
+      timeline.push({
+        kind: 'lead',
+        at: iso(row.created_at),
+        title: String(row.full_name ?? 'Lead'),
+        meta: String(row.campaign_name ?? ''),
+      });
+    }
+    let noteRows: Array<{ id: string; body: string; author_email: string; created_at: string }> = [];
+    try {
+      await this.ensureCustomerNotes();
+      const notesRes = await this.db.query(
+        `SELECT id, body, author_email, created_at FROM portal_pos_customer_notes
+          WHERE client_id = $1 AND phone = $2 ORDER BY created_at DESC LIMIT 50`,
+        [clientId, n],
+      );
+      noteRows = notesRes.rows.map((row) => ({
+        id: String(row.id),
+        body: str(row.body, 2000),
+        author_email: str(row.author_email, 200),
+        created_at: iso(row.created_at),
+      }));
+    } catch { noteRows = []; }
+    try {
+      const events = await this.db.query(
+        `SELECT e.from_status, e.to_status, e.note, e.actor_email, e.created_at, o.code
+           FROM portal_pos_order_events e
+           JOIN portal_pos_orders o ON o.id = e.order_id
+          WHERE o.client_id = $1 AND o.phone = $2
+          ORDER BY e.created_at DESC LIMIT 40`,
+        [clientId, n],
+      );
+      for (const row of events.rows) {
+        if (!str(row.from_status, 20) && str(row.to_status, 20) === 'new') continue;
+        timeline.push({
+          kind: 'status',
+          at: iso(row.created_at),
+          title: `Đơn ${str(row.code, 20)} · ${str(row.to_status, 20)}`,
+          meta: [str(row.note, 200), str(row.actor_email, 200)].filter(Boolean).join(' · '),
+        });
+      }
+    } catch { /* events stay out of the timeline */ }
+    for (const row of noteRows) {
+      timeline.push({ kind: 'note', at: row.created_at, title: 'Ghi chú', meta: row.body });
+    }
+    timeline.sort((a, b) => (b.at > a.at ? 1 : b.at < a.at ? -1 : 0));
+    const sourceSet = new Set<'lead' | 'message' | 'order'>();
+    if (orders.rows.length) sourceSet.add('order');
+    if ((leads as Array<{ id?: string }>).length) sourceSet.add('lead');
+    if ((conversations as Array<{ kind?: string }>).some((row) => row.kind === 'message' || row.kind === 'inbox')) sourceSet.add('message');
+    const page_id = str((conversations[0] as { page_id?: string } | undefined)?.page_id, 64) || str(orders.rows[0]?.page_id, 64);
+    let page_name = '';
+    if (page_id) {
+      try {
+        const page = await this.db.query(
+          `SELECT page_name FROM portal_client_pages WHERE client_id = $1 AND page_id = $2 LIMIT 1`,
+          [clientId, page_id],
+        );
+        page_name = str(page.rows[0]?.page_name, 200);
+      } catch { page_name = ''; }
+    }
+    const email = str(stats.customer?.email, 200) || str((leads[0] as { email?: string } | undefined)?.email, 200);
+    const address = str(stats.customer?.address, 500);
     return {
-      ...stats, phone: n,
+      ...stats,
+      phone: n,
+      kpis: {
+        order_count: confirmedCount,
+        spend_vnd: spendVnd,
+        avg_order_vnd: avgOrder,
+        return_rate: stats.success + stats.returned > 0 ? stats.returned / (stats.success + stats.returned) : 0,
+        first_purchase_at: iso(roll.first_purchase_at),
+        last_purchase_at: iso(roll.last_success_at) || stats.customer?.updated_at || '',
+      },
+      labels,
+      assignee_email,
+      email,
+      address,
+      created_at: stats.customer?.created_at || '',
+      sources: [...sourceSet],
+      page_id,
+      page_name,
+      notes: noteRows,
       orders: orders.rows.map((row) => ({
         id: String(row.id), code: str(row.code, 20), status: str(row.status, 20),
         total_vnd: money(row.total_vnd), cod_vnd: money(row.cod_vnd), created_at: iso(row.created_at),
         page_id: str(row.page_id, 64), source: str(row.source, 20),
+        assignee_email: str(row.assignee_email, 200),
+        ship_status: str(row.ship_status, 40),
+        tracking_code: str(row.tracking_code, 80),
+        items: Array.isArray(jsonVal(row.items))
+          ? (jsonVal(row.items) as unknown[]).map((item) => {
+              const i = (item || {}) as Record<string, unknown>;
+              return {
+                name: str(i.name, 200),
+                color: str(i.color, 40),
+                size: str(i.size, 40),
+                qty: int(i.qty, 1),
+                price_vnd: money(i.price_vnd),
+              };
+            })
+          : [],
       })),
-      conversations, leads,
+      conversations,
+      leads,
+      timeline: timeline.slice(0, 60),
     };
   }
 
@@ -1066,6 +1557,35 @@ export class PortalPosRepository implements OnModuleDestroy {
     await this.db.query(
       `UPDATE portal_pos_customers SET blacklist = $3, notes = COALESCE($4, notes), updated_at = now() WHERE client_id = $1 AND id = $2`,
       [clientId, customer.id, blacklist, notes != null ? str(notes, 2000) : null],
+    );
+    return this.getCustomerProfile(clientId, customer.phone);
+  }
+
+  private async ensureCustomerNotes() {
+    await this.db.query(
+      `CREATE TABLE IF NOT EXISTS portal_pos_customer_notes (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         client_id UUID NOT NULL,
+         phone TEXT NOT NULL,
+         body TEXT NOT NULL,
+         author_email TEXT NOT NULL DEFAULT '',
+         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`,
+    );
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS portal_pos_customer_notes_phone_idx
+         ON portal_pos_customer_notes (client_id, phone, created_at DESC)`,
+    );
+  }
+
+  async addCustomerNote(clientId: string, phone: string, body: string, authorEmail = '') {
+    await this.ensure();
+    const customer = await this.upsertPosCustomer(clientId, { phone, name: '' });
+    if (!customer) throw new Error('phone_required');
+    await this.ensureCustomerNotes();
+    await this.db.query(
+      `INSERT INTO portal_pos_customer_notes (client_id, phone, body, author_email) VALUES ($1,$2,$3,$4)`,
+      [clientId, customer.phone, str(body, 2000), str(authorEmail, 200)],
     );
     return this.getCustomerProfile(clientId, customer.phone);
   }
