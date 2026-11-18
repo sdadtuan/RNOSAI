@@ -1,4 +1,6 @@
 import type { LeadRow } from '@/lib/api';
+import type { StoredStaffUser } from '@/lib/auth';
+import { isAccountExecutive, isAccountManager, isMarketingLeader } from './lead-ae-visibility';
 import { WORK_SIGNALS } from './work-signals';
 import { leadHasSubmittedSolution, normalizeLeadStatus } from './lead-status';
 
@@ -179,10 +181,40 @@ function advanceContractAction(lead: QuoteProgressLead): KanbanCardAction {
   };
 }
 
+/** Sale steps on a card: care, intake, call, Trả lại AM, advance, mark signed. */
+const SALE_ONLY_KINDS = new Set<KanbanCardActionKind>([
+  'call',
+  'care',
+  'intake',
+  'return_am',
+  'advance_proposal',
+  'advance_contract',
+  'mark_signed',
+]);
+
+export type KanbanActionViewer = {
+  staffId?: number | null;
+  positionCode?: string | null;
+};
+
+/** The AE who owns this lead. AM and Marketing Leader are not that Sale. */
+export function kanbanViewerIsAssignedSale(
+  viewer: KanbanActionViewer | null | undefined,
+  ownerId: number | null | undefined,
+): boolean {
+  if (!viewer) return false;
+  const user = { position_code: viewer.positionCode ?? '' } as StoredStaffUser;
+  if (isAccountManager(user) || isMarketingLeader(user) || !isAccountExecutive(user)) return false;
+  const me = Number(viewer.staffId);
+  const owner = Number(ownerId);
+  return Number.isInteger(me) && me > 0 && me === owner;
+}
+
 export function kanbanCardActions(
   lead: Pick<
     LeadRow,
     | 'id'
+    | 'owner_id'
     | 'phone'
     | 'status'
     | 'ai_band'
@@ -196,6 +228,7 @@ export function kanbanCardActions(
     | 'solution_handoff'
     | 'has_contract'
   >,
+  viewer?: KanbanActionViewer | null,
 ): KanbanCardAction[] {
   const status = normalizeLeadStatus(lead.status);
   const phone = digitsPhone(lead.phone);
@@ -203,24 +236,20 @@ export function kanbanCardActions(
   const dealHref = `/crm/leads/${lead.id}/deal-room`;
   const contractHref = `${careHref}?tab=contract#lead-contract`;
 
+  let actions: KanbanCardAction[];
   if (EARLY.has(status)) {
-    const actions: KanbanCardAction[] = [];
+    actions = [];
     if (phone) {
       actions.push({ href: `tel:${phone}`, label: 'Gọi ngay', kind: 'call', primary: true });
     }
     actions.push({ href: careHref, label: 'Chăm sóc', kind: 'care', primary: !phone });
-    return actions;
-  }
-
-  if (CONSULT.has(status)) {
-    return [
+  } else if (CONSULT.has(status)) {
+    actions = [
       { href: careHref, label: 'Chăm sóc', kind: 'care', primary: true },
       { href: `/crm/intake?lead_id=${lead.id}`, label: 'Intake', kind: 'intake' },
     ];
-  }
-
-  if (QUOTE.has(status)) {
-    return [
+  } else if (QUOTE.has(status)) {
+    actions = [
       quoteLeadAction(lead, careHref, {
         href: careHref,
         label: 'Xem báo giá',
@@ -235,10 +264,8 @@ export function kanbanCardActions(
       },
       advanceProposalAction(lead),
     ];
-  }
-
-  if (PROPOSAL.has(status)) {
-    return [
+  } else if (PROPOSAL.has(status)) {
+    actions = [
       quoteLeadAction(lead, careHref, {
         href: dealHref,
         label: 'Xem Proposal',
@@ -253,39 +280,48 @@ export function kanbanCardActions(
       },
       advanceContractAction(lead),
     ];
-  }
-
-  if (CONTRACT.has(status)) {
+  } else if (CONTRACT.has(status)) {
     const viewContract: KanbanCardAction = missingRecord(lead.has_contract)
       ? { href: careHref, label: 'Chưa có HĐ', kind: 'lead', primary: true }
       : { href: contractHref, label: 'Xem HĐ', kind: 'view_contract', primary: true };
-    if (status === 'chot') {
-      return [viewContract];
-    }
-    return [
-      viewContract,
-      {
-        label: 'Trả lại AM/CEO',
-        kind: 'return_am',
-        nextStatus: 'proposal',
-        auditNote: 'AE trả lại HĐ cho AM/CEO/GĐKD để chỉnh sửa.',
-      },
-      lead.has_contract === false
-        ? {
-            label: 'Chưa có HĐ',
-            kind: 'mark_signed',
-            blockedReason: 'Chưa có hợp đồng để xác nhận đã ký.',
-          }
-        : {
-            label: 'Đã ký HĐ',
-            kind: 'mark_signed',
-            nextStatus: 'chot',
-            auditNote: 'AE xác nhận khách đã ký HĐ.',
-          },
-    ];
+    actions =
+      status === 'chot'
+        ? [viewContract]
+        : [
+            viewContract,
+            {
+              label: 'Trả lại AM/CEO',
+              kind: 'return_am',
+              nextStatus: 'proposal',
+              auditNote: 'AE trả lại HĐ cho AM/CEO/GĐKD để chỉnh sửa.',
+            },
+            lead.has_contract === false
+              ? {
+                  label: 'Chưa có HĐ',
+                  kind: 'mark_signed',
+                  blockedReason: 'Chưa có hợp đồng để xác nhận đã ký.',
+                }
+              : {
+                  label: 'Đã ký HĐ',
+                  kind: 'mark_signed',
+                  nextStatus: 'chot',
+                  auditNote: 'AE xác nhận khách đã ký HĐ.',
+                },
+          ];
+  } else {
+    actions = [{ href: careHref, label: 'Mở lead', kind: 'lead', primary: true }];
   }
+  return filterKanbanActions(actions, lead.owner_id, viewer);
+}
 
-  return [{ href: careHref, label: 'Mở lead', kind: 'lead', primary: true }];
+function filterKanbanActions(
+  actions: KanbanCardAction[],
+  ownerId: number | null | undefined,
+  viewer?: KanbanActionViewer | null,
+): KanbanCardAction[] {
+  if (!viewer) return actions;
+  if (kanbanViewerIsAssignedSale(viewer, ownerId)) return actions;
+  return actions.filter((action) => !SALE_ONLY_KINDS.has(action.kind));
 }
 
 /** Legacy single-CTA helper (first primary action). */

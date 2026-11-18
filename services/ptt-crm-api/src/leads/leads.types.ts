@@ -16,6 +16,8 @@ export interface LeadV1 {
   owner_id: number | null;
   /** Display name of assigned AM (from crm_staff). */
   owner_name?: string | null;
+  /** AM who received the Solution (solution owner, else last owner, else assigned AM). */
+  solution_owner_name?: string | null;
   created_at: string;
   received_at: string;
   /** Last row touch (status, care, call, notes). Used for Kanban recency. */
@@ -117,6 +119,7 @@ export interface PgLeadRow {
   owner_id: number | null;
   /** Joined from crm_staff.name when available. */
   owner_name?: string | null;
+  solution_owner_name?: string | null;
   is_duplicate: boolean | null;
   duplicate_of_id?: number | string | null;
   duplicate_of_name?: string | null;
@@ -190,6 +193,12 @@ export interface ListLeadsQuery {
   /** Populated by LeadsService when filtering PG reads via SQLite funnel state. */
   review_queue_ids?: number[];
   owner_id?: number;
+  /**
+   * With owner_id, also keep a submitted Solution (released, khách chưa duyệt)
+   * when this staff is the AM who received it. Used for the viewer's own list,
+   * not when filtering another assignee.
+   */
+  include_submitted_solution_party?: boolean;
   unassigned_only?: boolean;
   /** Leads that already have an owner. Ignored when unassigned_only is set. */
   assigned_only?: boolean;

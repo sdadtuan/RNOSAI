@@ -27,6 +27,7 @@ import {
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import { resolveLeadFlowKindFromFunnelRow } from './lead-flow-kind.util';
 import { buildB2bListScopeClause } from './lead-flow-list-filter.util';
+import { submittedSolutionVisibleSql } from './solution-queue-visibility.util';
 import type { B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 import {
   CompleteCareStageBody,
@@ -4222,7 +4223,13 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   async listSolutionQueue(
     statuses: Array<'pending' | 'with_solution'> = ['pending', 'with_solution'],
     limit = 50,
-    opts: { ownerStaffId?: number | null; includeAmRework?: boolean } = {},
+    opts: {
+      ownerStaffId?: number | null;
+      includeAmRework?: boolean;
+      /** When set, also keep submitted Solutions (handoff released, not yet approved) for this person. */
+      viewerStaffId?: number | null;
+      includeSubmitted?: boolean;
+    } = {},
   ): Promise<SolutionQueueRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
     const allowed = statuses.filter((s) => s === 'pending' || s === 'with_solution');
@@ -4231,7 +4238,24 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       opts.ownerStaffId != null && Number.isFinite(Number(opts.ownerStaffId))
         ? Number(opts.ownerStaffId)
         : null;
+    const viewerId =
+      opts.viewerStaffId != null && Number.isFinite(Number(opts.viewerStaffId))
+        ? Number(opts.viewerStaffId)
+        : null;
     const params: unknown[] = [filterStatuses, lim];
+    let statusClause = `ps.handoff_status = ANY($1::text[])`;
+    if (opts.includeSubmitted && viewerId != null && viewerId > 0) {
+      params.push(viewerId);
+      const visible = submittedSolutionVisibleSql('l', 'ps', `$${params.length}`);
+      statusClause = `(
+        ps.handoff_status = ANY($1::text[])
+        OR (
+          ps.handoff_status = 'released'
+          AND ps.solution_approved_at IS NULL
+          AND ${visible}
+        )
+      )`;
+    }
     let ownerClause = '';
     if (ownerId != null) {
       params.push(ownerId);
@@ -4252,7 +4276,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
        WHERE ps.status = 'active'
-         AND ps.handoff_status = ANY($1::text[]) AND ${leadNotLockedSql('l')}
+         AND ${statusClause} AND ${leadNotLockedSql('l')}
          ${ownerClause}
        ORDER BY ps.handed_off_at DESC NULLS LAST, ps.id DESC
        LIMIT $2`,

@@ -6,6 +6,7 @@ import {
   bucketLeadsByHandoffFlow,
   dash,
   handoffFlowStatusLabel,
+  kanbanCardPartyNames,
   kanbanColumnIdForLead,
   leadStatusAfterSolutionRelease,
   resolveHandoffFlow,
@@ -197,6 +198,13 @@ describe('handoff-flow.util', () => {
     expect(kanbanColumnIdForLead(rows[2])).toBe('cho_solutions');
     expect(kanbanColumnIdForLead(rows[3])).toBe('dang_lam_solutions');
     expect(kanbanColumnIdForLead(rows[4])).toBe('bao_gia');
+    expect(
+      kanbanColumnIdForLead({
+        status: 'bao_gia',
+        solution_handoff: 'released',
+        quote_case_open: true,
+      }),
+    ).toBe('bao_gia');
     expect(kanbanColumnIdForLead(rows[1])).toBe('sales_brief');
     const bucketed = bucketLeadsByHandoffFlow(rows);
     expect(bucketed.byStage.cho_solutions.map((r) => r.id)).toEqual([3]);
@@ -204,6 +212,42 @@ describe('handoff-flow.util', () => {
     expect(bucketed.byStage.bao_gia.map((r) => r.id)).toEqual([5, 6]);
     expect(bucketed.byStage.dam_phan.map((r) => r.id)).toEqual([7]);
     expect(bucketed.byStage.won.map((r) => r.id)).toEqual([8]);
+  });
+
+  it('keeps a submitted Solution on Chờ báo giá while Sale takes it to the customer', () => {
+    expect(
+      kanbanColumnIdForLead({
+        status: 'bao_gia',
+        solution_handoff: 'released',
+        quote_case_open: true,
+        quote_approved: false,
+        has_contract: false,
+      }),
+    ).toBe('bao_gia');
+  });
+
+  it('shows the assignee and the AM on a submitted Solution without a new status label', () => {
+    expect(
+      kanbanCardPartyNames({
+        owner_name: 'Admin',
+        solution_owner_name: 'Marketing Leader Local',
+        solution_handoff: 'released',
+      }),
+    ).toEqual(['Admin', 'Marketing Leader Local']);
+    expect(
+      kanbanCardPartyNames({
+        owner_name: 'Admin',
+        solution_owner_name: 'Admin',
+        solution_handoff: 'released',
+      }),
+    ).toEqual(['Admin']);
+    expect(
+      kanbanCardPartyNames({
+        owner_name: 'Admin',
+        solution_owner_name: 'Marketing Leader Local',
+        solution_handoff: 'with_solution',
+      }),
+    ).toEqual(['Admin']);
   });
 
   it('auto-checks the AM desk checklist from Discovery completeness', () => {

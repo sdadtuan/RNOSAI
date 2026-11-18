@@ -553,6 +553,20 @@ export interface HandoffKanbanLead {
  * the stored CRM status so a "Đang tư vấn" row with pending handoff sits in
  * Chờ Solutions — without rewriting historical status codes.
  */
+/** Assignee, and the AM who received a submitted Solution. No status chip. */
+export function kanbanCardPartyNames(lead: {
+  owner_name?: string | null;
+  solution_owner_name?: string | null;
+  solution_handoff?: string | null;
+}): string[] {
+  const owner = String(lead.owner_name ?? '').trim();
+  const handoff = String(lead.solution_handoff ?? '').trim().toLowerCase();
+  if (handoff !== 'released') return owner ? [owner] : [];
+  const am = String(lead.solution_owner_name ?? '').trim();
+  const names = [owner, am].filter((name) => name.length > 0);
+  return [...new Set(names)];
+}
+
 export function kanbanColumnIdForLead(lead: HandoffKanbanLead): string {
   const view = resolveHandoffFlow({
     leadStatus: lead.status,

@@ -47,8 +47,9 @@ function formatDealTime(iso: string): string {
   });
 }
 
-function sourceLabel(source: LeadDealFileRow['source']): string {
-  return source === 'upload' ? 'tải lên' : 'xuất file';
+function fileMeta(row: LeadDealFileRow): string {
+  const who = row.uploaded_by_name || row.uploaded_by_email;
+  return [`Phiên bản v${row.version_n}`, formatDealTime(row.created_at), who].filter(Boolean).join(' · ');
 }
 
 function acceptFor(kind: LeadDealFileKind): string {
@@ -222,6 +223,7 @@ export function LeadDealFilesCard({
     const older = (bucket?.versions ?? []).filter((row) => row.id !== current?.id);
     const inputRef = kind === 'quote' ? quoteInputRef : contractInputRef;
     const canUpload = Boolean(bucket?.can_upload) && !gdkdApprovalPending;
+    const canDownloadFile = kind === 'quote' || Boolean(bucket?.can_download);
     const showCreateContract = kind === 'contract' && !current && canUpload && allowCreateContract;
     const showUpload = canUpload && (kind !== 'contract' || Boolean(current));
     return (
@@ -229,21 +231,19 @@ export function LeadDealFilesCard({
         <h3>{title}</h3>
         {current ? (
           <div className="lead-deal-files__entry">
-            <button
-              type="button"
+            <a
               className="lead-deal-files__name"
-              disabled={busy || !bucket?.can_download}
-              onClick={() => void onDownload(current)}
+              href={`/api/v1/leads/${leadId}/presales/deal-files/${current.id}/download`}
+              aria-disabled={busy || !canDownloadFile}
+              onClick={(event) => {
+                event.preventDefault();
+                if (busy || !canDownloadFile) return;
+                void onDownload(current);
+              }}
             >
               {current.file_name}
-            </button>
-            <p className="muted lead-deal-files__meta">
-              {formatDealTime(current.created_at)}
-              {current.uploaded_by_name || current.uploaded_by_email
-                ? ` · ${current.uploaded_by_name || current.uploaded_by_email}`
-                : ''}
-              {` · ${sourceLabel(current.source)} · v${current.version_n}`}
-            </p>
+            </a>
+            <p className="muted lead-deal-files__meta">{fileMeta(current)}</p>
           </div>
         ) : (
           <p className="muted" style={{ margin: 0 }}>
@@ -286,9 +286,17 @@ export function LeadDealFilesCard({
           <ul className="lead-deal-files__history" aria-label={`Lịch sử ${title}`}>
             {older.map((row) => (
               <li key={row.id}>
-                <button type="button" disabled={busy || !bucket?.can_download} onClick={() => void onDownload(row)}>
-                  {row.file_name} · {formatDealTime(row.created_at)} · {sourceLabel(row.source)} · v{row.version_n}
-                </button>
+                <a
+                  href={`/api/v1/leads/${leadId}/presales/deal-files/${row.id}/download`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (busy || !canDownloadFile) return;
+                    void onDownload(row);
+                  }}
+                >
+                  {row.file_name}
+                </a>
+                <span className="muted"> · {fileMeta(row)}</span>
               </li>
             ))}
           </ul>
@@ -303,7 +311,7 @@ export function LeadDealFilesCard({
       <h2 className="lead-deal-files__title">{heading}</h2>
       {localError ? <p className="muted">{localError}</p> : null}
       <div className={showContractColumn ? 'lead-deal-files__grid' : 'lead-deal-files__grid lead-deal-files__grid--quote-only'}>
-        {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Tải lên bản sửa nếu cần.' : 'Đang tải file báo giá…')}
+        {renderColumn('quote', 'File báo giá', data ? 'Chưa có file báo giá. Bấm Tạo báo giá.' : 'Đang tải file báo giá…')}
         {showContractColumn ? renderColumn('contract', 'File hợp đồng', 'Chưa có file hợp đồng.') : null}
       </div>
       {footer}

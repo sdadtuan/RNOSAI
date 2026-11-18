@@ -33,6 +33,10 @@ describe('lead-flow-list-filter.util', () => {
       '$1',
     );
     expect(sql).toContain('l.owner_id = $1');
+    expect(sql).toContain("ps_sol.handoff_status = 'released'");
+    expect(sql).toContain("COALESCE(al.owner_kind, '') = 'solution'");
+    expect(sql).toContain('al.to_owner_id = $1');
+    expect(sql).not.toContain('last_solution_owner_staff_id');
     expect(sql).toContain("COALESCE(ps.role, 'sales') = 'project_manager'");
     expect(sql).toContain('COALESCE(st.active, FALSE) IS TRUE');
     expect(sql).not.toContain('assign_enabled');

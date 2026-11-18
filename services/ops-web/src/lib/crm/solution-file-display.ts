@@ -41,6 +41,18 @@ export function formatAttachmentMeta(file: SolutionAttachment): string {
   return parts.join(' · ');
 }
 
+/** Busboy stores a UTF-8 multipart filename as Latin-1 code units. */
+export function decodeUploadedFileName(name: string): string {
+  const text = String(name ?? '').trim();
+  if (!text) return text;
+  const codes = [...text].map((ch) => ch.codePointAt(0) ?? 0);
+  if (codes.some((code) => code > 0xff)) return text;
+  if (!codes.some((code) => code >= 0x80)) return text;
+  const repaired = new TextDecoder('utf-8', { fatal: false }).decode(Uint8Array.from(codes));
+  if (!repaired || repaired.includes('\uFFFD')) return text;
+  return repaired;
+}
+
 export function readSolutionAttachments(plan: Record<string, unknown> | null): SolutionAttachment[] {
   const raw = plan?.strategy_framework_json ?? plan?.strategy_framework;
   let framework: Record<string, unknown> = {};
@@ -71,7 +83,7 @@ export function readSolutionAttachments(plan: Record<string, unknown> | null): S
     return [
       {
         id: String(file.id ?? `${file.name}`),
-        name: String(file.name),
+        name: decodeUploadedFileName(String(file.name)),
         mime: String(file.mime ?? 'application/octet-stream'),
         data_url: String(file.data_url),
         size: Number.isFinite(size) && size > 0 ? size : dataUrlByteSize(String(file.data_url)),
@@ -91,9 +103,10 @@ export function buildUploadedAttachment(input: {
   uploadedAt?: string;
   id?: string;
 }): SolutionAttachment {
+  const name = decodeUploadedFileName(input.name);
   return {
-    id: input.id ?? `${Date.now()}-${input.name}`,
-    name: input.name,
+    id: input.id ?? `${Date.now()}-${name}`,
+    name,
     mime: input.mime || 'application/octet-stream',
     data_url: input.dataUrl,
     size: input.size && input.size > 0 ? input.size : dataUrlByteSize(input.dataUrl),

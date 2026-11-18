@@ -8,6 +8,8 @@ import { LeadKanbanCareDrawer } from '@/components/crm/LeadKanbanCareDrawer';
 import {
   kanbanCardActions,
   kanbanStageAccent,
+  kanbanViewerIsAssignedSale,
+  type KanbanActionViewer,
   type KanbanCardAction,
 } from '@/lib/crm/kanban-card-cta';
 import {
@@ -21,7 +23,7 @@ import {
   leadStatusTone,
 } from '@/lib/crm/lead-status';
 import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
-import { HANDOFF_FLOW_KANBAN_COLUMNS, bucketLeadsByHandoffFlow, handoffFlowStatusLabel, kanbanColumnIdForLead as handoffKanbanColumnId } from '@/lib/crm/handoff-flow.util';
+import { HANDOFF_FLOW_KANBAN_COLUMNS, bucketLeadsByHandoffFlow, handoffFlowStatusLabel, kanbanCardPartyNames, kanbanColumnIdForLead as handoffKanbanColumnId } from '@/lib/crm/handoff-flow.util';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeadsForColumn } from '@/lib/crm/kanban-column.util';
 import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
 import { formatLeadArrived } from '@/lib/crm/lead-arrived';
@@ -168,6 +170,7 @@ export function LeadKanbanBoard({
   onLeadUpdated,
   readOnly = false,
   fromSolution = false,
+  viewer = null,
 }: {
   rows: LeadRow[];
   flowKind?: LeadFlowKind;
@@ -177,6 +180,8 @@ export function LeadKanbanBoard({
   readOnly?: boolean;
   /** Marketing Leader: hide Sale columns before Đợi Solution. */
   fromSolution?: boolean;
+  /** Hides Sale buttons (Trả lại AM, Chăm sóc, Intake, chuyển bước) for anyone else. */
+  viewer?: KanbanActionViewer | null;
 }) {
   const b2b = flowKind === 'b2b_prospect';
   const stages = statusOptionsForFlowKind(flowKind);
@@ -569,7 +574,8 @@ export function LeadKanbanBoard({
               ) : (
                 shownItems.map((lead) => {
                   const band = lead.ai_band ?? null;
-                  const actions = kanbanCardActions(lead);
+                  const actions = kanbanCardActions(lead, viewer);
+                  const saleOwner = viewer ? kanbanViewerIsAssignedSale(viewer, lead.owner_id) : !readOnly;
                   const sla = b2b ? slaLabel(lead) : legacySlaLabel(lead.sla_state);
                   const bandText = bandLabel(band);
                   const tone = !b2b
@@ -583,7 +589,7 @@ export function LeadKanbanBoard({
                   const situation = leadListSituation(lead);
                   const showDeadline = care?.kind === 'deadline' && !situation.call;
                   const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
-                  const initials = ownerInitials(lead.owner_name);
+                  const parties = kanbanCardPartyNames(lead);
                   const stood = stoodLabel(lead.column_minutes);
                   const stoodText = lead.stale
                     ? stood
@@ -595,7 +601,7 @@ export function LeadKanbanBoard({
                       key={lead.id}
                       className={`crm-kanban-card${tone ? ` crm-kanban-card--${tone}` : ''}`}
                       data-testid={`kanban-card-${lead.id}`}
-                      draggable={b2b && !readOnly}
+                      draggable={b2b && !readOnly && saleOwner}
                       onDragStart={(event) => {
                         event.dataTransfer.setData('text/plain', String(lead.id));
                         event.dataTransfer.effectAllowed = 'move';
@@ -667,9 +673,13 @@ export function LeadKanbanBoard({
                       <div className="crm-kanban-card__footer">
                         <div className="crm-kanban-card__footer-row">
                           <span>{formatLeadArrived(lead)}</span>
-                          {b2b && initials ? (
-                            <span className="crm-kanban-card__avatar" title={lead.owner_name ?? ''}>
-                              {initials}
+                          {b2b && parties.length ? (
+                            <span className="crm-kanban-card__parties">
+                              {parties.map((name) => (
+                                <span key={name} className="crm-kanban-card__avatar" title={name}>
+                                  {ownerInitials(name)}
+                                </span>
+                              ))}
                             </span>
                           ) : null}
                         </div>

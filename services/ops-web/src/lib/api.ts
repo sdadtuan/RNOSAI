@@ -103,6 +103,8 @@ export interface LeadRow {
   b2_complete?: boolean;
   b2_assigned_at?: string | null;
   solution_handoff?: string | null;
+  /** AM who received the Solution. */
+  solution_owner_name?: string | null;
   /** True when a crm_proposals row exists. False hides “Xem báo giá”. */
   has_quote?: boolean;
   /** Saved quote-sheet lines on the active presales row. */
@@ -654,8 +656,18 @@ export interface LeadImportResult {
 
 function filenameFromDisposition(header: string | null, fallback: string): string {
   if (!header) return fallback;
-  const match = /filename="?([^";]+)"?/i.exec(header);
-  return match?.[1] ?? fallback;
+  const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      /* use the plain filename */
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(header);
+  if (quoted?.[1]) return quoted[1];
+  const plain = /filename=([^;]+)/i.exec(header);
+  return plain?.[1]?.trim() || fallback;
 }
 
 async function downloadBinary(
@@ -2968,6 +2980,14 @@ export async function downloadLeadDealFile(
   link.download = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export async function createLeadQuoteFile(token: string, leadId: number) {
+  return leadFunnelMutate<LeadDealFilesResponse>(
+    token,
+    `/api/v1/leads/${leadId}/presales/deal-files/quote/export`,
+    { method: 'POST' },
+  );
 }
 
 export async function ensureLeadContractFile(token: string, leadId: number) {

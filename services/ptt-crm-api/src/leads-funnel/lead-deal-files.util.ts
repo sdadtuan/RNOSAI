@@ -51,6 +51,36 @@ export function dealFilesRoot(): string {
   return join(process.cwd(), 'data', 'lead-deal-files');
 }
 
+export function quoteVersionFileName(leadId: number, version: number): string {
+  const n = Number.isFinite(version) && version > 0 ? Math.floor(version) : 1;
+  return `bao-gia-${leadId}-v${n}.xlsx`;
+}
+
+/** Content-Disposition that keeps the stored file name, including non-ASCII. */
+export function contentDispositionAttachment(
+  filename: string,
+  mode: 'attachment' | 'inline' = 'attachment',
+): string {
+  const cleaned = String(filename ?? '').replace(/[\r\n"]/g, '').trim() || 'file';
+  const ascii = cleaned.replace(/[^\x20-\x7E]/g, '_') || 'file';
+  const encoded = encodeURIComponent(cleaned).replace(/['()*]/g, (ch) =>
+    `%${ch.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `${mode}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** Busboy stores a UTF-8 multipart filename as Latin-1 code units. */
+export function decodeMultipartFileName(name: string): string {
+  const text = String(name ?? '').trim();
+  if (!text) return text;
+  const codes = [...text].map((ch) => ch.codePointAt(0) ?? 0);
+  if (codes.some((code) => code > 0xff)) return text;
+  if (!codes.some((code) => code >= 0x80)) return text;
+  const repaired = Buffer.from(text, 'latin1').toString('utf8');
+  if (!repaired || repaired.includes('\uFFFD')) return text;
+  return repaired;
+}
+
 export function safeDealFileName(name: string): string {
   const base = String(name ?? '')
     .trim()

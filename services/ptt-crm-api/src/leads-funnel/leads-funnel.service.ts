@@ -42,6 +42,7 @@ import {
   SOLUTION_FILE_MAX_COUNT,
   decodeSolutionDataUrl,
   parseSolutionStoredFiles,
+  repairSolutionFileNames,
   solutionFileMime,
 } from './solution-file-bytes.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
@@ -104,8 +105,10 @@ import { loadSolutionAiContext } from './solution-ai-context.loader';
 import {
   CONTRACT_DOCX_MIME,
   DEAL_FILE_MAX_BYTES,
+  decodeMultipartFileName,
   detectDealUpload,
   QUOTE_XLSX_MIME,
+  quoteVersionFileName,
   safeDealFileName,
   type DealFileKind,
 } from './lead-deal-files.util';
@@ -783,16 +786,23 @@ export class LeadsFunnelService {
   async listSolutionQueue(
     status?: string,
     limit?: number,
-    opts: { ownerStaffId?: number | null; includeAmRework?: boolean } = {},
+    opts: {
+      ownerStaffId?: number | null;
+      includeAmRework?: boolean;
+      viewerStaffId?: number | null;
+      includeSubmitted?: boolean;
+    } = {},
   ) {
-    const statuses: Array<'pending' | 'with_solution'> =
-      status === 'pending' || status === 'with_solution'
-        ? [status]
-        : ['pending', 'with_solution'];
+    const narrowed = status === 'pending' || status === 'with_solution';
+    const statuses: Array<'pending' | 'with_solution'> = narrowed
+      ? [status]
+      : ['pending', 'with_solution'];
     const includeAmRework = Boolean(opts.includeAmRework) && !status;
     const rows = await this.pgRepo.listSolutionQueue(statuses, limit, {
       ownerStaffId: opts.ownerStaffId,
       includeAmRework,
+      viewerStaffId: opts.viewerStaffId,
+      includeSubmitted: Boolean(opts.includeSubmitted) && !narrowed,
     });
     return { ok: true, rows, count: rows.length };
   }
@@ -1414,20 +1424,37 @@ export class LeadsFunnelService {
     }
   }
 
-  async quoteSheetXlsx(leadId: number, staffUser?: StaffJwtPayload): Promise<{ filename: string; buffer: Buffer }> {
+  async quoteSheetXlsx(
+    leadId: number,
+    staffUser?: StaffJwtPayload,
+  ): Promise<{ filename: string; buffer: Buffer; mime: string }> {
     try {
       const access = await this.quoteSheetAccess(staffUser);
       await this.assertCanDownloadDealFile(leadId, 'quote', access, staffUser);
-      const existing = await this.pgRepo.latestExportDealFile(leadId, 'quote');
-      if (existing?.storage_path) {
-        return {
-          filename: existing.file_name,
-          buffer: this.pgRepo.readStoredDealFile(existing.storage_path),
-        };
-      }
+      const stored = await this.latestStoredQuoteXlsx(leadId);
+      if (stored) return stored;
       const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
       const estimated = await this.estimateQuoteExportKpis(leadId, view);
-      return await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+      const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+      return { ...out, mime: QUOTE_XLSX_MIME };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async createQuoteDealFile(leadId: number, staffUser?: StaffJwtPayload) {
+    try {
+      const access = await this.quoteSheetAccess(staffUser);
+      const perm = await this.dealFilePermissions(leadId, 'quote', access, staffUser);
+      if (!perm.can_upload) {
+        throw new ForbiddenException({ error: perm.blocked_reason || 'Bạn không được tạo file báo giá.' });
+      }
+      const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
+      if ((view.included_count ?? 0) < 1) {
+        throw new BadRequestException({ error: 'Chọn ít nhất một hạng mục để tạo báo giá.' });
+      }
+      await this.storeGeneratedQuoteVersion(leadId, staffUser);
+      return await this.listDealFiles(leadId, staffUser);
     } catch (err) {
       this.funnelError(err);
     }
@@ -1616,7 +1643,8 @@ export class LeadsFunnelService {
       }
       const label = await this.pgRepo.staffLabelById(staffId);
       const email = String(staffUser?.email ?? label.email).trim();
-      const fileName = safeDealFileName(file.originalname || `${kind === 'quote' ? 'bao-gia' : 'hop-dong'}-${leadId}.${detected.ext}`);
+      const rawName = decodeMultipartFileName(String(file.originalname ?? ''));
+      const fileName = safeDealFileName(rawName || `${kind === 'quote' ? 'bao-gia' : 'hop-dong'}-${leadId}.${detected.ext}`);
       const saved = await this.pgRepo.saveDealFile({
         leadId,
         kind,
@@ -1695,21 +1723,52 @@ export class LeadsFunnelService {
     }
   }
 
+  private async latestStoredQuoteXlsx(
+    leadId: number,
+  ): Promise<{ filename: string; buffer: Buffer; mime: string } | null> {
+    const rows = await this.pgRepo.listDealFiles(leadId, 'quote');
+    const hit = rows.find(
+      (row) => row.mime_type === QUOTE_XLSX_MIME || row.file_name.toLowerCase().endsWith('.xlsx'),
+    );
+    if (!hit) return null;
+    const stored = await this.pgRepo.getDealFile(leadId, hit.id);
+    if (!stored?.storage_path) return null;
+    return {
+      filename: stored.file_name,
+      mime: stored.mime_type || QUOTE_XLSX_MIME,
+      buffer: this.pgRepo.readStoredDealFile(stored.storage_path),
+    };
+  }
+
+  /** New quote file version. Does not replace an older version. */
+  private async storeGeneratedQuoteVersion(leadId: number, staffUser?: StaffJwtPayload): Promise<void> {
+    const access = await this.quoteSheetAccess(staffUser);
+    const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
+    const estimated = await this.estimateQuoteExportKpis(leadId, view);
+    const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
+    const latest = await this.pgRepo.latestDealFile(leadId, 'quote');
+    const version = (latest?.version_n ?? 0) + 1;
+    const staffId = staffUser ? await this.staffAuth.resolveCrmStaffUserId(staffUser) : null;
+    const label = await this.pgRepo.staffLabelById(staffId);
+    const email = String(staffUser?.email ?? label.email).trim();
+    await this.pgRepo.saveDealFile({
+      leadId,
+      kind: 'quote',
+      fileName: quoteVersionFileName(leadId, version),
+      mimeType: QUOTE_XLSX_MIME,
+      buffer: out.buffer,
+      source: 'export',
+      staffId,
+      staffName: label.name || email,
+      staffEmail: email,
+    });
+  }
+
   private async attachQuoteExportOnSubmit(leadId: number, staffUser?: StaffJwtPayload): Promise<void> {
     try {
-      const access = await this.quoteSheetAccess(staffUser);
-      const view = await this.pgRepo.getQuoteSheet(leadId, null, access);
-      const estimated = await this.estimateQuoteExportKpis(leadId, view);
-      const out = await this.pgRepo.quoteSheetXlsx(leadId, estimated);
-      await this.persistGeneratedDealFile(
-        leadId,
-        'quote',
-        out.filename,
-        QUOTE_XLSX_MIME,
-        out.buffer,
-        staffUser,
-        'replace-export',
-      );
+      const existing = await this.pgRepo.latestDealFile(leadId, 'quote');
+      if (existing?.storage_path) return;
+      await this.storeGeneratedQuoteVersion(leadId, staffUser);
     } catch (err) {
       console.warn(`[deal-files] attach quote export failed: ${(err as Error)?.message ?? err}`);
     }
@@ -1759,9 +1818,7 @@ export class LeadsFunnelService {
     const contractReady = quoteApproved || Boolean(current?.presales.contract_created_at);
     if (kind === 'quote') {
       if (access.isSales && !asSuper && !asCeo) {
-        return quoteApproved
-          ? { can_upload: false, can_download: true }
-          : { can_upload: false, can_download: false, blocked_reason: 'Sales tải file báo giá sau khi CEO duyệt.' };
+        return { can_upload: false, can_download: true };
       }
       const submitted = this.quoteHasBeenSubmitted(current);
       const canUpload = !submitted && (asCeo || asAssignee);
@@ -2038,6 +2095,10 @@ export class LeadsFunnelService {
     const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
     if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
     const existing = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+    if (body.strategy_framework?.mkt_files != null) {
+      const repaired = repairSolutionFileNames(body.strategy_framework.mkt_files);
+      if (typeof repaired === 'string') body.strategy_framework.mkt_files = repaired;
+    }
     const incomingFiles = body.strategy_framework?.mkt_files;
     if (incomingFiles != null) {
       const parsed = parseSolutionStoredFiles(

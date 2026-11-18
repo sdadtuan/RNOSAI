@@ -1323,6 +1323,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               token={token ?? undefined}
               canChangeOwner={hasCap(user, 'crm_leads', 'assign')}
               fromSolution={marketingLeader}
+              viewer={{
+                staffId: Number(user?.id) || null,
+                positionCode: user?.position_code ?? null,
+              }}
               onLeadUpdated={() => {
                 if (token) void loadLeads(token, 0, query, 'kanban');
               }}

@@ -21,6 +21,10 @@ export class LeadsRepository {
     return this.pgRepo.listLeads(enriched, classification);
   }
 
+  staffMaySeeLead(leadId: number, staffId: number): Promise<boolean> {
+    return this.pgRepo.staffMaySeeLead(leadId, staffId);
+  }
+
   getLeadById(
     leadId: number,
     classification?: LeadClassificationConfig | null,

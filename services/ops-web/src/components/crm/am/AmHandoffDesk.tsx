@@ -49,6 +49,7 @@ import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
 import { SolutionTopCard } from '@/components/crm/am/SolutionTopCard';
 import { deleteSolutionStoredFile, exportSolutionProposalFiles, openOrDownloadSolutionFile, saveSolutionAiSectionBodies } from '@/lib/crm/solution-file-actions';
+import { decodeUploadedFileName } from '@/lib/crm/solution-file-display';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import type { SolutionDeskActivity } from '@/lib/crm/solution-activity';
 import type { LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
@@ -269,7 +270,7 @@ function readFiles(plan: Record<string, unknown> | null): Attachment[] {
         const r = row as Record<string, unknown>;
         return {
           id: String(r.id ?? i),
-          name: String(r.name ?? 'tệp'),
+          name: decodeUploadedFileName(String(r.name ?? 'tệp')),
           mime: String(r.mime ?? ''),
           data_url: String(r.data_url ?? r.url ?? ''),
         };

@@ -1027,6 +1027,13 @@ html.ops-shell-bitrix .crm-kanban-card--plain { border-left-color: #9aa39b; }
   font-weight: 700;
 }
 
+.crm-kanban-card__parties {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
 .crm-kanban-drawer {
   position: fixed;
   inset: 0;

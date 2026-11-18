@@ -1,3 +1,5 @@
+import { decodeMultipartFileName } from './lead-deal-files.util';
+
 export const SOLUTION_FILE_MAX_COUNT = 5;
 
 export type SolutionStoredFile = {
@@ -31,7 +33,7 @@ export function parseSolutionStoredFiles(raw: unknown): SolutionStoredFile[] {
     return [
       {
         id: String(file.id ?? name),
-        name,
+        name: decodeMultipartFileName(name),
         mime: String(file.mime ?? 'application/octet-stream'),
         data_url: String(file.data_url ?? ''),
         size: Number(file.size) > 0 ? Number(file.size) : undefined,
@@ -58,6 +60,30 @@ export function decodeSolutionDataUrl(dataUrl: string): Buffer | null {
   } catch {
     return null;
   }
+}
+
+/** Repair Latin-1 mojibake in uploaded Solution file names without dropping other fields. */
+export function repairSolutionFileNames(raw: unknown): unknown {
+  const rewriteRow = (row: unknown): unknown => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+    const file = row as Record<string, unknown>;
+    if (typeof file.name !== 'string') return row;
+    const name = decodeMultipartFileName(file.name);
+    return name === file.name ? row : { ...file, name };
+  };
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return raw;
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) return raw;
+      return JSON.stringify(parsed.map(rewriteRow));
+    } catch {
+      return raw;
+    }
+  }
+  if (Array.isArray(raw)) return raw.map(rewriteRow);
+  return raw;
 }
 
 export function solutionFileMime(file: SolutionStoredFile): string {

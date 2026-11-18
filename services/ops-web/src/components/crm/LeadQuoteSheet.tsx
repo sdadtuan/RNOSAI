@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   fetchDiscoveryOptions,
   fetchIntakeSessions,
+  createLeadQuoteFile,
   fetchLeadQuoteSheet,
   saveLeadQuoteSheet,
   sendLeadQuoteToSales,
@@ -444,9 +445,14 @@ export function LeadQuoteSheet({
     setLocalError('');
     try {
       const next = await save();
-      if (next) onMessage?.(`Đã lưu bảng báo giá. Tổng ${vnd(next.grand_total_vnd)}.`);
+      if (!next || next.included_count < 1) {
+        throw new Error('Chọn ít nhất một hạng mục để tạo báo giá.');
+      }
+      await createLeadQuoteFile(token, leadId);
+      notifyLeadDealFilesChanged();
+      onMessage?.(`Đã tạo báo giá. Tổng ${vnd(next.grand_total_vnd)}.`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không lưu được bảng báo giá';
+      const message = err instanceof Error ? err.message : 'Không tạo được báo giá';
       setLocalError(message);
       onError?.(message);
     } finally {
@@ -891,8 +897,8 @@ export function LeadQuoteSheet({
           !submittedForCeo &&
           (editable || phase === 'bao_gia' || phase === 'chuyen_bao_gia' || !phase);
         const submitBlockedReason =
-          canSubmitQuote && sheet && tickedCodes.length < 1
-            ? 'Chọn ít nhất một hạng mục để nộp.'
+          sheet && tickedCodes.length < 1 && (editable || canSubmitQuote)
+            ? 'Chọn ít nhất một hạng mục để tạo báo giá.'
             : '';
         const toolbarHidden = submittedForCeo || ceoApproved;
         if (toolbarHidden) {
@@ -903,8 +909,14 @@ export function LeadQuoteSheet({
         <>
         <div className="solution-desk__actions">
           {editable ? (
-            <button type="button" className="btn btn-secondary" disabled={busy || !sheet} onClick={() => void onSave()}>
-              Lưu bảng
+            <button
+              type="button"
+              className="btn btn-secondary"
+              data-testid="quote-create-file"
+              disabled={busy || !sheet || tickedCodes.length < 1}
+              onClick={() => void onSave()}
+            >
+              Tạo báo giá
             </button>
           ) : null}
           {canSubmitQuote ? (

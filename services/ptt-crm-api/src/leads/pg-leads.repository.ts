@@ -8,6 +8,10 @@ import {
   buildLeadFlowKindListFilter,
 } from '../leads-funnel/lead-flow-list-filter.util';
 import { buildFromSolutionOnwardClause } from '../leads-funnel/solution-onward.util';
+import {
+  ownerOrSubmittedSolutionSql,
+  releasedSolutionAssigneeMatchSql,
+} from '../leads-funnel/solution-queue-visibility.util';
 import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 import {
@@ -29,6 +33,21 @@ const SOLUTION_HANDOFF_EXPR = `(
               )`;
 
 const SOLUTION_HANDOFF_SQL = `${SOLUTION_HANDOFF_EXPR} AS solution_handoff`;
+
+/** AM who received the Solution: current owner, else the last one, else assigned AM. */
+const SOLUTION_OWNER_NAME_SQL = `(
+                SELECT COALESCE(sol.name, '')
+                FROM crm_lead_presales ps_name
+                LEFT JOIN crm_staff sol ON sol.id = COALESCE(
+                  ps_name.solution_owner_staff_id,
+                  ps_name.last_solution_owner_staff_id,
+                  ps_name.assigned_am
+                )
+                WHERE ps_name.lead_id = l.sqlite_lead_id
+                  AND COALESCE(ps_name.status, '') = 'active'
+                ORDER BY ps_name.id DESC
+                LIMIT 1
+              ) AS solution_owner_name`;
 
 const jsonIdSql = (expr: string) =>
   `CASE WHEN (${expr}) ~ '^[0-9]+$' THEN (${expr})::bigint ELSE NULL END`;
@@ -156,6 +175,33 @@ export class PgLeadsRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
+  /** Lead assignee, or the AM assigned to a Solution that is nộp and not yet approved. */
+  async staffMaySeeLead(leadId: number, staffId: number): Promise<boolean> {
+    if (!Number.isInteger(leadId) || leadId <= 0 || !Number.isInteger(staffId) || staffId <= 0) {
+      return false;
+    }
+    const match = releasedSolutionAssigneeMatchSql('l', '$2');
+    const result = await this.db.query(
+      `SELECT 1
+         FROM crm_leads l
+        WHERE l.sqlite_lead_id = $1
+          AND (
+            l.owner_id = $2
+            OR EXISTS (
+              SELECT 1 FROM crm_lead_presales ps_sol
+               WHERE ps_sol.lead_id = l.sqlite_lead_id
+                 AND COALESCE(ps_sol.status, '') = 'active'
+                 AND ps_sol.handoff_status = 'released'
+                 AND ps_sol.solution_approved_at IS NULL
+                 AND ${match}
+            )
+          )
+        LIMIT 1`,
+      [leadId, staffId],
+    );
+    return result.rows.length > 0;
+  }
+
   async listLeads(
     query: ListLeadsQuery,
     classification?: LeadClassificationConfig | null,
@@ -192,6 +238,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
               ${SOLUTION_HANDOFF_SQL},
+              ${SOLUTION_OWNER_NAME_SQL},
               ${STAGE_RECORD_SQL},
               ${leadLockedSql('l')} AS lead_locked,
               ${leadLockKindSql('l')} AS lead_lock_kind,
@@ -290,6 +337,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
               ${SOLUTION_HANDOFF_SQL},
+              ${SOLUTION_OWNER_NAME_SQL},
               ${STAGE_RECORD_SQL},
               ${leadLockedSql('l')} AS lead_locked,
               ${leadLockKindSql('l')} AS lead_lock_kind,
@@ -407,7 +455,14 @@ export class PgLeadsRepository implements OnModuleDestroy {
     } else if (query.assigned_only) {
       clauses.push('l.owner_id IS NOT NULL');
     } else if (query.owner_id != null && Number.isFinite(query.owner_id)) {
-      push('l.owner_id = ?', Number(query.owner_id));
+      const ownerId = Number(query.owner_id);
+      if (query.include_submitted_solution_party) {
+        const idx = params.length + 1;
+        params.push(ownerId);
+        clauses.push(ownerOrSubmittedSolutionSql('l', `$${idx}`));
+      } else {
+        push('l.owner_id = ?', ownerId);
+      }
     }
     if (query.q?.trim()) {
       const text = query.q.trim();

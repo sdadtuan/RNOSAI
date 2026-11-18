@@ -3,6 +3,7 @@ import {
   kanbanCardActions,
   kanbanCardCta,
   kanbanStageAccent,
+  kanbanViewerIsAssignedSale,
   KANBAN_STAGE_SETS,
 } from './kanban-card-cta';
 import { WORK_SIGNALS } from './work-signals';
@@ -146,6 +147,29 @@ describe('kanbanCardActions', () => {
     });
     expect(approved.find((action) => action.kind === 'advance_contract')?.nextStatus).toBeUndefined();
     expect(approved.find((action) => action.kind === 'advance_contract')?.blockedReason).toContain('GĐKD');
+  });
+
+  it('shows Trả lại AM only to the Sale who owns the lead', () => {
+    const lead = { id: 5, owner_id: 107, phone: '0900', status: 'bao_gia', has_quote: false };
+    const sale = kanbanCardActions(lead, { staffId: 107, positionCode: 'AE' });
+    expect(sale.map((action) => action.kind)).toEqual(['lead', 'return_am', 'advance_proposal']);
+    expect(sale[0].label).toBe('Chưa có báo giá');
+
+    const am = kanbanCardActions(lead, { staffId: 108, positionCode: 'ACM' });
+    expect(am.map((action) => action.label)).toEqual(['Chưa có báo giá']);
+    expect(am.map((action) => action.kind)).not.toContain('return_am');
+
+    const otherSale = kanbanCardActions(lead, { staffId: 2, positionCode: 'AE' });
+    expect(otherSale.map((action) => action.kind)).not.toContain('return_am');
+
+    const mkl = kanbanCardActions(
+      { id: 3, owner_id: 107, phone: '0900', status: 'dang_tu_van' },
+      { staffId: 5, positionCode: 'MKL' },
+    );
+    expect(mkl.map((action) => action.label)).not.toContain('Chăm sóc');
+    expect(mkl.map((action) => action.label)).not.toContain('Intake');
+    expect(kanbanViewerIsAssignedSale({ staffId: 107, positionCode: 'AE' }, 107)).toBe(true);
+    expect(kanbanViewerIsAssignedSale({ staffId: 108, positionCode: 'ACM' }, 108)).toBe(false);
   });
 
   it('does not offer Xem HĐ when the contract row is absent', () => {

@@ -34,6 +34,10 @@ export class LeadsService {
     return this.repo.listOwnerOptions();
   }
 
+  staffMaySeeLead(leadId: number, staffId: number): Promise<boolean> {
+    return this.repo.staffMaySeeLead(leadId, staffId);
+  }
+
   async getLead(id: number): Promise<LeadV1 | null> {
     const classification = await this.crmConfig.getLeadClassificationConfig();
     return this.repo.getLeadById(id, classification);

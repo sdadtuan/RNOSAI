@@ -59,7 +59,7 @@ import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-proj
 import { maskPartialPii } from '../staff-permissions/field-level.serializer';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
-import { DEAL_FILE_MAX_BYTES, type DealFileKind } from './lead-deal-files.util';
+import { contentDispositionAttachment, DEAL_FILE_MAX_BYTES, type DealFileKind } from './lead-deal-files.util';
 import { AppConfigService } from '../config/app-config.service';
 import { B2bLeadScopeService, type B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 
@@ -658,7 +658,7 @@ export class LeadsFunnelController {
   }
 
   @Get(':id/presales/deal-files/:fileId/download')
-  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async downloadDealFile(
     @Param('id', ParseIntPipe) id: number,
     @Param('fileId', ParseIntPipe) fileId: number,
@@ -668,9 +668,23 @@ export class LeadsFunnelController {
       const out = await this.funnel.downloadDealFile(id, fileId, req.staffUser);
       return new StreamableFile(out.buffer, {
         type: out.mime || 'application/octet-stream',
-        disposition: `attachment; filename="${out.filename}"`,
+        disposition: contentDispositionAttachment(out.filename),
         length: out.buffer.length,
       });
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/deal-files/quote/export')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async createQuoteExport(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.createQuoteDealFile(id, req.staffUser);
     } catch (err) {
       this.badRequest(err);
     }
@@ -732,8 +746,8 @@ export class LeadsFunnelController {
     try {
       const out = await this.funnel.quoteSheetXlsx(id, req.staffUser);
       return new StreamableFile(out.buffer, {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        disposition: `attachment; filename="${out.filename}"`,
+        type: out.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        disposition: contentDispositionAttachment(out.filename),
         length: out.buffer.length,
       });
     } catch (err) {
@@ -788,7 +802,7 @@ export class LeadsFunnelController {
   }
 
   @Get(':id/presales/solution-files/:fileId')
-  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async readSolutionFile(
     @Param('id', ParseIntPipe) id: number,
     @Param('fileId') fileId: string,
@@ -798,7 +812,7 @@ export class LeadsFunnelController {
     const inline = /^(application\/pdf|text\/|image\/)/i.test(mime);
     return new StreamableFile(out.buffer, {
       type: mime,
-      disposition: `${inline ? 'inline' : 'attachment'}; filename="${out.filename.replace(/["\r\n]/g, '')}"`,
+      disposition: contentDispositionAttachment(out.filename, inline ? 'inline' : 'attachment'),
       length: out.buffer.length,
     });
   }
@@ -1009,7 +1023,9 @@ export class LeadsFunnelController {
     let ownerStaffId: number | null | undefined;
     let includeAmRework = false;
     let maskForeignPhoneForStaffId: number | null = null;
+    let viewerStaffId: number | null = null;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      viewerStaffId = await this.userId(req);
       const me = await this.staffAuth.me(req.staffUser);
       const viewAll =
         this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
@@ -1020,15 +1036,17 @@ export class LeadsFunnelController {
         return { ok: true, rows: [], count: 0 };
       }
       if (!viewAll && !isAccountManager && !isMarketingLeader) {
-        ownerStaffId = await this.userId(req);
+        ownerStaffId = viewerStaffId;
         includeAmRework = true;
       } else if (!viewAll && isAccountManager) {
-        maskForeignPhoneForStaffId = await this.userId(req);
+        maskForeignPhoneForStaffId = viewerStaffId;
       }
     }
     const listed = await this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50, {
       ownerStaffId,
       includeAmRework,
+      viewerStaffId,
+      includeSubmitted: viewerStaffId != null,
     });
     if (maskForeignPhoneForStaffId == null) return listed;
     return {

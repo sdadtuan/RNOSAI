@@ -40,6 +40,7 @@ import {
   isMarketingLeaderPosition,
 } from '../b2b-projects/b2b-director.util';
 import { leadIsFromSolutionOnward } from '../leads-funnel/solution-onward.util';
+import { isSaleKanbanStatusMove, saleOwnerMayMoveKanban } from './kanban-sale-action.util';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
 import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls.types';
@@ -128,6 +129,26 @@ export class LeadsController {
       isAccountManagerPosition(me.position_code) ||
       (me.job_functions ?? []).includes('leader')
     );
+  }
+
+  /** Non-view-all staff see a lead only when they own it or were assigned its Solution. */
+  private async assertLeadParty(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    leadId: number,
+  ): Promise<void> {
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return;
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      (await this.staffAuth.isSuperAdminUser(req.staffUser)) ||
+      hasGdkdViewAllLeads(me.caps) ||
+      (this.appConfig.b2bProjectOs && isAccountManagerPosition(me.position_code))
+    ) {
+      return;
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null || !(await this.leadsService.staffMaySeeLead(leadId, staffId))) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
   }
 
   private leadActor(
@@ -226,11 +247,9 @@ export class LeadsController {
 
     let b2bListScope: ListLeadsQuery['b2b_list_scope'];
     let b2bExportActor: LeadExportQuery['b2b_export_actor'];
-    let fromSolutionOnward = false;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
-      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
-      if (this.appConfig.b2bProjectOs && !fromSolutionOnward) {
+      if (this.appConfig.b2bProjectOs) {
         const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
         if (staffId != null) {
           b2bListScope = this.b2bLeadScope.buildListScope({
@@ -260,7 +279,6 @@ export class LeadsController {
         allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
         b2b_list_scope: b2bListScope,
         b2b_export_actor: b2bExportActor,
-        from_solution_onward: fromSolutionOnward || undefined,
       },
       caps,
       (c, s, a) => this.staffAuth.hasCap(c, s, a),
@@ -400,6 +418,23 @@ export class LeadsController {
       assertLeadPatchFieldsAllowed(body as Record<string, unknown>, caps, (c, s, a) =>
         this.staffAuth.hasCap(c, s, a),
       );
+      await this.assertLeadParty(req, id);
+      if (body.status !== undefined && isSaleKanbanStatusMove(prev.status, body.status)) {
+        const me = await this.staffAuth.me(req.staffUser);
+        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (
+          !saleOwnerMayMoveKanban({
+            staffId,
+            ownerId: prev.owner_id,
+            positionCode: me.position_code,
+          })
+        ) {
+          throw new ForbiddenException({
+            error: 'forbidden',
+            message: 'Chỉ Sale được phân chia lead này mới được trả lại AM hoặc chuyển bước trên Kanban.',
+          });
+        }
+      }
     }
     const gateOpts = await this.statusGateOpts(req, body);
     const actorId = this.leadActor(req, actor);
@@ -473,13 +508,12 @@ export class LeadsController {
         : undefined;
 
     let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
+    let includeSubmittedSolutionParty = false;
     let b2bListScope: ListLeadsQuery['b2b_list_scope'];
-    let fromSolutionOnward = false;
     let includeLocked = false;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       includeLocked = await this.staffAuth.isSuperAdminUser(req.staffUser);
       const me = await this.staffAuth.me(req.staffUser);
-      fromSolutionOnward = isMarketingLeaderPosition(me.position_code);
       const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
       if (this.appConfig.b2bProjectOs && flowKind === 'b2b_prospect' && staffId != null) {
         b2bListScope = this.b2bLeadScope.buildListScope({
@@ -490,14 +524,13 @@ export class LeadsController {
         if (!this.mayFilterLeadsByOwner(me)) {
           resolvedOwnerId = undefined;
         }
-      } else if (!hasGdkdViewAllLeads(me.caps) && !fromSolutionOnward) {
+      } else if (!hasGdkdViewAllLeads(me.caps)) {
         if (staffId != null && resolvedOwnerId == null && !truthy(unassignedOnly)) {
           resolvedOwnerId = staffId;
+          includeSubmittedSolutionParty = true;
+        } else if (staffId != null && resolvedOwnerId === staffId) {
+          includeSubmittedSolutionParty = true;
         }
-      }
-      if (fromSolutionOnward) {
-        resolvedOwnerId = undefined;
-        b2bListScope = undefined;
       }
     }
 
@@ -528,12 +561,12 @@ export class LeadsController {
       review_queue_only: truthy(reviewQueueOnly),
       hide_review_queue: hideExplicitFalse ? false : undefined,
       owner_id: resolvedOwnerId,
+      include_submitted_solution_party: includeSubmittedSolutionParty || undefined,
       unassigned_only: truthy(unassignedOnly),
       assigned_only: truthy(assignedOnly) && !truthy(unassignedOnly),
       lead_flow_kind: flowKind,
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       b2b_list_scope: b2bListScope,
-      from_solution_onward: fromSolutionOnward || undefined,
       include_locked: includeLocked || undefined,
       duplicates_only: truthy(duplicatesOnly) || undefined,
     }).then(async (result) => {
@@ -1113,6 +1146,7 @@ export class LeadsController {
       if (isMarketingLeaderPosition(viewer.position_code) && !leadIsFromSolutionOnward(lead)) {
         throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
       }
+      await this.assertLeadParty(req, id);
     }
     let listScope: ListLeadsQuery['b2b_list_scope'];
     if (this.appConfig.b2bProjectOs && req.staffAuthVia !== 'internal' && req.staffUser) {

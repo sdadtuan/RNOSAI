@@ -202,6 +202,7 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     b2_assigned_at: row.b2_assigned_at ? formatLeadTs(row.b2_assigned_at) : null,
     last_call_result: row.last_call_result ? String(row.last_call_result) : '',
     solution_handoff: row.solution_handoff ? String(row.solution_handoff) : '',
+    solution_owner_name: row.solution_owner_name ? String(row.solution_owner_name) : '',
     has_quote: Boolean(row.has_quote),
     has_contract: Boolean(row.has_contract),
     quote_sheet_saved: Boolean(row.quote_sheet_saved),

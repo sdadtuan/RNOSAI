@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAttachmentMeta, formatFileSize, readSolutionAttachments } from './solution-file-display';
+import { decodeUploadedFileName, formatAttachmentMeta, formatFileSize, readSolutionAttachments } from './solution-file-display';
 
 describe('formatFileSize', () => {
   it('uses KB/MB labels', () => {
@@ -31,5 +31,20 @@ describe('readSolutionAttachments and meta', () => {
     expect(meta).toContain('Admin Local');
     expect(meta).toMatch(/14\/11\/2026/);
     expect(meta).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+  });
+
+  it('repairs a Latin-1 upload name when showing the file', () => {
+    const original = 'Báo giá Solution.pdf';
+    const bytes = new TextEncoder().encode(original);
+    const mojibake = String.fromCharCode(...bytes);
+    expect(decodeUploadedFileName(mojibake)).toBe(original);
+    expect(decodeUploadedFileName(original)).toBe(original);
+    const files = readSolutionAttachments({
+      strategy_framework: {
+        mkt_files: JSON.stringify([{ id: '1', name: mojibake, mime: 'application/pdf', data_url: 'data:application/pdf;base64,QQ==' }]),
+      },
+    });
+    expect(files[0]?.name).toBe(original);
+    expect(files[0]?.id).toBe('1');
   });
 });

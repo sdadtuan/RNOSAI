@@ -52,6 +52,7 @@
   font: inherit;
   font-weight: 650;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   word-break: break-word;
 }
@@ -61,10 +62,12 @@
   text-decoration: underline;
 }
 
-.lead-deal-files__name:disabled {
+.lead-deal-files__name:disabled,
+.lead-deal-files__name[aria-disabled='true'] {
   color: inherit;
   cursor: default;
   text-decoration: none;
+  pointer-events: none;
 }
 
 .lead-deal-files__meta {
@@ -88,19 +91,15 @@
   gap: 0.3rem;
 }
 
-.lead-deal-files__history button {
-  border: 0;
-  padding: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 0.82rem;
-  text-align: left;
-  cursor: pointer;
+.lead-deal-files__history a {
+  color: var(--accent, #0b57d0);
+  font-weight: 650;
+  text-decoration: none;
+  word-break: break-word;
 }
 
-.lead-deal-files__history button:hover,
-.lead-deal-files__history button:focus-visible {
+.lead-deal-files__history a:hover,
+.lead-deal-files__history a:focus-visible {
   text-decoration: underline;
 }
 

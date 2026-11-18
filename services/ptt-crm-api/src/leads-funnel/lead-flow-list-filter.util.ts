@@ -1,4 +1,5 @@
 import type { LeadFlowKind } from './lead-flow-kind.util';
+import { ownerOrSubmittedSolutionSql } from './solution-queue-visibility.util';
 
 type SqlDialect = 'postgres' | 'sqlite';
 
@@ -111,7 +112,7 @@ export function buildB2bListScopeClause(
          WHERE staff_id = ${staffParam}${sqliteRoleFilter}`;
   return `(
     NOT (${b2b}) OR
-    ${alias}.owner_id = ${staffParam} OR
+    ${ownerOrSubmittedSolutionSql(alias, staffParam)} OR
     ${projectCol} IN (
       ${pmPool}
     )
