@@ -328,7 +328,7 @@ function filterKanbanActions(
 export function kanbanCardCta(
   lead: Pick<LeadRow, 'id' | 'phone' | 'status' | 'ai_band' | 'sla_state'>,
 ): KanbanCardCta {
-  const first = kanbanCardActions(lead)[0];
+  const first = kanbanCardActions(lead as Parameters<typeof kanbanCardActions>[0])[0];
   const href = first?.href ?? `/crm/leads/${lead.id}`;
   const label = first?.label ?? 'Mở lead';
   let kind: KanbanCardCta['kind'] = 'lead';
