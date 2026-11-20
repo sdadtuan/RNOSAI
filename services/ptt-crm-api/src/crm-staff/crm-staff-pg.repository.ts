@@ -1,7 +1,8 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
+import { bootstrapAmDefaultCanReceiveSolution } from './am-default-can-receive-solution.bootstrap';
 import { ensureCrmStaffReceiveColumns } from './crm-staff-schema.util';
 import { LeadIngestRulesRepository } from '../leads/ingest/lead-ingest-rules.repository';
 import { TERMINAL_STAGES, normalizePipelineStage } from '../sales/sales-pipeline.util';
@@ -31,11 +32,13 @@ LEFT JOIN crm_positions pos ON pos.id = s.position_id
 `;
 
 @Injectable()
-export class CrmStaffPgRepository implements OnModuleDestroy {
+export class CrmStaffPgRepository implements OnModuleDestroy, OnModuleInit {
+  private readonly logger = new Logger(CrmStaffPgRepository.name);
   private pool: Pool | null = null;
   private staffTableExists: boolean | null = null;
   private casesTableExists: boolean | null = null;
   private settingsTableExists: boolean | null = null;
+  private startupBootstrap: Promise<void> | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -55,6 +58,19 @@ export class CrmStaffPgRepository implements OnModuleDestroy {
     this.staffTableExists = null;
     this.casesTableExists = null;
     this.settingsTableExists = null;
+    this.startupBootstrap = null;
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (!this.startupBootstrap) {
+      this.startupBootstrap = this.runStartupBootstrap();
+    }
+    await this.startupBootstrap;
+  }
+
+  private async runStartupBootstrap(): Promise<void> {
+    await ensureCrmStaffReceiveColumns(this.db);
+    await bootstrapAmDefaultCanReceiveSolution(this.db, this.logger);
   }
 
   private async tableExists(tableName: string): Promise<boolean> {

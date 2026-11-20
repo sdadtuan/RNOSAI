@@ -6,8 +6,8 @@ describe('LeadAutoAssignService intake', () => {
       fetchSnapshot: async () => ({
         lead_config: {},
         staff_rows: [
-          { id: 1, name: 'Một', active: true },
-          { id: 2, name: 'Hai', active: true },
+          { id: 1, name: 'Một', active: true, can_receive_leads: true },
+          { id: 2, name: 'Hai', active: true, can_receive_leads: true },
         ],
         assignment_state: [],
         staff_assign_scope: [],
@@ -19,13 +19,14 @@ describe('LeadAutoAssignService intake', () => {
     expect(result?.owner_id).toBe(2);
   });
 
-  it('skips staff who cannot receive leads', async () => {
+  it('skips staff who cannot receive leads or lack an explicit opt-in', async () => {
     const service = new LeadAutoAssignService({
       fetchSnapshot: async () => ({
         lead_config: {},
         staff_rows: [
           { id: 1, name: 'Một', active: true, can_receive_leads: false },
-          { id: 2, name: 'Hai', active: true, can_receive_leads: true },
+          { id: 2, name: 'Chưa bật', active: true },
+          { id: 3, name: 'Ba', active: true, can_receive_leads: true },
         ],
         assignment_state: [],
         staff_assign_scope: [],
@@ -33,7 +34,7 @@ describe('LeadAutoAssignService intake', () => {
       persistAssignmentState: async () => undefined,
       listPausedIntakeStaffIds: async () => new Set(),
     } as never);
-    const result = await service.assignOwner({});
-    expect(result?.owner_id).toBe(2);
+    const result = await service.assignOwner({ preferOwnerId: 2 });
+    expect(result?.owner_id).toBe(3);
   });
 });

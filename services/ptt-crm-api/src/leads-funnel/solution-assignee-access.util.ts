@@ -1,12 +1,13 @@
 /**
  * Who may act on a lead's Solution step (consult AI, AI tạo Solution, Nộp Solution cho Sales).
  *
- * Solution pool = Account Manager position (ACM / KD-01) OR the HR "Nhận Solution" flag
- * (crm_staff.can_receive_solution). Within the pool only the person assigned to this lead's
- * Solution step may act. SUPER-ADMIN is always allowed. Everyone else is denied.
+ * Solution auto-assign / claim pool = active staff with HR "Nhận Solution"
+ * (crm_staff.can_receive_solution). Position alone does not qualify.
+ * Within the pool only the person assigned to this lead's Solution step may act on unassigned work.
+ * SUPER-ADMIN is always allowed. The current assignee may act even if the flag was later unchecked.
  */
-export function isSolutionPoolMember(input: { isAccountManager?: boolean; canReceiveSolution?: boolean }): boolean {
-  return Boolean(input.isAccountManager || input.canReceiveSolution);
+export function isSolutionPoolMember(input: { canReceiveSolution?: boolean }): boolean {
+  return Boolean(input.canReceiveSolution);
 }
 
 function positiveId(raw: unknown): number | null {
@@ -40,7 +41,7 @@ export function canUseAssignedSolutionAction(input: {
   const me = positiveId(input.staffId);
   const assignee = positiveId(input.assigneeStaffId);
   if (me == null || assignee == null || me !== assignee) return false;
-  return isSolutionPoolMember(input);
+  return true;
 }
 
 export const NOT_SOLUTION_ASSIGNEE_MESSAGE =

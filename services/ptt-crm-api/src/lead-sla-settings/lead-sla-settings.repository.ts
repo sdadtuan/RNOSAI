@@ -78,6 +78,13 @@ export class LeadSlaSettingsRepository implements OnModuleDestroy, OnModuleInit 
   }
 
   private async bootstrapSchema(): Promise<void> {
+    const canReceiveCol = await this.db.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'crm_staff' AND column_name = 'can_receive_leads'
+       LIMIT 1`,
+    );
+    const firstCanReceiveMigration = (canReceiveCol.rowCount ?? 0) === 0;
+
     await this.db.query(`
       CREATE TABLE IF NOT EXISTS crm_lead_sla_settings (
         id                BIGSERIAL PRIMARY KEY,
@@ -130,19 +137,21 @@ export class LeadSlaSettingsRepository implements OnModuleDestroy, OnModuleInit 
       [JSON.stringify(defaults)],
     );
 
-    await this.db.query(`
-      UPDATE crm_staff s
-      SET can_receive_leads = TRUE
-      WHERE s.active IS TRUE
-        AND s.can_receive_leads IS NOT TRUE
-        AND (
-          lower(COALESCE(s.job_title, '')) ~ '(am|account|sales|ae|kinh doanh|gdkd)'
-          OR EXISTS (
-            SELECT 1 FROM crm_b2b_project_staff ps
-            WHERE ps.staff_id = s.id AND COALESCE(ps.assign_enabled, TRUE) IS TRUE
+    if (firstCanReceiveMigration) {
+      await this.db.query(`
+        UPDATE crm_staff s
+        SET can_receive_leads = TRUE
+        WHERE s.active IS TRUE
+          AND s.can_receive_leads IS NOT TRUE
+          AND (
+            lower(COALESCE(s.job_title, '')) ~ '(am|account|sales|ae|kinh doanh|gdkd)'
+            OR EXISTS (
+              SELECT 1 FROM crm_b2b_project_staff ps
+              WHERE ps.staff_id = s.id AND COALESCE(ps.assign_enabled, TRUE) IS TRUE
+            )
           )
-        )
-    `).catch(() => undefined);
+      `).catch(() => undefined);
+    }
   }
 
   private mapRow(row: Record<string, unknown>): LeadSlaSettingsRow {

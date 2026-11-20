@@ -882,11 +882,19 @@ export class LeadsFunnelController {
   @Post(':id/presales/solution-proposal/export')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  exportSolutionProposal(
+  async exportSolutionProposal(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    return this.funnel.exportSolutionProposal(id, req.staffUser);
+    const { buffer, filename } = await this.funnel.exportSolutionProposal(id, req.staffUser);
+    const encodedName = encodeURIComponent(filename).replace(/['()*]/g, (char) =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="solution.pdf"; filename*=UTF-8''${encodedName}`,
+      length: buffer.length,
+    });
   }
 
   @Post(':id/presales/marketing-plan/ai-draft')

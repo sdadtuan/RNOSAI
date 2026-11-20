@@ -620,7 +620,9 @@ export function LeadKanbanBoard({
                         ) : null}
                         <span className={`lead-status-badge lead-status-badge--${leadStatusTone(lead.status)}`}>
                           {useHandoffColumns
-                            ? handoffFlowStatusLabel({
+                            ? column.key === 'bao_gia' || column.key === 'dam_phan'
+                              ? column.title
+                              : handoffFlowStatusLabel({
                                 leadStatus: lead.status,
                                 handoffStatus: lead.solution_handoff,
                               })

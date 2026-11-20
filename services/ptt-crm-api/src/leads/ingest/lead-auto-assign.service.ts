@@ -44,7 +44,7 @@ export class LeadAutoAssignService {
     const paused = await this.pausedIntakeIds();
     if (preferId && preferId > 0 && !paused.has(preferId)) {
       const staff = snapshot.staff_rows.find(
-        (row) => row.id === preferId && row.active && row.can_receive_leads !== false,
+        (row) => row.id === preferId && row.active && row.can_receive_leads === true,
       );
       if (staff) {
         return {
@@ -70,7 +70,7 @@ export class LeadAutoAssignService {
     }
 
     let candidates = snapshot.staff_rows
-      .filter((row) => row.active && row.can_receive_leads !== false)
+      .filter((row) => row.active && row.can_receive_leads === true)
       .map((row) => row.id);
     if (scopeIds) {
       candidates = candidates.filter((id) => scopeIds.has(id));

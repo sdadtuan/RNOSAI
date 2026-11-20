@@ -29,6 +29,7 @@ import {
 } from '@/lib/api';
 import { winPermissionSetsEnabled, winScopePilotEnabled } from '@/lib/win/flags';
 import { detectSodViolations } from '@/lib/rbac/sod-rules';
+import { isAccountManagerPositionCode } from '@/lib/crm/lead-ae-visibility';
 
 type Props = {
   token: string;
@@ -308,8 +309,16 @@ export function UserIdentityCard({
           value={positionId}
           onChange={(e) => {
             const next = Number(e.target.value);
-            setPositionId(next);
+            const prevPosition = positions.find((row) => row.id === positionId);
             const position = positions.find((row) => row.id === next);
+            setPositionId(next);
+            if (
+              position &&
+              !isAccountManagerPositionCode(prevPosition?.code) &&
+              isAccountManagerPositionCode(position.code)
+            ) {
+              setCanReceiveSolution(true);
+            }
             if (position?.team_id) {
               setTeamIds([position.team_id]);
               setLeadTeamIds((prev) => prev.filter((id) => id === position.team_id));

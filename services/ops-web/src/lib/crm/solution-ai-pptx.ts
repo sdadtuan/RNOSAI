@@ -101,10 +101,9 @@ function addLogo(
   slide.addImage({ data: logoData, x, y, w: size, h: size });
 }
 
-export async function buildSolutionAiPptx(
-  input: SolutionPptxInput,
-  logoData?: string | null,
-): Promise<{ writeFile: (opts: { fileName: string }) => Promise<unknown> }> {
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+export async function buildSolutionAiPptx(input: SolutionPptxInput, logoData?: string | null) {
   const PptxCtor = (await import('pptxgenjs')).default;
   const pres = new PptxCtor();
   pres.layout = 'LAYOUT_WIDE';
@@ -241,8 +240,36 @@ export async function buildSolutionAiPptx(
   return pres;
 }
 
+export async function buildSolutionAiPptxNodeBuffer(
+  input: SolutionPptxInput,
+  logoData?: string | null,
+): Promise<Buffer> {
+  const pres = await buildSolutionAiPptx(input, logoData ?? null);
+  const output = await pres.write({ outputType: 'nodebuffer' });
+  return Buffer.isBuffer(output) ? output : Buffer.from(output as ArrayBuffer);
+}
+
+export function solutionAiPptxFileName(input: SolutionPptxInput): string {
+  const base = sanitizeFileName(input.fileBase || `Solution - ${input.customer} (AI)`).replace(/\.(html|doc|docx|pptx)$/i, '');
+  return `${base}.pptx`;
+}
+
 export async function downloadSolutionAiPptxDocument(input: SolutionPptxInput): Promise<void> {
   const pres = await buildSolutionAiPptx(input);
-  const base = sanitizeFileName(input.fileBase || `Solution - ${input.customer} (AI)`).replace(/\.(html|doc|docx|pptx)$/i, '');
-  await pres.writeFile({ fileName: `${base}.pptx` });
+  const fileName = solutionAiPptxFileName(input);
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    const raw = (await pres.write({ outputType: 'blob' })) as Blob;
+    const blob = raw.type === PPTX_MIME ? raw : new Blob([raw], { type: PPTX_MIME });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4_000);
+    return;
+  }
+  await pres.writeFile({ fileName });
 }

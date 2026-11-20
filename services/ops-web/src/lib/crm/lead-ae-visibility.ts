@@ -11,10 +11,18 @@ export function isAccountExecutive(user: StoredStaffUser | null): boolean {
   return code === 'ae' || code.startsWith('ae-') || code.startsWith('ae_');
 }
 
+/** Account Manager position code (acm / kd-01 / kd01). Not MKL or marketing titles. */
+export function isAccountManagerPositionCode(code: string | null | undefined): boolean {
+  const normalized = String(code ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  return normalized === 'acm' || normalized === 'kd-01' || normalized === 'kd01';
+}
+
 /** Account Manager desk. KD-01 is the handover alias of ACM. */
 export function isAccountManager(user: StoredStaffUser | null): boolean {
-  const code = norm(user?.position_code).replace(/\s+/g, '');
-  return code === 'acm' || code === 'kd-01' || code === 'kd01';
+  return isAccountManagerPositionCode(user?.position_code);
 }
 
 /** Marketing Leader desk. mkt-01 is the older position code. */

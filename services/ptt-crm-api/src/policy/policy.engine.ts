@@ -6,25 +6,6 @@ import {
 } from './policy.types';
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 
-const AM_POSITION_CODES = new Set(['acm', 'kd-01', 'kd01']);
-const AM_SET_PATTERN = /acm|account.?manager|kd-01|kd01/i;
-
-function normPositionCode(code: string | null | undefined): string {
-  return String(code ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '');
-}
-
-function isAccountManagerDesk(code: string | null | undefined): boolean {
-  const norm = normPositionCode(code);
-  return AM_POSITION_CODES.has(norm);
-}
-
-function hasAmPermissionSet(permissionSets: string[] | undefined): boolean {
-  return (permissionSets ?? []).some((code) => AM_SET_PATTERN.test(String(code).trim()));
-}
-
 function evaluateRelease(ctx: PolicyContext): PolicyEvaluateResult {
   const policyId: PolicyId = 'presales.no_release_without_handoff';
   const withSolution = ctx.handoff_status === 'with_solution';
@@ -58,15 +39,13 @@ function evaluateClaim(ctx: PolicyContext): PolicyEvaluateResult {
   const allow =
     isSuperAdminPositionCode(ctx.position_code) ||
     ctx.gdkd_assign === true ||
-    isAccountManagerDesk(ctx.position_code) ||
-    hasAmPermissionSet(ctx.permission_sets) ||
     ctx.can_receive_solution === true;
   return {
     allow,
     policy_id: policyId,
     reason: allow
       ? undefined
-      : 'Solution claim requires Account Manager (ACM/KD-01), AM permission set, or Nhận Solution.',
+      : 'Solution claim requires Nhận Solution (crm_staff.can_receive_solution) or GDKD desk override.',
     bundle_version: POLICY_BUNDLE_VERSION,
   };
 }

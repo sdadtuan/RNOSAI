@@ -23,15 +23,16 @@ import {
 } from './handoff-flow.util';
 
 describe('handoff-flow.util', () => {
-  it('defines seven steps in the agreed order', () => {
+  it('defines the full step list in order', () => {
     expect(HANDOFF_FLOW_STEPS.map((s) => s.label)).toEqual([
       'Tiếp nhận Lead',
       'Sales tư vấn & nhập Brief',
       'Chờ Solutions',
       'AM làm Solution',
-      'Chờ báo giá',
+      'Báo Giá',
       'Chờ CEO duyệt',
       'Ký hợp đồng',
+      'Triển Khai',
     ]);
   });
 
@@ -58,10 +59,10 @@ describe('handoff-flow.util', () => {
     ).toBe('Chờ Solutions');
   });
 
-  it('maps with_solution to AM làm Solution', () => {
+  it('groups with_solution under Chờ Solutions in the detail flow', () => {
     expect(
       resolveHandoffFlowStep({ leadStatus: 'dang_tu_van', handoffStatus: 'with_solution' }),
-    ).toBe('doing_solutions');
+    ).toBe('await_solutions');
   });
 
   it('maps released / bao_gia to Chờ báo giá (the release bug fix)', () => {
@@ -128,11 +129,11 @@ describe('handoff-flow.util', () => {
         contractCreatedAt: '2026-11-16T07:05:00.000Z',
       }),
     ).toBe('sign_contract');
-    expect(handoffFlowStatusLabel({ leadStatus: 'bao_gia' })).toBe('Chờ báo giá');
+    expect(handoffFlowStatusLabel({ leadStatus: 'bao_gia' })).toBe('Báo Giá');
   });
 
   it('maps negotiation and signed contract to the last two steps', () => {
-    expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan' })).toBe('negotiate');
+    expect(resolveHandoffFlowStep({ leadStatus: 'dam_phan' })).toBe('await_quote');
     expect(resolveHandoffFlowStep({ leadStatus: 'won', hasContract: true })).toBe('sign_contract');
   });
 
@@ -209,9 +210,17 @@ describe('handoff-flow.util', () => {
     const bucketed = bucketLeadsByHandoffFlow(rows);
     expect(bucketed.byStage.cho_solutions.map((r) => r.id)).toEqual([3]);
     expect(bucketed.byStage.dang_lam_solutions.map((r) => r.id)).toEqual([4]);
-    expect(bucketed.byStage.bao_gia.map((r) => r.id)).toEqual([5, 6]);
-    expect(bucketed.byStage.dam_phan.map((r) => r.id)).toEqual([7]);
+    expect(bucketed.byStage.bao_gia.map((r) => r.id)).toEqual([5, 6, 7]);
+    expect(bucketed.byStage.dam_phan).toEqual([]);
     expect(bucketed.byStage.won.map((r) => r.id)).toEqual([8]);
+  });
+
+  it('requires quote submission for the CEO column and advances approved quotes', () => {
+    expect(kanbanColumnIdForLead({ status: 'negotiation', quote_case_open: true })).toBe('bao_gia');
+    expect(kanbanColumnIdForLead({ status: 'bao_gia', quote_sent_to_sale: true })).toBe('dam_phan');
+    expect(kanbanColumnIdForLead({
+      status: 'dam_phan', quote_sent_to_sale: true, quote_approved: true,
+    })).toBe('won');
   });
 
   it('keeps a submitted Solution on Chờ báo giá while Sale takes it to the customer', () => {
@@ -395,14 +404,16 @@ describe('splitBriefIdeas', () => {
     expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(false);
   });
 
-  it('keeps doing_solutions visible for legacy leads already on that step', () => {
+  it('keeps the detail stepper grouped while the Kanban shows AM làm Solution', () => {
     const view = resolveHandoffFlow({
       leadStatus: 'dang_tu_van',
       handoffStatus: 'with_solution',
     });
-    expect(view.currentKey).toBe('doing_solutions');
+    expect(view.currentKey).toBe('await_solutions');
     const visible = visibleHandoffFlowSteps(view);
-    expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(true);
-    expect(visible.steps).toHaveLength(8);
+    expect(visible.steps.some((s) => s.key === 'doing_solutions')).toBe(false);
+    expect(visible.steps).toHaveLength(7);
+    expect(kanbanColumnIdForLead({ status: 'dang_tu_van', solution_handoff: 'with_solution' }))
+      .toBe('dang_lam_solutions');
   });
 });

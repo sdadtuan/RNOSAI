@@ -18,6 +18,7 @@ import {
   listAccountManagerIds,
   startClaimRound,
 } from './lead-claim-round.util';
+import { assertEligibleLeadOwner } from '../ae-team/eligible-lead-owner';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
@@ -113,6 +114,14 @@ export class LeadFrSlaService {
     const target = Number(targetStaffId);
     if (!(await isSalesStaff(this.sqlQuery, target))) {
       throw new BadRequestException({ error: 'Chỉ giao cho nhân viên Sales.' });
+    }
+    try {
+      await assertEligibleLeadOwner(this.sqlQuery, target);
+    } catch (err) {
+      throw new BadRequestException({
+        error: 'owner_not_accepting',
+        message: err instanceof Error ? err.message : 'Nhân viên này chưa bật nhận lead hoặc đang tạm dừng.',
+      });
     }
     const row = await this.repo.getLeadSlaRow(leadId);
     if (!row) throw new NotFoundException({ error: 'lead_not_found' });

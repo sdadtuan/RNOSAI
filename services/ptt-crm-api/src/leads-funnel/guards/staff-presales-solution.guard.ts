@@ -9,17 +9,8 @@ import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 import { hasGdkdSolutionDesk } from '../../staff-permissions/staff-gdkd.util';
-import { assertPresalesSolutionCap } from '../presales-solution-rbac.util';
 import { LeadsFunnelPgRepository } from '../leads-funnel-pg.repository';
 import { assertSolutionAssignee } from './solution-assignee.guard';
-
-function assertCapOrThrow(
-  caps: Array<{ section: string; action: string }>,
-  action: 'view' | 'edit' | 'claim' | 'release',
-): void {
-  const gdkdAssign = hasGdkdSolutionDesk(caps);
-  assertPresalesSolutionCap(caps, action, { gdkdAssign });
-}
 
 @Injectable()
 export class StaffPresalesSolutionClaimGuard implements CanActivate {
@@ -34,8 +25,14 @@ export class StaffPresalesSolutionClaimGuard implements CanActivate {
     if (await this.staffAuth.isSuperAdminUser(req.staffUser)) return true;
     if (await this.staffAuth.canReceiveSolution(req.staffUser)) return true;
     const me = await this.staffAuth.me(req.staffUser);
-    assertCapOrThrow(me.caps, 'claim');
-    return true;
+    const gdkdAssign = hasGdkdSolutionDesk(me.caps);
+    if (gdkdAssign) return true;
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_presales_solution',
+      action: 'claim',
+      message: 'Nhận Solution case cần bật Nhận Solution trên hồ sơ nhân viên (hoặc GDKD desk).',
+    });
   }
 }
 

@@ -150,7 +150,7 @@ export class AeTeamRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT DISTINCT s.id AS staff_id,
               COALESCE(NULLIF(trim(s.name), ''), 'AE #' || s.id::text) AS name,
-              COALESCE(i.accepting, TRUE) AS accepting,
+              (COALESCE(s.can_receive_leads, FALSE) IS TRUE AND COALESCE(i.accepting, TRUE) IS TRUE) AS accepting,
               t.quota_vnd
        FROM crm_staff s
        JOIN crm_positions p ON p.id = s.position_id
@@ -426,8 +426,13 @@ export class AeTeamRepository implements OnModuleDestroy {
 
   async assignEnabledStaffIds(projectId: string): Promise<Set<number>> {
     const result = await this.db.query(
-      `SELECT staff_id FROM crm_b2b_project_staff
-       WHERE project_id = $1::uuid AND assign_enabled IS TRUE`,
+      `SELECT ps.staff_id
+       FROM crm_b2b_project_staff ps
+       JOIN crm_staff s ON s.id = ps.staff_id
+       WHERE ps.project_id = $1::uuid
+         AND ps.assign_enabled IS TRUE
+         AND s.active IS TRUE
+         AND COALESCE(s.can_receive_leads, FALSE) IS TRUE`,
       [projectId],
     );
     return new Set(result.rows.map((row) => Number(row.staff_id)).filter((id) => id > 0));

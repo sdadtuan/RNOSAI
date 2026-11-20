@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   formatSolutionAiSectionText,
   formatSolutionAiTime,
+  shouldShowSolutionAiSections,
   SOLUTION_AI_PENDING_LABEL,
 } from '@/lib/crm/solution-ai-draft-display';
 import { downloadSolutionAiPptxDocument } from '@/lib/crm/solution-ai-pptx';
@@ -68,6 +69,7 @@ export function SolutionAiDraftBody({
       ? titleText
       : `Solution - ${customer}`;
   const isPending = pending;
+  const showSections = shouldShowSolutionAiSections(editing, isPending);
   const showEdit = canEdit && !isPending && editing;
   const pendingLabel = /đang chờ/i.test(badge) ? badge : SOLUTION_AI_PENDING_LABEL;
   const badgeLabel = isPending ? pendingLabel : 'Bản nháp AI';
@@ -115,7 +117,11 @@ export function SolutionAiDraftBody({
   }
 
   return (
-    <article className="solution-ai-doc" data-testid="solution-desk-ai-result">
+    <article
+      className={`solution-ai-doc${showSections ? '' : ' solution-ai-doc--collapsed'}`}
+      data-testid="solution-desk-ai-result"
+      data-sections-visible={showSections ? 'true' : 'false'}
+    >
       <header className="solution-ai-doc__header solution-ai-doc__header--compact">
         <div className="solution-ai-doc__head-main">
           <div className="solution-ai-doc__title-row">
@@ -165,9 +171,9 @@ export function SolutionAiDraftBody({
 
       {isPending ? (
         <p className="solution-ai-doc__pending">Đang chờ AI viết. Bản nháp sẽ hiện ở đây khi agent trả kết quả.</p>
-      ) : readable.length ? (
+      ) : showSections && readable.length ? (
         <div className="solution-ai-doc__sections">
-          {(showEdit ? draftSections : readable).map((section, index) => (
+          {draftSections.map((section, index) => (
             <section key={section.key} className="solution-ai-doc__section">
               <div className="solution-ai-doc__heading">
                 <span className="solution-ai-doc__num">{String(index + 1).padStart(2, '0')}</span>
@@ -189,9 +195,7 @@ export function SolutionAiDraftBody({
             </section>
           ))}
         </div>
-      ) : (
-        <p className="solution-ai-doc__pending">AI đã tạo bản nháp. AM kiểm tra nội dung trước khi nộp.</p>
-      )}
+      ) : null}
     </article>
   );
 }

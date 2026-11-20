@@ -322,17 +322,16 @@ export class LeadsController {
         const isManualSpa = next.lead_flow_kind === 'spa_operational';
         const source = String(next.source ?? '').trim().toLowerCase();
         const looksManual = !source || source === 'manual' || source === 'nhập tay';
-        if (!explicit && (isManualB2b || isManualSpa || looksManual)) {
+        const me = await this.staffAuth.me(req.staffUser);
+        const canReassign =
+          this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
+        const actorEligible = await this.leadsWriteService.isEligibleSalesLeadOwner(actorStaffId);
+        if (!explicit && !canReassign && actorEligible && (isManualB2b || isManualSpa || looksManual)) {
           next.owner_id = actorStaffId;
         }
-        // B2B hand-create: force creator as owner even if client sent another id without assign-all.
-        if (isManualB2b) {
-          const me = await this.staffAuth.me(req.staffUser);
-          const canReassign =
-            this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
-          if (!canReassign) {
-            next.owner_id = actorStaffId;
-          }
+        // B2B hand-create: force eligible creator as owner even if client sent another id without assign-all.
+        if (isManualB2b && !canReassign) {
+          next.owner_id = actorEligible ? actorStaffId : undefined;
         }
       }
     }
@@ -499,6 +498,7 @@ export class LeadsController {
     @Query('assigned_only') assignedOnly?: string,
     @Query('lead_flow_kind') leadFlowKind?: string,
     @Query('duplicates_only') duplicatesOnly?: string,
+    @Query('hidden_only') hiddenOnlyParam?: string,
   ): Promise<LeadsListResponseV1> {
     const truthy = (v?: string) => v === '1' || v === 'true';
     const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
@@ -534,6 +534,8 @@ export class LeadsController {
       }
     }
 
+    const hiddenOnly = truthy(hiddenOnlyParam);
+    if (hiddenOnly && !includeLocked) throw new ForbiddenException();
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertListClientFilter(scope, clientId);
 
@@ -568,6 +570,7 @@ export class LeadsController {
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       b2b_list_scope: b2bListScope,
       include_locked: includeLocked || undefined,
+      hidden_only: hiddenOnly || undefined,
       duplicates_only: truthy(duplicatesOnly) || undefined,
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;

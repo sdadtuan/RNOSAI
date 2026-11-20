@@ -1,3 +1,5 @@
+import ExcelJS from 'exceljs';
+
 export type RawLeadCsvRow = {
   company_name: string;
   address: string | null;
@@ -16,7 +18,7 @@ export type RawLeadCsvRow = {
   status: string;
 };
 
-const HEADERS = [
+export const RAW_LEAD_EXPORT_HEADERS = [
   'company_name',
   'address',
   'phone',
@@ -34,37 +36,74 @@ const HEADERS = [
   'status',
 ] as const;
 
+const COLUMN_WIDTHS: Record<(typeof RAW_LEAD_EXPORT_HEADERS)[number], number> = {
+  company_name: 28,
+  address: 40,
+  phone: 14,
+  email: 26,
+  website: 36,
+  fanpage_url: 36,
+  zalo_url: 32,
+  contact_title: 18,
+  evidence_url: 36,
+  quality_score: 14,
+  icp_fit_score: 14,
+  source_provider: 16,
+  source_model: 16,
+  sources: 28,
+  status: 12,
+};
+
+function cellText(v: unknown): string {
+  return v == null ? '' : String(v);
+}
+
+export function rawLeadExportRowValues(r: RawLeadCsvRow): string[] {
+  const sources = (r.search_source_keys ?? []).join('|');
+  return [
+    r.company_name,
+    cellText(r.address),
+    cellText(r.phone),
+    cellText(r.email),
+    cellText(r.website),
+    cellText(r.fanpage_url),
+    cellText(r.zalo_url),
+    cellText(r.contact_title),
+    cellText(r.evidence_url),
+    cellText(r.quality_score),
+    cellText(r.icp_fit_score),
+    cellText(r.source_provider),
+    cellText(r.source_model),
+    sources,
+    r.status,
+  ];
+}
+
 function csvCell(v: unknown): string {
-  const s = v == null ? '' : String(v);
+  const s = cellText(v);
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
 export function buildRawLeadsCsv(rows: RawLeadCsvRow[]): string {
-  const lines = [HEADERS.join(',')];
+  const lines = [RAW_LEAD_EXPORT_HEADERS.join(',')];
   for (const r of rows) {
-    const sources = (r.search_source_keys ?? []).join('|');
-    lines.push(
-      [
-        r.company_name,
-        r.address,
-        r.phone,
-        r.email,
-        r.website ?? null,
-        r.fanpage_url ?? null,
-        r.zalo_url ?? null,
-        r.contact_title,
-        r.evidence_url,
-        r.quality_score,
-        r.icp_fit_score,
-        r.source_provider,
-        r.source_model,
-        sources,
-        r.status,
-      ]
-        .map(csvCell)
-        .join(','),
-    );
+    lines.push(rawLeadExportRowValues(r).map(csvCell).join(','));
   }
   return lines.join('\n') + '\n';
+}
+
+export async function buildRawLeadsXlsx(rows: RawLeadCsvRow[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Raw leads');
+  ws.columns = RAW_LEAD_EXPORT_HEADERS.map((header) => ({
+    header,
+    key: header,
+    width: COLUMN_WIDTHS[header],
+  }));
+  ws.getRow(1).font = { bold: true };
+  for (const r of rows) {
+    ws.addRow(rawLeadExportRowValues(r));
+  }
+  return Buffer.from(await wb.xlsx.writeBuffer());
 }

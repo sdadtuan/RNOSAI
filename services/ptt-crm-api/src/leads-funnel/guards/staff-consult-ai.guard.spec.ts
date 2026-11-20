@@ -31,8 +31,8 @@ describe('canUseAssignedSolutionAction', () => {
   it('denies a ticked person who is not assigned', () => {
     expect(canUseAssignedSolutionAction({ staffId: 9, assigneeStaffId: 8, canReceiveSolution: true })).toBe(false);
   });
-  it('denies an assigned person outside the pool (not AM, not ticked)', () => {
-    expect(canUseAssignedSolutionAction({ staffId: 5, assigneeStaffId: 5 })).toBe(false);
+  it('allows the current assignee even when Nhận Solution is off', () => {
+    expect(canUseAssignedSolutionAction({ staffId: 5, assigneeStaffId: 5 })).toBe(true);
   });
   it('denies when no one is assigned', () => {
     expect(canUseAssignedSolutionAction({ staffId: 7, assigneeStaffId: null, isAccountManager: true })).toBe(false);
@@ -91,11 +91,9 @@ describe.each([
       ForbiddenException,
     );
   });
-  it('denies an assigned person who is neither AM nor ticked', async () => {
+  it('allows an assigned person who is neither AM nor ticked (grandfather assignee)', async () => {
     const d = deps({ staffId: 5, position: 'ae' }, 5);
-    await expect(make(d.staffAuth as never, d.leadPg as never).canActivate(ctx())).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(make(d.staffAuth as never, d.leadPg as never).canActivate(ctx())).resolves.toBe(true);
   });
   it('allows SUPER-ADMIN without looking up the assignee', async () => {
     const d = deps({ staffId: 1, superAdmin: true }, null);

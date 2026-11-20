@@ -993,6 +993,23 @@ button.ahd-step__hit { cursor: pointer; }
   padding: 0;
 }
 
+
+/* File Solution card: show the AI document once, without a second card chrome. */
+.ahd-sol-top .solution-ai-doc {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  background: transparent;
+}
+.ahd-sol-top .solution-ai-doc__header {
+  padding: 0 0 10px;
+  background: transparent;
+}
+.ahd-sol-top .solution-ai-doc__sections {
+  padding: 0;
+}
 /* t178: highlighted edit-request card on the Solution revision step */
 .ahd-revision {
   background: #fff8e8;

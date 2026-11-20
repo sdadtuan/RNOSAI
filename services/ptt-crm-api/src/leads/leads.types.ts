@@ -218,6 +218,7 @@ export interface ListLeadsQuery {
   from_solution_onward?: boolean;
   /** Super admin only: include leads locked as "Sai số" (contact_status=invalid_contact). */
   include_locked?: boolean;
+  hidden_only?: boolean;
   /** Only leads flagged is_duplicate (still excludes ones already merged away). */
   duplicates_only?: boolean;
 }

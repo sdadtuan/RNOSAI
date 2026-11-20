@@ -13,11 +13,13 @@ export function HideLeadButton({
   token,
   leadId,
   variant = 'hero',
+  afterHideHref = '/crm/leads',
   onError,
 }: {
   token: string;
   leadId: number;
   variant?: 'hero' | 'desk';
+  afterHideHref?: string;
   onError?: (message: string) => void;
 }) {
   const router = useRouter();
@@ -39,7 +41,7 @@ export function HideLeadButton({
     setBusy(true);
     try {
       await hideLead(token, leadId, notes);
-      router.push('/crm/leads');
+      router.push(afterHideHref);
     } catch (err) {
       const code = err instanceof Error ? err.message : '';
       const message = humanizeCrmApiError(code);

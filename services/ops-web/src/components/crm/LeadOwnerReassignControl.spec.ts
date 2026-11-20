@@ -55,4 +55,18 @@ describe('staffForOwnerKind', () => {
   it('includes AM and ACM staff for the step-3 handoff assignee', () => {
     expect(staffForOwnerKind(rows, 'am').map((row) => row.id).sort()).toEqual([2, 9]);
   });
+
+  it('limits solution picker to flagged staff unless SUPER-ADMIN', () => {
+    expect(staffForOwnerKind(rows, 'solution').map((row) => row.id)).toEqual([108]);
+    expect(
+      staffForOwnerKind(rows, 'solution', { superAdmin: true })
+        .map((row) => row.id)
+        .sort((a, b) => a - b),
+    ).toEqual([2, 9, 107, 108]);
+  });
+
+  it('does not fall back to all active staff when solution pool is empty', () => {
+    const noFlag = rows.filter((r) => r.id !== 108);
+    expect(staffForOwnerKind(noFlag, 'solution')).toEqual([]);
+  });
 });

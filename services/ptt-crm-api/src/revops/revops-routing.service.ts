@@ -313,6 +313,7 @@ export class RevopsRoutingService {
               WHERE e.account_owner_staff_id = cs.id
            ) accounts ON TRUE
           WHERE cs.active = true
+            AND COALESCE(cs.can_receive_leads, FALSE) IS TRUE
           ORDER BY cs.sort_order, cs.name
           LIMIT 50`,
       );

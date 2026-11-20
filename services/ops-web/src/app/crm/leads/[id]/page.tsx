@@ -29,6 +29,7 @@ import { QuoteCasePanel } from '@/components/crm/QuoteCasePanel';
 import { ImplementationHandoffCard } from '@/components/crm/ImplementationHandoffCard';
 import { LeadQuoteSheet } from '@/components/crm/LeadQuoteSheet';
 import { SalesDiscoveryReadOnlyPanel } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
+import { LeadLockedBadge } from '@/components/crm/LeadLockedBadge';
 import { LeadContractSubmitCard, LeadDealFilesCard } from '@/components/crm/LeadDealFilesCard';
 import { LeadDeliveryKpi } from '@/components/crm/LeadDeliveryKpi';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
@@ -1122,8 +1123,16 @@ export default function CrmLeadDetailPage() {
         hasCap(user, 'crm_presales_solution', 'edit')),
   );
   const hideLeadAction =
-    canHideLead && accessToken ? (
-      <HideLeadButton token={accessToken} leadId={leadId} variant="desk" onError={setError} />
+    lead?.lead_lock_kind === 'hidden' ? (
+      <LeadLockedBadge kind="hidden" />
+    ) : canHideLead && accessToken ? (
+      <HideLeadButton
+        token={accessToken}
+        leadId={leadId}
+        variant="desk"
+        afterHideHref={superAdmin ? '/crm/leads/hidden' : '/crm/leads'}
+        onError={setError}
+      />
     ) : null;
 
   useEffect(() => {
@@ -1849,6 +1858,7 @@ export default function CrmLeadDetailPage() {
                 kind={ownerKind}
                 currentOwnerId={kindOwnerId}
                 staff={staffOptions}
+                superAdmin
                 onError={setError}
                 onMessage={setMessage}
                 onAssigned={onOwnerAssigned}
@@ -1934,7 +1944,7 @@ export default function CrmLeadDetailPage() {
           userName={user?.display_name || user?.email}
           salesViewer={salesViewer}
           onFunnelChange={setFunnelSnap}
-          onBack={() => router.push('/crm/leads')}
+          onBack={() => router.push(lead.lead_lock_kind === 'hidden' ? '/crm/leads/hidden' : '/crm/leads')}
           firstAcceptorName={firstOwner}
           amName={assignedAmName}
           amStaffId={assignedAmId}
@@ -1976,6 +1986,7 @@ export default function CrmLeadDetailPage() {
                 kind={ownerKind}
                 currentOwnerId={kindOwnerId}
                 staff={staffOptions}
+                superAdmin
                 onError={setError}
                 onMessage={setMessage}
                 onAssigned={onOwnerAssigned}
@@ -2475,6 +2486,7 @@ export default function CrmLeadDetailPage() {
                       kind={ownerKind}
                       currentOwnerId={kindOwnerId}
                       staff={staffOptions}
+                      superAdmin
                       onError={setError}
                       onMessage={setMessage}
                       onAssigned={onOwnerAssigned}

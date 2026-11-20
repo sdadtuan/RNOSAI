@@ -1398,11 +1398,16 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                         projectId,
                         selectedIds.length ? { lead_ids: selectedIds } : {},
                       );
-                      const blob = new Blob([out.csv], { type: 'text/csv;charset=utf-8' });
+                      const binary = globalThis.atob(out.xlsx_base64);
+                      const bytes = new Uint8Array(binary.length);
+                      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                      const blob = new Blob([bytes], {
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
-                      a.download = `raw-leads-${projectId}.csv`;
+                      a.download = `raw-leads-${projectId}.xlsx`;
                       a.click();
                       URL.revokeObjectURL(url);
                       setMsg(`Đã export ${out.count} dòng`);
@@ -1414,7 +1419,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   })();
                 }}
               >
-                Export CSV
+                Export Excel
               </button>
             ) : null}
             {canRun ? (

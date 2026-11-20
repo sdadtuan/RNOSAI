@@ -30,17 +30,28 @@ describe('resolvePresalesSolutionCaps', () => {
     expect(caps.isAeTrackOnly).toBe(true);
   });
 
-  it('Solution role can claim/release', () => {
-    const caps = resolvePresalesSolutionCaps(
-      user([
+  it('Solution role with Nhận Solution can claim/release', () => {
+    const caps = resolvePresalesSolutionCaps({
+      ...user([
         { section: 'crm_presales_solution', action: 'view' },
         { section: 'crm_presales_solution', action: 'claim' },
         { section: 'crm_presales_solution', action: 'release' },
       ]),
-    );
+      can_receive_solution: true,
+    });
     expect(caps.canClaim).toBe(true);
     expect(caps.canRelease).toBe(true);
     expect(caps.isAeTrackOnly).toBe(false);
+  });
+
+  it('AM claim cap alone does not allow claim without Nhận Solution', () => {
+    const caps = resolvePresalesSolutionCaps(
+      user([
+        { section: 'crm_presales_solution', action: 'view' },
+        { section: 'crm_presales_solution', action: 'claim' },
+      ]),
+    );
+    expect(caps.canClaim).toBe(false);
   });
 
   it('Account Manager drafts the consult plan without crm_board.edit', () => {

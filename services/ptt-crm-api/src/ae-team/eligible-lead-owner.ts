@@ -7,18 +7,23 @@ export const ELIGIBLE_LEAD_OWNER_SQL = `
   )
 `;
 
-export async function assertEligibleLeadOwner(
+export async function isEligibleLeadOwner(
   query: (sql: string, params: unknown[]) => Promise<{ rows: unknown[] }>,
   staffId: number,
-): Promise<void> {
-  if (!Number.isFinite(staffId) || staffId <= 0) {
-    throw new Error('Nhân viên này chưa bật nhận lead hoặc đang tạm dừng.');
-  }
+): Promise<boolean> {
+  if (!Number.isFinite(staffId) || staffId <= 0) return false;
   const result = await query(
     `SELECT s.id FROM crm_staff s WHERE s.id = $1 AND ${ELIGIBLE_LEAD_OWNER_SQL}`,
     [staffId],
   );
-  if (!result.rows.length) {
+  return result.rows.length > 0;
+}
+
+export async function assertEligibleLeadOwner(
+  query: (sql: string, params: unknown[]) => Promise<{ rows: unknown[] }>,
+  staffId: number,
+): Promise<void> {
+  if (!(await isEligibleLeadOwner(query, staffId))) {
     throw new Error('Nhân viên này chưa bật nhận lead hoặc đang tạm dừng.');
   }
 }

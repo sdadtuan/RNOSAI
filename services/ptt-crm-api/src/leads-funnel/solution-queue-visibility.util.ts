@@ -31,8 +31,8 @@ export function submittedSolutionVisibleTo(
 }
 
 /**
- * Latest Solution assignee who is an AM (ACM / KD-01) or flagged Nhận Solution.
- * Marketing Leader (MKL / MKT-01) does not match.
+ * Latest logged Solution assignee for this viewer (excluding Marketing Leader roles).
+ * Already-assigned owners stay visible even when Nhận Solution is later unchecked.
  * `param` is a bound staff id. `leadAlias` must expose sqlite_lead_id.
  */
 export function releasedSolutionAssigneeMatchSql(leadAlias: string, param: string): string {
@@ -46,10 +46,6 @@ export function releasedSolutionAssigneeMatchSql(leadAlias: string, param: strin
        AND COALESCE(al.owner_kind, '') = 'solution'
        AND al.to_owner_id = ${param}
        AND ${pos} NOT IN ('mkl', 'mkt-01', 'mkt01')
-       AND (
-         ${pos} IN ('acm', 'kd-01', 'kd01')
-         OR COALESCE(st.can_receive_solution, FALSE) IS TRUE
-       )
        AND al.created_at = (
          SELECT MAX(al2.created_at)
            FROM crm_lead_assignment_log al2
@@ -68,9 +64,29 @@ export function submittedSolutionVisibleSql(leadAlias: string, _presalesAlias: s
 }
 
 /**
- * List/Kanban scope for a staff member who does not see every lead.
- * Own leads, plus a Solution already nộp (handoff released, khách chưa duyệt)
- * when they are the AM assigned to do it.
+ * Quote-assignee AM stays visible on the lead from the quote stage onward
+ * (Báo giá, awaiting CEO, Ký hợp đồng, through Triển khai) alongside Sale.
+ */
+export function quoteStageAssigneeMatchSql(leadAlias: string, param: string): string {
+  return `EXISTS (
+    SELECT 1 FROM crm_lead_presales ps_quote
+     WHERE ps_quote.lead_id = ${leadAlias}.sqlite_lead_id
+       AND COALESCE(ps_quote.status, '') = 'active'
+       AND ps_quote.quote_assignee_staff_id = ${param}
+       AND (
+         ps_quote.solution_approved_at IS NOT NULL
+         OR ps_quote.quote_sent_back_at IS NOT NULL
+         OR ps_quote.quote_approved_at IS NOT NULL
+         OR lower(COALESCE(${leadAlias}.status, '')) IN ('bao_gia', 'dam_phan', 'hop_dong', 'ky_hop_dong', 'trien_khai', 'won', 'closed_won')
+       )
+  )`;
+}
+
+/**
+ * List/Kanban and detail scope for a staff member who does not see every lead.
+ * Own leads, a Solution already nộp (handoff released, khách chưa duyệt) when
+ * they are the assigned Solution AM, or the assigned quote AM from quote stage
+ * onward (awaiting CEO, Ký hợp đồng, through Triển khai).
  */
 export function ownerOrSubmittedSolutionSql(leadAlias: string, param: string): string {
   return `(
@@ -83,5 +99,6 @@ export function ownerOrSubmittedSolutionSql(leadAlias: string, param: string): s
         AND ps_sol.solution_approved_at IS NULL
         AND ${releasedSolutionAssigneeMatchSql(leadAlias, param)}
     )
+    OR ${quoteStageAssigneeMatchSql(leadAlias, param)}
   )`;
 }

@@ -1,6 +1,6 @@
 import { pickRoundRobinStaffId } from '../leads/ingest/lead-assign-scope.util';
 
-/** Round-robin pool key for Solution auto-assign (AM position + HR "Nhận Solution"). */
+/** Round-robin pool key for Solution auto-assign (HR "Nhận Solution" only). */
 export const SOLUTION_AUTO_ASSIGN_POOL_KEY = 'solution_am';
 /** crm_lead_assignment_log.reason for a round-robin pick (also the rotation state). */
 export const SOLUTION_AUTO_ASSIGN_REASON = 'solution_auto_assign';
@@ -19,7 +19,7 @@ function positiveId(raw: unknown): number | null {
 
 /**
  * Who should own the Solution step when Sales submits to AM (Tú 14/11/2026: AMs by default,
- * plus anyone ticked "Nhận Solution", assigned automatically).
+ * Staff ticked "Nhận Solution" only; AM position alone does not enter the pool.
  * - assigned_am already in the pool: keep it.
  * - no assigned_am but the previous owner is in the pool: keep the existing auto-reclaim path.
  * - assigned_am is not a pool member (e.g. still the Sales owner) but the previous owner is: give it back to them.

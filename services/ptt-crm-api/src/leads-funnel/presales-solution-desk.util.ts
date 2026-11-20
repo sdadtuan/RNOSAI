@@ -14,11 +14,11 @@ export function grandfatheredMarketingLeaderOwner(positionCode: string | null | 
 }
 
 export function canClaimSolutionCase(
-  positionCode: string | null | undefined,
+  _positionCode: string | null | undefined,
   opts: { asSuperAdmin?: boolean; gdkdAssign?: boolean; canReceiveSolution?: boolean } = {},
 ): boolean {
-  if (opts.asSuperAdmin || opts.gdkdAssign || opts.canReceiveSolution) return true;
-  return holdsSolutionDesk(positionCode);
+  if (opts.asSuperAdmin || opts.gdkdAssign) return true;
+  return Boolean(opts.canReceiveSolution);
 }
 
 export function canMutateQuoteDesk(

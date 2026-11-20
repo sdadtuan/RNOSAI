@@ -50,7 +50,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { isAccountManager, isMarketingLeader } from '@/lib/crm/lead-ae-visibility';
+import { isAccountManager, isMarketingLeader, isSuperAdmin } from '@/lib/crm/lead-ae-visibility';
 import { type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import {
   leadListFilterOptions,
@@ -824,6 +824,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         subtitle={pageMeta}
         actions={
           <>
+            {isSuperAdmin(user) ? (
+              <Link href="/crm/leads/hidden" className="btn btn-sm">
+                Lead Ẩn
+              </Link>
+            ) : null}
             <div className="crm-leads-desktop-tools">
               <LeadsColumnPicker
                 visible={visibleColumns}

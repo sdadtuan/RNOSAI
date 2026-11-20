@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isAiDraftNotice, presentSolutionAiDraft, SOLUTION_AI_DRAFT_LABEL } from './solution-ai-draft-display';
+import {
+  isAiDraftNotice,
+  presentSolutionAiDraft,
+  shouldShowSolutionAiSections,
+  SOLUTION_AI_DRAFT_LABEL,
+} from './solution-ai-draft-display';
 
 describe('presentSolutionAiDraft', () => {
   it('returns a title and readable sections, skipping file payloads', () => {
@@ -22,6 +27,18 @@ describe('presentSolutionAiDraft', () => {
       'Thông điệp thị trường',
     ]);
     expect(view?.sections.some((row) => row.key === 'mkt_files')).toBe(false);
+  });
+});
+
+describe('shouldShowSolutionAiSections', () => {
+  it('hides bodies in compact view and while AI is pending', () => {
+    expect(shouldShowSolutionAiSections(false, false)).toBe(false);
+    expect(shouldShowSolutionAiSections(false, true)).toBe(false);
+    expect(shouldShowSolutionAiSections(true, true)).toBe(false);
+  });
+
+  it('shows editable sections only while editing a completed draft', () => {
+    expect(shouldShowSolutionAiSections(true, false)).toBe(true);
   });
 });
 

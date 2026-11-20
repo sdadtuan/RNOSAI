@@ -30,9 +30,7 @@ export function resolvePresalesSolutionCaps(user: StoredStaffUser | null): Presa
   const amDesk = Boolean(user && isAccountManager(user));
   const flagged = Boolean(user?.can_receive_solution);
   const mklDesk = Boolean(user && isMarketingLeader(user));
-  const canClaim = Boolean(
-    user && (isGdkd || flagged || (amDesk && hasCap(user, 'crm_presales_solution', 'claim')) || hasCap(user, 'crm_presales_solution', 'claim')),
-  );
+  const canClaim = Boolean(user && (isGdkd || flagged));
   const canRelease = Boolean(
     user && (isGdkd || flagged || hasCap(user, 'crm_presales_solution', 'release')),
   );

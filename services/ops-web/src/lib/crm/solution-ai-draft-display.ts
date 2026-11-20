@@ -3,6 +3,11 @@ import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 export const SOLUTION_AI_DRAFT_LABEL = 'Bản nháp AI — AM kiểm tra trước khi nộp';
 export const SOLUTION_AI_PENDING_LABEL = 'Đang chờ AI viết';
 
+/** AI draft section bodies appear only while the user is editing (not in compact card view). */
+export function shouldShowSolutionAiSections(editing: boolean, pending = false): boolean {
+  return Boolean(editing) && !pending;
+}
+
 export const SOLUTION_AI_SECTIONS = [
   { key: 'executive_summary', label: 'Tóm tắt điều hành' },
   { key: 'client_context', label: 'Bối cảnh khách hàng' },

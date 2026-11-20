@@ -25,12 +25,12 @@ describe('PolicyEngine WIN-4-C', () => {
     expect(out.policy_id).toBe('presales.no_release_without_handoff');
   });
 
-  it('allows claim for Account Manager position', () => {
+  it('denies claim for Account Manager without Nhận Solution', () => {
     const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
       action: 'claim',
       position_code: 'KD-01',
     });
-    expect(out.allow).toBe(true);
+    expect(out.allow).toBe(false);
   });
 
   it('denies claim without AM desk or set', () => {
@@ -52,12 +52,12 @@ describe('PolicyEngine WIN-4-C', () => {
     expect(out.allow).toBe(true);
   });
 
-  it('allows claim via AM permission set', () => {
+  it('denies claim via AM permission set without Nhận Solution', () => {
     const out = evaluatePolicy('presales.no_claim_without_mkt_set', {
       action: 'claim',
       permission_sets: ['KD-01-AM'],
     });
-    expect(out.allow).toBe(true);
+    expect(out.allow).toBe(false);
   });
 
   it('denies expired break-glass union', () => {

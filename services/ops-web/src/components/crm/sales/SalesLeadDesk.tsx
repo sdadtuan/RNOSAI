@@ -8,7 +8,6 @@ import {
   fetchLeadPresalesClientBrief,
   fetchLeadPresalesConsultBrief,
   markLeadSolutionViewed,
-  type DiscoveryOptionsPayload,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -33,7 +32,7 @@ import { effectiveAssignedAmId, funnelAssignedAmId, funnelB2Complete } from '@/l
 import { LeadInternalNotes } from '@/components/crm/LeadInternalNotes';
 import { DiscoveryLiveBriefProvider } from '@/components/crm/discovery/discovery-live-brief';
 import { DiscoverySolutionChecklistCard } from '@/components/crm/discovery/DiscoverySolutionChecklistCard';
-import { SalesDiscoveryBriefView } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
+import { SalesDiscoveryReadOnlyPanel } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
 import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import type { LeadHistoryLine } from '@/lib/crm/lead-history';
 import { HandoffFlowStepper } from '@/components/crm/am/HandoffFlowStepper';
@@ -200,7 +199,6 @@ export function SalesLeadDesk({
   const [tab, setTab] = useState<DeskTabKey>('solution');
   const [session, setSession] = useState<IntakeSessionRow | null>(null);
   const [industryOptions, setIndustryOptions] = useState<DiscoveryOption[]>([]);
-  const [discoveryOptions, setDiscoveryOptions] = useState<DiscoveryOptionsPayload | null>(null);
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
   const solutionViewedRef = useRef<number | null>(null);
@@ -270,7 +268,6 @@ export function SalesLeadDesk({
     void fetchDiscoveryOptions(token)
       .then((opts) => {
         if (cancelled || !opts) return;
-        setDiscoveryOptions(opts);
         const industries = (opts.industries ?? []) as DiscoveryOption[];
         if (industries.length) setIndustryOptions(industries);
       })
@@ -512,7 +509,7 @@ export function SalesLeadDesk({
               </div>
               {tab === 'brief' ? (
                 <div className="ahd-brief-grid" data-testid="sld-brief">
-                  <SalesDiscoveryBriefView brief={brief} options={discoveryOptions} />
+                  <SalesDiscoveryReadOnlyPanel token={token} leadId={lead.id} />
                 </div>
               ) : null}
               {tab === 'solution' ? children : null}

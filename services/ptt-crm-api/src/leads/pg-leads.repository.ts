@@ -2,16 +2,13 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { pgRowToV1 } from './lead-v1.mapper';
-import { leadLockKindSql, leadLockedSql, leadNotLockedSql } from './lead-lock.util';
+import { LEAD_HIDDEN_CONTACT_STATUS, leadLockKindSql, leadLockedSql, leadNotLockedSql } from './lead-lock.util';
 import {
   buildB2bListScopeClause,
   buildLeadFlowKindListFilter,
 } from '../leads-funnel/lead-flow-list-filter.util';
 import { buildFromSolutionOnwardClause } from '../leads-funnel/solution-onward.util';
-import {
-  ownerOrSubmittedSolutionSql,
-  releasedSolutionAssigneeMatchSql,
-} from '../leads-funnel/solution-queue-visibility.util';
+import { ownerOrSubmittedSolutionSql } from '../leads-funnel/solution-queue-visibility.util';
 import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 import {
@@ -175,27 +172,17 @@ export class PgLeadsRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  /** Lead assignee, or the AM assigned to a Solution that is nộp and not yet approved. */
+  /** Lead assignee, submitted Solution AM, or quote-stage AM through Triển khai. */
   async staffMaySeeLead(leadId: number, staffId: number): Promise<boolean> {
     if (!Number.isInteger(leadId) || leadId <= 0 || !Number.isInteger(staffId) || staffId <= 0) {
       return false;
     }
-    const match = releasedSolutionAssigneeMatchSql('l', '$2');
+    const visibleClause = ownerOrSubmittedSolutionSql('l', '$2');
     const result = await this.db.query(
       `SELECT 1
          FROM crm_leads l
         WHERE l.sqlite_lead_id = $1
-          AND (
-            l.owner_id = $2
-            OR EXISTS (
-              SELECT 1 FROM crm_lead_presales ps_sol
-               WHERE ps_sol.lead_id = l.sqlite_lead_id
-                 AND COALESCE(ps_sol.status, '') = 'active'
-                 AND ps_sol.handoff_status = 'released'
-                 AND ps_sol.solution_approved_at IS NULL
-                 AND ${match}
-            )
-          )
+          AND ${visibleClause}
         LIMIT 1`,
       [leadId, staffId],
     );
@@ -415,7 +402,13 @@ export class PgLeadsRepository implements OnModuleDestroy {
     // active work. KPI and desk queries keep their own `is_duplicate IS NOT TRUE`.
     const clauses = [`COALESCE(l.meta_json->>'merged_into_id', '') = ''`];
     if (query.duplicates_only) clauses.push('l.is_duplicate IS TRUE');
-    if (!query.include_locked) clauses.push(leadNotLockedSql('l'));
+    if (query.hidden_only && query.include_locked) {
+      clauses.push(`l.contact_status = '${LEAD_HIDDEN_CONTACT_STATUS}'`);
+    } else if (query.include_locked) {
+      clauses.push(`COALESCE(l.contact_status, '') <> '${LEAD_HIDDEN_CONTACT_STATUS}'`);
+    } else {
+      clauses.push(leadNotLockedSql('l'));
+    }
     const params: unknown[] = [];
 
     const push = (clause: string, ...values: unknown[]) => {

@@ -83,11 +83,7 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
           active: item.active === false || item.active === 0 ? false : true,
           sales_level: item.sales_level != null ? String(item.sales_level) : undefined,
           can_receive_leads:
-            item.can_receive_leads === false || item.can_receive_leads === 0
-              ? false
-              : item.can_receive_leads === true || item.can_receive_leads === 1
-                ? true
-                : undefined,
+            item.can_receive_leads === true || item.can_receive_leads === 1,
         }))
         .filter((item) => Number.isFinite(item.id) && item.id > 0),
       assignment_state: assignState

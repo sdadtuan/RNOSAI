@@ -16,6 +16,8 @@ import type {
 import type { StaffOrgAuditInput } from './staff-org.types';
 import { membershipLeadIds } from './staff-org-lead.util';
 import { nextInternalCodeFromMax } from './staff-org-internal-code.util';
+import { isAccountManagerPosition } from '../b2b-projects/b2b-director.util';
+import { defaultCanReceiveSolution } from '../crm-staff/default-can-receive-solution.util';
 import { ensureCrmStaffReceiveColumns } from '../crm-staff/crm-staff-schema.util';
 
 function normalizeEmail(email: string): string {
@@ -230,6 +232,36 @@ export class StaffOrgUsersRepository {
     }
   }
 
+  private async positionCodeForId(
+    client: Pool | PoolClient,
+    positionId: number,
+  ): Promise<string | null> {
+    const hit = await client.query<{ code: string | null }>(
+      `SELECT code FROM crm_positions WHERE id = $1 LIMIT 1`,
+      [positionId],
+    );
+    return hit.rows[0]?.code != null ? String(hit.rows[0].code) : null;
+  }
+
+  private async maybeDefaultSolutionOnAmPromotion(
+    client: PoolClient,
+    email: string,
+    fromCode: string | null | undefined,
+    toPositionId: number,
+    explicitSolution?: boolean,
+  ): Promise<void> {
+    if (typeof explicitSolution === 'boolean') return;
+    const toCode = await this.positionCodeForId(client, toPositionId);
+    if (!isAccountManagerPosition(fromCode) && isAccountManagerPosition(toCode)) {
+      await client.query(
+        `UPDATE crm_staff
+         SET can_receive_solution = TRUE, updated_at = NOW()
+         WHERE lower(trim(email)) = lower(trim($1))`,
+        [email],
+      );
+    }
+  }
+
   private async syncLinkedStaffPosition(
     client: PoolClient,
     email: string,
@@ -296,6 +328,14 @@ export class StaffOrgUsersRepository {
     const departmentId =
       profile.department_id ?? posDept.rows[0]?.department_id ?? null;
     const internalCode = await this.resolveInternalCode(client, profile.internal_code);
+    const positionCode = await this.positionCodeForId(client, positionId);
+    const canReceiveSolution = defaultCanReceiveSolution({
+      positionCode,
+      explicit:
+        typeof profile.can_receive_solution === 'boolean' ? profile.can_receive_solution : undefined,
+    });
+    const canReceiveLeads =
+      typeof profile.can_receive_leads === 'boolean' ? profile.can_receive_leads : false;
 
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM crm_staff WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1`,
@@ -341,8 +381,8 @@ export class StaffOrgUsersRepository {
         internalCode,
         departmentId,
         positionId,
-        Boolean(profile.can_receive_leads),
-        Boolean(profile.can_receive_solution),
+        canReceiveLeads,
+        canReceiveSolution,
       ],
     );
     return Number(inserted.rows[0]!.id);
@@ -399,11 +439,33 @@ export class StaffOrgUsersRepository {
 
       if (body.crm_staff_id != null) {
         const crmId = Number(body.crm_staff_id);
+        const prior = await client.query<{ position_id: number | null }>(
+          `SELECT position_id FROM crm_staff WHERE id = $1 LIMIT 1`,
+          [crmId],
+        );
+        const fromCode =
+          prior.rows[0]?.position_id != null
+            ? await this.positionCodeForId(client, Number(prior.rows[0].position_id))
+            : null;
         await client.query(
           `UPDATE crm_staff SET email = $1, position_id = $2, active = TRUE, updated_at = NOW()
            WHERE id = $3`,
           [email, positionId, crmId],
         );
+        const explicitSolution = body.crm_staff?.can_receive_solution;
+        await this.maybeDefaultSolutionOnAmPromotion(
+          client,
+          email,
+          fromCode,
+          positionId,
+          typeof explicitSolution === 'boolean' ? explicitSolution : undefined,
+        );
+        if (typeof explicitSolution === 'boolean') {
+          await client.query(
+            `UPDATE crm_staff SET can_receive_solution = $1, updated_at = NOW() WHERE id = $2`,
+            [explicitSolution, crmId],
+          );
+        }
       } else if (body.crm_staff) {
         await this.upsertCrmStaff(client, email, body.crm_staff, positionId);
       }
@@ -468,6 +530,13 @@ export class StaffOrgUsersRepository {
         sets.push(`position_id = $${idx++}`);
         params.push(positionId);
         await this.syncLinkedStaffPosition(client, existing.email, positionId);
+        await this.maybeDefaultSolutionOnAmPromotion(
+          client,
+          existing.email,
+          existing.position_code,
+          positionId,
+          body.can_receive_solution,
+        );
         if (!(body.team_ids ?? []).some((id) => Number(id) > 0)) {
           const teamHit = await client.query<{ team_id: number | null }>(
             `SELECT team_id FROM crm_positions WHERE id = $1`,

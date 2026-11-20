@@ -47,8 +47,9 @@ import { LeadHistoryTab } from '@/components/crm/LeadHistoryTab';
 import { isAiDraftNotice, solutionAiDraftIsReady } from '@/lib/crm/solution-ai-draft-display';
 import { isLegacyMarketingPlanHint } from '@/lib/crm/client-plan-brief.ui';
 import { SolutionCaseDesk } from '@/components/crm/SolutionCaseDesk';
+import { readSavedSalesBrief } from '@/components/crm/discovery/SalesDiscoveryReadOnly';
 import { SolutionTopCard } from '@/components/crm/am/SolutionTopCard';
-import { deleteSolutionStoredFile, exportSolutionProposalFiles, openOrDownloadSolutionFile, saveSolutionAiSectionBodies } from '@/lib/crm/solution-file-actions';
+import { deleteSolutionStoredFile, saveSolutionAiSectionBodies } from '@/lib/crm/solution-file-actions';
 import { decodeUploadedFileName } from '@/lib/crm/solution-file-display';
 import { LeadStepHero } from '@/components/crm/LeadStepHero';
 import type { SolutionDeskActivity } from '@/lib/crm/solution-activity';
@@ -342,7 +343,6 @@ export function AmHandoffDesk({
   const [leaders, setLeaders] = useState<StaffOption[]>(marketingLeaders);
   const revisionNote = String(funnel?.presales?.solution_case?.revision_note ?? '').trim();
   const [tab, setTab] = useState<TabKey>('brief');
-  const [solutionDocOpen, setSolutionDocOpen] = useState(false);
   const [leaderId, setLeaderId] = useState<string>(marketingLeaders[0] ? String(marketingLeaders[0].id) : '');
   const [assignNote, setAssignNote] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
@@ -357,10 +357,19 @@ export function AmHandoffDesk({
   const [consultPack, setConsultPack] = useState<AmDeskConsultLike | null>(null);
   const [clientPack, setClientPack] = useState<AmDeskClientBriefLike | null>(null);
 
-  const brief: SalesDiscoveryBrief | null = useMemo(
-    () => readDiscoveryBriefFromAnswers(session?.answers_json) ?? null,
-    [session],
-  );
+  const [legacyBrief, setLegacyBrief] = useState<SalesDiscoveryBrief | null>(null);
+  const currentBrief = useMemo(() => readDiscoveryBriefFromAnswers(session?.answers_json), [session]);
+  const brief = currentBrief ?? legacyBrief;
+
+  useEffect(() => {
+    setLegacyBrief(null);
+    if (currentBrief || session?.status !== 'completed') return;
+    let cancelled = false;
+    void readSavedSalesBrief(token, session).then((saved) => {
+      if (!cancelled) setLegacyBrief(saved);
+    });
+    return () => { cancelled = true; };
+  }, [currentBrief, session, token]);
 
   const view = useMemo(
     () =>
@@ -463,19 +472,9 @@ export function AmHandoffDesk({
     void fetchCrmStaffList(token)
       .then((out) => {
         if (cancelled) return;
-        const rows = (out.staff ?? []).filter((row) => {
-          const code = String(row.position_catalog_code ?? '').toLowerCase();
-          const title = String(row.position_catalog_name || row.job_title || '').toLowerCase();
-          return (
-            Boolean(row.active) &&
-            (row.can_receive_solution ||
-              code === 'mkl' ||
-              code === 'mkt-01' ||
-              code === 'mkt01' ||
-              title.includes('marketing leader') ||
-              title.includes('marketing'))
-          );
-        });
+        const rows = (out.staff ?? []).filter(
+          (row) => Boolean(row.active) && row.can_receive_solution === true,
+        );
         const mapped = rows.map((row) => ({
           id: row.id,
           name: row.name,
@@ -855,36 +854,21 @@ export function AmHandoffDesk({
             subtitle="AM làm Solution theo brief Sales đã nộp."
             testId="ahd-step-hero"
           />
-          {/* t321: keep the File Solution card; File Solution tab removed. Mo / Sua still opens the editor below. */}
           {showSide ? (
             <SolutionTopCard
               activity={solutionActivity}
               canRetry={canSubmit}
               customerName={company}
+              contactName={contactName || lead.full_name || ''}
               leadCode={leadCode}
               token={token}
               leadId={lead.id}
-              onOpenAi={() => setSolutionDocOpen(true)}
               onRetryAi={() => setAiRetryNonce((n) => n + 1)}
               onDeleteFile={(file) => {
                 void deleteSolutionStoredFile(token, lead.id, file.id).then(() => setSolutionTick((n) => n + 1));
               }}
               onSaveSections={async (sections) => {
                 await saveSolutionAiSectionBodies(token, lead.id, sections, solutionActivity?.aiDraft?.title);
-                setSolutionTick((n) => n + 1);
-              }}
-              onExportProposal={async () => {
-                const out = await exportSolutionProposalFiles(token, lead.id);
-                for (const file of out.files) {
-                  await openOrDownloadSolutionFile(token, lead.id, {
-                    id: file.id,
-                    name: file.name,
-                    mime: file.mime,
-                    data_url: '',
-                  }, 'download');
-                }
-                if (out.warning) onError?.(out.warning);
-                else onMessage?.('Đã tạo file Solution PDF.');
                 setSolutionTick((n) => n + 1);
               }}
             />
@@ -1024,26 +1008,6 @@ export function AmHandoffDesk({
                 ownerLines={ownerLines}
                 selectedActivityId={selectedActivityId}
                 onSelectActivity={onSelectActivity ?? (() => undefined)}
-              />
-            </div>
-          ) : null}
-
-          {solutionDocOpen ? (
-            <div data-testid="ahd-solution">
-              <SolutionCaseDesk
-                key={`solution-list-${solutionTick}`}
-                token={token}
-                lead={lead}
-                party={(party ?? {}) as LeadPartyFormValue}
-                funnel={funnel}
-                onFunnelChange={onFunnelChange}
-                onMessage={(message) => {
-                  setArtifactReady(true);
-                  onMessage?.(message);
-                }}
-                onError={onError}
-                userName={userName}
-                submitOnly
               />
             </div>
           ) : null}

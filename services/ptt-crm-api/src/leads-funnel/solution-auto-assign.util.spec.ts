@@ -34,6 +34,12 @@ describe('decideSolutionAssignee', () => {
     });
   });
 
+  it('does not round-robin when pool excludes position-only ACM', () => {
+    expect(
+      decideSolutionAssignee({ ...base, assignedAm: 42, assignedAmInPool: false, poolIds: [108], lastOwner: 9 }),
+    ).toEqual({ action: 'assign', staffId: 108, why: 'round_robin' });
+  });
+
   it('keeps the existing reclaim path when there is no assigned_am but the previous owner is in the pool', () => {
     expect(decideSolutionAssignee({ ...base, lastOwner: 7, lastOwnerInPool: true, poolIds: [3, 7] })).toEqual({
       action: 'keep',

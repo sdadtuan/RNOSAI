@@ -2,6 +2,9 @@
 const stagingBasePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').trim().replace(/\/$/, '');
 /** Dev-only: proxy /api → VPS so localhost avoids CORS (set in .env.local, not on prod build). */
 const localApiProxy = (process.env.PTT_LOCAL_API_PROXY_TARGET ?? '').trim().replace(/\/$/, '');
+const staticCacheControl = process.env.NODE_ENV === 'development'
+  ? 'no-store'
+  : 'public, max-age=31536000, immutable';
 
 const nextConfig = {
   output: 'standalone',
@@ -13,7 +16,7 @@ const nextConfig = {
     return [
       {
         source: '/_next/static/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+        headers: [{ key: 'Cache-Control', value: staticCacheControl }],
       },
       {
         source: '/((?!_next/static|icons|sw\\.js|manifest\\.webmanifest).*)',

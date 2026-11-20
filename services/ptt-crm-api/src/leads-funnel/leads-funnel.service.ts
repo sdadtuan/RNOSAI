@@ -131,12 +131,9 @@ import {
   SOLUTION_AI_NOT_CONFIGURED,
   SOLUTION_AI_PENDING_LABEL,
   type AgencySolutionFacts,
-  type SolutionAiSections,
 } from './solution-ai-draft.util';
 import { generateAgencySolution, SOLUTION_STRATEGIST_MODEL, type StrategistLlm } from './solution-ai-strategist.util';
 import { proposalSections, renderSolutionProposalPdf } from './solution-proposal-file';
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
 import {
   postSolutionAiWebhook,
   readSolutionAgentConfig,
@@ -211,7 +208,7 @@ export class LeadsFunnelService {
   async notifyAmSolutionHandoff(leadId: number): Promise<void> {
     const payload = caseStaffNotify({ kind: 'submitted_to_am', leadId });
     const notifiedUsers = new Set<string>();
-    const staffIds = await this.pgRepo.amDeskStaffIds();
+    const staffIds = await this.pgRepo.solutionPoolStaffIds();
     const staffUserIds = await Promise.all(
       staffIds.map((staffId) => this.notifications.notifyStaff(staffId, payload).catch(() => null)),
     );
@@ -2254,21 +2251,6 @@ export class LeadsFunnelService {
     if (!packed || !Object.values(packed.sections).some((text) => String(text ?? '').trim())) {
       throw new BadRequestException({ error: 'solution_ai_missing', message: 'Chưa có bản Solution để xuất file.' });
     }
-    const proposal = await this.attachSolutionProposal(
-      leadId,
-      packed.title || `Solution PTT Ads — Lead ${leadId}`,
-      packed.sections,
-      staffUser,
-    );
-    return { ok: true, ...proposal, funnel: await this.getFunnel(leadId) };
-  }
-
-  private async attachSolutionProposal(
-    leadId: number,
-    title: string,
-    sections: SolutionAiSections,
-    staffUser?: StaffJwtPayload,
-  ) {
     const dateLabel = new Intl.DateTimeFormat('vi-VN', {
       timeZone: 'Asia/Ho_Chi_Minh',
       day: '2-digit',
@@ -2277,44 +2259,16 @@ export class LeadsFunnelService {
     }).format(new Date());
     const clientName = (await this.pgRepo.getLeadCompanyName(leadId)) || `Lead ${leadId}`;
     const amName = String(staffUser?.display_name || staffUser?.email || '').trim();
-    const rendered = proposalSections(sections);
-    const input = { title, clientName, amName, dateLabel, sections: rendered };
-    const pdf = await renderSolutionProposalPdf(input);
-    const dir = join(process.cwd(), 'data', 'solution-proposals', String(leadId));
-    mkdirSync(dir, { recursive: true });
-    const pdfName = `Solution PTT Ads - ${clientName}.pdf`;
-    const pdfPath = join(dir, 'solution-ptt.pdf');
-    const docxPath = join(dir, 'solution-ptt.docx');
-    writeFileSync(pdfPath, pdf);
-    if (existsSync(docxPath)) unlinkSync(docxPath);
-    const plan = await this.requirePreliminaryPlan(leadId);
-    const content = planContentFromRow(plan);
-    const existing = parseSolutionStoredFiles(content.strategy_framework).filter(
-      (file) => !/^Solution PTT Ads - /i.test(file.name) && !/^solution-ptt-docx-/i.test(file.id),
-    );
-    const additions = [
-      {
-        id: `solution-ptt-pdf-${leadId}`,
-        name: pdfName,
-        mime: 'application/pdf',
-        data_url: `data:application/pdf;base64,${pdf.toString('base64')}`,
-        size: pdf.length,
-      },
-    ];
-    const attached = existing.length + additions.length <= SOLUTION_FILE_MAX_COUNT;
-    if (attached) {
-      await this.pgRepo.patchMarketingPlan(leadId, {
-        strategy_framework: {
-          ...content.strategy_framework,
-          mkt_files: JSON.stringify([...existing, ...additions]),
-        },
-      });
-    }
+    const buffer = await renderSolutionProposalPdf({
+      title: packed.title || `Solution PTT Ads — Lead ${leadId}`,
+      clientName,
+      amName,
+      dateLabel,
+      sections: proposalSections(packed.sections),
+    });
     return {
-      attached,
-      warning: attached ? undefined : 'Tối đa 5 file. File PDF đã lưu trên máy chủ nhưng chưa gắn vào danh sách.',
-      pdf_path: pdfPath,
-      files: additions.map((file) => ({ id: file.id, name: file.name, mime: file.mime })),
+      buffer,
+      filename: `Solution PTT Ads - ${clientName}.pdf`,
     };
   }
 
@@ -2429,13 +2383,7 @@ export class LeadsFunnelService {
         status: 'ready',
         sourceErrors: sources.errors,
       });
-      const proposal = await this.attachSolutionProposal(leadId, generated.title, generated.sections, staffUser).catch((err: unknown) => {
-        new Logger(LeadsFunnelService.name).warn(
-          `Solution file export skipped: ${err instanceof Error ? err.message : err}`,
-        );
-        return null;
-      });
-      return { ...saved, warnings: missing, proposal };
+      return { ...saved, warnings: missing };
     } catch (err) {
       this.funnelError(err);
     }

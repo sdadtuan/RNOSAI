@@ -58,17 +58,26 @@ export async function deleteSolutionStoredFile(token: string, leadId: number, fi
   if (!res.ok) throw new Error(await readError(res));
 }
 
-export async function exportSolutionProposalFiles(
+export async function downloadSolutionProposal(
   token: string,
   leadId: number,
-): Promise<{ files: Array<{ id: string; name: string; mime: string }>; attached: boolean; warning?: string }> {
+  customerName: string,
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/presales/solution-proposal/export`, {
     method: 'POST',
-    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: '{}',
+    headers: authHeaders(token),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json() as Promise<{ files: Array<{ id: string; name: string; mime: string }>; attached: boolean; warning?: string }>;
+  const pdf = await res.blob();
+  if (pdf.type !== 'application/pdf') throw new Error('CRM API không trả về file PDF.');
+  const url = URL.createObjectURL(pdf);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `Solution PTT Ads - ${customerName || `Lead ${leadId}`}.pdf`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function saveSolutionAiSectionBodies(

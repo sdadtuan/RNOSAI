@@ -27393,6 +27393,12 @@ html.rs-mobile-chrome .crm-leads-signal {
   justify-content: space-between;
   gap: 8px 12px;
 }
+.solution-ai-doc--collapsed .solution-ai-doc__header {
+  border-bottom: none;
+}
+.solution-ai-doc--collapsed .solution-ai-doc__header--compact {
+  padding-bottom: 14px;
+}
 .solution-ai-doc__head-main {
   flex: 1 1 220px;
   min-width: 0;

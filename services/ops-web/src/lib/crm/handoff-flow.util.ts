@@ -263,7 +263,7 @@ export function withSubmittedToCeoFlowInput(
   quoteSentToCeo = false,
 ): HandoffFlowInput {
   if (!isQuoteAwaitingCeo(input, quoteSentToCeo)) return input;
-  return { ...input, quotePhase: input.quotePhase || 'ceo_review' };
+  return { ...input, quotePhase: 'ceo_review' };
 }
 
 export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStepKey {
@@ -292,8 +292,6 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
   }
 
   if (
-    status === 'dam_phan' ||
-    status === 'negotiation' ||
     quote === 'sale_review' ||
     quote === 'ceo_review' ||
     (Boolean(String(input.quoteSentBackAt ?? '').trim()) && !String(input.quoteApprovedAt ?? '').trim())
@@ -310,6 +308,8 @@ export function resolveHandoffFlowStep(input: HandoffFlowInput): HandoffFlowStep
     handoff === 'released' ||
     status === 'bao_gia' ||
     status === 'proposal' ||
+    status === 'dam_phan' ||
+    status === 'negotiation' ||
     quote === 'chuyen_bao_gia' ||
     quote === 'bao_gia' ||
     quote === 'sale_approve_solution'
@@ -546,6 +546,7 @@ export interface HandoffKanbanLead {
   quote_case_open?: boolean;
   has_contract?: boolean;
   quote_approved?: boolean;
+  quote_sent_to_sale?: boolean;
 }
 
 /**
@@ -568,15 +569,21 @@ export function kanbanCardPartyNames(lead: {
 }
 
 export function kanbanColumnIdForLead(lead: HandoffKanbanLead): string {
+  const status = norm(lead.status);
   const view = resolveHandoffFlow({
     leadStatus: lead.status,
     handoffStatus: lead.solution_handoff,
     hasContract: Boolean(lead.has_contract),
-    quotePhase: lead.status === 'trien_khai' ? 'trien_khai' : lead.quote_approved ? 'hop_dong' : lead.quote_case_open ? 'bao_gia' : null,
+    quotePhase: status === 'trien_khai' ? 'trien_khai'
+      : lead.quote_approved ? 'hop_dong'
+      : lead.quote_sent_to_sale ? 'ceo_review'
+      : lead.quote_case_open ? 'bao_gia' : null,
   });
+  if (view.currentKey === 'await_solutions' && norm(lead.solution_handoff) === 'with_solution') {
+    return 'dang_lam_solutions';
+  }
   const col = HANDOFF_FLOW_KANBAN_COLUMNS.find((c) => c.stepKey === view.currentKey);
   if (col) return col.id;
-  const status = norm(lead.status);
   for (const c of HANDOFF_FLOW_KANBAN_COLUMNS) {
     if (c.statuses.includes(status)) return c.id;
   }

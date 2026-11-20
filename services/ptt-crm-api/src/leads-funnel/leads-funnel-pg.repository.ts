@@ -2474,10 +2474,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return this.mapPresalesRow(updatedRow);
   }
 
-  /** Solution pool member: active and AM position (ACM/KD-01) or HR "Nhận Solution". */
+  /** Solution auto-assign / claim pool: active staff with Nhận Solution only. */
   async isSolutionPoolMember(staffId: number): Promise<boolean> {
     if (!Number.isInteger(staffId) || staffId <= 0) return false;
-    return this.staffIsEligibleSolutionOwner(staffId);
+    const active = await this.db.query(
+      `SELECT 1 AS ok FROM crm_staff WHERE id = $1 AND active IS TRUE LIMIT 1`,
+      [staffId],
+    );
+    if (!active.rows.length) return false;
+    return this.staffCanReceiveSolution(staffId);
   }
 
   private assignmentLogOwnerKind: Promise<boolean> | null = null;
@@ -2525,12 +2530,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       const pool = await client.query(
         `SELECT s.id
            FROM crm_staff s
-           LEFT JOIN crm_positions p ON p.id = s.position_id
           WHERE s.active IS TRUE
-            AND (
-              lower(replace(COALESCE(p.code, ''), ' ', '')) IN ('acm', 'kd-01', 'kd01')
-              OR COALESCE(s.can_receive_solution, FALSE) IS TRUE
-            )`,
+            AND COALESCE(s.can_receive_solution, FALSE) IS TRUE`,
       );
       const lastAuto = await client.query(
         `SELECT to_owner_id FROM crm_lead_assignment_log
@@ -2969,6 +2970,34 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       id: Number(row.id),
       name: String(row.name ?? '').trim(),
     }));
+  }
+
+  private async solutionPoolStaff(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT s.id, s.name
+         FROM crm_staff s
+        WHERE s.active IS TRUE
+          AND COALESCE(s.can_receive_solution, FALSE) IS TRUE
+        ORDER BY s.id`,
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? '').trim(),
+    }));
+  }
+
+  /** Staff ids eligible for Solution desk notifications and auto-assign (Nhận Solution only). */
+  async solutionPoolStaffIds(): Promise<number[]> {
+    const result = await this.db.query(
+      `SELECT s.id AS staff_id
+         FROM crm_staff s
+        WHERE s.active IS TRUE
+          AND COALESCE(s.can_receive_solution, FALSE) IS TRUE
+        ORDER BY s.id`,
+    );
+    return result.rows
+      .map((row) => Number(row.staff_id))
+      .filter((id) => Number.isInteger(id) && id > 0);
   }
 
   private async marketingLeaders(): Promise<Array<{ id: number; name: string }>> {
@@ -3804,21 +3833,21 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (snap.presales.solution_approved_at) {
       throw new Error('Solution đã được Approve.');
     }
-    const ams = await this.accountManagers();
+    const pool = await this.solutionPoolStaff();
     const ownerId = snap.presales.solution_owner_staff_id;
     const ownerPos = ownerId ? await this.staffPositionCode(ownerId) : '';
-    const ownerIsAm = isAccountManagerPosition(ownerPos);
     const ownerIsGrandfatherMkl =
       ownerId != null && ownerId > 0 && grandfatheredMarketingLeaderOwner(ownerPos);
+    const ownerInPool = ownerId != null && ownerId > 0 && (await this.isSolutionPoolMember(ownerId));
     const assigneeId =
-      ownerIsAm || ownerIsGrandfatherMkl
+      ownerInPool || ownerIsGrandfatherMkl
         ? ownerId!
         : preferredAccountManagerId(
-            ams.map((row) => row.id),
+            pool.map((row) => row.id),
             null,
           );
     const assigneeName =
-      ams.find((row) => row.id === assigneeId)?.name || (await this.staffNameById(assigneeId));
+      pool.find((row) => row.id === assigneeId)?.name || (await this.staffNameById(assigneeId));
     await this.db.query(
       `UPDATE crm_lead_presales
        SET solution_approved_at = NOW(),
@@ -4609,7 +4638,6 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   }
 
   async solutionDeskAuthUserIds(): Promise<string[]> {
-    const am = await this.accountManagerAuthUserIds();
     try {
       const flagged = await this.db.query(
         `SELECT DISTINCT u.id::text AS user_id
@@ -4618,10 +4646,9 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           WHERE s.active IS TRUE
             AND COALESCE(s.can_receive_solution, FALSE) IS TRUE`,
       );
-      const extra = flagged.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
-      return [...new Set([...am, ...extra])];
+      return flagged.rows.map((row) => String(row.user_id ?? '').trim()).filter(Boolean);
     } catch {
-      return am;
+      return [];
     }
   }
 }

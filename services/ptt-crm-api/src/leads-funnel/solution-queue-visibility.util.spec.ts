@@ -1,5 +1,6 @@
 import {
   ownerOrSubmittedSolutionSql,
+  quoteStageAssigneeMatchSql,
   releasedSolutionAssigneeMatchSql,
   submittedSolutionVisibleSql,
   submittedSolutionVisibleTo,
@@ -27,8 +28,8 @@ describe('submitted solution queue visibility', () => {
     expect(sql).toContain('l.owner_id = $3');
     expect(sql).toContain("COALESCE(al.owner_kind, '') = 'solution'");
     expect(sql).toContain('al.to_owner_id = $3');
-    expect(sql).toContain("'acm', 'kd-01', 'kd01'");
     expect(sql).toContain("'mkl', 'mkt-01', 'mkt01'");
+    expect(sql).not.toContain('can_receive_solution');
     expect(sql).not.toContain('last_solution_owner_staff_id');
     expect(sql).not.toContain('solution_owner_staff_id');
     expect(sql).not.toContain('assigned_am');
@@ -44,5 +45,18 @@ describe('submitted solution queue visibility', () => {
     expect(sql).toContain('al.to_owner_id = $1');
     expect(sql).not.toContain('last_solution_owner_staff_id');
     expect(sql).not.toContain('ps_sol.assigned_am');
+  });
+
+  it('keeps quote-assignee AM visible from quote stage onward (awaiting CEO, Ký hợp đồng, Triển khai)', () => {
+    const quoteSql = quoteStageAssigneeMatchSql('l', '$1');
+    expect(quoteSql).toContain('ps_quote.quote_assignee_staff_id = $1');
+    expect(quoteSql).toContain('ps_quote.solution_approved_at IS NOT NULL');
+    expect(quoteSql).toContain('ps_quote.quote_sent_back_at IS NOT NULL');
+    expect(quoteSql).toContain('ps_quote.quote_approved_at IS NOT NULL');
+    expect(quoteSql).toContain("'bao_gia', 'dam_phan', 'hop_dong', 'ky_hop_dong', 'trien_khai'");
+
+    const listSql = ownerOrSubmittedSolutionSql('l', '$1');
+    expect(listSql).toContain('ps_quote.quote_assignee_staff_id = $1');
+    expect(listSql).toContain('ps_quote.quote_approved_at IS NOT NULL');
   });
 });

@@ -67,9 +67,9 @@ function migrateLegacyChecked(
   return checked;
 }
 
-function parseResponsesBlock(
+export function parseDiscoveryResponses(
   answers: Record<string, unknown> | undefined,
-  checked: Record<string, boolean>,
+  checked: Record<string, boolean> = {},
 ): Record<string, DiscoveryResponseEntry> {
   const raw = answers?.discovery_responses;
   const responses: Record<string, DiscoveryResponseEntry> = {};
@@ -107,7 +107,7 @@ export function parseDiscoveryChecklist(
       ? migrateLegacyChecked(checkedRaw, questionItems)
       : {};
   const responses =
-    storedMode === sessionMode ? parseResponsesBlock(answers, checked) : {};
+    storedMode === sessionMode ? parseDiscoveryResponses(answers, checked) : {};
   return { mode: sessionMode, checked, responses, notes };
 }
 

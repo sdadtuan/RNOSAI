@@ -22,6 +22,7 @@ import {
   canViewOrgAdmin,
   useAdminCrmAuth,
 } from '@/lib/admin/use-admin-crm-auth';
+import { isAccountManagerPositionCode } from '@/lib/crm/lead-ae-visibility';
 
 type StepId = 'profile' | 'access' | 'account' | 'uat';
 
@@ -88,7 +89,12 @@ function AdminOrgUserOnboardPageContent() {
     (id: number) => {
       setPositionId(id);
       const pos = positions.find((p) => p.id === id);
-      if (pos) setJobTitle(pos.name);
+      if (pos) {
+        setJobTitle(pos.name);
+        if (isAccountManagerPositionCode(pos.code)) {
+          setCanReceiveSolution(true);
+        }
+      }
     },
     [positions],
   );

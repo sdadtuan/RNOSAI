@@ -17,7 +17,7 @@ import {
   isLeadPartyLogoMimeAllowed,
   leadPartyLogoExt,
 } from './lead-party.util';
-import { assertEligibleLeadOwner } from '../ae-team/eligible-lead-owner';
+import { assertEligibleLeadOwner, isEligibleLeadOwner } from '../ae-team/eligible-lead-owner';
 import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { DomainEventService } from '../events/domain-event.service';
@@ -81,6 +81,17 @@ export class LeadsWriteService {
   private readonly notifyLogger = new Logger(LeadsWriteService.name);
 
   /** Stage-1 claim round: new lead (auto) or hand-assign (manual) to a Sale. Never blocks the write. */
+  async isEligibleSalesLeadOwner(staffId: number | null | undefined): Promise<boolean> {
+    const id = Number(staffId);
+    if (!Number.isFinite(id) || id <= 0) return false;
+    const query = (sql: string, params: unknown[] = []) => this.writeRepo.query(sql, params);
+    const [saleOk, eligibleOk] = await Promise.all([
+      isSalesStaff(query, id).catch(() => false),
+      isEligibleLeadOwner(query, id).catch(() => false),
+    ]);
+    return saleOk && eligibleOk;
+  }
+
   private async startSalesClaimRound(input: {
     leadId: number;
     ownerId: number;
@@ -301,8 +312,12 @@ export class LeadsWriteService {
     }
     let lead = await this.leadsRepo.getLeadById(leadId);
     if (!lead) throw new NotFoundException({ error: 'Not found' });
-    if (lead.owner_id == null) {
-      const query = (sql: string, params: unknown[] = []) => this.writeRepo.query(sql, params);
+    const query = (sql: string, params: unknown[] = []) => this.writeRepo.query(sql, params);
+    const ownerEligible =
+      lead.owner_id != null
+        ? await isEligibleLeadOwner(query, Number(lead.owner_id)).catch(() => false)
+        : false;
+    if (lead.owner_id == null || !ownerEligible) {
       const pool = await listSalesOrder(query, null).catch(() => ({ order: [] as number[], source: 'global' as const }));
       const paused = await loadPausedSales(query).catch(() => new Set<number>());
       const picked = pickFirstSale(pool.order, null, paused);
@@ -313,6 +328,10 @@ export class LeadsWriteService {
           actor,
         );
         return lead;
+      }
+      if (lead.owner_id != null) {
+        const cleared = await this.writeRepo.patchLead(leadId, { owner_id: null });
+        if (cleared?.lead) lead = cleared.lead;
       }
     }
     if (lead.owner_id != null && isStep1Status(lead.status)) {

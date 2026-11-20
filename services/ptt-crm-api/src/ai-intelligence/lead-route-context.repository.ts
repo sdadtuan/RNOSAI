@@ -49,7 +49,7 @@ export class LeadRouteContextRepository {
     if (snapshot.reProjectId) {
       try {
         const out = await this.reProjects.listStaff(snapshot.reProjectId);
-        pool = out.staff.filter((row) => row.assign_enabled && row.active);
+        pool = out.staff.filter((row) => row.assign_enabled && row.active && row.can_receive_leads !== false);
       } catch {
         pool = [];
       }

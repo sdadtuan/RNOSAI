@@ -435,6 +435,7 @@ export interface ReProjectStaffRow {
   role: string;
   role_label: string;
   assign_enabled: boolean;
+  can_receive_leads?: boolean;
   sort_order: number;
   joined_at: string;
   left_at: string | null;

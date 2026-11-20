@@ -189,7 +189,9 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
       id: Number(row.id), project_id: Number(row.project_id), staff_id: Number(row.staff_id),
       staff_name: String(row.staff_name ?? ''), staff_code: String(row.staff_code ?? ''),
       role, role_label: PROJECT_STAFF_ROLE_LABELS[role] ?? role,
-      assign_enabled: Boolean(Number(row.assign_enabled ?? 0)), sort_order: Number(row.sort_order ?? 0),
+      assign_enabled: Boolean(Number(row.assign_enabled ?? 0)),
+      can_receive_leads: row.can_receive_leads == null ? true : Boolean(row.can_receive_leads === true || row.can_receive_leads === 1),
+      sort_order: Number(row.sort_order ?? 0),
       joined_at: String(row.joined_at ?? ''), left_at: row.left_at ? String(row.left_at) : null,
       active: !row.left_at, scope_product_lines: scopeLines, scope_zones: scopeZones,
       scope_product_lines_label: scopeLines.length
@@ -206,7 +208,7 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
   async listProjectStaff(projectId: number, activeOnly = true): Promise<ReProjectStaffRow[]> {
     await this.validateProjectExists(projectId);
     const result = await this.query(
-      `SELECT ps.*,s.name AS staff_name,COALESCE(s.internal_code,'') AS staff_code
+      `SELECT ps.*,s.name AS staff_name,COALESCE(s.internal_code,'') AS staff_code,COALESCE(s.can_receive_leads,FALSE) AS can_receive_leads
        FROM crm_re_project_staff ps JOIN crm_staff s ON s.id=ps.staff_id
        WHERE ps.project_id=$1 ${activeOnly ? 'AND ps.left_at IS NULL AND COALESCE(s.active, FALSE) IS TRUE' : ''}
        ORDER BY ps.sort_order,ps.id`, [projectId],

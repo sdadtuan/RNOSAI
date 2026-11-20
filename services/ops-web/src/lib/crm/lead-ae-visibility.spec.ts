@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
 import type { LeadAuditBundle } from '@/lib/api';
-import { isAccountExecutive, isAccountManager, isMarketingLeader, isSuperAdmin, leadAuditForViewer } from './lead-ae-visibility';
+import {
+  isAccountExecutive,
+  isAccountManager,
+  isAccountManagerPositionCode,
+  isMarketingLeader,
+  isSuperAdmin,
+  leadAuditForViewer,
+} from './lead-ae-visibility';
 
 function viewer(partial: Partial<StoredStaffUser>): StoredStaffUser {
   return {
@@ -38,6 +45,9 @@ describe('lead AE visibility', () => {
     expect(isMarketingLeader(viewer({ position_code: 'AE' }))).toBe(false);
     expect(isAccountManager(viewer({ position_code: 'KD-01' }))).toBe(true);
     expect(isAccountManager(viewer({}))).toBe(false);
+    expect(isAccountManagerPositionCode('MKL')).toBe(false);
+    expect(isAccountManagerPositionCode('mkt-01')).toBe(false);
+    expect(isAccountManagerPositionCode('kd01')).toBe(true);
   });
 
   it('hides assign-unrelated audit and keeps only rows about this AE', () => {

@@ -7,6 +7,7 @@ import { LeadAutoAssignService } from './lead-auto-assign.service';
 import { LeadDedupRepository, type LeadDuplicateMatch } from './lead-dedup.repository';
 import { normalizeEmail, normalizePhone } from './lead-contact.util';
 import { LeadIngestRulesRepository } from './lead-ingest-rules.repository';
+import { isEligibleLeadOwner } from '../../ae-team/eligible-lead-owner';
 import {
   isSalesStaff,
   listSalesOrder,
@@ -115,13 +116,20 @@ export class LeadCreateEnrichmentService {
     let ownerId = body.owner_id ?? null;
     let assignStrategy = '';
     let b2bFirstAssignMeta: EnrichedCreateLeadBody['b2b_first_assign'];
+    const hasSqlQuery = typeof (this.rulesRepo as { query?: unknown }).query === 'function';
     const sqlQuery = (sql: string, params: unknown[] = []) => this.rulesRepo.query(sql, params);
     // Doc V5.1 §01: CRM auto-gives every new lead to Sales #1. An owner sent by the creator
-    // (Admin / AM / GĐKD creating by hand) is not kept unless that owner is a Sale.
+    // (Admin / AM / GĐKD / unticked Sale) is not kept unless that owner is an eligible Sale.
     let explicitOwner = ownerId != null && Number(ownerId) > 0;
-    if (explicitOwner && !(await isSalesStaff(sqlQuery, Number(ownerId)).catch(() => true))) {
-      meta.assign_override_from = Number(ownerId);
-      explicitOwner = false;
+    if (explicitOwner && hasSqlQuery) {
+      const candidateId = Number(ownerId);
+      const saleOk = await isSalesStaff(sqlQuery, candidateId).catch(() => false);
+      const eligibleOk = saleOk ? await isEligibleLeadOwner(sqlQuery, candidateId).catch(() => false) : false;
+      if (!saleOk || !eligibleOk) {
+        meta.assign_override_from = candidateId;
+        explicitOwner = false;
+        ownerId = null;
+      }
     }
 
     if (
@@ -187,7 +195,6 @@ export class LeadCreateEnrichmentService {
         meta.auto_assigned_at = new Date().toISOString();
         await this.rulesRepo.persistAssignmentState(poolKey, picked).catch(() => undefined);
       } else {
-        if (meta.assign_override_from != null) ownerId = Number(meta.assign_override_from);
         meta.assign_failed = true;
         meta.assign_failed_at = new Date().toISOString();
         meta.assign_failed_reason = 'Không có Sales đang nhận lead';
@@ -195,11 +202,23 @@ export class LeadCreateEnrichmentService {
     }
 
     if (isDuplicate && dupMatch?.owner_id != null && Number(dupMatch.owner_id) > 0) {
-      ownerId = Number(dupMatch.owner_id);
-      assignStrategy = 'duplicate_owner';
-      meta.assign_strategy = 'duplicate_owner';
-      meta.assign_reason = `duplicate_of_${dupMatch.lead_id}`;
-      meta.auto_assigned_at = new Date().toISOString();
+      const dupOwnerId = Number(dupMatch.owner_id);
+      const dupOwnerEligible = hasSqlQuery
+        ? await isEligibleLeadOwner(sqlQuery, dupOwnerId).catch(() => false)
+        : true;
+      if (dupOwnerEligible) {
+        ownerId = dupOwnerId;
+        assignStrategy = 'duplicate_owner';
+        meta.assign_strategy = 'duplicate_owner';
+        meta.assign_reason = `duplicate_of_${dupMatch.lead_id}`;
+        meta.auto_assigned_at = new Date().toISOString();
+      } else {
+        ownerId = null;
+        assignStrategy = 'duplicate_owner_ineligible';
+        meta.assign_strategy = 'duplicate_owner_ineligible';
+        meta.assign_reason = `duplicate_of_${dupMatch.lead_id}`;
+        meta.duplicate_ineligible_owner_id = dupOwnerId;
+      }
     }
 
     if (assignStrategy) {

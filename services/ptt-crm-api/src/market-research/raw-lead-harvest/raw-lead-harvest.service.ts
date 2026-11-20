@@ -14,7 +14,7 @@ import {
   isDialOutcome,
   isFeedbackCode,
 } from './blacklist.util';
-import { buildRawLeadsCsv } from './export-csv.util';
+import { buildRawLeadsXlsx } from './export-csv.util';
 import { HarvestWorkerService } from './harvest-worker.service';
 import { IntentHarvestWorker } from './intent/intent-harvest.worker';
 import { MarketEntitiesRepository } from './market-graph/market-entities.repository';
@@ -1205,8 +1205,8 @@ export class RawLeadHarvestService {
       status: body.status,
       contactableOnly: body.lead_ids?.length ? false : true,
     });
-    const csv = buildRawLeadsCsv(leads);
-    return { csv, count: leads.length };
+    const xlsx = await buildRawLeadsXlsx(leads);
+    return { xlsx_base64: xlsx.toString('base64'), count: leads.length };
   }
 
   async pushToCrm(projectId: number, body: PushRawLeadsBody) {

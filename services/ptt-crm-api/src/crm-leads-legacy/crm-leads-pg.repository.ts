@@ -90,6 +90,7 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
               'sales' AS role, id AS sort_order
        FROM crm_staff
        WHERE COALESCE(active, TRUE) = TRUE
+         AND COALESCE(can_receive_leads, FALSE) IS TRUE
        ORDER BY id ASC
        LIMIT $1`,
       [lim],

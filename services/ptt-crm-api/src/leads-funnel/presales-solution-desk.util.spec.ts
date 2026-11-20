@@ -6,12 +6,14 @@ import {
 import { holdsQuoteDesk } from './quote-case.util';
 
 describe('presales solution desk', () => {
-  it('allows AM to claim solution cases', () => {
+  it('requires Nhận Solution (not AM position alone) to claim', () => {
     expect(holdsSolutionDesk('kd-01')).toBe(true);
-    expect(canClaimSolutionCase('acm')).toBe(true);
+    expect(canClaimSolutionCase('acm')).toBe(false);
+    expect(canClaimSolutionCase('acm', { canReceiveSolution: true })).toBe(true);
     expect(canClaimSolutionCase('mkl')).toBe(false);
     expect(canClaimSolutionCase('ae', { canReceiveSolution: true })).toBe(true);
     expect(canClaimSolutionCase('ae', { canReceiveSolution: false })).toBe(false);
+    expect(canClaimSolutionCase('acm', { asSuperAdmin: true })).toBe(true);
   });
 
   it('grandfathers in-flight MKL quote owners', () => {

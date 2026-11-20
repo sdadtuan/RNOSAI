@@ -476,10 +476,7 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
               ), 0) AS open_attempting
        FROM crm_staff s
        WHERE s.active IS TRUE
-         AND (
-           COALESCE(s.can_receive_leads, FALSE) IS TRUE
-           OR lower(COALESCE(s.job_title, '')) ~ '(am|account|sales|ae|kinh doanh)'
-         )
+         AND COALESCE(s.can_receive_leads, FALSE) IS TRUE
        ORDER BY s.id ASC`,
     );
     return result.rows.map((r) => ({

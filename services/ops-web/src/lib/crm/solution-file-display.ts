@@ -79,6 +79,8 @@ export function readSolutionAttachments(plan: Record<string, unknown> | null): S
     if (!row || typeof row !== 'object') return [];
     const file = row as Partial<SolutionAttachment>;
     if (!file.name || !file.data_url) return [];
+    // Previous AI exports used reserved IDs in the attachment list.
+    if (/^solution-ptt-(?:pdf|docx)-\d+$/i.test(String(file.id ?? ''))) return [];
     const size = Number(file.size);
     return [
       {

@@ -3,16 +3,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   fetchDiscoveryOptions,
+  fetchIntakeDefinitionBySlug,
   fetchIntakeSessions,
   type DiscoveryOptionsPayload,
   type IntakeSessionRow,
 } from '@/lib/api';
 import {
+  normalizeIntakeMode,
+  parseDiscoveryChecklist,
+  parseDiscoveryResponses,
+  questionItemsForMode,
+} from '@/lib/crm/intake-discovery';
+import {
   authorityLabel,
   budgetLabel,
   channelLabels,
   discoveryServiceChips,
+  normalizeSalesDiscoveryBrief,
   optionLabel,
+  prefillSalesDiscovery,
   readDiscoveryBriefFromAnswers,
   temperatureLabel,
   timelineLabel,
@@ -152,6 +161,36 @@ function pickSession(sessions: IntakeSessionRow[]): IntakeSessionRow | null {
   return completed[0] ?? draft[0] ?? sessions[0] ?? null;
 }
 
+export async function readSavedSalesBrief(token: string, session: IntakeSessionRow | null) {
+  const savedBrief = readDiscoveryBriefFromAnswers(session?.answers_json);
+  if (savedBrief || session?.status !== 'completed') return savedBrief;
+  const mode = normalizeIntakeMode(session.mode);
+  const definition = session.service_slug
+    ? await fetchIntakeDefinitionBySlug(token, session.service_slug).catch(() => null)
+    : null;
+  const questions = questionItemsForMode(definition, mode);
+  const checklist = parseDiscoveryChecklist(session.answers_json, mode, questions);
+  const labels = new Map(questions.map(({ key, text }) => [key, text]));
+  const responses = Object.entries(parseDiscoveryResponses(session.answers_json))
+    .filter(([, response]) => response.answer.trim())
+    .map(([key, response]) => `${labels.get(key) || key}: ${response.answer}`);
+  const brief = prefillSalesDiscovery({ session });
+  const crm = session.answers_json?.crm_fields as Record<string, unknown> | undefined;
+  const saved = (key: string) => typeof crm?.[key] === 'string' ? String(crm[key]) : '';
+  brief.marketing_goal = saved('goal');
+  brief.target_customers = saved('target_audience');
+  brief.budget_band = saved('budget_band');
+  brief.timeline_band = saved('timeline_band');
+  brief.region = saved('region');
+  brief.industry = saved('industry');
+  brief.flagship_product = saved('flagship_product');
+  brief.priority_product = saved('priority_product');
+  brief.difficulties = saved('difficulties');
+  brief.websites = ['website', 'fanpage', 'tiktok'].map(saved).filter(Boolean).join('\n');
+  brief.call_notes = [brief.call_notes || checklist.notes, ...responses].filter(Boolean).join('\n');
+  return normalizeSalesDiscoveryBrief({ ...brief, budget_authority: saved('budget_authority') });
+}
+
 export function SalesDiscoveryReadOnlyPanel({
   token,
   leadId,
@@ -162,17 +201,24 @@ export function SalesDiscoveryReadOnlyPanel({
   const [brief, setBrief] = useState<SalesDiscoveryBrief | null>(null);
   const [options, setOptions] = useState<DiscoveryOptionsPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(false);
     void Promise.all([
-      fetchIntakeSessions(token, { lead_id: leadId }).catch(() => [] as IntakeSessionRow[]),
+      fetchIntakeSessions(token, { lead_id: leadId }),
       fetchDiscoveryOptions(token).catch(() => null),
-    ]).then(([sessions, opts]) => {
-      if (cancelled) return;
+    ]).then(async ([sessions, opts]) => {
       const session = pickSession(sessions);
-      setBrief(readDiscoveryBriefFromAnswers(session?.answers_json) ?? null);
+      const saved = await readSavedSalesBrief(token, session);
+      if (cancelled) return;
+      setBrief(saved);
       setOptions(opts);
+      setLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setError(true);
       setLoading(false);
     });
     return () => {
@@ -180,5 +226,6 @@ export function SalesDiscoveryReadOnlyPanel({
     };
   }, [token, leadId]);
   if (loading) return <p className="muted">Đang tải Sales Brief…</p>;
+  if (error) return <p role="alert">Không tải được Sales Brief. Hãy tải lại trang.</p>;
   return <SalesDiscoveryBriefView brief={brief} options={options} />;
 }

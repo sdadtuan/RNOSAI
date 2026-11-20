@@ -9,6 +9,21 @@ describe('formatFileSize', () => {
 });
 
 describe('readSolutionAttachments and meta', () => {
+  it('hides legacy AI exports and keeps a manual upload with the same name', () => {
+    const name = 'Solution PTT Ads - Công ty Seed 685.pdf';
+    const data_url = 'data:application/pdf;base64,AAAA';
+    const files = readSolutionAttachments({
+      strategy_framework: {
+        mkt_files: JSON.stringify([
+          { id: 'solution-ptt-pdf-920685', name, data_url },
+          { id: 'solution-ptt-docx-920685', name: 'Solution.docx', data_url },
+          { id: 'upload-1', name, data_url },
+        ]),
+      },
+    });
+    expect(files.map((file) => file.id)).toEqual(['upload-1']);
+  });
+
   it('keeps uploader, time without seconds, and size', () => {
     const files = readSolutionAttachments({
       strategy_framework: {

@@ -292,7 +292,7 @@ export class CatalogPgRepository implements OnModuleDestroy {
       `SELECT id, name, COALESCE(internal_code, '') AS internal_code
        FROM crm_staff
        WHERE active = TRUE
-         AND (can_receive_leads IS NULL OR can_receive_leads = TRUE)
+         AND COALESCE(can_receive_leads, FALSE) = TRUE
        ORDER BY lower(name) ASC
        LIMIT 500`,
     );

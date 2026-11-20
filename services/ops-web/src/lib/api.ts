@@ -566,6 +566,7 @@ export async function fetchLeads(
     review_queue_only?: boolean;
     lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
     duplicates_only?: boolean;
+    hidden_only?: boolean;
   },
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
@@ -587,6 +588,7 @@ export async function fetchLeads(
   if (params?.review_queue_only) qs.set('review_queue_only', '1');
   if (params?.lead_flow_kind) qs.set('lead_flow_kind', params.lead_flow_kind);
   if (params?.duplicates_only) qs.set('duplicates_only', '1');
+  if (params?.hidden_only) qs.set('hidden_only', '1');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/v1/leads${suffix}`, {
     headers: authHeaders(token),

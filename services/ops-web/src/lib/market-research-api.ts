@@ -2415,7 +2415,7 @@ export function exportRawLeads(
   projectId: number,
   body?: { lead_ids?: number[]; status?: string },
 ) {
-  return researchFetch<{ csv: string; count: number }>(
+  return researchFetch<{ xlsx_base64: string; count: number }>(
     token,
     `/api/v1/research/projects/${projectId}/raw-leads/export`,
     { method: 'POST', body: JSON.stringify(body ?? {}) },

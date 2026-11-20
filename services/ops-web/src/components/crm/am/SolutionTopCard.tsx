@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   estimateSolutionAiPercent,
   resolveSolutionAiCardState,
   type SolutionDeskActivity,
 } from '@/lib/crm/solution-activity';
 import { formatAttachmentMeta, formatFileSize } from '@/lib/crm/solution-file-display';
-import { formatSolutionAiTime } from '@/lib/crm/solution-ai-draft-display';
 import { openOrDownloadSolutionFile } from '@/lib/crm/solution-file-actions';
 import type { SolutionAttachment } from '@/lib/crm/solution-file-display';
+import { SolutionAiDraftBody } from '@/components/crm/SolutionAiDocument';
 
 function Bar({ percent, testId }: { percent: number; testId: string }) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
@@ -29,40 +29,37 @@ function Bar({ percent, testId }: { percent: number; testId: string }) {
 
 /**
  * Step 3 "Chờ Solutions": top card in the middle column showing the AI Solution document
- * (ĐANG TẠO x% → AI Solution) and uploaded Solution files (with upload %).
+ * once (ĐANG TẠO x% → editable AI Solution) and uploaded Solution files (with upload %).
  */
 export function SolutionTopCard({
   activity,
   canRetry,
   customerName = '',
+  contactName = '',
   leadCode = '',
   hideSettled = false,
-  onOpenAi,
   onRetryAi,
   token = '',
   leadId = 0,
   onDeleteFile,
   onSaveSections,
-  onExportProposal,
 }: {
   activity: SolutionDeskActivity | null;
   canRetry: boolean;
   customerName?: string;
+  contactName?: string;
   leadCode?: string;
   /** File Solution tab is open: only show live progress (AI ĐANG TẠO / LỖI, upload %), not the settled rows. */
   hideSettled?: boolean;
-  onOpenAi: () => void;
   onRetryAi: () => void;
   token?: string;
   leadId?: number;
   onDeleteFile?: (file: SolutionAttachment) => void;
   onSaveSections?: (sections: Array<{ key: string; label: string; body: string }>) => Promise<void>;
-  onExportProposal?: () => Promise<void> | void;
 }) {
   const [now, setNow] = useState(() => Date.now());
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorSections, setEditorSections] = useState<Array<{ key: string; label: string; body: string }>>([]);
   const [editorBusy, setEditorBusy] = useState(false);
+  const sectionsRef = useRef<Array<{ key: string; label: string; body: string }>>([]);
   const aiState = resolveSolutionAiCardState(activity, now);
   const running = aiState.kind === 'running';
   useEffect(() => {
@@ -135,95 +132,34 @@ export function SolutionTopCard({
       ) : null}
 
       {aiState.kind === 'done' && !hideSettled ? (
-        <>
-        <div className="ahd-sol-row ahd-sol-row--ai" data-testid="ahd-solution-top-ai-done">
-          <span className="ahd-sol-icon" aria-hidden>AI</span>
-          <div className="ahd-sol-main">
-            <div className="ahd-sol-name">
-              {aiState.draft.title || 'AI Solution'}
-              <span className="ahd-sol-chip ahd-sol-chip--ok">AI Solution · 100%</span>
-            </div>
-            <div className="ahd-sol-meta">
-              {aiState.draft.badge}
-              {aiState.draft.requestedAt ? ` · ${formatSolutionAiTime(aiState.draft.requestedAt)}` : ''}
-            </div>
-            {aiState.draft.warnings?.length ? (
-              <p className="ahd-sol-meta ahd-sol-meta--error" data-testid="ahd-solution-top-ai-warning">
-                Thiếu dữ liệu, bản nháp vẫn được tạo với phần đánh dấu: {aiState.draft.warnings.join(', ')}.
-              </p>
-            ) : null}
-          </div>
-          <div className="ahd-sol-actions">
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--ghost"
-              data-testid="ahd-solution-top-ai-open"
-              onClick={() => {
-                onOpenAi();
-                setEditorSections(aiState.draft.sections.map((row) => ({ ...row })));
-                setEditorOpen(true);
-              }}
-            >
-              Mở / Sửa
-            </button>
-            <button
-              type="button"
-              className="ahd-btn ahd-btn--primary"
-              data-testid="ahd-solution-top-ai-download"
-              onClick={() => void onExportProposal?.()}
-            >
-              Tải
-            </button>
-          </div>
+        <div data-testid="ahd-solution-top-ai-done">
+          {aiState.draft.warnings?.length ? (
+            <p className="ahd-sol-meta ahd-sol-meta--error" data-testid="ahd-solution-top-ai-warning">
+              Thiếu dữ liệu, bản nháp vẫn được tạo với phần đánh dấu: {aiState.draft.warnings.join(', ')}.
+            </p>
+          ) : null}
+          <SolutionAiDraftBody
+            title={aiState.draft.title}
+            badge={aiState.draft.badge}
+            sections={aiState.draft.sections}
+            canEdit={Boolean(onSaveSections)}
+            busy={editorBusy}
+            companyName={customerName}
+            contactName={contactName}
+            leadCode={leadCode}
+            createdAt={aiState.draft.requestedAt}
+            onSectionChange={(key, body) => {
+              const base = sectionsRef.current.length ? sectionsRef.current : aiState.draft.sections.map((row) => ({ ...row }));
+              sectionsRef.current = base.map((row) => (row.key === key ? { ...row, body } : row));
+            }}
+            onSave={() => {
+              if (!onSaveSections) return;
+              const sections = sectionsRef.current.length ? sectionsRef.current : aiState.draft.sections;
+              setEditorBusy(true);
+              void onSaveSections(sections).finally(() => setEditorBusy(false));
+            }}
+          />
         </div>
-        {editorOpen ? (
-          <div className="ahd-sol-editor" data-testid="ahd-solution-top-ai-editor">
-            {editorSections.map((section) => (
-              <label key={section.key} className="ahd-sol-editor__field">
-                <span>{section.label}</span>
-                <textarea
-                  rows={5}
-                  value={section.body}
-                  disabled={editorBusy}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setEditorSections((current) =>
-                      current.map((row) => (row.key === section.key ? { ...row, body: value } : row)),
-                    );
-                  }}
-                />
-              </label>
-            ))}
-            <div className="ahd-sol-editor__actions">
-              <button
-                type="button"
-                className="ahd-btn ahd-btn--primary"
-                disabled={editorBusy}
-                onClick={() => {
-                  if (!onSaveSections) {
-                    setEditorOpen(false);
-                    return;
-                  }
-                  setEditorBusy(true);
-                  void onSaveSections(editorSections)
-                    .then(() => setEditorOpen(false))
-                    .finally(() => setEditorBusy(false));
-                }}
-              >
-                Lưu
-              </button>
-              <button
-                type="button"
-                className="ahd-btn ahd-btn--ghost"
-                disabled={editorBusy}
-                onClick={() => setEditorOpen(false)}
-              >
-                Hủy
-              </button>
-            </div>
-          </div>
-        ) : null}
-        </>
       ) : null}
 
       {uploading ? (

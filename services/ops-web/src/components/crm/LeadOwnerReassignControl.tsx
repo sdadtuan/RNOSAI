@@ -17,12 +17,14 @@ function codeOf(row: CrmStaffRow): string {
   return `${row.position_catalog_code ?? ''} ${row.job_title ?? ''} ${row.department ?? ''}`.toLowerCase();
 }
 
-export function staffForOwnerKind(staff: CrmStaffRow[], kind: LeadOwnerKind): CrmStaffRow[] {
+export function staffForOwnerKind(
+  staff: CrmStaffRow[],
+  kind: LeadOwnerKind,
+  opts?: { superAdmin?: boolean },
+): CrmStaffRow[] {
   const active = staff.filter((row) => row.active !== 0);
-  const match = (pred: (row: CrmStaffRow) => boolean) => {
-    const hit = active.filter(pred);
-    return hit.length ? hit : active;
-  };
+  if (opts?.superAdmin) return active;
+  const match = (pred: (row: CrmStaffRow) => boolean) => active.filter(pred);
   if (kind === 'sales') {
     return match((row) => row.can_receive_leads !== false || /sale|ae\b|kinh doanh|account executive/.test(codeOf(row)));
   }
@@ -34,7 +36,7 @@ export function staffForOwnerKind(staff: CrmStaffRow[], kind: LeadOwnerKind): Cr
   if (kind === 'quote_am') {
     return match((row) => /\bam\b|account manager|account-manager/.test(codeOf(row)));
   }
-  return match((row) => row.can_receive_solution === true || /mkt|marketing|solution/.test(codeOf(row)));
+  return match((row) => row.can_receive_solution === true);
 }
 
 export function ownerKindFromHandoffStep(step: string | null | undefined): LeadOwnerKind {
@@ -80,6 +82,7 @@ export function LeadOwnerReassignControl({
   onAssigned,
   onError,
   onMessage,
+  superAdmin = false,
 }: {
   token: string;
   leadId: number;
@@ -89,11 +92,16 @@ export function LeadOwnerReassignControl({
   onAssigned?: () => void | Promise<void>;
   onError?: (message: string) => void;
   onMessage?: (message: string) => void;
+  /** SUPER-ADMIN owner-reassign may pick any active staff. */
+  superAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [toId, setToId] = useState('');
   const [busy, setBusy] = useState(false);
-  const options = useMemo(() => staffForOwnerKind(staff, kind), [staff, kind]);
+  const options = useMemo(
+    () => staffForOwnerKind(staff, kind, { superAdmin }),
+    [staff, kind, superAdmin],
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
